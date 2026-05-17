@@ -130,8 +130,8 @@ enum LayoutOverflowMode : u8
 enum LayoutAttachment : u8
 {
     LayoutAttachment_Canonical,
-    LayoutAttachment_Mirrored,
     LayoutAttachment_Center,
+    LayoutAttachment_Mirrored,
     LayoutAttachment_Left = LayoutAttachment_Canonical,
     LayoutAttachment_Right = LayoutAttachment_Mirrored,
     LayoutAttachment_Bottom = LayoutAttachment_Canonical,
@@ -141,6 +141,7 @@ enum LayoutAttachment : u8
 struct LayoutFloatingParameters
 {
     bool Enable = false;
+    vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutAttachment> Attachment{LayoutAttachment_Canonical};
 };
 
@@ -159,7 +160,9 @@ struct LayoutElement
     vec2<LayoutSizingType> Sizing;
     vec2<LayoutOffsetType> ChildOffsetType;
     vec2<LayoutOffsetType> SelfOffsetType;
-    vec2<LayoutAttachment> FloatAttachment{LayoutAttachment_Canonical};
+    vec2<LayoutAttachment> FloatAttachment;
+    vec2<Alignment> FloatAlignment;
+    bool FloatSibling;
 
     f32v4 Padding;
 
@@ -176,8 +179,7 @@ struct LayoutElement
 
     Color FillColor;
     Color OutlineColor;
-    vec2<Alignment> SelfAlignment{Alignment_Bottom};
-    vec2<Alignment> ChildAlignment{Alignment_Bottom};
+    vec2<Alignment> Alignment{Alignment_Canonical};
     LayoutDirection Direction;
     LayoutElementType Type;
     LayoutTextMode TextMode;
@@ -199,13 +201,12 @@ struct LayoutElementInfo
     Resource Handle;
     Resource Material;
     Geometry Geo;
-    vec2<Alignment> Alignment;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
 };
 
-// TODO(Isma): Add normalized sizing
-// TODO(Isma): Add floating panels
+// TODO(Isma): Rename this file to layout
+// TODO(Isma): Implement default resources
 // TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
@@ -243,6 +244,7 @@ struct LayoutTextParameters
 
 struct LayoutSpecs
 {
+    vec2<Alignment> RootAlignment{Alignment_Canonical};
     Resource RectangleMesh = NullHandle;
     Resource RoundedRectangleMesh = NullHandle;
     Resource Font = NullHandle;

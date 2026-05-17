@@ -41,8 +41,11 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
         if (info.Type == Onyx::LayoutElement_Floating)
         {
             p.Floating.Enable = true;
-            Combo("X Attachment", &p.Floating.Attachment[0], "Left\0Right\0\0");
-            Combo("Y Attachment", &p.Floating.Attachment[1], "Bottom\0Top\0\0");
+            Combo("X Attachment", &p.Floating.Attachment[0], "Left\0Center\0Right\0\0");
+            Combo("Y Attachment", &p.Floating.Attachment[1], "Bottom\0Center\0Top\0\0");
+
+            Combo("X Float alignment", &p.Floating.Alignment[0], "Left\0Center\0Right\0\0");
+            Combo("Y Float alignment", &p.Floating.Alignment[1], "Bottom\0Center\0Top\0\0");
         }
         else
             p.Floating.Enable = false;

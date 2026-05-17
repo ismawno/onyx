@@ -559,6 +559,9 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         else
             Scale(f32v3{info.Size, 1.f}, Transform_Intrinsic);
     };
+    Push();
+    AlignX(Alignment_Left);
+    AlignY(Alignment_Bottom);
     for (const LayoutElementInfo &info : layout.GetElementsInfo())
     {
         Push();
@@ -567,8 +570,6 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         FillColor(info.FillColor);
         OutlineColor(info.OutlineColor);
         OutlineWidth(info.OutlineWidth);
-        AlignX(info.Alignment[0]);
-        AlignY(info.Alignment[1]);
 
         ClipRect<D> rect;
         if constexpr (D == D2)
@@ -620,6 +621,7 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         }
         Pop();
     }
+    Pop();
 }
 
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)

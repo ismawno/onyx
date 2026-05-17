@@ -13,6 +13,8 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     {
         current.Type = LayoutElement_Floating;
         current.FloatAttachment = params.Floating.Attachment;
+        current.FloatAlignment = params.Floating.Alignment;
+        current.FloatSibling = true;
     }
     else
         current.Type = LayoutElement_Panel;
@@ -26,8 +28,8 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
         if (parent.Children.IsEmpty())
             m_Breadth.Append(current.Parent);
         parent.Children.Append(c);
-        current.SelfAlignment = current.Type == LayoutElement_Floating ? parent.SelfAlignment : parent.ChildAlignment;
         current.SelfOverflow = parent.ChildOverflow;
+        current.FloatSibling |= parent.FloatSibling;
     }
     else
     {
@@ -39,7 +41,6 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
                     "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
 
         TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
-        current.SelfAlignment = params.Alignment;
         current.ClipMin = f32v2{TKIT_F32_LOWEST};
         current.ClipMax = f32v2{TKIT_F32_MAX};
     }
@@ -50,7 +51,7 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     current.OutlineColor = params.OutlineColor;
     current.OutlineWidth = params.OutlineWidth;
     current.Direction = params.Direction;
-    current.ChildAlignment = params.Alignment;
+    current.Alignment = params.Alignment;
     current.ChildOverflow = params.Overflow;
     current.Shape = params.Shape;
 
@@ -127,8 +128,9 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
     if (parent.Children.IsEmpty())
         m_Breadth.Append(current.Parent);
     parent.Children.Append(c);
-    current.SelfAlignment = parent.ChildAlignment;
+    current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
+    current.FloatSibling = parent.FloatSibling;
 
     for (u32 i = 0; i < 2; ++i)
     {
@@ -387,6 +389,16 @@ void Layout::wrapText()
 
 void Layout::positionPass()
 {
+    if (m_Elements.IsEmpty())
+        return;
+
+    LayoutElement &root = m_Elements.GetFront();
+    for (u32 axis = 0; axis < 2; ++axis)
+        if (m_Specs.RootAlignment[axis] == Alignment_Mirrored)
+            root.Position[axis] -= root.Size[axis];
+        else if (m_Specs.RootAlignment[axis] == Alignment_Center)
+            root.Position[axis] -= 0.5f * root.Size[axis];
+
     for (const u32 p : m_Breadth)
     {
         const LayoutElement &parent = m_Elements[p];
@@ -398,83 +410,78 @@ void Layout::positionPass()
 
         for (u32 axis = 0; axis < 2; ++axis)
         {
-            const auto computeChildSize = [this, &parent, axis, cgap] {
-                f32 totalChildSize = 0.f;
+            f32 tcs;
+            bool tcomputed = false;
+            const auto computeTotalChildrenSize = [&] {
+                if (tcomputed)
+                    return tcs;
+                tcomputed = true;
+
+                tcs = 0.f;
                 for (const u32 c : parent.Children)
-                    totalChildSize += m_Elements[c].Size[axis];
-                totalChildSize += cgap * (parent.Children.GetSize() - 1);
-                return totalChildSize;
+                    tcs += m_Elements[c].Size[axis];
+                tcs += cgap * (parent.Children.GetSize() - 1);
+                return tcs;
+            };
+
+            const auto computeMaxChildrenSize = [&] {
+                f32 mcs = 0.f;
+                for (const u32 c : parent.Children)
+                    mcs = Math::Max(mcs, m_Elements[c].Size[axis]);
+                return mcs;
+            };
+
+            const f32 p0 = parent.Padding[2 * axis];
+            const f32 p1 = parent.Padding[2 * axis + 1];
+
+            const Alignment alg = parent.Alignment[axis];
+
+            const auto computePadding = [&] {
+                if (alg == Alignment_Canonical)
+                    return p0;
+                if (alg == Alignment_Mirrored)
+                    return -p1;
+                return p0 - p1;
             };
 
             const f32 psize = parent.Size[axis];
             const f32 ppos = parent.Position[axis];
 
-            const Alignment salg = parent.SelfAlignment[axis];
-            const Alignment calg = parent.ChildAlignment[axis];
+            const auto computeAlignOffset = [&](const bool aligned, const f32 size) {
+                if (!aligned)
+                    return 0.f;
+                if (alg == Alignment_Mirrored)
+                    return psize - size;
+                if (alg == Alignment_Center)
+                    return 0.5f * (psize - size);
+                return 0.f;
+            };
+            const auto computeParentAlignOffset = [&] {
+                return computeAlignOffset(paxis == axis, computeTotalChildrenSize());
+            };
+            const auto computeChildAlignOffset = [&](const f32 size) {
+                return computeAlignOffset(paxis != axis, size);
+            };
 
-            const f32 p0 = parent.Padding[2 * axis];
-            const f32 p1 = parent.Padding[2 * axis + 1];
-
-            const f32 totChildSize = computeChildSize();
             const f32 offsetNormFactor = psize - p0 - p1;
 
             f32 coffset = parent.ChildOffset[axis];
             if (parent.ChildOffsetType[axis] != LayoutOffset_Absolute)
             {
-                const f32 factor = parent.ChildOffsetType[axis] == LayoutOffset_Normalized
-                                       ? offsetNormFactor
-                                       : (offsetNormFactor - totChildSize);
+                const f32 factor =
+                    parent.ChildOffsetType[axis] == LayoutOffset_Normalized
+                        ? offsetNormFactor
+                        : (offsetNormFactor - (paxis == axis ? computeTotalChildrenSize() : computeMaxChildrenSize()));
                 coffset *= Math::Absolute(factor);
             }
 
             const f32 clmn = parent.ClipMin[axis];
             const f32 clmx = parent.ClipMax[axis];
 
-            f32 pmn;
-            f32 pmx;
+            const f32 pmn = ppos;
+            const f32 pmx = ppos + psize;
 
-            f32 poffset = ppos + coffset;
-            // haha lots of ifs
-            if (salg == Alignment_Canonical)
-            {
-                pmn = ppos;
-                pmx = ppos + psize;
-                if (calg == Alignment_Canonical)
-                    poffset += p0;
-                else if (calg == Alignment_Mirrored)
-                    poffset += psize - p1;
-                else if (paxis == axis)
-                    poffset += 0.5f * (totChildSize + psize) + p0 - p1;
-                else
-                    poffset += p0 - p1;
-            }
-            else if (salg == Alignment_Mirrored)
-            {
-                pmn = ppos - psize;
-                pmx = ppos;
-                if (calg == Alignment_Canonical)
-                    poffset += p0 - psize;
-                else if (calg == Alignment_Mirrored)
-                    poffset -= p1;
-                else if (paxis == axis)
-                    poffset += 0.5f * (totChildSize - psize) + p0 - p1;
-                else
-                    poffset += p0 - p1;
-            }
-            else
-            {
-                pmn = ppos - 0.5f * psize;
-                pmx = ppos + 0.5f * psize;
-                if (calg == Alignment_Canonical)
-                    poffset += p0 - 0.5f * psize;
-                else if (calg == Alignment_Mirrored)
-                    poffset += 0.5f * psize - p1;
-                else if (paxis == axis)
-                    poffset += 0.5f * totChildSize + p0 - p1;
-                else
-                    poffset += p0 - p1;
-            }
-
+            f32 poffset = ppos + coffset + computePadding() + computeParentAlignOffset();
             const auto processChild = [&](const u32 c) {
                 LayoutElement &child = m_Elements[c];
 
@@ -492,20 +499,25 @@ void Layout::positionPass()
 
                 if (child.Type == LayoutElement_Floating)
                 {
-                    cpos = coffset + soffset;
-                    const LayoutAttachment catt = child.FloatAttachment[axis];
-                    if (catt == LayoutAttachment_Canonical)
-                        cpos += pmn;
-                    else if (catt == LayoutAttachment_Mirrored)
-                        cpos += pmx;
-                    else
-                        cpos += 0.5f * (pmn + pmx);
+                    cpos = ppos + coffset + soffset;
+                    const LayoutAttachment fatt = child.FloatAttachment[axis];
+                    const Alignment falg = child.FloatAlignment[axis];
+                    if (falg == Alignment_Mirrored)
+                        cpos -= csize;
+                    else if (falg == Alignment_Center)
+                        cpos -= 0.5f * csize;
+
+                    if (fatt == LayoutAttachment_Mirrored)
+                        cpos += psize;
+                    else if (fatt == LayoutAttachment_Center)
+                        cpos += 0.5f * psize;
+
                     child.ClipMin[axis] = TKIT_F32_LOWEST;
                     child.ClipMax[axis] = TKIT_F32_MAX;
                     return;
                 }
 
-                cpos += poffset + soffset;
+                cpos += poffset + soffset + computeChildAlignOffset(csize);
                 if (parent.ChildOverflow == LayoutOverflow_Clip)
                 {
                     child.ClipMin[axis] = Math::Max(pmn, clmn);
@@ -517,29 +529,12 @@ void Layout::positionPass()
                     child.ClipMax[axis] = clmx;
                 }
 
-                if (calg == Alignment_Center)
-                {
-                    if (paxis == axis)
-                        cpos -= 0.5f * csize;
-                    else if (salg == Alignment_Canonical)
-                        cpos += 0.5f * psize;
-                    else if (salg == Alignment_Mirrored)
-                        cpos -= 0.5f * psize;
-                }
-
                 if (paxis == axis)
-                {
-                    if (calg == Alignment_Canonical)
-                        poffset += csize + cgap;
-                    else
-                        poffset -= csize + cgap;
-                }
+                    poffset += csize + cgap;
             };
 
-            const bool isCanonical = salg == Alignment_Canonical;
             const bool naturalDir = dir == LayoutDirection_LeftToRight || dir == LayoutDirection_BottomToTop;
-
-            if ((isCanonical && naturalDir) || (!isCanonical && !naturalDir))
+            if (naturalDir)
                 for (const u32 c : parent.Children)
                     processChild(c);
             else
@@ -563,6 +558,8 @@ void Layout::Compile()
     growShrinkPass(LayoutAxis_Vertical);
     positionPass();
 
+    TKit::StackArray<LayoutElementInfo> floats{};
+    floats.Reserve(m_Elements.GetSize());
     for (const LayoutElement &elm : m_Elements)
     {
         const bool fill = !TKit::ApproachesZero(elm.FillColor.rgba[3]);
@@ -573,7 +570,7 @@ void Layout::Compile()
         if ((!fill && !outline) || (!text && !sized))
             continue;
 
-        LayoutElementInfo &info = m_ElementInfo.Append();
+        LayoutElementInfo &info = elm.FloatSibling ? floats.Append() : m_ElementInfo.Append();
         info.Material = elm.Material;
         info.RenderFlags = 0;
         if (fill)
@@ -589,7 +586,6 @@ void Layout::Compile()
         }
 
         info.Position = elm.Position;
-        info.Alignment = elm.SelfAlignment;
         info.ClipMin = elm.ClipMin;
         info.ClipMax = elm.ClipMax;
         if (text)
@@ -629,6 +625,7 @@ void Layout::Compile()
             }
         }
     }
+    m_ElementInfo.Insert(m_ElementInfo.end(), floats.begin(), floats.end());
 
     m_Elements.Clear();
     m_Breadth.Clear();
