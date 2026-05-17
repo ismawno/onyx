@@ -4,11 +4,20 @@ project(onyx-demo)
 add_executable(onyx-hello-world hello_world.cpp)
 add_executable(onyx-layout layout.cpp)
 
+add_executable(onyx-lights-3D lights3.cpp)
+add_executable(onyx-lights-2D lights2.cpp)
+
 tkit_default_configure(onyx-hello-world)
 tkit_default_configure(onyx-layout)
 
+tkit_default_configure(onyx-lights-3D)
+tkit_default_configure(onyx-lights-2D)
+
 target_link_libraries(onyx-hello-world PRIVATE onyx)
 target_link_libraries(onyx-layout PRIVATE onyx)
+
+target_link_libraries(onyx-lights-3D PRIVATE onyx)
+target_link_libraries(onyx-lights-2D PRIVATE onyx)
 
 if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-text text.cpp)

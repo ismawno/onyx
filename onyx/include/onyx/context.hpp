@@ -178,7 +178,7 @@ template <Dimension D> struct ContextState
     Resource Font = NullHandle;
     Resource FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
-    RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
+    RenderModeFlags RenderFlags = RenderModeFlag_Flat;
 };
 
 struct InstanceDataArrays;

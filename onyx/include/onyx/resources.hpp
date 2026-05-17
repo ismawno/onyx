@@ -165,7 +165,7 @@ const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &op
 
 template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StatMeshData<D> &data);
 template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D> &data);
-template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data);
+template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data = {});
 
 Resource RegisterFont(ResourcePool pool, const FontData &data);
 template <Dimension D> GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D> &data);
