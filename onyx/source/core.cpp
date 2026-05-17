@@ -79,6 +79,22 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface));
     VKit::PhysicalDevice::Selector selector(s_Instance.Get());
 
+    const char *dev = std::getenv("ONYX_DEVICE");
+    if (dev)
+    {
+        u32 id = TKIT_U32_MAX;
+        const char *begin = dev;
+        const char *end = dev + std::strlen(dev);
+        const auto [ptr, ec] = std::from_chars(begin, end, id);
+        if (ec == std::errc{} && ptr == end)
+            selector.SetId(id);
+        else
+            selector.SetName(dev);
+    }
+    TKIT_LOG_INFO_IF(
+        !dev, "[ONYX][CORE] The environment variable 'ONYX_DEVICE' was not set, meaning the physical device will be "
+              "chosen automatically. To force a specific option, set such variable with the device name or device ID");
+
     selector.SetSurface(surface)
         .PreferType(VKit::Device_Discrete)
         .AddFlags(VKit::DeviceSelectorFlag_AnyType | VKit::DeviceSelectorFlag_PortabilitySubset |

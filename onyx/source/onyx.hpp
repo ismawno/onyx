@@ -6,5 +6,4 @@ namespace Onyx
 {
 void InitializeApi();
 void TerminateApi();
-
 } // namespace Onyx
