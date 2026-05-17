@@ -390,7 +390,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
 
-    void Stadium(const StadiumParameters &params)
+    void Stadium(const StadiumParameters &params = {1.f, 0.5f})
     {
         ParametricMesh(m_DefaultResources.GetStadium<D>(), params);
     }
@@ -400,7 +400,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         ParametricMesh(m_DefaultResources.GetStadium<D>(), params, transform, mode);
     }
 
-    void RoundedRect(const RoundedRectParameters &params)
+    void RoundedRect(const RoundedRectParameters &params = {1.f, 1.f, 0.5f})
     {
         ParametricMesh(m_DefaultResources.GetRoundedRect<D>(), params);
     }
@@ -776,7 +776,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         StaticMesh(m_DefaultResources.Cylinder, transform, mode);
     }
 
-    void Capsule(const CapsuleParameters &params)
+    void Capsule(const CapsuleParameters &params = {1.f, 0.5f})
     {
         ParametricMesh(m_DefaultResources.Capsule, params);
     }
@@ -786,7 +786,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         ParametricMesh(m_DefaultResources.Capsule, params, transform, mode);
     }
 
-    void RoundedBox(const RoundedBoxParameters &params)
+    void RoundedBox(const RoundedBoxParameters &params = {1.f, 1.f, 1.f, 0.5f})
     {
         ParametricMesh(m_DefaultResources.RoundedBox, params);
     }
@@ -796,7 +796,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         ParametricMesh(m_DefaultResources.RoundedBox, params, transform, mode);
     }
 
-    void Torus(const TorusParameters &params)
+    void Torus(const TorusParameters &params = {0.5f, 0.5f})
     {
         ParametricMesh(m_DefaultResources.Torus, params);
     }
