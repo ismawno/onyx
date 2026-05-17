@@ -1,6 +1,5 @@
 #include "pch.hpp"
 #include "onyx/context.hpp"
-#include "onyx/resources.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
 #include "tkit/math/math.hpp"
@@ -47,14 +46,19 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
     m_StateStack[0] = ContextState<D>{};
     m_Current = &m_StateStack.GetFront();
+    m_DefaultResources = Resources::GetDefaultResources();
+
+    m_Current->Font = m_DefaultResources.Font;
+    m_Current->FontSampler = m_DefaultResources.FontSampler;
+
     NoClip();
     for (InstanceDataArrays *instanceData : m_InstanceData)
     {
         instanceData->Circles.Instances = 0;
         for (u32 j = 0; j < Resource_MeshCount; ++j)
         {
-            const ResourceType atype = ResourceType(j);
-            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(atype);
+            const ResourceType rtype = ResourceType(j);
+            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
 
             auto &ipools = instanceData->Meshes[j];
             for (const u32 pid : poolIds)
@@ -69,11 +73,11 @@ template <Dimension D> void IRenderContext<D>::Flush()
     m_DirectionalLightData.Clear();
 }
 
-#define CHECK_HANDLE(handle, atype, dim)                                                                               \
+#define CHECK_HANDLE(handle, rtype, dim)                                                                               \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);                                                                      \
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                    \
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, atype, dim);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, rtype, dim);                                                    \
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, rtype, dim);
 
 #ifdef TKIT_ENABLE_ASSERTS
 template <Dimension D> void checkMaterial(const Resource material)
@@ -220,9 +224,9 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &
     }
 }
 
-static Geometry getGeometry(const ResourceType atype)
+static Geometry getGeometry(const ResourceType rtype)
 {
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         return Geometry_Static;
@@ -231,7 +235,7 @@ static Geometry getGeometry(const ResourceType atype)
     case Resource_GlyphMesh:
         return Geometry_Glyph;
     default:
-        TKIT_FATAL("[ONYX][RENDERER] The resource type '{}' does not have a geometry associated", ToString(atype));
+        TKIT_FATAL("[ONYX][RENDERER] The resource type '{}' does not have a geometry associated", ToString(rtype));
         return Geometry_Count;
     }
 }
@@ -241,19 +245,19 @@ template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
     for (InstanceDataArrays *instanceData : m_InstanceData)
         for (u32 j = 0; j < Resource_MeshCount; ++j)
         {
-            const ResourceType atype = ResourceType(j);
-            const auto poolIds = Resources::GetResourcePoolIds<D>(atype);
+            const ResourceType rtype = ResourceType(j);
+            const auto poolIds = Resources::GetResourcePoolIds<D>(rtype);
 
             auto &ipools = instanceData->Meshes[j];
             for (const u32 pid : poolIds)
             {
                 auto &buffers = ipools[pid];
                 const u32 count = buffers.GetSize();
-                const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(atype, pid));
+                const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
                 for (u32 k = count; k < ncount; ++k)
                 {
                     InstanceDataBuffer &buffer = buffers.Append();
-                    const u32 isize = GetInstanceSize<D>(getGeometry(atype));
+                    const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
                     buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
                     buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
                     buffer.InstanceSize = isize;
@@ -602,7 +606,7 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         case Geometry_Parametric:
             translate(info);
             if (info.ShapeType == LayoutShape_RoundedRectangle)
-                ParametricMesh(info.Handle, RoundedQuadParameters{
+                ParametricMesh(info.Handle, RoundedRectParameters{
                                                 .Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
             else
                 ParametricMesh(info.Handle, StadiumParameters{.Height = info.Size[1], .Radius = info.Size[0]});

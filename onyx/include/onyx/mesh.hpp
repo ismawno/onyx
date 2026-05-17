@@ -65,7 +65,7 @@ StatMeshData<D3> CreateSphereMeshData(u32 rings = 16, u32 sectors = 32);
 StatMeshData<D3> CreateCylinderMeshData(u32 sides = 32);
 
 template <Dimension D> ParaMeshData<D> CreateStadiumMeshData();
-template <Dimension D> ParaMeshData<D> CreateRoundedQuadMeshData();
+template <Dimension D> ParaMeshData<D> CreateRoundedRectMeshData();
 
 ParaMeshData<D3> CreateCapsuleMeshData(u32 rings = 16, u32 sectors = 32);
 ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings = 16, u32 sectors = 32);

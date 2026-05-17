@@ -9,6 +9,44 @@
 #include "tkit/container/string.hpp"
 
 #define ONYX_NO_DISCARD [[nodiscard]]
+
+#define ONYX_LOG_RESULT(fun, result) fun(!result, "{}", result.GetError().ToString())
+#define ONYX_LOG_EXPRESSION(fun, expression)                                                                           \
+    if (const auto __onyx_result = (expression); !__onyx_result)                                                       \
+    fun("{}", __onyx_result.GetError().ToString())
+
+#ifdef TKIT_ENABLE_DEBUG_LOGS
+#    define ONYX_LOG_RESULT_DEBUG(result) ONYX_LOG_RESULT(TKIT_LOG_DEBUG_IF, (result))
+#    define ONYX_LOG_EXPRESSION_DEBUG(expression) ONYX_LOG_EXPRESSION(TKIT_LOG_DEBUG, (expression))
+#else
+#    define ONYX_LOG_RESULT_DEBUG(result) TKIT_UNUSED(result)
+#    define ONYX_LOG_EXPRESSION_DEBUG(expression) expression
+#endif
+
+#ifdef TKIT_ENABLE_INFO_LOGS
+#    define ONYX_LOG_RESULT_INFO(result) ONYX_LOG_RESULT(TKIT_LOG_INFO_IF, (result))
+#    define ONYX_LOG_EXPRESSION_INFO(expression) ONYX_LOG_EXPRESSION(TKIT_LOG_INFO, (expression))
+#else
+#    define ONYX_LOG_RESULT_INFO(result) TKIT_UNUSED(result)
+#    define ONYX_LOG_EXPRESSION_INFO(expression) expression
+#endif
+
+#ifdef TKIT_ENABLE_WARNING_LOGS
+#    define ONYX_LOG_RESULT_WARNING(result) ONYX_LOG_RESULT(TKIT_LOG_WARNING_IF, (result))
+#    define ONYX_LOG_EXPRESSION_WARNING(expression) ONYX_LOG_EXPRESSION(TKIT_LOG_WARNING, (expression))
+#else
+#    define ONYX_LOG_RESULT_WARNING(result) TKIT_UNUSED(result)
+#    define ONYX_LOG_EXPRESSION_WARNING(expression) expression
+#endif
+
+#ifdef TKIT_ENABLE_ERROR_LOGS
+#    define ONYX_LOG_RESULT_ERROR(result) ONYX_LOG_RESULT(TKIT_LOG_ERROR_IF, (result))
+#    define ONYX_LOG_EXPRESSION_ERROR(expression) ONYX_LOG_EXPRESSION(TKIT_LOG_ERROR, (expression))
+#else
+#    define ONYX_LOG_RESULT_ERROR(result) TKIT_UNUSED(result)
+#    define ONYX_LOG_EXPRESSION_ERROR(expression) expression
+#endif
+
 #define ONYX_CHECK_RESULT(expression) Onyx::CheckResult(expression);
 
 // if we ever implement other apis, we can alias its handles like this as well. these will have to be modified

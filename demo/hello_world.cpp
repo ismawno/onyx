@@ -9,20 +9,14 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-
-    const Onyx::StatMeshData<D2> tdata = Onyx::CreateTriangleMeshData<D2>();
-    const Onyx::ResourcePool mpool = Onyx::Resources::CreateResourcePool<D2>(Onyx::Resource_StaticMesh);
-    const Onyx::Resource triangle = Onyx::Resources::RegisterMesh(mpool, tdata);
-    Onyx::Resources::Sync(Onyx::SyncFlag_StaticMeshes);
-
-    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
+    Onyx::Resources::CreateDefaultResources();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
     Onyx::Camera<D2> cam{};
-
     Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
 
+    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
 
     f32 time = 0.f;
@@ -31,7 +25,7 @@ int main()
         time += Onyx::GetDeltaTime(win).AsSeconds();
         ctx->Flush();
         ctx->Rotate(time);
-        ctx->StaticMesh(triangle);
+        ctx->Triangle();
 
         Onyx::Transfer();
         Onyx::Render();

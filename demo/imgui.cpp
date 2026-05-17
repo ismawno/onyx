@@ -13,9 +13,7 @@ int main()
         if (Onyx::CanRenderImGui(win))
             ImGui::ShowDemoWindow();
 
-        Onyx::Transfer();
         Onyx::Render();
     }
-
     Onyx::Terminate();
 }

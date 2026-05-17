@@ -1915,15 +1915,15 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                                });
         else
         {
-            const ResourceType atype = getResourceType(geo);
-            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(atype);
+            const ResourceType rtype = getResourceType(geo);
+            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
             for (const u32 pid : poolIds)
             {
-                const u32 mcount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(atype, pid));
+                const u32 mcount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
                 for (u32 i = 0; i < mcount; ++i)
-                    findInstanceRanges(rmode, geo, Resources::CreateResourceHandle(atype, i, pid),
-                                       [atype, rmode, pid, i](const RenderContext<D> *ctx) -> const auto & {
-                                           return ctx->GetInstanceData()[rmode]->Meshes[atype][pid][i];
+                    findInstanceRanges(rmode, geo, Resources::CreateResourceHandle(rtype, i, pid),
+                                       [rtype, rmode, pid, i](const RenderContext<D> *ctx) -> const auto & {
+                                           return ctx->GetInstanceData()[rmode]->Meshes[rtype][pid][i];
                                        });
             }
         }
@@ -2262,7 +2262,7 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
     RendererData<D> &rdata = getRendererData<D>();
     GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
     const u32 instanceSize = GetInstanceSize<D>(geo);
-    const ResourceType atype = geo == Geometry_Circle ? Resource_PoolCount : getResourceType(geo);
+    const ResourceType rtype = geo == Geometry_Circle ? Resource_PoolCount : getResourceType(geo);
 
     for (GraphicsInstanceRange &grange : gpool.Ranges)
     {
@@ -2290,7 +2290,7 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
 
                 offset += size + crange.Size;
                 size = 0;
-                insertCommand(atype, grange, fi, ic);
+                insertCommand(rtype, grange, fi, ic);
                 found = true;
             }
             else
@@ -2303,7 +2303,7 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
         {
             const u32 fi = u32(offset / instanceSize);
             const u32 ic = u32(size / instanceSize);
-            insertCommand(atype, grange, fi, ic);
+            insertCommand(rtype, grange, fi, ic);
         }
         else if (!found)
             continue;
@@ -2371,17 +2371,17 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
     const auto renderMesh = [&](const Geometry geo) {
         setupState<D>(cmd, rpass, geo, playout, pipelines[geo]);
 
-        const ResourceType atype = getResourceType(geo);
-        const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(atype);
+        const ResourceType rtype = getResourceType(geo);
+        const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
         for (const ResourcePool pid : poolIds)
         {
-            const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds[atype][pid];
+            const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds[rtype][pid];
             drawCount = cmds.GetSize();
             if (drawCount == 0)
                 continue;
             size = cmds.GetBytes();
 
-            bindMeshBuffers<D>(Resources::CreateResourcePoolHandle(atype, pid), cmd);
+            bindMeshBuffers<D>(Resources::CreateResourcePoolHandle(rtype, pid), cmd);
 
             VKit::DeviceBuffer *dbuffer = findSuitableIndexedDrawBuffer(drawCount, graphics, inFlightValue);
             dbuffer->Write(cmds.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
@@ -2460,19 +2460,19 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 
                 CircleDrawCommands circleCmds{};
                 MeshDrawCommands meshCmds{};
-                const auto insertCommand = [&](const ResourceType atype, const GraphicsInstanceRange &grange,
+                const auto insertCommand = [&](const ResourceType rtype, const GraphicsInstanceRange &grange,
                                                const u32 fi, const u32 ic) {
-                    if (atype == Resource_PoolCount) // circles sentry
+                    if (rtype == Resource_PoolCount) // circles sentry
                         circleCmds.Append(createCircleCommand(fi, ic));
                     else
                     {
                         ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
                         ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
-                        ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
-                        ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
+                        ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
+                        ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
                         const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
-                        meshCmds[atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+                        meshCmds[rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
                     }
                 };
                 for (u32 j = 0; j < Geometry_Count; ++j)
@@ -2640,7 +2640,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     TKit::FixedArray<CircleDrawCommands, PipelinePass_Count> circleCmds{};
     TKit::FixedArray<MeshDrawCommands, PipelinePass_Count> meshCmds{};
 
-    const auto insertCommand = [&](const ResourceType atype, const GraphicsInstanceRange &grange, const u32 fi,
+    const auto insertCommand = [&](const ResourceType rtype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
         u32 pcount = 0;
         TKit::FixedArray<PipelinePass, 3> passes;
@@ -2653,19 +2653,19 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             passes[pcount++] = PipelinePass_Outlined;
         TKIT_ASSERT(pcount != 0, "[ONYX][RENDERER] Pass count should not be zero");
 
-        if (atype == Resource_PoolCount) // circles sentry
+        if (rtype == Resource_PoolCount) // circles sentry
             for (u32 i = 0; i < pcount; ++i)
                 circleCmds[passes[i]].Append(createCircleCommand(fi, ic));
         else
         {
             ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
             ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
-            ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
-            ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
+            ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
+            ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
             const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
             for (u32 i = 0; i < pcount; ++i)
-                meshCmds[passes[i]][atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+                meshCmds[passes[i]][rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
         }
     };
 

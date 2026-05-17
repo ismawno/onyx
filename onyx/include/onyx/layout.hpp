@@ -253,9 +253,7 @@ struct LayoutSpecs
 class Layout
 {
   public:
-    Layout(const LayoutSpecs &specs = {}) : m_Specs(specs)
-    {
-    }
+    Layout(const LayoutSpecs &specs = {});
 
     void BeginPanel(const LayoutPanelParameters &params);
     void EndPanel();

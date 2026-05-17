@@ -479,10 +479,10 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMeshData()
     return data;
 }
 
-template <Dimension D> ParaMeshData<D> CreateRoundedQuadMeshData()
+template <Dimension D> ParaMeshData<D> CreateRoundedRectMeshData()
 {
     ParaMeshData<D> data{};
-    data.Shape = ParametricShape_RoundedQuad;
+    data.Shape = ParametricShape_RoundedRect;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
                                    const ParametricRegionFlags region = 0) {
         if constexpr (D == D2)
@@ -493,9 +493,9 @@ template <Dimension D> ParaMeshData<D> CreateRoundedQuadMeshData()
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    constexpr u32 hedge = RoundedQuadRegion_HorizontalEdge;
-    constexpr u32 vedge = RoundedQuadRegion_VerticalEdge;
-    constexpr u32 moon = RoundedQuadRegion_Moon;
+    constexpr u32 hedge = RoundedRectRegion_HorizontalEdge;
+    constexpr u32 vedge = RoundedRectRegion_VerticalEdge;
+    constexpr u32 moon = RoundedRectRegion_Moon;
 
     addVertex(-0.5f, -0.5f, 0.25f, 0.75f);
     addVertex(0.5f, -0.5f, 0.75f, 0.75f);
@@ -1537,8 +1537,8 @@ template StatMeshData<D3> CreatePolygonMeshData<D3>(TKit::Span<const f32v2>);
 template ParaMeshData<D2> CreateStadiumMeshData<D2>();
 template ParaMeshData<D3> CreateStadiumMeshData<D3>();
 
-template ParaMeshData<D2> CreateRoundedQuadMeshData<D2>();
-template ParaMeshData<D3> CreateRoundedQuadMeshData<D3>();
+template ParaMeshData<D2> CreateRoundedRectMeshData<D2>();
+template ParaMeshData<D3> CreateRoundedRectMeshData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path);

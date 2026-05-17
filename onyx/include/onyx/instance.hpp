@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/alias.hpp"
 #include "onyx/dimension.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
@@ -24,7 +25,7 @@ struct FadeData
 enum ParametricShape : u32
 {
     ParametricShape_Stadium,
-    ParametricShape_RoundedQuad,
+    ParametricShape_RoundedRect,
     ParametricShape_Capsule,
     ParametricShape_RoundedBox,
     ParametricShape_Torus,
@@ -36,7 +37,7 @@ struct StadiumParameters
     f32 Radius;
 };
 
-struct RoundedQuadParameters
+struct RoundedRectParameters
 {
     f32 Width;
     f32 Height;
@@ -65,7 +66,7 @@ struct TorusParameters
 
 union InstanceParameters {
     StadiumParameters Stadium;
-    RoundedQuadParameters RoundedQuad;
+    RoundedRectParameters RoundedRect;
     CapsuleParameters Capsule;
     RoundedBoxParameters RoundedBox;
     TorusParameters Torus;

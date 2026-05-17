@@ -5,6 +5,19 @@
 
 namespace Onyx
 {
+Layout::Layout(const LayoutSpecs &spc)
+{
+    const DefaultResources &def = Resources::GetDefaultResources();
+    const auto assign = [&](Resource &res, const Resource specific, const Resource fallback) {
+        if (specific == NullHandle)
+            res = fallback;
+        else
+            res = specific;
+    };
+    assign(m_Specs.Font, spc.Font, def.Font);
+    assign(m_Specs.RectangleMesh, spc.RectangleMesh, def.Quad2);
+    assign(m_Specs.RoundedRectangleMesh, spc.RoundedRectangleMesh, def.RoundedRect2);
+}
 void Layout::BeginPanel(const LayoutPanelParameters &params)
 {
     const u32 c = m_Elements.GetSize();
@@ -141,6 +154,7 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
     current.OutlineColor = params.OutlineColor;
     current.OutlineWidth = params.OutlineWidth;
     current.Text = TKit::String{text.GetData(), text.GetSize()};
+    // NOTE(Isma): This is a weak check. If user passes a bad font that is not NullHandle, it will go through
     current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
     current.Material = params.Material;
     current.TextMode = params.Mode;
@@ -575,6 +589,8 @@ void Layout::Compile()
         info.RenderFlags = 0;
         if (fill)
         {
+            // NOTE(Isma): This is a weak check. If user passes a bad material that is not NullHandle, it will go
+            // through
             info.RenderFlags |= elm.Material == NullHandle ? RenderModeFlag_Flat : RenderModeFlag_Shaded;
             info.FillColor = elm.FillColor;
         }

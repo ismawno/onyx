@@ -2,21 +2,13 @@
 #include "onyx/context.hpp"
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
-#include "onyx/font.hpp"
 
 using Onyx::D2;
 
 int main()
 {
     Onyx::Initialize();
-
-    const Onyx::Resource sampler = Onyx::Resources::CreateSampler();
-    const Onyx::FontData fdata = ONYX_CHECK_RESULT(Onyx::LoadDefaultFont());
-    const Onyx::ResourcePool fpool = Onyx::Resources::CreateFontPool();
-    const Onyx::Resource font = Onyx::Resources::RegisterFont(fpool, fdata);
-    Onyx::Resources::Sync(Onyx::SyncFlag_Fonts);
-
-    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
+    Onyx::Resources::CreateDefaultResources();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
@@ -25,16 +17,14 @@ int main()
 
     Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
 
+    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
 
     while (Onyx::Running())
     {
-        win->ControlCamera(Onyx::GetDeltaTime(win), &cam);
         ctx->Flush();
         ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
 
-        ctx->FontSampler(sampler);
-        ctx->Font(font);
         ctx->Align(Onyx::Alignment_Center);
         ctx->Text("Hello world!");
 

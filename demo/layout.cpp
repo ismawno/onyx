@@ -139,20 +139,7 @@ void DrawPanels(Onyx::Layout &layout, const PanelInfo &info, const TKit::StackAr
 int main()
 {
     Onyx::Initialize();
-    const Onyx::StatMeshData<D2> qdata = Onyx::CreateQuadMeshData<D2>();
-    const Onyx::ParaMeshData<D2> rqdata = Onyx::CreateRoundedQuadMeshData<D2>();
-    const Onyx::FontData fdata = ONYX_CHECK_RESULT(Onyx::LoadDefaultFont());
-
-    const Onyx::ResourcePool spool = Onyx::Resources::CreateResourcePool<D2>(Onyx::Resource_StaticMesh);
-    const Onyx::ResourcePool ppool = Onyx::Resources::CreateResourcePool<D2>(Onyx::Resource_ParametricMesh);
-    const Onyx::ResourcePool fpool = Onyx::Resources::CreateFontPool();
-
-    const Onyx::Resource quad = Onyx::Resources::RegisterMesh(spool, qdata);
-    const Onyx::Resource roundedSquare = Onyx::Resources::RegisterMesh(ppool, rqdata);
-    const Onyx::Resource sampler = Onyx::Resources::CreateSampler();
-    const Onyx::Resource font = Onyx::Resources::RegisterFont(fpool, fdata);
-
-    Onyx::Resources::Sync(Onyx::SyncFlag_StaticMeshes | Onyx::SyncFlag_ParametricMeshes | Onyx::SyncFlag_Fonts);
+    Onyx::Resources::CreateDefaultResources();
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 
@@ -168,11 +155,7 @@ int main()
     ctx->AddTarget(view);
 
     {
-        Onyx::LayoutSpecs spc;
-        spc.RectangleMesh = quad;
-        spc.RoundedRectangleMesh = roundedSquare;
-        spc.Font = font;
-        Onyx::Layout layout{spc};
+        Onyx::Layout layout{};
         PanelInfo root{};
         root.PanelParams.Sizing = Onyx::LayoutSizing::Absolute(2.f);
 
@@ -186,7 +169,6 @@ int main()
             if (!ImGui::GetIO().WantCaptureKeyboard)
                 win->ControlCamera(dt, &cam);
             ctx->Flush();
-            ctx->FontSampler(sampler);
             ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
 
             DrawPanels(layout, root, panels);

@@ -2,7 +2,7 @@
 
 #include "onyx/dimension.hpp"
 #include "onyx/instance.hpp"
-#include "onyx/handle.hpp"
+#include "onyx/resources.hpp"
 #include "onyx/font.hpp"
 #include "onyx/pass.hpp"
 #include "onyx/view.hpp"
@@ -327,6 +327,24 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
                                                         : (m_Current->Transform * transform));
     }
 
+    void Triangle()
+    {
+        StaticMesh(m_DefaultResources.GetTriangle<D>());
+    }
+    void Triangle(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        StaticMesh(m_DefaultResources.GetTriangle<D>(), transform, mode);
+    }
+
+    void Quad()
+    {
+        StaticMesh(m_DefaultResources.GetQuad<D>());
+    }
+    void Quad(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        StaticMesh(m_DefaultResources.GetQuad<D>(), transform, mode);
+    }
+
     void ParametricMesh(const Resource mesh, const InstanceParameters &params)
     {
         addParametricData(mesh, m_Current->Transform, params);
@@ -343,8 +361,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
             ParametricMesh(mesh, InstanceParameters{.Stadium = params});
-        else if constexpr (std::is_same_v<T, RoundedQuadParameters>)
-            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params});
+        else if constexpr (std::is_same_v<T, RoundedRectParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedRect = params});
         else if constexpr (D == D3 && std::is_same_v<T, CapsuleParameters>)
             ParametricMesh(mesh, InstanceParameters{.Capsule = params});
         else if constexpr (D == D3 && std::is_same_v<T, RoundedBoxParameters>)
@@ -360,8 +378,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
             ParametricMesh(mesh, InstanceParameters{.Stadium = params}, transform, mode);
-        else if constexpr (std::is_same_v<T, RoundedQuadParameters>)
-            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params}, transform, mode);
+        else if constexpr (std::is_same_v<T, RoundedRectParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedRect = params}, transform, mode);
         else if constexpr (D == D3 && std::is_same_v<T, CapsuleParameters>)
             ParametricMesh(mesh, InstanceParameters{.Capsule = params}, transform, mode);
         else if constexpr (D == D3 && std::is_same_v<T, RoundedBoxParameters>)
@@ -370,6 +388,26 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             ParametricMesh(mesh, InstanceParameters{.Torus = params}, transform, mode);
         else
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
+    }
+
+    void Stadium(const StadiumParameters &params)
+    {
+        ParametricMesh(m_DefaultResources.GetStadium<D>(), params);
+    }
+    void Stadium(const StadiumParameters &params, const f32m<D> &transform,
+                 const TransformMode mode = Transform_Extrinsic)
+    {
+        ParametricMesh(m_DefaultResources.GetStadium<D>(), params, transform, mode);
+    }
+
+    void RoundedRect(const RoundedRectParameters &params)
+    {
+        ParametricMesh(m_DefaultResources.GetRoundedRect<D>(), params);
+    }
+    void RoundedRect(const RoundedRectParameters &params, const f32m<D> &transform,
+                     const TransformMode mode = Transform_Extrinsic)
+    {
+        ParametricMesh(m_DefaultResources.GetRoundedRect<D>(), params, transform, mode);
     }
 
     void Circle(const CircleParameters &params = {})
@@ -568,6 +606,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
   protected:
     ContextState<D> *m_Current{};
+    DefaultResources m_DefaultResources{};
 
   private:
     void updateState()
@@ -708,6 +747,62 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
             Onyx::Transform<D3>::RotateZExtrinsic(m_Current->Transform, angle);
         else
             Onyx::Transform<D3>::RotateZIntrinsic(m_Current->Transform, angle);
+    }
+
+    void Box()
+    {
+        StaticMesh(m_DefaultResources.Box);
+    }
+    void Box(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        StaticMesh(m_DefaultResources.Box, transform, mode);
+    }
+
+    void Sphere()
+    {
+        StaticMesh(m_DefaultResources.Sphere);
+    }
+    void Sphere(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        StaticMesh(m_DefaultResources.Sphere, transform, mode);
+    }
+
+    void Cylinder()
+    {
+        StaticMesh(m_DefaultResources.Cylinder);
+    }
+    void Cylinder(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        StaticMesh(m_DefaultResources.Cylinder, transform, mode);
+    }
+
+    void Capsule(const CapsuleParameters &params)
+    {
+        ParametricMesh(m_DefaultResources.Capsule, params);
+    }
+    void Capsule(const CapsuleParameters &params, const f32m4 &transform,
+                 const TransformMode mode = Transform_Extrinsic)
+    {
+        ParametricMesh(m_DefaultResources.Capsule, params, transform, mode);
+    }
+
+    void RoundedBox(const RoundedBoxParameters &params)
+    {
+        ParametricMesh(m_DefaultResources.RoundedBox, params);
+    }
+    void RoundedBox(const RoundedBoxParameters &params, const f32m4 &transform,
+                    const TransformMode mode = Transform_Extrinsic)
+    {
+        ParametricMesh(m_DefaultResources.RoundedBox, params, transform, mode);
+    }
+
+    void Torus(const TorusParameters &params)
+    {
+        ParametricMesh(m_DefaultResources.Torus, params);
+    }
+    void Torus(const TorusParameters &params, const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        ParametricMesh(m_DefaultResources.Torus, params, transform, mode);
     }
 
     void SpotLight(const SpotLightParameters &params = {})

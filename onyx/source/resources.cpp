@@ -17,37 +17,37 @@
 
 namespace Onyx::Resources
 {
-#define CHECK_POOL_HANDLE(pool, atype)                                                                                 \
+#define CHECK_POOL_HANDLE(pool, rtype)                                                                                 \
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);                                                                        \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(pool, atype);                                                             \
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, atype)
+    ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(pool, rtype);                                                             \
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, rtype)
 
-#define CHECK_POOL_HANDLE_WITH_DIM(pool, atype, dim)                                                                   \
+#define CHECK_POOL_HANDLE_WITH_DIM(pool, rtype, dim)                                                                   \
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);                                                                        \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(pool, atype);                                                             \
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(pool, atype, dim)
+    ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(pool, rtype);                                                             \
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(pool, rtype, dim)
 
-#define CHECK_RESOURCE_HANDLE(handle, atype)                                                                           \
+#define CHECK_RESOURCE_HANDLE(handle, rtype)                                                                           \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, atype);                                                                \
-    ONYX_CHECK_RESOURCE_IS_VALID(handle, atype);
+    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
+    ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
 
-#define CHECK_RESOURCE_HANDLE_WITH_DIM(handle, atype, dim)                                                             \
+#define CHECK_RESOURCE_HANDLE_WITH_DIM(handle, rtype, dim)                                                             \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, atype);                                                                \
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, atype, dim);
+    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, rtype, dim);
 
-#define CHECK_RESOURCE_AND_POOL_HANDLES(handle, atype)                                                                 \
+#define CHECK_RESOURCE_AND_POOL_HANDLES(handle, rtype)                                                                 \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);                                                                      \
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, atype);                                                                  \
-    ONYX_CHECK_RESOURCE_IS_VALID(handle, atype);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, rtype);                                                                  \
+    ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
 
-#define CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, atype, dim)                                                   \
+#define CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, rtype, dim)                                                   \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);                                                                      \
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                    \
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, atype, dim);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, rtype, dim);                                                    \
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, rtype, dim);
 
 using StatusFlags = u8;
 enum StatusFlagBit : StatusFlags
@@ -162,6 +162,7 @@ static TKit::Storage<SamplerResourceData> s_Samplers{};
 static TKit::Storage<ImageResourceData> s_Images{};
 static TKit::Storage<TKit::ArenaHive<Texture>> s_Textures{};
 static TKit::Storage<FontResourceData> s_FontData{};
+static DefaultResources s_DefaultResources{};
 
 template <Dimension D> static ResourceData<D> &getData()
 {
@@ -220,6 +221,7 @@ void Initialize(const Specs &specs)
     s_Textures.Construct();
     s_FontData.Construct();
 
+    s_DefaultResources = {};
     s_Buffers->Resources.Reserve(specs.MaxBuffers);
     s_Samplers->Resources.Reserve(specs.MaxSamplers);
     s_Images->Resources.Reserve(specs.MaxImages);
@@ -618,10 +620,10 @@ void DestroyTexture(const Resource handle)
 }
 
 template <typename T>
-static Resource createHiveResource(const ResourceType atype, const T &data, HiveResourceData<T> &hive)
+static Resource createHiveResource(const ResourceType rtype, const T &data, HiveResourceData<T> &hive)
 {
     hive.Flags = StatusFlag_NeedsSync;
-    return CreateResourceHandle(atype, hive.Elements.Insert(data));
+    return CreateResourceHandle(rtype, hive.Elements.Insert(data));
 }
 
 template <typename T> static void updateHiveResource(const Resource handle, const T &data, HiveResourceData<T> &hive)
@@ -657,8 +659,8 @@ template <Dimension D> static void destroyBounds(const Resource handle)
 template <typename Vertex>
 static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
-    constexpr ResourceType atype = Vertex::Resource;
-    CHECK_POOL_HANDLE_WITH_DIM(pool, atype, Vertex::Dim);
+    constexpr ResourceType rtype = Vertex::Resource;
+    CHECK_POOL_HANDLE_WITH_DIM(pool, rtype, Vertex::Dim);
 
     const u32 pid = GetResourcePoolId(pool);
 
@@ -683,7 +685,7 @@ static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &me
     auto &indices = mpool.Indices;
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
-    return CreateResourceHandle(atype, mid, pid);
+    return CreateResourceHandle(rtype, mid, pid);
 }
 
 template <typename Vertex>
@@ -711,6 +713,78 @@ static void updateMesh(const Resource handle, MeshResourceData<Vertex> &meshes, 
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
         minfo.Shape = data.Shape;
+}
+
+const DefaultResources &GetDefaultResources()
+{
+    return s_DefaultResources;
+}
+
+template <Dimension D>
+static void createDefaultPool(ResourcePool &pool, const ResourcePool fallback, const ResourceType rtype)
+{
+    if (fallback == NullHandle)
+        pool = CreateResourcePool<D>(rtype);
+    else
+        pool = fallback;
+}
+
+const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts)
+{
+    // NOTE(Isma): Resource checks are weak for the moment, meaning that if the user passes a bad resource, it will be
+    // used
+
+    DefaultResources &def = s_DefaultResources;
+    createDefaultPool<D2>(def.StaticPool2, opts.StaticPool2, Resource_StaticMesh);
+    createDefaultPool<D3>(def.StaticPool3, opts.StaticPool3, Resource_StaticMesh);
+
+    createDefaultPool<D2>(def.ParametricPool2, opts.ParametricPool2, Resource_ParametricMesh);
+    createDefaultPool<D3>(def.ParametricPool3, opts.ParametricPool3, Resource_ParametricMesh);
+
+    if (opts.FontPool == NullHandle)
+        def.FontPool = CreateFontPool();
+    else
+        def.FontPool = opts.FontPool;
+
+    def.Font = opts.DefaultFont;
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    if (def.Font == NullHandle)
+    {
+        const auto fres = LoadDefaultFont(opts.FontOpts);
+        ONYX_LOG_RESULT_ERROR(fres);
+        if (fres)
+            def.Font = RegisterFont(def.FontPool, fres.GetValue());
+    }
+#endif
+    def.FontSampler = CreateSampler(opts.FontSamplerData);
+
+    def.Triangle2 = RegisterMesh(def.StaticPool2, opts.TriangleData2);
+    def.Triangle3 = RegisterMesh(def.StaticPool3, opts.TriangleData3);
+
+    def.Quad2 = RegisterMesh(def.StaticPool2, opts.QuadData2);
+    def.Quad3 = RegisterMesh(def.StaticPool3, opts.QuadData3);
+
+    def.Box = RegisterMesh(def.StaticPool3, opts.BoxData);
+    def.Sphere = RegisterMesh(def.StaticPool3, opts.SphereData);
+    def.Cylinder = RegisterMesh(def.StaticPool3, opts.CylinderData);
+
+    def.Stadium2 = RegisterMesh(def.ParametricPool2, opts.StadiumData2);
+    def.Stadium3 = RegisterMesh(def.ParametricPool3, opts.StadiumData3);
+
+    def.RoundedRect2 = RegisterMesh(def.ParametricPool2, opts.RoundedRectData2);
+    def.RoundedRect3 = RegisterMesh(def.ParametricPool3, opts.RoundedRectData3);
+
+    def.Capsule = RegisterMesh(def.ParametricPool3, opts.CapsuleData);
+    def.RoundedBox = RegisterMesh(def.ParametricPool3, opts.RoundedBoxData);
+    def.Torus = RegisterMesh(def.ParametricPool3, opts.TorusData);
+
+    SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    flags |= SyncFlag_Fonts;
+#endif
+
+    Sync(flags);
+    return def;
 }
 
 template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const StatMeshData<D> &data)
@@ -742,7 +816,7 @@ template <Dimension D> void UpdateMesh(const Resource handle, const ParaMeshData
     return updateMesh(handle, getData<D>().ParametricMeshes, data);
 }
 
-template <typename Vertex> static ResourcePool createMeshPool(const ResourceType atype, MeshResourceData<Vertex> &data)
+template <typename Vertex> static ResourcePool createMeshPool(const ResourceType rtype, MeshResourceData<Vertex> &data)
 {
     VKit::DeviceBuffer vbuffer = Onyx::CreateBuffer<Vertex>(Buffer_DeviceVertex);
     VKit::DeviceBuffer ibuffer = Onyx::CreateBuffer<Index>(Buffer_DeviceIndex);
@@ -752,7 +826,7 @@ template <typename Vertex> static ResourcePool createMeshPool(const ResourceType
     mpool.VertexBuffer = vbuffer;
     mpool.IndexBuffer = ibuffer;
 
-    const ResourcePool pool = CreateResourcePoolHandle(atype, pid);
+    const ResourcePool pool = CreateResourcePoolHandle(rtype, pid);
     if (IsDebugUtilsEnabled())
     {
         const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
@@ -770,9 +844,9 @@ ResourcePool CreateFontPool()
     return createMeshPool(Resource_Font, *s_FontData);
 }
 
-template <Dimension D> ResourcePool CreateResourcePool(const ResourceType atype)
+template <Dimension D> ResourcePool CreateResourcePool(const ResourceType rtype)
 {
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         return createMeshPool(Resource_StaticMesh, getData<D>().StaticMeshes);
@@ -782,7 +856,7 @@ template <Dimension D> ResourcePool CreateResourcePool(const ResourceType atype)
     case Resource_GlyphMesh:
         return CreateFontPool();
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource pool cannot be created for resources of type '{}'", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource pool cannot be created for resources of type '{}'", ToString(rtype));
         return NullHandle;
     }
 }
@@ -805,8 +879,8 @@ template <Dimension D> void DestroyResourcePool(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    const ResourceType atype = GetResourceType(pool);
-    switch (atype)
+    const ResourceType rtype = GetResourceType(pool);
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
@@ -822,7 +896,7 @@ template <Dimension D> void DestroyResourcePool(const ResourcePool pool)
         DestroyFontPool(pool);
         return;
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(rtype));
     }
 }
 
@@ -831,8 +905,8 @@ template <Dimension D> void ReleaseResourcePool(const ResourcePool pool)
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
 
-    const ResourceType atype = GetResourceType(pool);
-    switch (atype)
+    const ResourceType rtype = GetResourceType(pool);
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
@@ -848,7 +922,7 @@ template <Dimension D> void ReleaseResourcePool(const ResourcePool pool)
         ReleaseFontPool(pool);
         return;
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(rtype));
     }
 }
 
@@ -1100,9 +1174,9 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Resource handle)
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
 
-    const ResourceType atype = GetResourceType(handle);
+    const ResourceType rtype = GetResourceType(handle);
 
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
@@ -1117,7 +1191,7 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Resource handle)
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_GlyphMesh);
         return GetGlyphLayout(handle);
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a mesh layout", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a mesh layout", ToString(rtype));
         return MeshDataLayout{};
     }
 }
@@ -1136,8 +1210,8 @@ template <Dimension D> Resource GetMeshBounds(const Resource handle)
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
 
-    const ResourceType atype = GetResourceType(handle);
-    switch (atype)
+    const ResourceType rtype = GetResourceType(handle);
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
@@ -1149,7 +1223,7 @@ template <Dimension D> Resource GetMeshBounds(const Resource handle)
         TKIT_FATAL(
             "[ONYX][RESOURCES] A resource of type '{}' does not have well defined bounds. To access glyph bounds, "
             "use GetBoundsData<D2>() with the appropiate bounds handle",
-            ToString(atype));
+            ToString(rtype));
         return TKIT_U32_MAX;
     }
 }
@@ -1166,9 +1240,9 @@ TKit::Span<const u32> GetFontPoolIds()
     return s_FontData->Pools.GetValidIds();
 }
 
-template <Dimension D> TKit::Span<const u32> GetResourcePoolIds(const ResourceType atype)
+template <Dimension D> TKit::Span<const u32> GetResourcePoolIds(const ResourceType rtype)
 {
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         return getData<D>().StaticMeshes.Pools.GetValidIds();
@@ -1178,7 +1252,7 @@ template <Dimension D> TKit::Span<const u32> GetResourcePoolIds(const ResourceTy
     case Resource_GlyphMesh:
         return GetFontPoolIds();
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
         return TKit::Span<const u32>{};
     }
 }
@@ -1234,10 +1308,10 @@ template <Dimension D> u32 GetResourceCount(const ResourcePool pool)
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
 
-    const ResourceType atype = GetResourceType(pool);
+    const ResourceType rtype = GetResourceType(pool);
     const u32 pid = GetResourcePoolId(pool);
 
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
@@ -1252,7 +1326,7 @@ template <Dimension D> u32 GetResourceCount(const ResourcePool pool)
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
         return GetGlyphCount(pool);
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
         return 0;
     }
 }
@@ -1284,10 +1358,10 @@ template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
 
-    const ResourceType atype = GetResourceType(pool);
+    const ResourceType rtype = GetResourceType(pool);
 
     const u32 pid = GetResourcePoolId(pool);
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
@@ -1303,15 +1377,15 @@ template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
         return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
     default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a vertex buffer", ToString(atype));
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a vertex buffer", ToString(rtype));
         return {};
     }
 }
 
-template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType atype)
+template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
 {
     const u32 itype = GetResourceTypeAsInteger(handle);
-    if (itype >= Resource_Count || (itype != atype && atype != Resource_None))
+    if (itype >= Resource_Count || (itype != rtype && rtype != Resource_None))
         return false;
 
     const u32 aid = GetResourceId(handle);
@@ -1346,10 +1420,10 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
         return false;
     }
 }
-template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType atype)
+template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
 {
     const u32 itype = GetResourceTypeAsInteger(handle);
-    if (itype >= Resource_PoolCount || (itype != atype && atype != Resource_None))
+    if (itype >= Resource_PoolCount || (itype != rtype && rtype != Resource_None))
         return false;
 
     const u32 pid = GetResourcePoolId(handle);
@@ -1367,13 +1441,13 @@ template <Dimension D> bool IsResourcePoolValid(const Handle handle, const Resou
     }
 }
 
-bool IsResourceValid(const Resource handle, const ResourceType atype)
+bool IsResourceValid(const Resource handle, const ResourceType rtype)
 {
-    return IsResourceValid<D2>(handle, atype) || IsResourceValid<D3>(handle, atype);
+    return IsResourceValid<D2>(handle, rtype) || IsResourceValid<D3>(handle, rtype);
 }
-bool IsResourcePoolValid(const Handle handle, const ResourceType atype)
+bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
 {
-    return IsResourcePoolValid<D2>(handle, atype) || IsResourcePoolValid<D3>(handle, atype);
+    return IsResourcePoolValid<D2>(handle, rtype) || IsResourcePoolValid<D3>(handle, rtype);
 }
 
 template <typename T> static bool uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
@@ -1535,8 +1609,8 @@ template Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D3> &data);
 template void UpdateMesh(Resource handle, const ParaMeshData<D2> &data);
 template void UpdateMesh(Resource handle, const ParaMeshData<D3> &data);
 
-template ResourcePool CreateResourcePool<D2>(ResourceType atype);
-template ResourcePool CreateResourcePool<D3>(ResourceType atype);
+template ResourcePool CreateResourcePool<D2>(ResourceType rtype);
+template ResourcePool CreateResourcePool<D3>(ResourceType rtype);
 
 template void DestroyResourcePool<D2>(ResourcePool pool);
 template void DestroyResourcePool<D3>(ResourcePool pool);
@@ -1556,8 +1630,8 @@ template const MaterialData<D3> &GetMaterialData(Resource handle);
 template GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D2> &resources);
 template GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D3> &resources);
 
-template TKit::Span<const u32> GetResourcePoolIds<D2>(ResourceType atype);
-template TKit::Span<const u32> GetResourcePoolIds<D3>(ResourceType atype);
+template TKit::Span<const u32> GetResourcePoolIds<D2>(ResourceType rtype);
+template TKit::Span<const u32> GetResourcePoolIds<D3>(ResourceType rtype);
 
 template u32 GetResourceCount<D2>(ResourcePool pool);
 template u32 GetResourceCount<D3>(ResourcePool pool);
@@ -1565,11 +1639,11 @@ template u32 GetResourceCount<D3>(ResourcePool pool);
 template MeshBuffers GetMeshBuffers<D2>(ResourcePool pool);
 template MeshBuffers GetMeshBuffers<D3>(ResourcePool pool);
 
-template bool IsResourceValid<D2>(Resource handle, ResourceType atype);
-template bool IsResourceValid<D3>(Resource handle, ResourceType atype);
+template bool IsResourceValid<D2>(Resource handle, ResourceType rtype);
+template bool IsResourceValid<D3>(Resource handle, ResourceType rtype);
 
-template bool IsResourcePoolValid<D2>(Handle handle, ResourceType atype);
-template bool IsResourcePoolValid<D3>(Handle handle, ResourceType atype);
+template bool IsResourcePoolValid<D2>(Handle handle, ResourceType rtype);
+template bool IsResourcePoolValid<D3>(Handle handle, ResourceType rtype);
 
 template u32 GetDistinctBatchDrawCount<D2>();
 template u32 GetDistinctBatchDrawCount<D3>();

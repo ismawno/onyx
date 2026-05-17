@@ -9,7 +9,7 @@ typedef StructuredBuffer<ParametricInstanceData3D, Std430DataLayout> ParametricI
 enum ParametricShape : u32
 {
     ParametricShape_Stadium,
-    ParametricShape_RoundedQuad,
+    ParametricShape_RoundedRect,
     ParametricShape_Capsule,
     ParametricShape_RoundedBox,
     ParametricShape_Torus,
@@ -26,11 +26,11 @@ enum StadiumRegion : ParametricRegionFlags
 };
 
 [UnscopedEnum]
-enum RoundedQuadRegion : ParametricRegionFlags
+enum RoundedRectRegion : ParametricRegionFlags
 {
-    RoundedQuadRegion_HorizontalEdge = 1 << 0,
-    RoundedQuadRegion_VerticalEdge = 1 << 1,
-    RoundedQuadRegion_Moon = 1 << 2,
+    RoundedRectRegion_HorizontalEdge = 1 << 0,
+    RoundedRectRegion_VerticalEdge = 1 << 1,
+    RoundedRectRegion_Moon = 1 << 2,
 };
 
 [UnscopedEnum]
@@ -73,7 +73,7 @@ f32v2 GetParametricPosition(f32v2 pos, const InstanceParameters params, const Pa
             pos[1] += (radius - 0.5f) * s[1];
         pos -= f32v2(dims[0], 0.5f * height + radius) * alignment;
     }
-    else if (params.Shape == ParametricShape_RoundedQuad)
+    else if (params.Shape == ParametricShape_RoundedRect)
     {
         const f32 width = params.Payload[0];
         const f32 height = params.Payload[1];
@@ -83,9 +83,9 @@ f32v2 GetParametricPosition(f32v2 pos, const InstanceParameters params, const Pa
         const f32v2 s = sign(pos);
 
         pos += 0.5f * (dims - 1.f) * s;
-        if (bool(region & RoundedQuadRegion_HorizontalEdge))
+        if (bool(region & RoundedRectRegion_HorizontalEdge))
             pos[0] += (radius - 0.5f) * s[0];
-        if (bool(region & RoundedQuadRegion_VerticalEdge))
+        if (bool(region & RoundedRectRegion_VerticalEdge))
             pos[1] += (radius - 0.5f) * s[1];
 
         pos -= (0.5f * dims + radius) * alignment;
@@ -109,7 +109,7 @@ f32v3 GetParametricPosition(f32v3 pos, const f32v3 normal, const InstanceParamet
 
         pos.xy -= f32v2(dims[0], 0.5f * height + radius) * alignment.xy;
     }
-    else if (params.Shape == ParametricShape_RoundedQuad)
+    else if (params.Shape == ParametricShape_RoundedRect)
     {
         const f32 width = params.Payload[0];
         const f32 height = params.Payload[1];
@@ -118,9 +118,9 @@ f32v3 GetParametricPosition(f32v3 pos, const f32v3 normal, const InstanceParamet
         const f32v2 dims = f32v2(width, height);
         const f32v2 s = sign(pos.xy);
         pos.xy += 0.5f * (dims - 1.f) * s;
-        if (bool(region & RoundedQuadRegion_HorizontalEdge))
+        if (bool(region & RoundedRectRegion_HorizontalEdge))
             pos[0] += (radius - 0.5f) * s[0];
-        if (bool(region & RoundedQuadRegion_VerticalEdge))
+        if (bool(region & RoundedRectRegion_VerticalEdge))
             pos[1] += (radius - 0.5f) * s[1];
 
         pos.xy -= (0.5f * dims + radius) * alignment.xy;
@@ -184,7 +184,7 @@ bool CheckParametricFragment(f32v2 pos, const u32v2 shapeInfo)
         if (len > 1.f)
             return false;
     }
-    else if (shape == ParametricShape_RoundedQuad && bool(region & RoundedQuadRegion_Moon))
+    else if (shape == ParametricShape_RoundedRect && bool(region & RoundedRectRegion_Moon))
     {
         pos -= 0.5f * sign(pos);
         const f32 len = 4.f * dot(pos, pos);
@@ -207,7 +207,7 @@ bool CheckParametricFragment(f32v3 pos, const u32v2 shapeInfo)
         if (len > 1.f)
             return false;
     }
-    else if (shape == ParametricShape_RoundedQuad && bool(region & RoundedQuadRegion_Moon))
+    else if (shape == ParametricShape_RoundedRect && bool(region & RoundedRectRegion_Moon))
     {
         f32v2 p = pos.xy;
         p -= 0.5f * sign(p);

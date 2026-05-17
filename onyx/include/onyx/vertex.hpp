@@ -56,11 +56,11 @@ enum StadiumRegion : ParametricRegionFlags
     StadiumRegion_Moon = 1 << 1,
 };
 
-enum RoundedQuadRegion : ParametricRegionFlags
+enum RoundedRectRegion : ParametricRegionFlags
 {
-    RoundedQuadRegion_HorizontalEdge = 1 << 0,
-    RoundedQuadRegion_VerticalEdge = 1 << 1,
-    RoundedQuadRegion_Moon = 1 << 2,
+    RoundedRectRegion_HorizontalEdge = 1 << 0,
+    RoundedRectRegion_VerticalEdge = 1 << 1,
+    RoundedRectRegion_Moon = 1 << 2,
 };
 
 enum CapsuleRegion : ParametricRegionFlags

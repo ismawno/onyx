@@ -311,9 +311,9 @@ const char *ToString(const PipelinePass pass)
     }
 }
 
-const char *ToString(const ResourceType atype)
+const char *ToString(const ResourceType rtype)
 {
-    switch (atype)
+    switch (rtype)
     {
     case Resource_StaticMesh:
         return "Resource_StaticMesh";
