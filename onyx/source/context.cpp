@@ -14,29 +14,31 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
     m_Current = &m_StateStack.Append();
 
     TKit::TierAllocator *tier = GetTier();
-    for (u32 i = 0; i < RenderMode_Count; ++i)
-    {
-        InstanceDataArrays *idata = tier->Create<InstanceDataArrays>();
-        m_InstanceData[i] = idata;
-        InstanceDataBuffer &buffer = idata->Circles;
-        buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-        buffer.InstanceSize = sizeof(CircleInstanceData<D>);
-    }
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
+        {
+            InstanceDataArrays *idata = tier->Create<InstanceDataArrays>();
+            m_InstanceData[bpass][rmode] = idata;
+            InstanceDataBuffer &buffer = idata->Circles;
+            buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+            buffer.InstanceSize = sizeof(CircleInstanceData<D>);
+        }
     resizeBufferArrays();
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
 {
     TKit::TierAllocator *tier = GetTier();
-    for (InstanceDataArrays *instanceData : m_InstanceData)
-    {
-        instanceData->Circles.Data.Destroy();
-        for (auto &meshes : instanceData->Meshes)
-            for (auto &pools : meshes)
-                for (InstanceDataBuffer &buffer : pools)
-                    buffer.Data.Destroy();
-        tier->Destroy(instanceData);
-    }
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
+        {
+            instanceData->Circles.Data.Destroy();
+            for (auto &meshes : instanceData->Meshes)
+                for (auto &pools : meshes)
+                    for (InstanceDataBuffer &buffer : pools)
+                        buffer.Data.Destroy();
+            tier->Destroy(instanceData);
+        }
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -52,20 +54,22 @@ template <Dimension D> void IRenderContext<D>::Flush()
     m_Current->FontSampler = m_DefaultResources.FontSampler;
 
     NoClip();
-    for (InstanceDataArrays *instanceData : m_InstanceData)
-    {
-        instanceData->Circles.Instances = 0;
-        for (u32 j = 0; j < Resource_MeshCount; ++j)
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
         {
-            const ResourceType rtype = ResourceType(j);
-            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+            instanceData->Circles.Instances = 0;
+            for (u32 j = 0; j < Resource_MeshCount; ++j)
+            {
+                const ResourceType rtype = ResourceType(j);
+                const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
 
-            auto &ipools = instanceData->Meshes[j];
-            for (const u32 pid : poolIds)
-                for (InstanceDataBuffer &buffer : ipools[pid])
-                    buffer.Instances = 0;
+                auto &ipools = instanceData->Meshes[j];
+                for (const u32 pid : poolIds)
+                    for (InstanceDataBuffer &buffer : ipools[pid])
+                        buffer.Instances = 0;
+            }
         }
-    }
+
     resizeBufferArrays();
     ++m_Generation;
     m_DepthCounter = 0;
@@ -242,29 +246,30 @@ static Geometry getGeometry(const ResourceType rtype)
 
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
-    for (InstanceDataArrays *instanceData : m_InstanceData)
-        for (u32 j = 0; j < Resource_MeshCount; ++j)
-        {
-            const ResourceType rtype = ResourceType(j);
-            const auto poolIds = Resources::GetResourcePoolIds<D>(rtype);
-
-            auto &ipools = instanceData->Meshes[j];
-            for (const u32 pid : poolIds)
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
+            for (u32 j = 0; j < Resource_MeshCount; ++j)
             {
-                auto &buffers = ipools[pid];
-                const u32 count = buffers.GetSize();
-                const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
-                for (u32 k = count; k < ncount; ++k)
+                const ResourceType rtype = ResourceType(j);
+                const auto poolIds = Resources::GetResourcePoolIds<D>(rtype);
+
+                auto &ipools = instanceData->Meshes[j];
+                for (const u32 pid : poolIds)
                 {
-                    InstanceDataBuffer &buffer = buffers.Append();
-                    const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
-                    buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
-                    buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-                    buffer.InstanceSize = isize;
-                    buffer.Instances = 0;
+                    auto &buffers = ipools[pid];
+                    const u32 count = buffers.GetSize();
+                    const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
+                    for (u32 k = count; k < ncount; ++k)
+                    {
+                        InstanceDataBuffer &buffer = buffers.Append();
+                        const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
+                        buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
+                        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+                        buffer.InstanceSize = isize;
+                        buffer.Instances = 0;
+                    }
                 }
             }
-        }
 }
 
 template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const ClipRect<D> &clip)
@@ -352,7 +357,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     if (!m_Current->RenderFlags)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Circles;
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]->Circles;
     addInstanceData(buffer, idata);
 }
 
@@ -366,8 +371,8 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
 
     const StaticInstanceData<D> idata =
         createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
-    InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid][mid];
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
+                                     ->Meshes[Resource_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
@@ -385,8 +390,8 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const ParametricInstanceData<D> idata = createParametricInstanceData(
         m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
-    InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_ParametricMesh][pid][mid];
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
+                                     ->Meshes[Resource_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 
@@ -515,8 +520,8 @@ void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32 unitRange, co
     const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
-    InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_GlyphMesh][pid][glyph->Id];
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
+                                     ->Meshes[Resource_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }
 

@@ -13,12 +13,12 @@ namespace Onyx
 using SyncFlags = u8;
 enum SyncFlagBit : SyncFlags
 {
-    SyncFlag_StaticMeshes = 1 << 0,
-    SyncFlag_ParametricMeshes = 1 << 1,
-    SyncFlag_Materials = 1 << 2,
-    SyncFlag_Fonts = 1 << 3,
-    SyncFlag_Samplers = 1 << 4,
-    SyncFlag_Images = 1 << 5,
+    SyncFlag_StaticMeshes = 1U << 0,
+    SyncFlag_ParametricMeshes = 1U << 1,
+    SyncFlag_Materials = 1U << 2,
+    SyncFlag_Fonts = 1U << 3,
+    SyncFlag_Samplers = 1U << 4,
+    SyncFlag_Images = 1U << 5,
     SyncFlag_All = TKIT_U8_MAX,
 };
 

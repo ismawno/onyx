@@ -159,19 +159,26 @@ struct FragInput
 }
 
 #ifndef ONYX_PASS_SHADOW
-struct FragOutput
+struct FragOpaqueOutput
 {
     f32v4 Fill : SV_Target0;
     f32v4 Outline : SV_Target1;
 }
+struct FragTransparentOutput
+{
+    f32v4 Fill : SV_Target0;
+    f32v4 Outline : SV_Target1;
+    f32 Revealage : SV_Target2;
+}
 #    define FragSuffix
 #elif defined(ONYX_DIMENSION_3D)
-#    define FragOutput f32
+#    define FragOpaqueOutput f32
 #    define FragSuffix : SV_Depth
 #else
-#    define FragOutput f32v4
+#    define FragOpaqueOutput f32
 #    define FragSuffix
 #endif
+
 
 struct PushConstants
 {
@@ -349,19 +356,16 @@ SamplerComparisonState g_ShadowCompareSampler;
 
 #endif
 
-[shader("fragment")]
 #if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-
-FragOutput mainFS(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)
-
+#    define ONYX_DECLARE_FRAGMENT_SIGNATURE(name, output) output name(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)
+#    define ONYX_FRAGMENT_PARAMETERS input, isFrontFacing
 #else
-
-FragOutput mainFS(const FragInput input) FragSuffix
-
+#    define ONYX_DECLARE_FRAGMENT_SIGNATURE(name, output) output name(const FragInput input) FragSuffix
+#    define ONYX_FRAGMENT_PARAMETERS input
 #endif
 
+ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 {
-
     const GeometryInstanceData gdata = g_Instances[input.InstanceIndex];
     const InstanceData data = gdata.Data;
 
@@ -405,7 +409,7 @@ FragOutput mainFS(const FragInput input) FragSuffix
 #endif
 
 #ifndef ONYX_PASS_SHADOW
-    FragOutput out;
+    FragOpaqueOutput out;
     out.Outline = f32v4(outline.xyz, outlineWidth);
 #endif
 
@@ -444,7 +448,7 @@ FragOutput mainFS(const FragInput input) FragSuffix
     if (mid == NullResource || g_Materials[mid].Occluder == 0)
         discard;
 
-    return f32v4(1.f);
+    return 1.f;
 
 #    else
 
@@ -463,4 +467,28 @@ FragOutput mainFS(const FragInput input) FragSuffix
     return out;
 #endif
 }
+
+[shader("fragment")]
+ONYX_DECLARE_FRAGMENT_SIGNATURE(mainFSO, FragOpaqueOutput)
+{
+    return computeFragment(ONYX_FRAGMENT_PARAMETERS);
+}
+
+#ifndef ONYX_PASS_SHADOW
+[shader("fragment")]
+ONYX_DECLARE_FRAGMENT_SIGNATURE(mainFST, FragTransparentOutput)
+{
+    const FragOpaqueOutput opaque = computeFragment(ONYX_FRAGMENT_PARAMETERS);
+    FragTransparentOutput out;
+    const f32 a = opaque.Fill.a;
+    const f32 z = input.Position.z;
+    const f32 w = clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 *
+                         pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+
+    out.Fill = w * f32v4(opaque.Fill.rgb * a, a);
+    out.Outline = opaque.Outline;
+    out.Revealage = a;
+    return out;
+}
+#endif
 

@@ -6,6 +6,7 @@
 #include "platform.hpp"
 #include "descriptors.hpp"
 #include "core.hpp"
+#include "attachment.hpp"
 #include "vkit/resource/device_image.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "tkit/profiling/macros.hpp"
@@ -13,13 +14,48 @@
 
 namespace Onyx
 {
+static VKit::DeviceImage createAttachment(const VkExtent2D &ext, const AttachmentType atype)
+{
+    const auto &device = GetDevice();
+    const VmaAllocator alloc = GetVulkanAllocator();
+    const VkFormat format = GetAttachmentFormat(atype);
+    if (atype == Attachment_DepthStencil)
+    {
+        VkImageSubresourceRange stencilRange{};
+        stencilRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
+        stencilRange.levelCount = 1;
+        stencilRange.layerCount = 1;
+        return ONYX_CHECK_VKIT_RESULT(VKit::DeviceImage::Builder(device, alloc, ext, format,
+                                                                 VKit::DeviceImageFlag_DepthAttachment |
+                                                                     VKit::DeviceImageFlag_StencilAttachment |
+                                                                     VKit::DeviceImageFlag_Sampled)
+                                          .AddImageView()
+                                          .AddImageView(stencilRange)
+                                          .Build());
+    }
+    else if (atype == Attachment_Final)
+    {
+        const VkFormat sformat = Platform::GetSurfaceFormat().format;
+        const TKit::FixedArray<VkFormat, 2> ppFormats{format, sformat};
+        return ONYX_CHECK_VKIT_RESULT(
+            VKit::DeviceImage::Builder(device, alloc, ext, ppFormats,
+                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
+                .AddImageView(format)
+                .AddImageView(sformat)
+                .Build());
+    }
+
+    return ONYX_CHECK_VKIT_RESULT(
+        VKit::DeviceImage::Builder(device, alloc, ext, format,
+                                   VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
+            .AddImageView()
+            .Build());
+}
+
 struct FrameBuffer
 {
     Execution::Tracker Tracker{};
-    VKit::DeviceImage Color{};
-    VKit::DeviceImage Outline{};
-    VKit::DeviceImage DepthStencil{};
-    VKit::DeviceImage PostProcess{};
+    TKit::FixedArray<VKit::DeviceImage, Attachment_Count> Attachments{};
 };
 
 // NOTE(Isma): Consider having 2D and 3D view sets
@@ -31,7 +67,7 @@ static ViewMask allocateViewBit()
                 8 * sizeof(ViewMask));
 
     const u32 index = u32(std::countr_zero(s_ViewCache));
-    const ViewMask viewBit = 1 << index;
+    const ViewMask viewBit = 1U << index;
     s_ViewCache &= ~viewBit;
     return viewBit;
 }
@@ -54,6 +90,9 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 
 {
     m_ViewBit = allocateViewBit();
+
+    m_BlendSet =
+        ONYX_CHECK_VKIT_RESULT(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetBlendDescriptorLayout()));
     m_PostProcessSet = ONYX_CHECK_VKIT_RESULT(
         Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
     m_CompositorSet =
@@ -94,87 +133,65 @@ template <Dimension D> RenderView<D>::~RenderView()
 // nice!
 template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCount)
 {
-    const auto &device = GetDevice();
-    const VmaAllocator alloc = GetVulkanAllocator();
-    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
-    const VkFormat cformat = Platform::GetColorFormat();
-    const VkFormat dformat = Platform::GetDepthStencilFormat();
-    const VkFormat sformat = Platform::GetSurfaceFormat().format;
-
-    VkImageSubresourceRange stencilRange{};
-    stencilRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
-    stencilRange.levelCount = 1;
-    stencilRange.layerCount = 1;
-
     TKit::TierAllocator *tier = GetTier();
+    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
-    const TKit::FixedArray<VkFormat, 2> ppFormats{cformat, sformat};
     for (u32 i = 0; i < imageCount; ++i)
     {
         FrameBuffer *fb = m_FrameBuffers.Append(tier->Create<FrameBuffer>());
-        fb->Color = ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, alloc, extent, cformat,
-                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                .AddImageView()
-                .Build());
-
-        fb->Outline = ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, alloc, extent, cformat,
-                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                .AddImageView()
-                .Build());
-
-        fb->DepthStencil = ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, alloc, extent, dformat,
-                                       VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment |
-                                           VKit::DeviceImageFlag_Sampled)
-                .AddImageView()
-                .AddImageView(stencilRange)
-                .Build());
-
-        fb->PostProcess = ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, alloc, extent, ppFormats,
-                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                .AddImageView(cformat)
-                .AddImageView(sformat)
-                .Build());
+        for (u32 att = 0; att < Attachment_Count; ++att)
+            fb->Attachments[att] = createAttachment(extent, AttachmentType(att));
     }
 
+    VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetBlendDescriptorLayout()};
     VKit::DescriptorSet::Writer pp{GetDevice(), &Descriptors::GetPostProcessDescriptorLayout()};
     VKit::DescriptorSet::Writer compositor{GetDevice(), &Descriptors::GetCompositorDescriptorLayout()};
 
     TKit::StackArray<VkDescriptorImageInfo> infos{};
-    infos.Reserve(imageCount * 4);
+    infos.Reserve(imageCount * 6);
     for (u32 i = 0; i < imageCount; ++i)
     {
         const FrameBuffer *fb = m_FrameBuffers[i];
+        VkDescriptorImageInfo &transparent = infos.Append();
+        transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
+        transparent.sampler = Renderer::GetNearSampler();
+
+        VkDescriptorImageInfo &revealage = infos.Append();
+        revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
+        revealage.sampler = Renderer::GetNearSampler();
+
+        blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, i);
+        blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
 
         VkDescriptorImageInfo &color = infos.Append();
         color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        color.imageView = fb->Color.GetView();
+        color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
         color.sampler = Renderer::GetNearSampler();
-
-        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
 
         VkDescriptorImageInfo &outline = infos.Append();
         outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        outline.imageView = fb->Outline.GetView();
+        outline.imageView = fb->Attachments[Attachment_Outline].GetView();
         outline.sampler = Renderer::GetNearSampler();
-        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
 
         VkDescriptorImageInfo &stencil = infos.Append();
         stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        stencil.imageView = fb->DepthStencil.GetViews().GetBack();
+        stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
         stencil.sampler = VK_NULL_HANDLE;
+
+        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
+        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
         pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
 
         VkDescriptorImageInfo &postProcess = infos.Append();
         postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        postProcess.imageView = fb->PostProcess.GetView(1);
+        postProcess.imageView = fb->Attachments[Attachment_Final].GetView(1);
         postProcess.sampler = Renderer::GetNearSampler();
 
         compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, i);
     }
+    blend.Overwrite(m_BlendSet);
     pp.Overwrite(m_PostProcessSet);
     compositor.Overwrite(m_CompositorSet);
     if (IsDebugUtilsEnabled())
@@ -189,21 +206,20 @@ template <Dimension D> void RenderView<D>::nameFramebuffers()
 {
     for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
     {
-        const TKit::StackString cname = TKit::StackString::Format("onyx-color-attachment-{}", i);
-        const TKit::StackString oname = TKit::StackString::Format("onyx-outline-attachment-{}", i);
-        const TKit::StackString dname = TKit::StackString::Format("onyx-depth-attachment-{}", i);
-        const TKit::StackString pname = TKit::StackString::Format("onyx-pp-attachment-{}", i);
+        TKit::FixedArray<TKit::StackString, Attachment_Count> names{};
+        names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", i);
+        names[Attachment_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", i);
+        names[Attachment_Intermediate] = TKit::StackString::Format("onyx-intermediate-att-{}", i);
+        names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", i);
+        names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", i);
+        names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", i);
 
         FrameBuffer *fb = m_FrameBuffers[i];
-        ONYX_CHECK_VKIT_RESULT(fb->Color.SetName(cname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetName(oname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetName(dname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetName(pname.GetData()));
-
-        ONYX_CHECK_VKIT_RESULT(fb->Color.SetViewNames(cname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetViewNames(oname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetViewNames(dname.GetData()));
-        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetViewNames(pname.GetData()));
+        for (u32 j = 0; j < m_FrameBuffers.GetSize(); ++j)
+        {
+            ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].GetData()));
+            ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].GetData()));
+        }
     }
 }
 
@@ -238,10 +254,8 @@ template <Dimension D> void RenderView<D>::destroyFrameBuffers()
     TKit::TierAllocator *tier = GetTier();
     for (FrameBuffer *fb : m_FrameBuffers)
     {
-        fb->Color.Destroy();
-        fb->Outline.Destroy();
-        fb->DepthStencil.Destroy();
-        fb->PostProcess.Destroy();
+        for (VKit::DeviceImage &att : fb->Attachments)
+            att.Destroy();
         tier->Destroy(fb);
     }
     m_FrameBuffers.Clear();
@@ -305,136 +319,305 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
     }
 }
 
-template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer cmd, const Execution::Tracker &tracker)
+template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginRendering");
+    m_FrameBuffers[m_ImageIndex]->Tracker = tracker;
+}
 
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
-    fb->Tracker = tracker;
-
-    TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
-    const bool isIntermediate = m_Flags & RenderViewFlag_PostProcess;
-    const bool hasOutlines = m_Flags & RenderViewFlag_Outlines;
-
-    VKit::DeviceImage &target = isIntermediate ? fb->Color : fb->PostProcess;
-
-    VkRenderingAttachmentInfoKHR &color = atts[0];
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    color.imageView = isIntermediate ? fb->Color.GetView() : fb->PostProcess.GetView();
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    const Color ccolor = ClearColor.ToLinear();
-    color.clearValue.color = {{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]}};
-
-    target.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                             {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                              .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                              .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
-
-    VkRenderingAttachmentInfoKHR &outline = atts[1];
-    outline.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    outline.imageView = fb->Outline.GetView();
-    outline.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    outline.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    outline.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
-
-    // the src stage ternary kind of doesnt care as there will not be transition if new and old layout are the same
-
-    fb->Outline.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                  {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                   .SrcStage = (isIntermediate && hasOutlines)
-                                                   ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR
-                                                   : VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
-                                   .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
-
-    VkRenderingAttachmentInfoKHR depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = fb->DepthStencil.GetView();
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = (isIntermediate && hasOutlines) ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth.clearValue.depthStencil = {1.f, 0};
-
-    fb->DepthStencil.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                       {.DstAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                        .SrcStage = (isIntermediate && hasOutlines)
-                                                        ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR
-                                                        : VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
-                                        .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
-
+static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkRenderingAttachmentInfoKHR> &colors,
+                           const VkRenderingAttachmentInfoKHR &depth, const u32v2 &ext, Scissor normScissor)
+{
     const VkRenderingAttachmentInfoKHR stencil = depth;
-    const u32v2 ext = GetRenderExtent();
-    const VkExtent2D extent = AsVulkanExtent(ext);
+    const VkExtent2D vkExtent = AsVulkanExtent(ext);
 
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderInfo.renderArea = {{0, 0}, extent};
+    renderInfo.renderArea = {{0, 0}, vkExtent};
     renderInfo.layerCount = 1;
-    renderInfo.colorAttachmentCount = 2;
-    renderInfo.pColorAttachments = atts.GetData();
-    renderInfo.pDepthAttachment = &depth;
-    renderInfo.pStencilAttachment = &stencil;
+    renderInfo.colorAttachmentCount = colors.GetSize();
+    renderInfo.pColorAttachments = colors.GetData();
+    if (depth.imageView)
+    {
+        renderInfo.pDepthAttachment = &depth;
+        renderInfo.pStencilAttachment = &stencil;
+    }
 
     VkViewport viewport;
     viewport.x = 0.f;
     viewport.y = 0.f;
-    viewport.width = f32(extent.width);
-    viewport.height = f32(extent.height);
+    viewport.width = f32(vkExtent.width);
+    viewport.height = f32(vkExtent.height);
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
-    const VkRect2D scissor = getScissor(this, ext);
+    const f32v2 fext = f32v2{ext};
+    normScissor.Position *= fext;
+    normScissor.Extent *= fext;
+    const VkRect2D scissor = AsVulkanScissor(normScissor);
 
     const auto table = GetDeviceTable();
     table->CmdSetViewport(cmd, 0, 1, &viewport);
     table->CmdSetScissor(cmd, 0, 1, &scissor);
-
     table->CmdBeginRenderingKHR(cmd, &renderInfo);
 }
 
-// NOTE: Consider some flags here in case we skip post processing?
-template <Dimension D> void RenderView<D>::EndRendering(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginOpaquePass(const VkCommandBuffer cmd)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::View::EndRendering");
+    TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
+
+    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
+
+    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+
+    VKit::DeviceImage &colorImg =
+        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
+    VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
+    VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
+
+    VkRenderingAttachmentInfoKHR &color = atts[0];
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    color.imageView = colorImg.GetView();
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    const Color ccolor = ClearColor.ToLinear();
+    color.clearValue.color = {{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]}};
+
+    colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                               {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+
+    const bool transparent = m_Flags & RenderViewFlag_Transparency;
+    const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
+
+    VkRenderingAttachmentInfoKHR &outline = atts[1];
+    outline.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    outline.imageView = outlImg.GetView();
+    outline.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    outline.loadOp = hasOutlines ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    outline.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
+
+    // the src stage ternary kind of doesnt care as there will not be transition if new and old layout are the same
+
+    outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                              {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                               .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                               .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+
+    VkRenderingAttachmentInfoKHR depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depth.imageView = depthImg.GetView();
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = (transparent || hasOutlines) ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.clearValue.depthStencil = {1.f, 0};
+
+    depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                               {.DstAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
+                                .SrcStage = (transparent || hasOutlines) ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR
+                                                                         : VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
+                                .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
+
+    const u32v2 ext = GetRenderExtent();
+    beginRendering(cmd, atts, depth, ext, GetNormalizedScissor());
+}
+
+template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer cmd)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::View::EndOpaquePass");
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
     FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
 
-    const bool isIntermediate = m_Flags & RenderViewFlag_PostProcess;
-    const bool hasOutlines = m_Flags & RenderViewFlag_Outlines;
+    const bool transparent = m_Flags & RenderViewFlag_Transparency;
+    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
 
-    VKit::DeviceImage &img = isIntermediate ? fb->Color : fb->PostProcess;
-    img.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                          {
-                              .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                              .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-
-                              .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                              .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                          });
-
-    if (isIntermediate)
+    if (hasPostProcess && !transparent)
     {
-        fb->Outline.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                      {
-                                          .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                          .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+        VKit::DeviceImage &colorImg =
+            hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
+        VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
+        VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
 
-                                          .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                      });
-        if (hasOutlines)
-            fb->DepthStencil.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                               {
-                                                   .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                                   .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+        colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   {
+                                       .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
 
-                                                   .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
-                                                   .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                               });
+                                       .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                   });
+        outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                  {
+                                      .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                      .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+
+                                      .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                      .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                  });
+        depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   {
+                                       .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
+                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+
+                                       .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
+                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                   });
+    }
+}
+
+template <Dimension D> void RenderView<D>::BeginTransparentPass(const VkCommandBuffer cmd)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginTransparentPass");
+
+    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    TKit::FixedArray<VkRenderingAttachmentInfoKHR, 3> atts{};
+
+    VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
+    VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
+    VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
+    VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
+
+    VkRenderingAttachmentInfoKHR &color = atts[0];
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    color.imageView = trImg.GetView();
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
+
+    trImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                            {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                             .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                             .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+
+    const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
+
+    VkRenderingAttachmentInfoKHR &outline = atts[1];
+    outline.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    outline.imageView = outlImg.GetView();
+    outline.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    outline.loadOp = hasOutlines ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    outline.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
+
+    VkRenderingAttachmentInfoKHR &revealage = atts[2];
+    revealage.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    revealage.imageView = revImg.GetView();
+    revealage.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    revealage.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    revealage.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    revealage.clearValue.color = {{1.f, 0.f, 0.f, 0.f}};
+
+    revImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                             {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                              .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                              .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+
+    VkRenderingAttachmentInfoKHR depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depth.imageView = depthImg.GetView();
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    depth.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.clearValue.depthStencil = {1.f, 0};
+
+    const u32v2 ext = GetRenderExtent();
+    beginRendering(cmd, atts, depth, ext, GetNormalizedScissor());
+}
+
+template <Dimension D> void RenderView<D>::EndTransparentPass(const VkCommandBuffer cmd)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::View::EndTransparentPass");
+    const auto table = GetDeviceTable();
+
+    table->CmdEndRenderingKHR(cmd);
+    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+
+    VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
+    VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
+    trImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                            {
+                                .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                            });
+
+    revImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                             {
+                                 .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                 .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                 .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                 .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                             });
+}
+
+template <Dimension D> void RenderView<D>::BeginBlendPass(const VkCommandBuffer cmd)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginBlendPass");
+
+    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+
+    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+
+    VKit::DeviceImage &colorImg =
+        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
+
+    VkRenderingAttachmentInfoKHR color{};
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    color.imageView = colorImg.GetView();
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    const u32v2 ext = GetRenderExtent();
+
+    beginRendering(cmd, color, {}, ext, GetNormalizedScissor());
+}
+template <Dimension D> void RenderView<D>::EndBlendPass(const VkCommandBuffer cmd)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::View::EndBlendPass");
+    const auto table = GetDeviceTable();
+
+    table->CmdEndRenderingKHR(cmd);
+    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+
+    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+
+    VKit::DeviceImage &colorImg =
+        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
+
+    colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                               {
+                                   .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                   .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                   .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                   .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                               });
+
+    if (hasPostProcess)
+    {
+        VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
+        VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
+        outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                  {
+                                      .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                      .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                      .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                      .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                  });
+        depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   {
+                                       .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
+                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                       .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
+                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                   });
     }
 }
 
@@ -444,44 +627,22 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
 
     FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
 
-    VkRenderingAttachmentInfoKHR pp{};
-    pp.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    pp.imageView = fb->PostProcess.GetView();
-    pp.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    pp.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    pp.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 
-    fb->PostProcess.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                      {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                       .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                       .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    VkRenderingAttachmentInfoKHR color{};
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    color.imageView = finalImg.GetView();
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    finalImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                               {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
     const u32v2 ext = GetRenderExtent();
-    const VkExtent2D extent = AsVulkanExtent(ext);
-
-    VkRenderingInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderInfo.renderArea = {{0, 0}, extent};
-    renderInfo.layerCount = 1;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachments = &pp;
-
-    VkViewport viewport{};
-    viewport.x = 0.f;
-    viewport.y = 0.f;
-    viewport.width = f32(extent.width);
-    viewport.height = f32(extent.height);
-    viewport.minDepth = 0.f;
-    viewport.maxDepth = 1.f;
-
-    const VkRect2D scissor = getScissor(this, ext);
-
-    const auto table = GetDeviceTable();
-
-    table->CmdSetViewport(cmd, 0, 1, &viewport);
-    table->CmdSetScissor(cmd, 0, 1, &scissor);
-
-    table->CmdBeginRenderingKHR(cmd, &renderInfo);
+    beginRendering(cmd, color, {}, ext, GetNormalizedScissor());
 }
 
 template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer cmd)
@@ -490,15 +651,16 @@ template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer 
     const auto table = GetDeviceTable();
     FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
 
-    table->CmdEndRenderingKHR(cmd);
-    fb->PostProcess.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                      {
-                                          .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                          .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+    VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 
-                                          .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                      });
+    table->CmdEndRenderingKHR(cmd);
+    finalImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                               {
+                                   .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                   .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                   .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                   .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                               });
 }
 
 template <Dimension D> f32m<D> RenderView<D>::ComputeView() const

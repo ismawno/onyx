@@ -9,7 +9,6 @@
 #include "pipelines.hpp"
 #include "descriptors.hpp"
 #include "execution.hpp"
-#include "platform.hpp"
 #include "vkit/resource/device_buffer.hpp"
 #include "vkit/resource/device_image.hpp"
 #include "vkit/resource/sampler.hpp"
@@ -61,6 +60,7 @@ struct GraphicsInstanceRange
     ViewMask ViewMask = 0;
     Resource MeshHandle = NullHandle;
     RenderModeFlags RenderFlags = 0;
+    BlendPass Blend = BlendPass_None;
     TKit::TierArray<ContextInstanceRange> ContextRanges{};
 
     bool InUseByTransfer() const
@@ -141,7 +141,9 @@ struct LightArena
 struct GeometryData
 {
     TKit::FixedArray<InstanceArena, Geometry_Count> Arenas{};
-    TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, PipelinePass_Count> Pipelines{};
+    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, PipelinePass_Count>,
+                     BlendPass_Count>
+        Pipelines{};
 };
 
 template <typename LightParams> struct ContextLights
@@ -292,6 +294,7 @@ static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
+static VKit::GraphicsPipeline s_BlendPipeline{};
 static VKit::GraphicsPipeline s_PostProcessPipeline{};
 static VKit::GraphicsPipeline s_CompositorPipeline{};
 
@@ -433,30 +436,26 @@ template <Dimension D> static void createPipelines()
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
 
-    const VkFormat cformat = Platform::GetColorFormat();
-    VkPipelineRenderingCreateInfoKHR rinfo{};
-    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-    rinfo.colorAttachmentCount = 1;
-    rinfo.pColorAttachmentFormats = &cformat;
-    rinfo.depthAttachmentFormat = Platform::GetDepthStencilFormat();
-    rinfo.stencilAttachmentFormat = Platform::GetDepthStencilFormat();
-
     for (u32 j = 0; j < Geometry_Count; ++j)
     {
         const Geometry geo = Geometry(j);
         for (u32 i = 0; i < PipelinePass_Count; ++i)
         {
-            const PipelinePass pass = PipelinePass(i);
-            rdata.Geometry.Pipelines[pass][geo] = Pipelines::CreateGeometryPipeline<D>(pass, geo);
-
-            if (IsDebugUtilsEnabled())
+            for (u32 k = 0; k < BlendPass_Count; ++k)
             {
-                const TKit::StackString name = TKit::StackString::Format(
-                    "onyx-renderer-geometry-pipeline-{}D-pass-{}-geometry-'{}'", u8(D), ToString(pass), ToString(geo));
-                ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[pass][geo].SetName(name.GetData()));
+                const BlendPass bpass = BlendPass(k);
+                const PipelinePass pass = PipelinePass(i);
+                rdata.Geometry.Pipelines[bpass][pass][geo] = Pipelines::CreateGeometryPipeline<D>(pass, bpass, geo);
+
+                if (IsDebugUtilsEnabled())
+                {
+                    const TKit::StackString name =
+                        TKit::StackString::Format("onyx-renderer-geometry-pipeline-{}D-{}-pass-{}-geometry-'{}'", u8(D),
+                                                  ToString(bpass), ToString(pass), ToString(geo));
+                    ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][pass][geo].SetName(name.GetData()));
+                }
             }
         }
-
         VkFormat format;
         if constexpr (D == D2)
             format = sdata.OcclusionFormat;
@@ -484,11 +483,13 @@ template <Dimension D> static void createPipelines()
 
 static void createPipelines()
 {
+    s_BlendPipeline = Pipelines::CreateBlendPipeline();
     s_PostProcessPipeline = Pipelines::CreatePostProcessPipeline();
     s_CompositorPipeline = Pipelines::CreateCompositorPipeline();
 
     if (IsDebugUtilsEnabled())
     {
+        ONYX_CHECK_VKIT_RESULT(s_BlendPipeline.SetName("onyx-blend-pipeline"));
         ONYX_CHECK_VKIT_RESULT(s_PostProcessPipeline.SetName("onyx-post-process-pipeline"));
         ONYX_CHECK_VKIT_RESULT(s_CompositorPipeline.SetName("onyx-compositor-pipeline"));
     }
@@ -503,9 +504,9 @@ template <Dimension D> static void destroyPipelines()
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
     {
-        for (u32 pass = 0; pass < PipelinePass_Count; ++pass)
-            if (rdata.Geometry.Pipelines[pass][geo])
-                rdata.Geometry.Pipelines[pass][geo].Destroy();
+        for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+            for (u32 pass = 0; pass < PipelinePass_Count; ++pass)
+                rdata.Geometry.Pipelines[bpass][pass][geo].Destroy();
         sdata.Pipelines[geo].Destroy();
     }
     if constexpr (D == D2)
@@ -516,6 +517,7 @@ static void destroyPipelines()
 {
     destroyPipelines<D2>();
     destroyPipelines<D3>();
+    s_BlendPipeline.Destroy();
     s_PostProcessPipeline.Destroy();
     s_CompositorPipeline.Destroy();
 }
@@ -1517,7 +1519,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
         if (min[0] >= max[0] || min[1] >= max[1])
             continue;
 
-        enableFlags |= 1 << i;
+        enableFlags |= 1U << i;
 
         if (min[2] < 0.f)
             min[2] *= zmul;
@@ -1564,7 +1566,7 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
                 c.Count != 0,
                 "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
 
-            data.CascadeEnable = (1 << ONYX_MAX_CASCADES) - 1;
+            data.CascadeEnable = (1U << ONYX_MAX_CASCADES) - 1;
             const TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades =
                 c.View ? createCascades(dir, c.View, data.Offset, params.Extent, c.Count, c.FittedParameters.ZMul,
                                         c.Lambda, c.Overlap, data.CascadeEnable)
@@ -1655,9 +1657,9 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     using LightUpdateFlags = u8;
     enum LightUpdateFlagBit : LightUpdateFlags
     {
-        LightUpdateFlag_Point = 1 << 0,
-        LightUpdateFlag_Directional = 1 << 1,
-        LightUpdateFlag_Spot = 1 << 2,
+        LightUpdateFlag_Point = 1U << 0,
+        LightUpdateFlag_Directional = 1U << 1,
+        LightUpdateFlag_Spot = 1U << 2,
     };
 
     LightUpdateFlags toUpdate = 0;
@@ -1834,7 +1836,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             tm->WaitUntilFinished(task);
     };
 
-    const auto findInstanceRanges = [&](const u32 rmode, const Geometry geo, const Resource handle,
+    const auto findInstanceRanges = [&](const u32 rmode, const u32 bpass, const u32 geo, const Resource handle,
                                         const auto getInstanceData) {
         TransferInstancePool &tpool = rdata.Geometry.Arenas[geo].Transfer;
         GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
@@ -1864,7 +1866,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         if (requiredMem == 0)
             return;
 
-        TransferInstanceRange *trange = findTransferInstanceRange<D>(geo, tpool, requiredMem, tasks);
+        TransferInstanceRange *trange = findTransferInstanceRange<D>(Geometry(geo), tpool, requiredMem, tasks);
         trange->Tracker.MarkInUse(transfer, transferFlightValue);
 
         for (const ContextInstanceRange &crange : contextRanges)
@@ -1881,7 +1883,9 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             Task &task = tasks.Append(copy);
             sindex = tm->SubmitTask(&task, sindex);
         }
-        GraphicsInstanceRange *grange = findGraphicsInstanceRange<D>(geo, gpool, requiredMem, transfer, tasks);
+        GraphicsInstanceRange *grange =
+            findGraphicsInstanceRange<D>(Geometry(geo), gpool, requiredMem, transfer, tasks);
+        grange->Blend = BlendPass(bpass);
         grange->MeshHandle = handle;
         grange->ContextRanges = contextRanges;
         grange->ViewMask = viewMask;
@@ -1899,7 +1903,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         ranges.Append(&gpool.Buffer, grange->Offset, requiredMem);
     };
 
-    const auto gatherInstanceRanges = [&](const u32 rmode, const Geometry geo) {
+    const auto gatherInstanceRanges = [&](const u32 rmode, const u32 geo) {
         TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindRanges");
         TransferInstancePool &tpool = rdata.Geometry.Arenas[geo].Transfer;
         GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
@@ -1910,22 +1914,25 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         copyCmd.Offset = copies.GetSize();
 
         if (geo == Geometry_Circle)
-            findInstanceRanges(rmode, Geometry_Circle, NullHandle,
-                               [rmode](const RenderContext<D> *ctx) -> const auto & {
-                                   return ctx->GetInstanceData()[rmode]->Circles;
-                               });
+            for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+                findInstanceRanges(rmode, bpass, Geometry_Circle, NullHandle,
+                                   [rmode, bpass](const RenderContext<D> *ctx) -> const auto & {
+                                       return ctx->GetInstanceData()[BlendPass(bpass)][rmode]->Circles;
+                                   });
         else
         {
-            const ResourceType rtype = getResourceType(geo);
+            const ResourceType rtype = getResourceType(Geometry(geo));
             const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
             for (const u32 pid : poolIds)
             {
                 const u32 mcount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
-                for (u32 i = 0; i < mcount; ++i)
-                    findInstanceRanges(rmode, geo, Resources::CreateResourceHandle(rtype, i, pid),
-                                       [rtype, rmode, pid, i](const RenderContext<D> *ctx) -> const auto & {
-                                           return ctx->GetInstanceData()[rmode]->Meshes[rtype][pid][i];
-                                       });
+                for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+                    for (u32 i = 0; i < mcount; ++i)
+                        findInstanceRanges(
+                            rmode, bpass, geo, Resources::CreateResourceHandle(rtype, i, pid),
+                            [rtype, rmode, bpass, pid, i](const RenderContext<D> *ctx) -> const auto & {
+                                return ctx->GetInstanceData()[BlendPass(bpass)][rmode]->Meshes[rtype][pid][i];
+                            });
             }
         }
 
@@ -1935,12 +1942,9 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     };
 
     for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
-    {
-        gatherInstanceRanges(rmode, Geometry_Circle);
-        gatherInstanceRanges(rmode, Geometry_Static);
-        gatherInstanceRanges(rmode, Geometry_Parametric);
-        gatherInstanceRanges(rmode, Geometry_Glyph);
-    }
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            gatherInstanceRanges(rmode, geo);
+
     for (const RangePair &range : ranges)
     {
         rdata.AcquireBarriers.Append(
@@ -2258,7 +2262,8 @@ static void endShadowPass(const VkCommandBuffer cmd)
 template <Dimension D, typename F>
 static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, const ViewMask viewBit,
                             const u64 inFlightValue, const F &insertCommand, const RenderModeFlags flags,
-                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr)
+                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr,
+                            const BlendPass bpass = BlendPass_All)
 {
     RendererData<D> &rdata = getRendererData<D>();
     GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
@@ -2267,7 +2272,8 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
 
     for (GraphicsInstanceRange &grange : gpool.Ranges)
     {
-        if (!(grange.ViewMask & viewBit) || !(grange.RenderFlags & flags))
+        if (!(grange.ViewMask & viewBit) || !(grange.RenderFlags & flags) ||
+            (bpass != BlendPass_All && grange.Blend != bpass))
             continue;
 
         TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
@@ -2603,7 +2609,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     else if constexpr (isDir)
                     {
                         for (u32 j = 0; j < data.CascadeCount; ++j)
-                            if ((1 << j) & data.CascadeEnable)
+                            if ((1U << j) & data.CascadeEnable)
                                 processMap(smap, createTransform(data.Cascades[j].ProjectionView), j);
                     }
                     else
@@ -2622,12 +2628,13 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 
 template <Dimension D>
 static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cmd, const ViewInfo<D> &vinfo,
-                           const u64 inFlightValue, TKit::StackArray<Execution::Tracker> &transferTrackers,
-                           const bool shadows)
+                           const BlendPass bpass, const u64 inFlightValue,
+                           TKit::StackArray<Execution::Tracker> &transferTrackers, const bool shadows)
 {
     const ViewMask viewBit = vinfo.ViewBit;
 
     RendererData<D> &rdata = getRendererData<D>();
+
     // TODO(Isma): At some point would be good letting the user decide what strategy to use to aggregate ambient
     Color ambient{0.f, 0.f};
     for (const ContextInfo<D> &info : rdata.Contexts)
@@ -2640,6 +2647,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 
     TKit::FixedArray<CircleDrawCommands, PipelinePass_Count> circleCmds{};
     TKit::FixedArray<MeshDrawCommands, PipelinePass_Count> meshCmds{};
+    TKit::FixedArray<u32, PipelinePass_Count> cmdCount{0, 0, 0};
 
     const auto insertCommand = [&](const ResourceType rtype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
@@ -2656,7 +2664,11 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 
         if (rtype == Resource_PoolCount) // circles sentry
             for (u32 i = 0; i < pcount; ++i)
-                circleCmds[passes[i]].Append(createCircleCommand(fi, ic));
+            {
+                const PipelinePass p = passes[i];
+                circleCmds[p].Append(createCircleCommand(fi, ic));
+                ++cmdCount[p];
+            }
         else
         {
             ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
@@ -2666,7 +2678,11 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 
             const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
             for (u32 i = 0; i < pcount; ++i)
-                meshCmds[passes[i]][rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+            {
+                const PipelinePass p = passes[i];
+                meshCmds[p][rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+                ++cmdCount[p];
+            }
         }
     };
 
@@ -2674,7 +2690,8 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     {
         const Geometry geo = Geometry(i);
         collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand,
-                           RenderModeFlag_Shaded | RenderModeFlag_Outlined | RenderModeFlag_Flat, &transferTrackers);
+                           RenderModeFlag_Shaded | RenderModeFlag_Outlined | RenderModeFlag_Flat, &transferTrackers,
+                           bpass);
     }
 
     LightData<D> &ldata = rdata.Lights;
@@ -2696,6 +2713,8 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 i = 0; i < PipelinePass_Count; ++i)
     {
+        if (cmdCount[i] == 0)
+            continue;
         const PipelinePass pass = PipelinePass(i);
         const RenderPass rpass = GetRenderPass(pass);
         const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(rpass);
@@ -2726,7 +2745,8 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
                                     sizeof(ShadedPushConstantData<D>), &pdata);
         }
 
-        submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout, rdata.Geometry.Pipelines[pass],
+        const u32 idx = bpass == BlendPass_All ? BlendPass_Opaque : bpass;
+        submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout, rdata.Geometry.Pipelines[idx][pass],
                               circleCmds[pass], meshCmds[pass]);
     }
 }
@@ -2784,23 +2804,53 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
     tracker.InFlightValue = graphicsFlight;
 
     RenderViewFlags flags = 0;
+    const auto &device = GetDevice();
+    const auto table = GetDeviceTable();
+
     for (RenderView<D> *rv : views)
     {
         flags |= rv->GetFlags();
-        if (rv->GetFlags() & RenderViewFlag_Shadows)
+        const bool shadows = rv->GetFlags() & RenderViewFlag_Shadows;
+        if (shadows)
             renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
 
         rv->CacheMatrices();
-        rv->BeginRendering(cmd, tracker);
-        renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers,
-                          rv->GetFlags() & RenderViewFlag_Shadows);
-        rv->EndRendering(cmd);
+        const ViewInfo<D> vinfo = rv->CreateViewInfo();
+
+        rv->MarkCurrentAttachmentsInUse(tracker);
+
+        const bool transparency = rv->GetFlags() & RenderViewFlag_Transparency;
+        const BlendPass opaquePass = transparency ? BlendPass_Opaque : BlendPass_All;
+
+        rv->BeginOpaquePass(cmd);
+        renderGeometry<D>(graphics, cmd, vinfo, opaquePass, graphicsFlight, transferTrackers, shadows);
+        rv->EndOpaquePass(cmd);
+        if (transparency)
+        {
+            rv->BeginTransparentPass(cmd);
+            renderGeometry<D>(graphics, cmd, vinfo, BlendPass_Transparent, graphicsFlight, transferTrackers, shadows);
+            rv->EndTransparentPass(cmd);
+            rv->BeginBlendPass(cmd);
+            s_BlendPipeline.Bind(cmd);
+
+            const VKit::PipelineLayout &playout = Pipelines::GetBlendPipelineLayout();
+            const VkDescriptorSet set = rv->GetBlendSet();
+            VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+
+            const u32 idx = rv->GetImageIndex();
+            TKIT_ASSERT(idx < ONYX_MAX_ATTACHMENTS,
+                        "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})", idx,
+                        ONYX_MAX_ATTACHMENTS);
+
+            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BlendPushConstantData), &idx);
+            table->CmdDraw(cmd, 6, 1, 0, 0);
+
+            rv->EndBlendPass(cmd);
+        }
     }
 
     if (flags & RenderViewFlag_PostProcess)
     {
-        const auto &device = GetDevice();
-        const auto table = GetDeviceTable();
         const VKit::PipelineLayout &playout = Pipelines::GetPostProcessPipelineLayout();
         for (RenderView<D> *rv : views)
             if (rv->GetFlags() & RenderViewFlag_PostProcess)
@@ -2825,6 +2875,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
                 table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                         sizeof(PostProcessPushConstantData), &pdata);
                 table->CmdDraw(cmd, 6, 1, 0, 0);
+
                 rv->EndPostProcess(cmd);
             }
     }
@@ -2882,7 +2933,8 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     Execution::Tracker tracker;
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
-    window->BeginRendering(cmd, tracker);
+    window->MarkPresentationImageInUse(tracker);
+    window->BeginRendering(cmd);
 
     s_CompositorPipeline.Bind(cmd);
 

@@ -9,7 +9,7 @@ using OpenWindowFlags = u8;
 enum OpenWindowFlagBit : OpenWindowFlags
 {
 #ifdef ONYX_ENABLE_IMGUI
-    OpenWindowFlag_EnableImGui = 1 << 0,
+    OpenWindowFlag_EnableImGui = 1U << 0,
 #endif
 };
 

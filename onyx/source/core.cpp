@@ -366,17 +366,17 @@ static void initializeAllocators(const Specs &specs)
     if (TKit::GetArena() != libAlloc.Arena)
     {
         TKit::PushArena(libAlloc.Arena);
-        s_PushedAlloc |= 1 << 0;
+        s_PushedAlloc |= 1U << 0;
     }
     if (TKit::GetStack() != libAlloc.Stack)
     {
         TKit::PushStack(libAlloc.Stack);
-        s_PushedAlloc |= 1 << 1;
+        s_PushedAlloc |= 1U << 1;
     }
     if (TKit::GetTier() != libAlloc.Tier)
     {
         TKit::PushTier(libAlloc.Tier);
-        s_PushedAlloc |= 1 << 2;
+        s_PushedAlloc |= 1U << 2;
     }
 }
 

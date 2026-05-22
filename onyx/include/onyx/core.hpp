@@ -149,15 +149,15 @@ struct Specs;
 using InitializationFlags = u16;
 enum InitializationFlagBit : InitializationFlags
 {
-    InitializationFlag_DefaultTaskManagerSingleThread = 1 << 0,
-    InitializationFlag_EnableValidationLayers = 1 << 1,
-    InitializationFlag_EnableDebugUtilsExtension = 1 << 2,
-    InitializationFlag_EnableDeviceAssistedDebugFeature = 1 << 3,
-    InitializationFlag_EnableBestPracticesDebugFeature = 1 << 4,
-    InitializationFlag_EnablePrintfDebugFeature = 1 << 5,
-    InitializationFlag_EnableSyncValidationDebugFeature = 1 << 6,
-    InitializationFlag_EnableDeviceFaultExtension = 1 << 7,
-    InitializationFlag_ResetArenasOnTermination = 1 << 8
+    InitializationFlag_DefaultTaskManagerSingleThread = 1U << 0,
+    InitializationFlag_EnableValidationLayers = 1U << 1,
+    InitializationFlag_EnableDebugUtilsExtension = 1U << 2,
+    InitializationFlag_EnableDeviceAssistedDebugFeature = 1U << 3,
+    InitializationFlag_EnableBestPracticesDebugFeature = 1U << 4,
+    InitializationFlag_EnablePrintfDebugFeature = 1U << 5,
+    InitializationFlag_EnableSyncValidationDebugFeature = 1U << 6,
+    InitializationFlag_EnableDeviceFaultExtension = 1U << 7,
+    InitializationFlag_ResetArenasOnTermination = 1U << 8
 };
 
 struct Allocation

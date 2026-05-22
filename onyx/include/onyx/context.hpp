@@ -179,6 +179,7 @@ template <Dimension D> struct ContextState
     Resource FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
     RenderModeFlags RenderFlags = RenderModeFlag_Flat;
+    BlendPass GeoPass = BlendPass_Opaque;
 };
 
 struct InstanceDataArrays;
@@ -502,6 +503,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void FillColor(const Color &color)
     {
         m_Current->FillColor = color;
+        m_Current->GeoPass = TKit::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+    }
+    void Alpha(const f32 alpha)
+    {
+        m_Current->FillColor.rgba[3] = alpha;
+        m_Current->GeoPass = TKit::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // there is no support for alpha channel in outlines
     void OutlineColor(const Color &color)
@@ -633,7 +640,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 #endif
 
     TKit::TierArray<ContextState<D>> m_StateStack{};
-    TKit::FixedArray<InstanceDataArrays *, RenderMode_Count> m_InstanceData{};
+    TKit::FixedArray<TKit::FixedArray<InstanceDataArrays *, RenderMode_Count>, BlendPass_Count> m_InstanceData{};
 
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};

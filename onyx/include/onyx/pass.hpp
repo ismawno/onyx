@@ -8,19 +8,27 @@ using RenderModeFlags = u8;
 enum RenderModeFlagBit : RenderModeFlags
 {
     RenderModeFlag_None = 0,
-    RenderModeFlag_Flat = 1 << 1,
-    RenderModeFlag_Shaded = 1 << 0,
-    RenderModeFlag_Outlined = 1 << 2,
+    RenderModeFlag_Flat = 1U << 0,
+    RenderModeFlag_Shaded = 1U << 1,
+    RenderModeFlag_Outlined = 1U << 2,
 };
 enum RenderMode : u8
 {
     RenderMode_Flat,
     RenderMode_Shaded,
     RenderMode_Outlined,
-    RenderMode_ShadedOutlined,
     RenderMode_FlatOutlined,
+    RenderMode_ShadedOutlined,
     RenderMode_Count,
     RenderMode_None = RenderMode_Count
+};
+enum BlendPass : u8
+{
+    BlendPass_Opaque,
+    BlendPass_Transparent,
+    BlendPass_Count,
+    BlendPass_None = BlendPass_Count,
+    BlendPass_All,
 };
 constexpr RenderMode GetRenderMode(const RenderModeFlags flags)
 {

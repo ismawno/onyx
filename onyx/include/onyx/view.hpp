@@ -45,15 +45,16 @@ template <> struct ViewInfo<D3>
 using RenderViewFlags = u8;
 enum RenderViewFlagBit : RenderViewFlags
 {
-    RenderViewFlag_Shadows = 1 << 0,
-    RenderViewFlag_PostProcess = 1 << 1,
-    RenderViewFlag_Outlines = 1 << 2,
-    RenderViewFlag_ManualProjectionView = 1 << 3,
-    RenderViewFlag_NormalizedViewportCoordinates = 1 << 4,
-    RenderViewFlag_NormalizedScissorCoordinates = 1 << 5,
+    RenderViewFlag_Shadows = 1U << 0,
+    RenderViewFlag_PostProcess = 1U << 1,
+    RenderViewFlag_Outlines = 1U << 2,
+    RenderViewFlag_Transparency = 1U << 3,
+    RenderViewFlag_ManualProjectionView = 1U << 4,
+    RenderViewFlag_NormalizedViewportCoordinates = 1U << 5,
+    RenderViewFlag_NormalizedScissorCoordinates = 1U << 6,
     RenderViewFlag_NormalizedCoordinates =
         RenderViewFlag_NormalizedViewportCoordinates | RenderViewFlag_NormalizedScissorCoordinates,
-    RenderViewFlag_DynamicViewport = 1 << 6,
+    RenderViewFlag_DynamicViewport = 1U << 7,
 };
 
 struct FrameBuffer;
@@ -89,8 +90,16 @@ template <Dimension D> class RenderView
         return ViewportToScreen(WorldToViewport(worldPos));
     }
 
-    void BeginRendering(Onyx_CommandBuffer cmd, const Execution::Tracker &tracker);
-    void EndRendering(Onyx_CommandBuffer cmd);
+    void MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker);
+
+    void BeginOpaquePass(Onyx_CommandBuffer cmd);
+    void EndOpaquePass(Onyx_CommandBuffer cmd);
+
+    void BeginTransparentPass(Onyx_CommandBuffer cmd);
+    void EndTransparentPass(Onyx_CommandBuffer cmd);
+
+    void BeginBlendPass(Onyx_CommandBuffer cmd);
+    void EndBlendPass(Onyx_CommandBuffer cmd);
 
     void BeginPostProcess(Onyx_CommandBuffer cmd);
     void EndPostProcess(Onyx_CommandBuffer cmd);
@@ -290,6 +299,10 @@ template <Dimension D> class RenderView
         CacheMatrices();
     }
 
+    Onyx_DescriptorSet GetBlendSet() const
+    {
+        return m_BlendSet;
+    }
     Onyx_DescriptorSet GetPostProcessSet() const
     {
         return m_PostProcessSet;
@@ -322,6 +335,7 @@ template <Dimension D> class RenderView
     }
 
     Color ClearColor{Color_Black};
+    // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
     u32 Layer = 0;
 
@@ -385,6 +399,7 @@ template <Dimension D> class RenderView
     f32m<D> m_ProjectionView = f32m<D>::Identity();
 
     TKit::TierArray<FrameBuffer *> m_FrameBuffers{};
+    Onyx_DescriptorSet m_BlendSet;
     Onyx_DescriptorSet m_PostProcessSet;
     Onyx_DescriptorSet m_CompositorSet;
     u32 m_ImageIndex = TKIT_U32_MAX;

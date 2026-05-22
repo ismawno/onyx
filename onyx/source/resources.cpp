@@ -52,7 +52,7 @@ namespace Onyx::Resources
 using StatusFlags = u8;
 enum StatusFlagBit : StatusFlags
 {
-    StatusFlag_NeedsSync = 1 << 0,
+    StatusFlag_NeedsSync = 1U << 0,
 };
 
 template <typename Vertex> struct MeshDataInfo

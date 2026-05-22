@@ -92,9 +92,9 @@ enum LightType : u8
 using LightFlags = u32;
 enum LightFlagBit : LightFlags
 {
-    LightFlag_CastShadows = 1 << 0,
-    LightFlag_PCF = 1 << 1,
-    LightFlag_PCSS = 1 << 2,
+    LightFlag_CastShadows = 1U << 0,
+    LightFlag_PCF = 1U << 1,
+    LightFlag_PCSS = 1U << 2,
 };
 
 template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;

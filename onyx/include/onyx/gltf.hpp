@@ -32,7 +32,7 @@ template <Dimension D> struct GltfData
 using LoadGltfDataFlags = u8;
 enum LoadGltfDataFlagBit : LoadGltfDataFlags
 {
-    LoadGltfDataFlag_ForceRGBA = 1 << 0,
+    LoadGltfDataFlag_ForceRGBA = 1U << 0,
 };
 template <Dimension D>
 ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfDataFromFile(const std::string &path, LoadGltfDataFlags flags = 0);

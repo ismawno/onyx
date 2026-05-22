@@ -610,11 +610,15 @@ VkSemaphore Window::GetRenderFinishedSemaphore() const
     return m_SyncData[m_ImageIndex]->RenderFinishedSemaphore;
 }
 
-void Window::BeginRendering(const VkCommandBuffer cmd, const Execution::Tracker &tracker)
+void Window::MarkPresentationImageInUse(const Execution::Tracker &tracker)
+{
+    m_SyncData[m_SyncIndex]->Tracker = tracker;
+}
+
+void Window::BeginRendering(const VkCommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
 
-    m_SyncData[m_SyncIndex]->Tracker = tracker;
     VKit::DeviceImage *pimage = m_Presentation[m_ImageIndex];
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;

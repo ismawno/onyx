@@ -13,17 +13,18 @@ void Terminate();
 
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(RenderPass pass);
 const VKit::PipelineLayout &GetRayMarchPipelineLayout();
+const VKit::PipelineLayout &GetBlendPipelineLayout();
 const VKit::PipelineLayout &GetPostProcessPipelineLayout();
 const VKit::PipelineLayout &GetCompositorPipelineLayout();
 
 // TODO(Isma): Make this public?
 void ReloadShaders();
 
-template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(PipelinePass pass, Geometry geo);
-
+template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(PipelinePass pass, BlendPass bpass, Geometry geo);
 template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometry geo, const VkFormat format);
 
 VKit::ComputePipeline CreateRayMarchPipeline();
+VKit::GraphicsPipeline CreateBlendPipeline();
 VKit::GraphicsPipeline CreatePostProcessPipeline();
 VKit::GraphicsPipeline CreateCompositorPipeline();
 

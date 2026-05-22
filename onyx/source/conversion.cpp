@@ -246,6 +246,21 @@ const char *ToString(const Geometry geo)
     }
 }
 
+const char *ToString(const BlendPass bpass)
+{
+    switch (bpass)
+    {
+    case BlendPass_Opaque:
+        return "BlendPass_Opaque";
+    case BlendPass_Transparent:
+        return "BlendPass_Transparent";
+    case BlendPass_All:
+        return "BlendPass_All";
+    default:
+        return "Unknown";
+    }
+}
+
 const char *ToString(const LightType light)
 {
     switch (light)

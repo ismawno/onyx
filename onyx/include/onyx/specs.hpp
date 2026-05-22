@@ -48,12 +48,12 @@ namespace Descriptors
 {
 struct Specs
 {
-    u32 MaxSets = 1 << 10;
-    u32 StorageBufferPoolSize = 1 << 14;
-    u32 SamplerPoolSize = 1 << 10;
-    u32 SampledImagePoolSize = 1 << 17;
-    u32 CombinedImageSamplerPoolSize = 1 << 10;
-    u32 StorageImagePoolSize = 1 << 9;
+    u32 MaxSets = 1U << 10;
+    u32 StorageBufferPoolSize = 1U << 14;
+    u32 SamplerPoolSize = 1U << 10;
+    u32 SampledImagePoolSize = 1U << 17;
+    u32 CombinedImageSamplerPoolSize = 1U << 10;
+    u32 StorageImagePoolSize = 1U << 9;
 };
 } // namespace Descriptors
 

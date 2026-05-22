@@ -4,6 +4,7 @@
 #include "core.hpp"
 #include "descriptors.hpp"
 #include "instance.hpp"
+#include "attachment.hpp"
 #ifdef ONYX_COMPILE_SHADERS_ON_EXEC
 #    include "shaders.hpp"
 #else
@@ -23,13 +24,16 @@ constexpr u32 Dim3 = 1;
 struct ShaderData
 {
     TKit::FixedArray<VKit::Shader, Geometry_Count> VertexShaders{};
-    TKit::FixedArray<VKit::Shader, Geometry_Count> FragmentShaders{};
+    TKit::FixedArray<VKit::Shader, Geometry_Count> OpaqueFragmentShaders{};
+    TKit::FixedArray<VKit::Shader, Geometry_Count> TransparentFragmentShaders{};
 
     void Destroy()
     {
         for (VKit::Shader &sh : VertexShaders)
             sh.Destroy();
-        for (VKit::Shader &sh : FragmentShaders)
+        for (VKit::Shader &sh : OpaqueFragmentShaders)
+            sh.Destroy();
+        for (VKit::Shader &sh : TransparentFragmentShaders)
             sh.Destroy();
     }
 };
@@ -38,15 +42,19 @@ struct PipelineData
 {
     TKit::FixedArray<TKit::FixedArray<VKit::PipelineLayout, RenderPass_Count>, D_Count> Layouts{};
     TKit::FixedArray<TKit::FixedArray<ShaderData, RenderPass_Count>, D_Count> Shaders{};
+
+    VKit::Shader FullPassVertexShader{};
+
     VKit::PipelineLayout RayMarchLayout{};
     VKit::Shader RayMarchComputeShader{};
 
+    VKit::PipelineLayout BlendLayout{};
+    VKit::Shader BlendFragmentShader{};
+
     VKit::PipelineLayout PostProcessLayout{};
-    VKit::Shader PostProcessVertexShader{};
     VKit::Shader PostProcessFragmentShader{};
 
     VKit::PipelineLayout CompositorLayout{};
-    VKit::Shader CompositorVertexShader{};
     VKit::Shader CompositorFragmentShader{};
 };
 
@@ -110,6 +118,12 @@ static void createPipelineLayouts()
         ONYX_CHECK_VKIT_RESULT(VKit::PipelineLayout::Builder(device)
                                    .AddDescriptorSetLayout(Descriptors::GetRayMarchDescriptorLayout())
                                    .AddPushConstantRange<RayMarchPushConstantData>(VK_SHADER_STAGE_COMPUTE_BIT)
+                                   .Build());
+
+    s_PipelineData->BlendLayout =
+        ONYX_CHECK_VKIT_RESULT(VKit::PipelineLayout::Builder(device)
+                                   .AddDescriptorSetLayout(Descriptors::GetBlendDescriptorLayout())
+                                   .AddPushConstantRange<BlendPushConstantData>(VK_SHADER_STAGE_FRAGMENT_BIT)
                                    .Build());
 
     s_PipelineData->PostProcessLayout =
@@ -222,42 +236,55 @@ static void createShaders()
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
     for (const TKit::String &geo : geos)
-        for (const TKit::String &pass : passes)
+        for (u32 rpass = 0; rpass < passes.GetSize(); ++rpass)
             for (const TKit::String &dim : dims)
             {
-                const TKit::String &name = names.Append(geo + "-" + pass + "-" + dim);
-                compiler.AddModule(name.GetData())
-                    .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
-                    .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
-                    .Load();
+                const TKit::String &name = names.Append(geo + "-" + passes[rpass] + "-" + dim);
+                auto &module = compiler.AddModule(name.GetData())
+                                   .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                   .DeclareEntryPoint("mainFSO", ShaderStage_Fragment);
+                if (rpass != RenderPass_Shadow)
+                    module.DeclareEntryPoint("mainFST", ShaderStage_Fragment);
+                module.Load();
             }
 
-    compiler.AddModule("ray-march")
+    compiler.AddModule("full-vertex")
+        .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+        .Load()
+        .AddModule("ray-march")
         .DeclareEntryPoint("main", ShaderStage_Compute)
         .Load()
+        .AddModule("blend")
+        .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+        .Load()
         .AddModule("post-process")
-        .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
         .Load()
         .AddModule("compositor")
-        .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
         .Load();
 
     Shaders::Compilation cmp = ONYX_CHECK_RESULT(compiler.Compile());
 
     u32 idx = 0;
-    const auto createShader = [&](const Geometry geo, ShaderData &data) {
+    const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasTransparent) {
         const TKit::String &name = names[idx++];
         data.VertexShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", name.GetData()));
-        data.FragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", name.GetData()));
+        data.OpaqueFragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFSO", name.GetData()));
+        if (hasTransparent)
+            data.TransparentFragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFST", name.GetData()));
 
         if (IsDebugUtilsEnabled())
         {
             const TKit::String v = "onyx-vertex-shader-" + name;
-            const TKit::String f = "onyx-fragment-shader-" + name;
+            const TKit::String of = "onyx-opaque-fragment-shader-" + name;
             ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.GetData()));
-            ONYX_CHECK_VKIT_RESULT(data.FragmentShaders[geo].SetName(v.GetData()));
+            ONYX_CHECK_VKIT_RESULT(data.OpaqueFragmentShaders[geo].SetName(of.GetData()));
+            if (hasTransparent)
+            {
+                const TKit::String tf = "onyx-transparent-fragment-shader-" + name;
+                ONYX_CHECK_VKIT_RESULT(data.TransparentFragmentShaders[geo].SetName(tf.GetData()));
+            }
         }
     };
 
@@ -267,17 +294,16 @@ static void createShaders()
         for (u32 j = 0; j < passes.GetSize(); ++j)
         {
             const RenderPass rpass = RenderPass(j);
-            createShader(geo, getShaders<D2>(rpass));
-            createShader(geo, getShaders<D3>(rpass));
+            createShader(geo, getShaders<D2>(rpass), rpass != RenderPass_Shadow);
+            createShader(geo, getShaders<D3>(rpass), rpass != RenderPass_Shadow);
         }
     }
 
+    s_PipelineData->FullPassVertexShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", "full-vertex"));
     s_PipelineData->RayMarchComputeShader = ONYX_CHECK_RESULT(cmp.CreateShader("main", "ray-march"));
 
-    s_PipelineData->PostProcessVertexShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", "post-process"));
+    s_PipelineData->BlendFragmentShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", "blend"));
     s_PipelineData->PostProcessFragmentShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", "post-process"));
-
-    s_PipelineData->CompositorVertexShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", "compositor"));
     s_PipelineData->CompositorFragmentShader = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", "compositor"));
 
     cmp.Destroy();
@@ -302,10 +328,10 @@ static void destroyShaders()
     for (auto &dims : s_PipelineData->Shaders)
         for (auto &passes : dims)
             passes.Destroy();
+    s_PipelineData->FullPassVertexShader.Destroy();
     s_PipelineData->RayMarchComputeShader.Destroy();
-    s_PipelineData->PostProcessVertexShader.Destroy();
+    s_PipelineData->BlendFragmentShader.Destroy();
     s_PipelineData->PostProcessFragmentShader.Destroy();
-    s_PipelineData->CompositorVertexShader.Destroy();
     s_PipelineData->CompositorFragmentShader.Destroy();
 }
 
@@ -329,6 +355,7 @@ void Terminate()
         for (auto &passes : dims)
             passes.Destroy();
     s_PipelineData->RayMarchLayout.Destroy();
+    s_PipelineData->BlendLayout.Destroy();
     s_PipelineData->PostProcessLayout.Destroy();
     s_PipelineData->CompositorLayout.Destroy();
 
@@ -342,6 +369,10 @@ template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(const Rende
 const VKit::PipelineLayout &GetRayMarchPipelineLayout()
 {
     return s_PipelineData->RayMarchLayout;
+}
+const VKit::PipelineLayout &GetBlendPipelineLayout()
+{
+    return s_PipelineData->BlendLayout;
 }
 const VKit::PipelineLayout &GetPostProcessPipelineLayout()
 {
@@ -363,21 +394,35 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
+    const bool opaque = renderInfo.colorAttachmentCount == 2;
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .SetViewportCount(1)
         .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
-        .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
+        .AddShaderStage(opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo],
+                        VK_SHADER_STAGE_FRAGMENT_BIT)
         .BeginColorAttachment()
-        .EnableBlending()
-        .SetColorWriteMask(pass == PipelinePass_Shaded || pass == PipelinePass_Flat ? full : 0)
+        .EnableBlending(!opaque)
+        .SetColorBlendFactors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE)
+        .SetColorWriteMask(pass != PipelinePass_Outlined ? full : 0)
         .EndColorAttachment()
         .BeginColorAttachment()
         .SetColorWriteMask(pass == PipelinePass_Outlined ? full : 0)
         .EndColorAttachment();
 
+    if (!opaque)
+        builder.BeginColorAttachment()
+            .EnableBlending()
+            .SetColorBlendFactors(VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR)
+            .SetColorWriteMask(pass != PipelinePass_Outlined ? full : 0)
+            .EndColorAttachment();
+
     if (pass == PipelinePass_Shaded || pass == PipelinePass_Flat)
-        builder.EnableDepthTest().EnableDepthWrite();
+    {
+        builder.EnableDepthTest();
+        if (opaque)
+            builder.EnableDepthWrite();
+    }
 
     if (pass == PipelinePass_Outlined)
     {
@@ -474,15 +519,30 @@ static VKit::GraphicsPipeline createGeometryGlyphMeshPipeline(const PipelinePass
     return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
 }
 
-template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Geometry geo)
+template <Dimension D>
+VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const BlendPass bpass, const Geometry geo)
 {
-    TKit::FixedArray<VkFormat, 2> formats{Platform::GetColorFormat(), Platform::GetColorFormat()};
+    const VkFormat cf = GetAttachmentFormat(Attachment_Intermediate);
+    const VkFormat tf = GetAttachmentFormat(Attachment_Transparent);
+    const VkFormat rf = GetAttachmentFormat(Attachment_Revealage);
+
+    TKit::FixedArray<VkFormat, 2> opFormats{cf, cf};
+    TKit::FixedArray<VkFormat, 3> trFormats{tf, cf, rf};
+
     VkPipelineRenderingCreateInfoKHR rinfo{};
     rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-    rinfo.colorAttachmentCount = 2;
-    rinfo.pColorAttachmentFormats = formats.GetData();
-    rinfo.depthAttachmentFormat = Platform::GetDepthStencilFormat();
-    rinfo.stencilAttachmentFormat = Platform::GetDepthStencilFormat();
+    if (bpass == BlendPass_Opaque)
+    {
+        rinfo.colorAttachmentCount = 2;
+        rinfo.pColorAttachmentFormats = opFormats.GetData();
+    }
+    else
+    {
+        rinfo.colorAttachmentCount = 3;
+        rinfo.pColorAttachmentFormats = trFormats.GetData();
+    }
+    rinfo.depthAttachmentFormat = GetAttachmentFormat(Attachment_DepthStencil);
+    rinfo.stencilAttachmentFormat = rinfo.depthAttachmentFormat;
     switch (geo)
     {
     case Geometry_Circle:
@@ -508,7 +568,7 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
-        .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
+        .AddShaderStage(shaders.OpaqueFragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
         .SetViewportCount(1);
 
     if constexpr (D == D3)
@@ -604,10 +664,34 @@ VKit::ComputePipeline CreateRayMarchPipeline()
     return ONYX_CHECK_VKIT_RESULT(VKit::ComputePipeline::Create(GetDevice(), specs));
 }
 
+VKit::GraphicsPipeline CreateBlendPipeline()
+{
+    VkPipelineRenderingCreateInfoKHR rinfo{};
+    const VkFormat format = GetAttachmentFormat(Attachment_Intermediate);
+    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    rinfo.colorAttachmentCount = 1;
+    rinfo.pColorAttachmentFormats = &format;
+    rinfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    rinfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    return ONYX_CHECK_VKIT_RESULT(
+        VKit::GraphicsPipeline::Builder(GetDevice(), s_PipelineData->BlendLayout, rinfo)
+            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+            .SetViewportCount(1)
+            .AddShaderStage(s_PipelineData->FullPassVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(s_PipelineData->BlendFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .BeginColorAttachment()
+            .EnableBlending()
+            .SetColorBlendFactors(VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+            .EndColorAttachment()
+            .Bake()
+            .Build());
+}
+
 VKit::GraphicsPipeline CreatePostProcessPipeline()
 {
     VkPipelineRenderingCreateInfoKHR rinfo{};
-    const VkFormat format = Platform::GetColorFormat();
+    const VkFormat format = GetAttachmentFormat(Attachment_Final);
     rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     rinfo.colorAttachmentCount = 1;
     rinfo.pColorAttachmentFormats = &format;
@@ -618,7 +702,7 @@ VKit::GraphicsPipeline CreatePostProcessPipeline()
             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
             .SetViewportCount(1)
-            .AddShaderStage(s_PipelineData->PostProcessVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(s_PipelineData->FullPassVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(s_PipelineData->PostProcessFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
             .BeginColorAttachment()
             .EndColorAttachment()
@@ -641,7 +725,7 @@ VKit::GraphicsPipeline CreateCompositorPipeline()
             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
             .SetViewportCount(1)
-            .AddShaderStage(s_PipelineData->CompositorVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(s_PipelineData->FullPassVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(s_PipelineData->CompositorFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
             .BeginColorAttachment()
             .EndColorAttachment()
@@ -652,8 +736,8 @@ VKit::GraphicsPipeline CreateCompositorPipeline()
 template const VKit::PipelineLayout &GetPipelineLayout<D2>(RenderPass pass);
 template const VKit::PipelineLayout &GetPipelineLayout<D3>(RenderPass pass);
 
-template VKit::GraphicsPipeline CreateGeometryPipeline<D2>(PipelinePass pass, Geometry geo);
-template VKit::GraphicsPipeline CreateGeometryPipeline<D3>(PipelinePass pass, Geometry geo);
+template VKit::GraphicsPipeline CreateGeometryPipeline<D2>(PipelinePass pass, BlendPass bpass, Geometry geo);
+template VKit::GraphicsPipeline CreateGeometryPipeline<D3>(PipelinePass pass, BlendPass bpass, Geometry geo);
 template VKit::GraphicsPipeline CreateShadowPipeline<D2>(Geometry geo, VkFormat format);
 template VKit::GraphicsPipeline CreateShadowPipeline<D3>(Geometry geo, VkFormat format);
 

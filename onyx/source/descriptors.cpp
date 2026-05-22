@@ -13,6 +13,7 @@ struct DescriptorData
     VKit::DescriptorPool Pool{};
     TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
     VKit::DescriptorSetLayout RayMarchLayout{};
+    VKit::DescriptorSetLayout BlendLayout{};
     VKit::DescriptorSetLayout PostProcessLayout{};
     VKit::DescriptorSetLayout CompositorLayout{};
 };
@@ -138,6 +139,13 @@ static void createDescriptorData(const Specs &specs)
                                                 pbound | bindUnused) // shadow maps
                                    .Build());
 
+    s_DescriptorData->BlendLayout = ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
+                                                               .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
+                                                                            pbound | bindUnused) // transparent
+                                                               .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
+                                                                            pbound | bindUnused) // revealage
+                                                               .Build());
+
     s_DescriptorData->PostProcessLayout =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
                                    .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
@@ -170,6 +178,7 @@ static void createDescriptorData(const Specs &specs)
             ++i;
         }
         ONYX_CHECK_VKIT_RESULT(s_DescriptorData->RayMarchLayout.SetName("onyx-ray-march-descriptor-set-layout"));
+        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->BlendLayout.SetName("onyx-blend-descriptor-set-layout"));
         ONYX_CHECK_VKIT_RESULT(s_DescriptorData->PostProcessLayout.SetName("onyx-post-process-descriptor-set-layout"));
         ONYX_CHECK_VKIT_RESULT(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
     }
@@ -189,6 +198,7 @@ void Terminate()
             renders.Destroy();
 
     s_DescriptorData->RayMarchLayout.Destroy();
+    s_DescriptorData->BlendLayout.Destroy();
     s_DescriptorData->PostProcessLayout.Destroy();
     s_DescriptorData->CompositorLayout.Destroy();
     s_DescriptorData.Destruct();
@@ -206,6 +216,10 @@ template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(cons
 const VKit::DescriptorSetLayout &GetRayMarchDescriptorLayout()
 {
     return s_DescriptorData->RayMarchLayout;
+}
+const VKit::DescriptorSetLayout &GetBlendDescriptorLayout()
+{
+    return s_DescriptorData->BlendLayout;
 }
 const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout()
 {

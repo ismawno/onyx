@@ -12,6 +12,7 @@ const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 const char *ToString(RenderPass pass);
 const char *ToString(PipelinePass pass);
+const char *ToString(BlendPass bpass);
 
 Format GetFormat(const u32 components, ImageComponentType type, bool rgb);
 VkFormat AsVulkanFormat(const Format format);
@@ -39,7 +40,6 @@ constexpr RenderPass GetRenderPass(const PipelinePass mode)
     case PipelinePass_Shaded:
         return RenderPass_Shaded;
     case PipelinePass_Flat:
-        return RenderPass_Flat;
     case PipelinePass_Outlined:
         return RenderPass_Flat;
     default:

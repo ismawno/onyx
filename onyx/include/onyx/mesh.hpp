@@ -47,6 +47,7 @@ struct MeshDataLayout
 template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path);
 #endif
 
+// TODO(Isma): Triangle is a bit up-shifted. bring it down
 template <Dimension D>
 StatMeshData<D> CreateTriangleMeshData(const f32v2 &left = f32v2{-0.433013f, -0.25f},
                                        const f32v2 &right = f32v2{0.433013f, -0.25f},

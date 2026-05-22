@@ -1658,7 +1658,8 @@ static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKi
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
 
-    window->BeginRendering(cmd, tracker);
+    window->MarkPresentationImageInUse(tracker);
+    window->BeginRendering(cmd);
     renderer_Render(viewport->DrawData, cmd);
     window->EndRendering(cmd);
 

@@ -63,7 +63,7 @@ typedef u32 ShadedFlags;
 [UnscopedEnum]
 enum ShadedFlagBit : ShadedFlags
 {
-    ShadedFlag_Shadows = 1 << 0,
+    ShadedFlag_Shadows = 1U << 0,
 };
 
 struct LightData2D
@@ -98,9 +98,9 @@ typedef u32 LightFlags;
 [UnscopedEnum]
 enum LightFlagBit : LightFlags
 {
-    LightFlag_CastShadows = 1 << 0,
-    LightFlag_PCF = 1 << 1,
-    LightFlag_PCSS = 1 << 2,
+    LightFlag_CastShadows = 1U << 0,
+    LightFlag_PCF = 1U << 1,
+    LightFlag_PCSS = 1U << 2,
 };
 
 struct PointLight2D
@@ -725,7 +725,7 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
                     break;
                 }
 
-            if (bool((1 << cindex) & dlight.CascadeEnable))
+            if (bool((1U << cindex) & dlight.CascadeEnable))
             {
                 const CascadeData cdata = dlight.Cascades[cindex];
                 const u32 shadowIndex = dlight.ShadowMapOffset + countbits(dlight.ViewMask & (data.ViewBit - 1));

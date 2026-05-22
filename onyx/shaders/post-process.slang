@@ -3,7 +3,7 @@
 [UnscopedEnum]
 enum PostProcessFlagBit : u32
 {
-    PostProcessFlag_Outlines = 1 << 2,
+    PostProcessFlag_Outlines = 1U << 2,
 };
 
 struct PushConstants

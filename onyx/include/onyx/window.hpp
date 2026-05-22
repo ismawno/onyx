@@ -44,14 +44,14 @@ constexpr Timeout Poll = 0;
 using WindowFlags = u16;
 enum WindowFlagBit : WindowFlags
 {
-    WindowFlag_Resizable = 1 << 0,
-    WindowFlag_Visible = 1 << 1,
-    WindowFlag_Decorated = 1 << 2,
-    WindowFlag_Focused = 1 << 3,
-    WindowFlag_Floating = 1 << 4,
-    WindowFlag_FocusOnShow = 1 << 5,
-    WindowFlag_Iconified = 1 << 6,
-    WindowFlag_InstallCallbacks = 1 << 7,
+    WindowFlag_Resizable = 1U << 0,
+    WindowFlag_Visible = 1U << 1,
+    WindowFlag_Decorated = 1U << 2,
+    WindowFlag_Focused = 1U << 3,
+    WindowFlag_Floating = 1U << 4,
+    WindowFlag_FocusOnShow = 1U << 5,
+    WindowFlag_Iconified = 1U << 6,
+    WindowFlag_InstallCallbacks = 1U << 7,
 };
 
 struct WindowSpecs
@@ -75,7 +75,9 @@ class Window
 
     static Window *FromHandle(GLFWwindow *window);
 
-    void BeginRendering(Onyx_CommandBuffer commandBuffer, const Execution::Tracker &tracker);
+    void MarkPresentationImageInUse(const Execution::Tracker &tracker);
+
+    void BeginRendering(Onyx_CommandBuffer commandBuffer);
     void EndRendering(Onyx_CommandBuffer commandBuffer);
 
     bool ShouldClose() const;

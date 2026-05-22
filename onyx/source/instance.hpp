@@ -214,7 +214,7 @@ template <Dimension D> struct ShadedPushConstantData;
 using ShadedFlags = u32;
 enum ShadedFlagBit : ShadedFlags
 {
-    ShadedFlag_Shadows = 1 << 0,
+    ShadedFlag_Shadows = 1U << 0,
 };
 
 template <> struct ShadedPushConstantData<D2>
@@ -241,6 +241,7 @@ template <> struct ShadedPushConstantData<D3>
 
 using FlatPushConstantData = f32m4;
 using CompositorPushConstantData = u32;
+using BlendPushConstantData = u32;
 
 struct PostProcessPushConstantData
 {

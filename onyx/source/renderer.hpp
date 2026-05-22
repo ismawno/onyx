@@ -38,7 +38,7 @@ using RenderFlags = u8;
 enum RenderFlagBit : RenderFlags
 {
 #ifdef ONYX_ENABLE_IMGUI
-    RenderFlag_ImGui = 1 << 0,
+    RenderFlag_ImGui = 1U << 0,
 #endif
 };
 

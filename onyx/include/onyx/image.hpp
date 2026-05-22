@@ -157,7 +157,7 @@ enum ImageComponentFormat : u8
 using LoadImageDataFlags = u8;
 enum LoadImageDataFlagBit : LoadImageDataFlags
 {
-    LoadImageDataFlag_AsLinearImage = 1 << 0,
+    LoadImageDataFlag_AsLinearImage = 1U << 0,
 };
 
 ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromFile(const char *path,
