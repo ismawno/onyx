@@ -67,8 +67,8 @@
         "ONYX_ENABLE_GLTF_LOAD": "ON",
         "ONYX_ENABLE_FONT_LOAD": "ON",
         "ONYX_INCLUDE_DEFAULT_FONT": "ON",
-        "ONYX_ENABLE_SHADER_API": "ON",
-        "ONYX_COMPILE_SHADERS_ON_EXEC": "ON"
+        "ONYX_ENABLE_SHADER_API": "OFF",
+        "ONYX_COMPILE_SHADERS_ON_EXEC": "OFF"
       }
     },
     {
