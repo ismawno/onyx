@@ -12,9 +12,6 @@ namespace Onyx::Shaders
 using namespace Detail;
 using Slang::ComPtr;
 
-// NOTE(Isma): Consider having this created locally each ::Compile() call so that compilation can be multithreaded
-static ComPtr<slang::IGlobalSession> s_Slang = nullptr;
-
 Compiler::Module &Compiler::Module::DeclareEntryPoint(const char *name, const ShaderStage stage)
 {
     m_EntryPoints.Append(name, m_Name, stage);
@@ -507,12 +504,19 @@ static TKit::String getDiagnostics(slang::IBlob *diagnostics)
     return message;
 }
 
-Result<Compilation> Compiler::Compile() const
+Result<Compilation> Compiler::Compile(const Specs &specs) const
 {
+    ComPtr<slang::IGlobalSession> gsession = nullptr;
+    SlangGlobalSessionDesc desc{};
+    desc.enableGLSL = specs.EnableGlsl;
+
+    SlangResult result = slang::createGlobalSession(&desc, gsession.writeRef());
+    TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX][SHADERS] Slang global session creation failed");
+
     ComPtr<slang::ISession> session = nullptr;
     slang::TargetDesc tdesc{};
     tdesc.format = SLANG_SPIRV;
-    tdesc.profile = s_Slang->findProfile("spirv_1_5");
+    tdesc.profile = gsession->findProfile("spirv_1_5");
 
     slang::SessionDesc cdesc{};
     cdesc.targets = &tdesc;
@@ -560,7 +564,7 @@ Result<Compilation> Compiler::Compile() const
     cdesc.allowGLSLSyntax = m_AllowGlslSyntax;
     cdesc.skipSPIRVValidation = m_SkipSpirvValidtion;
 
-    SlangResult result = s_Slang->createSession(cdesc, session.writeRef());
+    result = gsession->createSession(cdesc, session.writeRef());
     if (SLANG_FAILED(result))
         return Result<>::Error(Error_ShaderCompilationFailed, "[ONYX][SHADERS] Slang compile session creation failed");
 
@@ -687,16 +691,6 @@ Result<Compilation> Compiler::Compile() const
     return Compilation{sprvs};
 }
 
-void Initialize(const Specs &specs)
-{
-    TKIT_LOG_INFO("[ONYX][SHADERS] Initializing");
-    SlangGlobalSessionDesc desc{};
-    desc.enableGLSL = specs.EnableGlsl;
-
-    const SlangResult result = slang::createGlobalSession(&desc, s_Slang.writeRef());
-    TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX][SHADERS] Slang global session creation failed");
-    TKIT_UNUSED(result);
-}
 void Terminate()
 {
     slang::shutdown();

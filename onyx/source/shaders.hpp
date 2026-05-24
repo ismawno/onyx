@@ -314,7 +314,7 @@ class Compiler
     Compiler &AllowGlslSyntax();
     Compiler &SkipSpirvValidation();
 
-    ONYX_NO_DISCARD Result<Compilation> Compile() const;
+    ONYX_NO_DISCARD Result<Compilation> Compile(const Specs &specs = {}) const;
 
   private:
     TKit::TierArray<Module> m_Modules{};
@@ -327,7 +327,6 @@ class Compiler
     bool m_SkipSpirvValidtion = false;
 };
 
-void Initialize(const Specs &specs);
 void Terminate();
 
 ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, u32 size);

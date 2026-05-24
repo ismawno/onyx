@@ -220,6 +220,7 @@ static void createShaders()
     TKit::StackArray<TKit::String> names{};
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
+    // TODO(Isma): Would be nice to parallelize this
     for (const TKit::String &geo : geos)
         for (u32 rpass = 0; rpass < passes.GetSize(); ++rpass)
             for (const TKit::String &dim : dims)

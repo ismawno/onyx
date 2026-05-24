@@ -628,7 +628,6 @@ void Initialize(const Specs &specs)
 
 #ifdef ONYX_ENABLE_SHADER_API
     PUSH_DELETER(Shaders::Terminate());
-    Shaders::Initialize(specs.ShadersSpecs ? *specs.ShadersSpecs : Shaders::Specs{});
 #endif
 
     PUSH_DELETER(Pipelines::Terminate());
