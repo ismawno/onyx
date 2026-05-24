@@ -5,6 +5,7 @@
 #include "descriptors.hpp"
 #include "instance.hpp"
 #include "attachment.hpp"
+#include "renderer.hpp"
 #ifdef ONYX_COMPILE_SHADERS_ON_EXEC
 #    include "shaders.hpp"
 #else
@@ -387,6 +388,21 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
     const VkColorComponentFlags full =
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+    VkSpecializationInfo spInfo{};
+    VkSpecializationMapEntry entry{};
+    const bool needsConstant = D == D2 && pass == PipelinePass_Shaded;
+    const u32 depth2 = u32(Renderer::IsDepthSupportedFor2D());
+    if (needsConstant)
+    {
+        entry.constantID = 0;
+        entry.offset = 0;
+        entry.size = sizeof(u32);
+        spInfo.dataSize = sizeof(u32);
+        spInfo.pData = &depth2;
+        spInfo.mapEntryCount = 1;
+        spInfo.pMapEntries = &entry;
+    }
+
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
     const bool opaque = renderInfo.colorAttachmentCount == 2;
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
@@ -394,7 +410,7 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .SetViewportCount(1)
         .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
         .AddShaderStage(opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo],
-                        VK_SHADER_STAGE_FRAGMENT_BIT)
+                        VK_SHADER_STAGE_FRAGMENT_BIT, 0, needsConstant ? &spInfo : nullptr)
         .BeginColorAttachment()
         .EnableBlending(!opaque)
         .SetColorBlendFactors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE)
@@ -435,85 +451,6 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline createGeometryCirclePipeline(const PipelinePass pass,
-                                                           const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Circle, renderInfo);
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-template <Dimension D>
-static VKit::GraphicsPipeline createGeometryStaticMeshPipeline(const PipelinePass pass,
-                                                               const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Static, renderInfo);
-
-    builder.AddBindingDescription<StatVertex<D>>();
-    if constexpr (D == D2)
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
-        if (pass == PipelinePass_Shaded)
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, TexCoord));
-    }
-    else
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
-        if (pass == PipelinePass_Shaded)
-        {
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D3>, TexCoord));
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(StatVertex<D3>, Tangent));
-        }
-    }
-
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
-template <Dimension D>
-static VKit::GraphicsPipeline createGeometryParametricMeshPipeline(const PipelinePass pass,
-                                                                   const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Parametric, renderInfo);
-
-    builder.AddBindingDescription<ParaVertex<D>>();
-    if constexpr (D == D2)
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, Position));
-        if (pass == PipelinePass_Shaded)
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, TexCoord));
-        builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D2>, Region));
-    }
-    else
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Position));
-        if (pass == PipelinePass_Shaded)
-        {
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D3>, TexCoord));
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(ParaVertex<D3>, Tangent));
-        }
-        else
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
-        builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D3>, Region));
-    }
-
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
-template <Dimension D>
-static VKit::GraphicsPipeline createGeometryGlyphMeshPipeline(const PipelinePass pass,
-                                                              const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Glyph, renderInfo);
-    builder.AddBindingDescription<GlyphVertex>();
-    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
-    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
-    if (pass == PipelinePass_Shaded)
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
-
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
-template <Dimension D>
 VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const BlendPass bpass, const Geometry geo)
 {
     const VkFormat cf = GetAttachmentFormat(Attachment_Intermediate);
@@ -537,16 +474,65 @@ VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Ble
     }
     rinfo.depthAttachmentFormat = GetAttachmentFormat(Attachment_DepthStencil);
     rinfo.stencilAttachmentFormat = rinfo.depthAttachmentFormat;
+    VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, geo, rinfo);
     switch (geo)
     {
     case Geometry_Circle:
-        return createGeometryCirclePipeline<D>(pass, rinfo);
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
     case Geometry_Static:
-        return createGeometryStaticMeshPipeline<D>(pass, rinfo);
+        builder.AddBindingDescription<StatVertex<D>>();
+        if constexpr (D == D2)
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
+            if (pass == PipelinePass_Shaded)
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, TexCoord));
+        }
+        else
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
+            if (pass == PipelinePass_Shaded)
+            {
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D3>, TexCoord));
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(StatVertex<D3>, Tangent));
+            }
+        }
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
+
     case Geometry_Parametric:
-        return createGeometryParametricMeshPipeline<D>(pass, rinfo);
+        builder.AddBindingDescription<ParaVertex<D>>();
+        if constexpr (D == D2)
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, Position));
+            if (pass == PipelinePass_Shaded)
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, TexCoord));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D2>, Region));
+        }
+        else
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Position));
+            if (pass == PipelinePass_Shaded)
+            {
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D3>, TexCoord));
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(ParaVertex<D3>, Tangent));
+            }
+            else
+                builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D3>, Region));
+        }
+
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
+
     case Geometry_Glyph:
-        return createGeometryGlyphMeshPipeline<D>(pass, rinfo);
+        builder.AddBindingDescription<GlyphVertex>();
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
+        if (pass == PipelinePass_Shaded)
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
+
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
+
     default:
         TKIT_FATAL("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo));
         return VKit::GraphicsPipeline{};
@@ -573,57 +559,6 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
     return builder;
 }
 
-template <Dimension D>
-static VKit::GraphicsPipeline createShadowCirclePipeline(const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createShadowPipelineBuilder<D>(Geometry_Circle, renderInfo);
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-template <Dimension D>
-static VKit::GraphicsPipeline createShadowStaticMeshPipeline(const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createShadowPipelineBuilder<D>(Geometry_Static, renderInfo);
-
-    builder.AddBindingDescription<StatVertex<D>>();
-    if constexpr (D == D2)
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
-    else
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
-
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
-template <Dimension D>
-static VKit::GraphicsPipeline createShadowParametricMeshPipeline(const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createShadowPipelineBuilder<D>(Geometry_Parametric, renderInfo);
-
-    builder.AddBindingDescription<ParaVertex<D>>();
-    if constexpr (D == D2)
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, Position));
-        builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D2>, Region));
-    }
-    else
-    {
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Position));
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
-        builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D3>, Region));
-    }
-
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
-template <Dimension D>
-static VKit::GraphicsPipeline createShadowGlyphMeshPipeline(const VkPipelineRenderingCreateInfoKHR &renderInfo)
-{
-    VKit::GraphicsPipeline::Builder builder = createShadowPipelineBuilder<D>(Geometry_Glyph, renderInfo);
-    builder.AddBindingDescription<GlyphVertex>();
-    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
-    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
-    return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
-}
-
 template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometry geo, const VkFormat format)
 {
     VkPipelineRenderingCreateInfoKHR renderInfo{};
@@ -634,16 +569,42 @@ template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometr
     else
         renderInfo.depthAttachmentFormat = format;
 
+    VKit::GraphicsPipeline::Builder builder = createShadowPipelineBuilder<D>(geo, renderInfo);
     switch (geo)
     {
     case Geometry_Circle:
-        return createShadowCirclePipeline<D>(renderInfo);
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
     case Geometry_Static:
-        return createShadowStaticMeshPipeline<D>(renderInfo);
+        builder.AddBindingDescription<StatVertex<D>>();
+        if constexpr (D == D2)
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
+        else
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
+
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
+
     case Geometry_Parametric:
-        return createShadowParametricMeshPipeline<D>(renderInfo);
+        builder.AddBindingDescription<ParaVertex<D>>();
+        if constexpr (D == D2)
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, Position));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D2>, Region));
+        }
+        else
+        {
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Position));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D3>, Region));
+        }
+
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
+
     case Geometry_Glyph:
-        return createShadowGlyphMeshPipeline<D>(renderInfo);
+        builder.AddBindingDescription<GlyphVertex>();
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
+
+        return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
     default:
         TKIT_FATAL("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo));
         return VKit::GraphicsPipeline{};

@@ -414,6 +414,12 @@ const VKit::LogicalDevice &GetDevice()
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
     return *s_Device;
 }
+const VKit::PhysicalDevice &GetPhysicalDevice()
+{
+    TKIT_ASSERT(*s_Physical,
+                "[ONYX][CORE] Vulkan physical device is not initialized! Forgot to call Onyx::Initialize?");
+    return *s_Physical;
+}
 const VKit::Vulkan::DeviceTable *GetDeviceTable()
 {
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");

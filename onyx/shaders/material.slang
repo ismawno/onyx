@@ -358,6 +358,17 @@ LightRange GetRange(const u32 range)
 
 #define ONYX_MAX_SEARCH_RADIUS_TEXELS 16.f
 
+[vk::constant_id(0)]
+const u32 depth2D = 0;
+
+f32 SampleShadow(const Texture1D<f32> map, const SamplerComparisonState csmp, const SamplerState smp, const f32 uv, const f32 fragDepth)
+{
+    if (depth2D == 0)
+        return f32(map.Sample(smp, uv) >= fragDepth);
+    else
+        return map.SampleCmp(csmp, uv, fragDepth);
+}
+
 f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
 {
     f32v3 diffuseColor = f32v3(0.0);
@@ -403,6 +414,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
             const u32 shadowIndex = plight.ShadowMapOffset + countbits(plight.ViewMask & (data.ViewBit - 1));
 
             const Texture1D<f32> map = resources.ShadowMaps[shadowIndex];
+            const SamplerState smp = resources.ShadowSampler;
             const SamplerComparisonState csmp = resources.ShadowCompareSampler;
 
             if (bool(plight.Flags & LightFlag_PCSS))
@@ -436,7 +448,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                     for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                     {
                         const f32 offset = poissonLine[i] * penumbra;
-                        shadow += map.SampleCmp(csmp, uv + offset, fragDepth);
+                        shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
                     }
                     shadow /= POISSON_LINE_SAMPLES;
                 }
@@ -448,12 +460,12 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
                     const f32 offset = poissonLine[i] * tsize;
-                    shadow += map.SampleCmp(csmp, uv + offset, fragDepth);
+                    shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
                 }
                 shadow /= POISSON_LINE_SAMPLES;
             }
             else
-                shadow = map.SampleCmp(csmp, uv, fragDepth);
+                shadow = SampleShadow(map, csmp, smp, uv, fragDepth);
         }
 
         diffuseColor += intensity * lightColor * shadow;
@@ -485,6 +497,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
             const u32 shadowIndex = dlight.ShadowMapOffset + countbits(dlight.ViewMask & (data.ViewBit - 1));
 
             const Texture1D<f32> map = resources.ShadowMaps[shadowIndex];
+            const SamplerState smp = resources.ShadowSampler;
             const SamplerComparisonState csmp = resources.ShadowCompareSampler;
 
             const f32 fragDepth = remapCoords.x;
@@ -492,7 +505,6 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
 
             if (bool(dlight.Flags & LightFlag_PCSS))
             {
-                const SamplerState smp = resources.ShadowSampler;
                 const f32 tsize = data.TexelSizes[Light_Directional];
                 const f32 tn = dlight.TanAngleSize;
                 const f32 txPerWorld = 0.5f / dlight.LightExtent;
@@ -518,7 +530,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                     for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                     {
                         const f32 offset = poissonLine[i] * penumbra;
-                        shadow += map.SampleCmp(csmp, uv + offset, fragDepth);
+                        shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
                     }
                     shadow /= POISSON_LINE_SAMPLES;
                 }
@@ -530,12 +542,12 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
                     const f32 offset = poissonLine[i] * tsize;
-                    shadow += map.SampleCmp(csmp, uv + offset, fragDepth);
+                    shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
                 }
                 shadow /= POISSON_LINE_SAMPLES;
             }
             else
-                shadow = map.SampleCmp(csmp, uv, fragDepth);
+                shadow = SampleShadow(map, csmp, smp, uv, fragDepth);
         }
 
         const f32v3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;

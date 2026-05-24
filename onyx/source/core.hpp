@@ -50,6 +50,8 @@ const VKit::Vulkan::InstanceTable *GetInstanceTable();
 const VKit::LogicalDevice &GetDevice();
 const VKit::Vulkan::DeviceTable *GetDeviceTable();
 
+const VKit::PhysicalDevice &GetPhysicalDevice();
+
 bool IsDebugUtilsEnabled();
 
 void DeviceWaitIdle();

@@ -73,7 +73,9 @@ template <Dimension D> struct ShadowSpecs;
 template <> struct ShadowSpecs<D2>
 {
     Format OcclusionFormat = Format_R8_UNORM;
-    Format ShadowFormat = Format_D32_SFLOAT;
+    Format ShadowFormat =
+        Format_D16_UNORM; // not usually supported when used as 1D storage. thats why a fallback is provided
+    Format FallbackShadowFormat = Format_R16_UNORM;
     u32 OcclusionResolution = 1024;
     TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{1024, 1024};
 };

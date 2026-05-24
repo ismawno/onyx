@@ -56,6 +56,7 @@ template <Dimension D> RenderContext<D> *CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
 void ReloadPipelines();
+bool IsDepthSupportedFor2D();
 
 // TODO(Isma): Remove this. will not be necessary, onyx.hpp handles it
 void AddTarget(const ViewMask vmask);
