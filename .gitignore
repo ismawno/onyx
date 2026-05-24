@@ -3,6 +3,7 @@
 .vs/
 *build*/
 onyx/shaders/bin/
+onyx/shaders/gen/
 demo/sandbox/lattice*
 .venv/
 .DS_Store
@@ -14,6 +15,8 @@ docs/latex/
 __pycache__/
 demo/performance/*yaml
 demo/performance/results/
+generate-shaders.sh
+generate-spirv.sh
 
 # Prerequisites
 *.d

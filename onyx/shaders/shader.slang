@@ -410,7 +410,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 
 #ifndef ONYX_PASS_SHADOW
     FragOpaqueOutput out;
-    out.Outline = f32v4(outline.xyz, outlineWidth);
+    out.Outline = f32v4(outline.rgb, outlineWidth);
 #endif
 
 #ifdef ONYX_PASS_SHADED

@@ -188,25 +188,9 @@ static bool isOldMesa()
     return true;
 }
 #else
-static VKit::Shader shaderFromBinary(const u32 idx)
+static VKit::Shader shaderFromBinary(const ShaderBinary &binary)
 {
-    return ONYX_CHECK_VKIT_RESULT(
-        VKit::Shader::Create(GetDevice(), rcast<const u32 *>(g_ShaderBinaries[idx].Data), g_ShaderBinaries[idx].Size));
-}
-static void compileFromBinary(const Geometry geo, const u32 start, const u32 end)
-{
-    const u32 count = end - start;
-    for (u32 i = 0; i < count / 2; ++i)
-    {
-        const u32 j = 2 * i;
-        const u32 idx = start + j;
-        const u32 rpass = j / 4;
-        const u32 dim = (j / 2) % 2;
-
-        TKIT_ASSERT(idx + 1 < Shader_Count);
-        s_PipelineData->Shaders[dim][rpass].FragmentShaders[geo] = shaderFromBinary(idx);
-        s_PipelineData->Shaders[dim][rpass].VertexShaders[geo] = shaderFromBinary(idx + 1);
-    }
+    return ONYX_CHECK_VKIT_RESULT(VKit::Shader::Create(GetDevice(), rcast<const u32 *>(binary.Code), binary.Count));
 }
 #endif
 
@@ -308,18 +292,25 @@ static void createShaders()
 
     cmp.Destroy();
 #else
-    compileFromBinary(Geometry_Circle, Shader_CircleFlat2DFrag, Shader_CircleShadow3DVert + 1);
-    compileFromBinary(Geometry_Glyph, Shader_GlyphFlat2DFrag, Shader_GlyphShadow3DVert + 1);
-    compileFromBinary(Geometry_Parametric, Shader_ParametricFlat2DFrag, Shader_ParametricShadow3DVert + 1);
-    compileFromBinary(Geometry_Static, Shader_StaticFlat2DFrag, Shader_Count);
+    for (u32 dim = 0; dim < D_Count; ++dim)
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+            {
+                ShaderData &sdata = s_PipelineData->Shaders[dim][rpass];
+                sdata.VertexShaders[geo] = shaderFromBinary(g_ShaderBinaryData.VertexShaders[dim][rpass][geo]);
+                sdata.OpaqueFragmentShaders[geo] =
+                    shaderFromBinary(g_ShaderBinaryData.OpaqueFragmentShaders[dim][rpass][geo]);
+                if (rpass != RenderPass_Shadow)
+                    sdata.TransparentFragmentShaders[geo] =
+                        shaderFromBinary(g_ShaderBinaryData.TransparentFragmentShaders[dim][rpass][geo]);
+            }
 
-    s_PipelineData->RayMarchComputeShader = shaderFromBinary(Shader_RayMarch);
+    s_PipelineData->RayMarchComputeShader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
 
-    s_PipelineData->PostProcessFragmentShader = shaderFromBinary(Shader_PostProcessFrag);
-    s_PipelineData->PostProcessVertexShader = shaderFromBinary(Shader_PostProcessVert);
-
-    s_PipelineData->CompositorFragmentShader = shaderFromBinary(Shader_CompositorFrag);
-    s_PipelineData->CompositorVertexShader = shaderFromBinary(Shader_CompositorVert);
+    s_PipelineData->FullPassVertexShader = shaderFromBinary(g_ShaderBinaryData.FullVertex);
+    s_PipelineData->BlendFragmentShader = shaderFromBinary(g_ShaderBinaryData.Blend);
+    s_PipelineData->PostProcessFragmentShader = shaderFromBinary(g_ShaderBinaryData.PostProcess);
+    s_PipelineData->CompositorFragmentShader = shaderFromBinary(g_ShaderBinaryData.Compositor);
 #endif
 }
 
@@ -344,6 +335,9 @@ void ReloadShaders()
 void Initialize()
 {
     TKIT_LOG_INFO("[ONYX][PIPELINES] Initializing");
+#ifndef ONYX_COMPILE_SHADERS_ON_EXEC
+    InitializeBinaries();
+#endif
     s_PipelineData.Construct();
     createPipelineLayouts();
     return createShaders();
