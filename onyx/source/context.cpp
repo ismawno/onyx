@@ -357,7 +357,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     if (!m_Current->RenderFlags)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]->Circles;
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Circles;
     addInstanceData(buffer, idata);
 }
 
@@ -371,8 +371,8 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
 
     const StaticInstanceData<D> idata =
         createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
-                                     ->Meshes[Resource_StaticMesh][pid][mid];
+    InstanceDataBuffer &buffer =
+        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
@@ -390,7 +390,7 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const ParametricInstanceData<D> idata = createParametricInstanceData(
         m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]
                                      ->Meshes[Resource_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
@@ -520,7 +520,7 @@ void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32 unitRange, co
     const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->GeoPass][GetRenderMode(m_Current->RenderFlags)]
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]
                                      ->Meshes[Resource_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }

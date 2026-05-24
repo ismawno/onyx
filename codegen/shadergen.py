@@ -1,10 +1,12 @@
 from pathlib import Path
 from argparse import ArgumentParser, Namespace
 from generator import CPPGenerator
+from collections.abc import Callable
 
 import sys
 import shutil
 import os
+import subprocess
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -81,6 +83,10 @@ vshaders = ["full-vertex"]
 cshaders = ["ray-march"]
 standalone = fshaders + vshaders + cshaders
 
+processes: list[tuple[subprocess.Popen, str]] = []
+processes: list[tuple[subprocess.Popen, str]] = []
+eactions: list[Callable] = []
+
 
 def process_shader(name: str, entry: str, output: str | None = None, /) -> None:
     if output is None:
@@ -92,8 +98,8 @@ def process_shader(name: str, entry: str, output: str | None = None, /) -> None:
     finput = ipath / iname
     coutput = cpath / cname
     if compile:
-        Convoy.log(f"Compiling {iname} - {entry}")
-        if not Convoy.run_process_success(
+        Convoy.log(f"Compiling <bold>{iname}</bold> - <bold>{entry}</bold>")
+        process = subprocess.Popen(
             [
                 "slangc",
                 str(finput),
@@ -110,18 +116,22 @@ def process_shader(name: str, entry: str, output: str | None = None, /) -> None:
                 "-entry",
                 entry,
             ]
-        ):
-            Convoy.exit_error(f"Failed to compile <bold>{iname}</bold>")
-
+        )
+        processes.append((process, f"Failed to compile <bold>{iname}</bold>"))
     if embed:
-        oldc = os.getcwd()
-        os.chdir(cpath)
 
-        res = Convoy.run_process(["xxd", "-i", cname], text=True, capture_output=True)
-        if res is None or res.returncode != 0:
-            Convoy.exit_error(f"Failed to embed <bold>{cname}</bold>")
-        hpp(res.stdout.replace("unsigned int", "constexpr u32").replace("unsigned char", "constexpr u8"))
-        os.chdir(oldc)
+        def action() -> None:
+            oldc = os.getcwd()
+            os.chdir(cpath)
+
+            Convoy.log(f"Embedding <bold>{cname}</bold>")
+            res = Convoy.run_process(["xxd", "-i", cname], text=True, capture_output=True)
+            if res is None or res.returncode != 0:
+                Convoy.exit_error(f"Failed to embed <bold>{cname}</bold>")
+            hpp(res.stdout.replace("unsigned int", "constexpr u32").replace("unsigned char", "constexpr u8"))
+            os.chdir(oldc)
+
+        eactions.append(action)
 
 
 def process_geometry_shader(name: str, /, *, has_transparency: bool) -> None:
@@ -129,19 +139,31 @@ def process_geometry_shader(name: str, /, *, has_transparency: bool) -> None:
         ffile = f"{name}.slang"
         ginput = ipath / ffile
         goutput = gpath / ffile
-        Convoy.log(f"Generating {ffile}")
-        if not Convoy.run_process_success(
+        Convoy.log(f"Generating <bold>{ffile}</bold>")
+        process = subprocess.Popen(
             f"slangc -E {ginput} -Wno-41012 | clang-format --assume-filename=shader.cs --style='{{BasedOnStyle: Microsoft}}' > {goutput}",
             shell=True,
-            log=Convoy.verbose,
-        ):
-            Convoy.exit_error(f"Failed to generate <bold>{ffile}</bold>.")
+        )
+        processes.append((process, f"Failed to generate <bold>{ffile}</bold>."))
 
     process_shader(name, "mainVS", f"{name}-vert")
     process_shader(name, "mainFSO", f"{name}-frag-opaque")
     if has_transparency:
         process_shader(name, "mainFST", f"{name}-frag-transparent")
 
+
+for dim in dims:
+    for geo in geos:
+        for rpass in passes:
+            name = f"{geo}-{rpass}-{dim}"
+            process_geometry_shader(name, has_transparency=rpass != "shadow")
+
+for f in fshaders:
+    process_shader(f, "mainFS")
+for v in vshaders:
+    process_shader(v, "mainVS")
+for c in cshaders:
+    process_shader(c, "main")
 
 hpp = CPPGenerator()
 hpp.disclaimer("spirv.hpp")
@@ -151,18 +173,12 @@ hpp.include("pass.hpp", quotes=True)
 hpp.include("tkit/container/fixed_array.hpp", quotes=True)
 
 with hpp.scope("namespace Onyx", indent=0):
-    for dim in dims:
-        for geo in geos:
-            for rpass in passes:
-                name = f"{geo}-{rpass}-{dim}"
-                process_geometry_shader(name, has_transparency=rpass != "shadow")
 
-    for f in fshaders:
-        process_shader(f, "mainFS")
-    for v in vshaders:
-        process_shader(v, "mainVS")
-    for c in cshaders:
-        process_shader(c, "main")
+    for p, msg in processes:
+        if p.wait() != 0:
+            Convoy.exit_error(msg)
+    for ac in eactions:
+        ac()
 
     with hpp.scope("struct ShaderBinary", closer="};"):
         hpp("const u8 *Code;")

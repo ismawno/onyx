@@ -12,6 +12,7 @@ namespace Onyx::Shaders
 using namespace Detail;
 using Slang::ComPtr;
 
+// NOTE(Isma): Consider having this created locally each ::Compile() call so that compilation can be multithreaded
 static ComPtr<slang::IGlobalSession> s_Slang = nullptr;
 
 Compiler::Module &Compiler::Module::DeclareEntryPoint(const char *name, const ShaderStage stage)

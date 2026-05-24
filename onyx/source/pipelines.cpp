@@ -405,6 +405,11 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
 
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
     const bool opaque = renderInfo.colorAttachmentCount == 2;
+
+    const VkBlendFactor src = opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    const VkBlendFactor dst =
+        opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .SetViewportCount(1)
@@ -412,8 +417,8 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .AddShaderStage(opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo],
                         VK_SHADER_STAGE_FRAGMENT_BIT, 0, needsConstant ? &spInfo : nullptr)
         .BeginColorAttachment()
-        .EnableBlending(!opaque)
-        .SetColorBlendFactors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE)
+        .EnableBlending(!opaque || geo == Geometry_Glyph)
+        .SetColorBlendFactors(src, dst)
         .SetColorWriteMask(pass != PipelinePass_Outlined ? full : 0)
         .EndColorAttachment()
         .BeginColorAttachment()
