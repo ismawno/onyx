@@ -148,7 +148,10 @@ template <Dimension D> class RenderView
         CacheMatrices();
         const RenderViewFlags f = m_Flags;
         m_Flags = flags;
-        if ((flags & RenderViewFlag_DynamicViewport) != (f & RenderViewFlag_DynamicViewport))
+
+        const RenderViewFlags fbFlags =
+            RenderViewFlag_DynamicViewport | RenderViewFlag_Transparency | RenderViewFlag_PostProcess;
+        if ((flags & fbFlags) != (f & fbFlags))
         {
             drainWork();
             recreateFrameBuffers(m_FrameBuffers.GetSize());

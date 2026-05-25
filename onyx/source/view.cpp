@@ -136,11 +136,15 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
     TKit::TierAllocator *tier = GetTier();
     const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
+    const bool transparency = m_Flags & RenderViewFlag_Transparency;
+    const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
+    TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
     for (u32 i = 0; i < imageCount; ++i)
     {
         FrameBuffer *fb = m_FrameBuffers.Append(tier->Create<FrameBuffer>());
         for (u32 att = 0; att < Attachment_Count; ++att)
-            fb->Attachments[att] = createAttachment(extent, AttachmentType(att));
+            fb->Attachments[att] =
+                mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
     }
 
     VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetBlendDescriptorLayout()};
@@ -152,47 +156,55 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
     for (u32 i = 0; i < imageCount; ++i)
     {
         const FrameBuffer *fb = m_FrameBuffers[i];
-        VkDescriptorImageInfo &transparent = infos.Append();
-        transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
-        transparent.sampler = Renderer::GetNearSampler();
+        if (transparency)
+        {
+            VkDescriptorImageInfo &transparent = infos.Append();
+            transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
+            transparent.sampler = Renderer::GetNearSampler();
 
-        VkDescriptorImageInfo &revealage = infos.Append();
-        revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
-        revealage.sampler = Renderer::GetNearSampler();
+            VkDescriptorImageInfo &revealage = infos.Append();
+            revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
+            revealage.sampler = Renderer::GetNearSampler();
 
-        blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, i);
-        blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
+            blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, i);
+            blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
+        }
 
-        VkDescriptorImageInfo &color = infos.Append();
-        color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
-        color.sampler = Renderer::GetNearSampler();
+        if (pprocess)
+        {
+            VkDescriptorImageInfo &color = infos.Append();
+            color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
+            color.sampler = Renderer::GetNearSampler();
 
-        VkDescriptorImageInfo &outline = infos.Append();
-        outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        outline.imageView = fb->Attachments[Attachment_Outline].GetView();
-        outline.sampler = Renderer::GetNearSampler();
+            pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
+            VkDescriptorImageInfo &outline = infos.Append();
+            outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            outline.imageView = fb->Attachments[Attachment_Outline].GetView();
+            outline.sampler = Renderer::GetNearSampler();
 
-        VkDescriptorImageInfo &stencil = infos.Append();
-        stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
-        stencil.sampler = VK_NULL_HANDLE;
+            VkDescriptorImageInfo &stencil = infos.Append();
+            stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
+            stencil.sampler = VK_NULL_HANDLE;
 
-        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
-        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
-        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
+            pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
+            pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
+        }
 
-        VkDescriptorImageInfo &postProcess = infos.Append();
-        postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        postProcess.imageView = fb->Attachments[Attachment_Final].GetView(1);
-        postProcess.sampler = Renderer::GetNearSampler();
+        VkDescriptorImageInfo &comp = infos.Append();
+        comp.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        comp.imageView = fb->Attachments[Attachment_Final].GetView(1);
+        comp.sampler = Renderer::GetNearSampler();
 
-        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, i);
+        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp, i);
     }
-    blend.Overwrite(m_BlendSet);
-    pp.Overwrite(m_PostProcessSet);
+    if (transparency)
+        blend.Overwrite(m_BlendSet);
+    if (pprocess)
+        pp.Overwrite(m_PostProcessSet);
     compositor.Overwrite(m_CompositorSet);
     if (IsDebugUtilsEnabled())
         nameFramebuffers();
@@ -216,10 +228,11 @@ template <Dimension D> void RenderView<D>::nameFramebuffers()
 
         FrameBuffer *fb = m_FrameBuffers[i];
         for (u32 j = 0; j < m_FrameBuffers.GetSize(); ++j)
-        {
-            ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].GetData()));
-            ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].GetData()));
-        }
+            if (fb->Attachments[j])
+            {
+                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].GetData()));
+                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].GetData()));
+            }
     }
 }
 
