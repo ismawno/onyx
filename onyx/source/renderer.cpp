@@ -2886,14 +2886,21 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
 
-    RenderViewFlags flags = 0;
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
 
+    TKit::StackArray<RenderView<D> *> ppViews{};
+    ppViews.Reserve(views.GetSize());
+
     for (RenderView<D> *rv : views)
     {
-        flags |= rv->GetFlags();
-        const bool shadows = rv->GetFlags() & RenderViewFlag_Shadows;
+        const RenderViewFlags flags = rv->GetFlags();
+        if (flags & RenderViewFlag_Hidden)
+            continue;
+        if (flags & RenderViewFlag_PostProcess)
+            ppViews.Append(rv);
+
+        const bool shadows = flags & RenderViewFlag_Shadows;
         if (shadows)
             renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
 
@@ -2902,7 +2909,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
 
         rv->MarkCurrentAttachmentsInUse(tracker);
 
-        const bool transparency = rv->GetFlags() & RenderViewFlag_Transparency;
+        const bool transparency = flags & RenderViewFlag_Transparency;
         const BlendPass opaquePass = transparency ? BlendPass_Opaque : BlendPass_All;
 
         rv->BeginOpaquePass(cmd);
@@ -2932,35 +2939,34 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
         }
     }
 
-    if (flags & RenderViewFlag_PostProcess)
+    if (!ppViews.IsEmpty())
     {
         const VKit::PipelineLayout &playout = Pipelines::GetPostProcessPipelineLayout();
-        for (RenderView<D> *rv : views)
-            if (rv->GetFlags() & RenderViewFlag_PostProcess)
-            {
-                rv->BeginPostProcess(cmd);
-                s_PostProcessPipeline.Bind(cmd);
+        for (RenderView<D> *rv : ppViews)
+        {
+            rv->BeginPostProcess(cmd);
+            s_PostProcessPipeline.Bind(cmd);
 
-                const VkDescriptorSet set = rv->GetPostProcessSet();
-                VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+            const VkDescriptorSet set = rv->GetPostProcessSet();
+            VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 
-                PostProcessPushConstantData pdata;
-                pdata.AttachmentIndex = rv->GetImageIndex();
+            PostProcessPushConstantData pdata;
+            pdata.AttachmentIndex = rv->GetImageIndex();
 
-                TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
-                            "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
-                            pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
+            TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
+                        "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
+                        pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
 
-                pdata.Extent = rv->GetRenderExtent();
-                pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
-                pdata.Flags = rv->GetFlags();
+            pdata.Extent = rv->GetRenderExtent();
+            pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
+            pdata.Flags = rv->GetFlags();
 
-                table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                                        sizeof(PostProcessPushConstantData), &pdata);
-                table->CmdDraw(cmd, 6, 1, 0, 0);
+            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PostProcessPushConstantData),
+                                    &pdata);
+            table->CmdDraw(cmd, 6, 1, 0, 0);
 
-                rv->EndPostProcess(cmd);
-            }
+            rv->EndPostProcess(cmd);
+        }
     }
 }
 
@@ -2972,6 +2978,9 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
     const auto table = GetDeviceTable();
     for (const RenderView<D> *rv : views)
     {
+        if (rv->GetFlags() & RenderViewFlag_Hidden)
+            continue;
+
         const VkDescriptorSet set = rv->GetCompositorSet();
         VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 

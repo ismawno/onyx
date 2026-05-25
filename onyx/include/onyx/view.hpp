@@ -42,7 +42,7 @@ template <> struct ViewInfo<D3>
     ViewMask ViewBit;
 };
 
-using RenderViewFlags = u8;
+using RenderViewFlags = u16;
 enum RenderViewFlagBit : RenderViewFlags
 {
     RenderViewFlag_Shadows = 1U << 0,
@@ -55,6 +55,7 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_NormalizedCoordinates =
         RenderViewFlag_NormalizedViewportCoordinates | RenderViewFlag_NormalizedScissorCoordinates,
     RenderViewFlag_DynamicViewport = 1U << 7,
+    RenderViewFlag_Hidden = 1U << 8,
 };
 
 struct FrameBuffer;
