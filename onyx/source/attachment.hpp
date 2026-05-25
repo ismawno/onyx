@@ -26,7 +26,7 @@ constexpr VkFormat GetAttachmentFormat(const AttachmentType atype)
     case Attachment_Transparent:
         return VK_FORMAT_R16G16B16A16_SFLOAT;
     case Attachment_Revealage:
-        return VK_FORMAT_R16_SFLOAT;
+        return VK_FORMAT_R8_UNORM;
     case Attachment_DepthStencil:
         return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:

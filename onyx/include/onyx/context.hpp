@@ -505,6 +505,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_Current->FillColor = color;
         m_Current->Blend = TKit::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
+    // required when material has a color factor with alpha < 1 or circles have fading
+    void Blend(const bool enable = true)
+    {
+        m_Current->Blend = BlendPass(enable);
+    }
     void Alpha(const f32 alpha)
     {
         m_Current->FillColor.rgba[3] = alpha;
