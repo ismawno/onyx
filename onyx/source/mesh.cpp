@@ -245,6 +245,7 @@ template <Dimension D> StatMeshData<D> CreatePolygonMeshData(const TKit::Span<co
 static StatMeshData<D3> createBoxMeshData(const u32 offset = 0, const f32 push = 0.5f)
 {
     StatMeshData<D3> data{};
+    data.BackCulled = true;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2,
                                    const f32 u, const f32 v, const f32v4 &tangent) {
         data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, f32v3{n0, n1, n2}, tangent});
@@ -313,6 +314,7 @@ StatMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
     StatMeshData<D3> data{};
+    data.BackCulled = true;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                    const f32v4 &tangent) {
         const f32v3 vertex = f32v3{x, y, z};
@@ -391,6 +393,7 @@ StatMeshData<D3> CreateCylinderMeshData(const u32 sides)
         sides, f32v3{0.f, 0.5f, 0.f}, left.Vertices.GetSize(), f32v3{0.f, 1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
     StatMeshData<D3> data{};
+    data.BackCulled = true;
     data.Indices.Insert(data.Indices.end(), left.Indices.begin(), left.Indices.end());
     data.Indices.Insert(data.Indices.end(), right.Indices.begin(), right.Indices.end());
 
@@ -560,6 +563,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
     ParaMeshData<D3> data{};
+    data.BackCulled = true;
     data.Shape = ParametricShape_Capsule;
 
     const auto addCylinderVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
@@ -833,6 +837,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
     ParaMeshData<D3> data{};
+    data.BackCulled = true;
     data.Shape = ParametricShape_RoundedBox;
 
     const auto addCylinderVertex02 = [&data](const f32 x, const f32 y, const f32 z, const u32 face) {
@@ -1461,6 +1466,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
 {
     ParaMeshData<D3> data{};
+    data.BackCulled = true;
     data.Shape = ParametricShape_Torus;
 
     // Major radius: center of tube to center of torus

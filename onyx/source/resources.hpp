@@ -18,4 +18,6 @@ template <Dimension D> MeshBuffers GetMeshBuffers(ResourcePool pool);
 MeshBuffers GetFontBuffers(ResourcePool pool);
 MeshBuffers GetGlyphBuffers(ResourcePool pool);
 
+bool IsBackCulled(const Resource handle);
+
 } // namespace Onyx::Resources

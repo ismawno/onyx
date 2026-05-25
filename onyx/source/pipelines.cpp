@@ -407,9 +407,9 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
     const bool opaque = renderInfo.colorAttachmentCount == 2;
 
-    const VkBlendFactor src = opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
-    const VkBlendFactor dst =
-        opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    // const VkBlendFactor src = opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    // const VkBlendFactor dst =
+    //     opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
 
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
@@ -418,13 +418,16 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .AddShaderStage(opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo],
                         VK_SHADER_STAGE_FRAGMENT_BIT, 0, needsConstant ? &spInfo : nullptr)
         .BeginColorAttachment()
-        .EnableBlending(!opaque || geo == Geometry_Glyph)
-        .SetColorBlendFactors(src, dst)
+        .EnableBlending(!opaque)
+        .SetColorBlendFactors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE)
         .SetColorWriteMask(pass != PipelinePass_Outlined ? full : 0)
         .EndColorAttachment()
         .BeginColorAttachment()
         .SetColorWriteMask(pass == PipelinePass_Outlined ? full : 0)
         .EndColorAttachment();
+
+    if (D == D3 && geo != Geometry_Circle && geo != Geometry_Glyph)
+        builder.AddDynamicState(VK_DYNAMIC_STATE_CULL_MODE_EXT);
 
     if (!opaque)
         builder.BeginColorAttachment()
@@ -558,7 +561,11 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
         .SetViewportCount(1);
 
     if constexpr (D == D3)
-        builder.AddDynamicState(VK_DYNAMIC_STATE_DEPTH_BIAS).EnableDepthTest().EnableDepthWrite();
+    {
+        builder.EnableDepthTest().EnableDepthWrite();
+        if (geo != Geometry_Circle && geo != Geometry_Glyph)
+            builder.AddDynamicState(VK_DYNAMIC_STATE_CULL_MODE_EXT);
+    }
     if constexpr (D == D2)
         builder.BeginColorAttachment().SetColorWriteMask(VK_COLOR_COMPONENT_R_BIT).EndColorAttachment();
 

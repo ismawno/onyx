@@ -106,6 +106,7 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
         .RequireExtension("VK_KHR_copy_commands2")
         .RequireExtension("VK_KHR_image_format_list")
         .RequireExtension("VK_EXT_descriptor_indexing")
+        .RequireExtension("VK_EXT_extended_dynamic_state")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 4, 0);
     if (flags & InitializationFlag_EnableDeviceFaultExtension)
@@ -184,6 +185,11 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
     sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR;
     sync2.synchronization2 = VK_TRUE;
 
+    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extState2{};
+    extState2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
+    extState2.extendedDynamicState = VK_TRUE;
+
+    s_Physical->EnableExtensionBoundFeature(&extState2);
     if (apiVersion >= VKIT_API_VERSION_1_3)
     {
         features.Vulkan13.dynamicRendering = VK_TRUE;

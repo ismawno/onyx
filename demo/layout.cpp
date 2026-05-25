@@ -150,7 +150,7 @@ int main()
     cam.OrthoParameters.Size = 5.f;
     Onyx::RenderView<D2> *view =
         win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_PostProcess |
-                                            Onyx::RenderViewFlag_Outlines);
+                                            Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency);
 
     ctx->AddTarget(view);
 

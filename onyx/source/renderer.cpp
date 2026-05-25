@@ -2378,13 +2378,21 @@ static void setupState(const VkCommandBuffer cmd, const RenderPass rpass, const 
     VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 }
 
+enum CullMode : u8
+{
+    CullMode_None,
+    CullMode_Back,
+    CullMode_Count,
+};
+
 // TODO(Isma): These could be stack arrays
-//  per stencil per draw cmd
+//  per draw cmd
 using CircleDrawCommands = TKit::TierArray<VkDrawIndirectCommand>;
 
-// per stencil per mesh type per resource pool per draw cmd
+// per mesh type per resource pool per draw cmd
 using MeshDrawCommands =
-    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, ONYX_MAX_RESOURCE_POOLS>,
+    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, CullMode_Count>,
+                                      ONYX_MAX_RESOURCE_POOLS>,
                      Resource_MeshCount>;
 
 template <Dimension D>
@@ -2411,26 +2419,54 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
 
         const ResourceType rtype = getResourceType(geo);
         const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+
+        // NOTE(Isma): Bit of a mess, should consider cleaning this up
         for (const ResourcePool pid : poolIds)
         {
-            const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds[rtype][pid];
-            drawCount = cmds.GetSize();
+            const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds1 = meshCmds[rtype][pid][CullMode_None];
+            const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds2 = meshCmds[rtype][pid][CullMode_Back];
+
+            const u32 dc1 = cmds1.GetSize();
+            const u32 dc2 = cmds2.GetSize();
+            drawCount = dc1 + dc2;
             if (drawCount == 0)
                 continue;
-            size = cmds.GetBytes();
+
+            const usz size1 = cmds1.GetBytes();
+            const usz size2 = cmds2.GetBytes();
+            size = size1 + size2;
+
+            TKIT_ASSERT((D == D3 && geo != Geometry_Glyph) || size2 == 0,
+                        "[ONYX][RENDERER] No back culling draw commands must be submitted for flat geometry");
 
             bindMeshBuffers<D>(Resources::CreateResourcePoolHandle(rtype, pid), cmd);
-
             VKit::DeviceBuffer *dbuffer = findSuitableIndexedDrawBuffer(drawCount, graphics, inFlightValue);
-            dbuffer->Write(cmds.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
+
+            if (D == D2 || size1 != 0)
+                dbuffer->Write(cmds1.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size1});
+            if constexpr (D == D3)
+                if (size2 != 0)
+                    dbuffer->Write(cmds2.GetData(), {.srcOffset = 0, .dstOffset = size1, .size = size2});
+
             ONYX_CHECK_VKIT_RESULT(dbuffer->Flush());
 
-            table->CmdDrawIndexedIndirect(cmd, *dbuffer, 0, drawCount, sizeof(VkDrawIndexedIndirectCommand));
+            if constexpr (D == D3)
+                if (geo != Geometry_Glyph)
+                    table->CmdSetCullModeEXT(cmd, VK_CULL_MODE_NONE);
+
+            if (D == D2 || size1 != 0)
+                table->CmdDrawIndexedIndirect(cmd, *dbuffer, 0, dc1, sizeof(VkDrawIndexedIndirectCommand));
+            if constexpr (D == D3)
+                if (size2 != 0)
+                {
+                    table->CmdSetCullModeEXT(cmd, VK_CULL_MODE_BACK_BIT);
+                    table->CmdDrawIndexedIndirect(cmd, *dbuffer, size1, dc2, sizeof(VkDrawIndexedIndirectCommand));
+                }
         }
     };
     renderMesh(Geometry_Static);
     renderMesh(Geometry_Parametric);
-    return renderMesh(Geometry_Glyph);
+    renderMesh(Geometry_Glyph);
 }
 
 template <Dimension D> static f32m4 createTransform(const TransformData<D> &transform)
@@ -2445,6 +2481,11 @@ template <Dimension D> static f32m4 createTransform(const TransformData<D> &tran
                      f32v4{transform.Row0[3], transform.Row1[3], transform.Row2[3], 1.f}
 
         };
+}
+
+static CullMode getCullMode(const Resource handle)
+{
+    return CullMode(Resources::IsBackCulled(handle));
 }
 
 template <Dimension D>
@@ -2510,7 +2551,11 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                         ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
                         const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
-                        meshCmds[rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+                        const VkDrawIndexedIndirectCommand cmd = createCommand<D>(grange.MeshHandle, fi, ic);
+                        if constexpr (D == D2)
+                            meshCmds[rtype][pid][CullMode_None].Append(cmd);
+                        else
+                            meshCmds[rtype][pid][getCullMode(grange.MeshHandle)].Append(cmd);
                     }
                 };
                 for (u32 j = 0; j < Geometry_Count; ++j)
@@ -2708,10 +2753,17 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
             const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
+            CullMode cull;
+            if constexpr (D == D2)
+                cull = CullMode_None;
+            else
+                cull = getCullMode(grange.MeshHandle);
+
+            const VkDrawIndexedIndirectCommand cmd = createCommand<D>(grange.MeshHandle, fi, ic);
             for (u32 i = 0; i < pcount; ++i)
             {
                 const PipelinePass p = passes[i];
-                meshCmds[p][rtype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+                meshCmds[p][rtype][pid][cull].Append(cmd);
                 ++cmdCount[p];
             }
         }

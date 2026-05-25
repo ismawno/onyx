@@ -202,7 +202,7 @@ with hpp.scope("namespace Onyx", indent=0):
                 for rpass in passes:
                     name = f"{geo}_{rpass}_{dim}"
                     fopaque = f"{name}_frag_opaque_spv"
-                    ftransparent = f"{name}_frag_opaque_spv"
+                    ftransparent = f"{name}_frag_transparent_spv"
                     vshader = f"{name}_vert_spv"
 
                     d = "D2" if dim == "2D" else "D3"

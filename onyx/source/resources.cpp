@@ -55,10 +55,18 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_NeedsSync = 1U << 0,
 };
 
+// NOTE(Isma): Messy. too many specializations, specially for the back culled bool
 template <typename Vertex> struct MeshDataInfo
 {
     MeshDataLayout Layout;
     Resource Bounds;
+};
+
+template <> struct MeshDataInfo<StatVertex<D3>>
+{
+    MeshDataLayout Layout;
+    Resource Bounds;
+    bool BackCulled;
 };
 
 template <Dimension D> struct MeshDataInfo<ParaVertex<D>>
@@ -66,6 +74,21 @@ template <Dimension D> struct MeshDataInfo<ParaVertex<D>>
     MeshDataLayout Layout;
     Resource Bounds;
     ParametricShape Shape;
+};
+template <> struct MeshDataInfo<ParaVertex<D3>>
+{
+    MeshDataLayout Layout;
+    Resource Bounds;
+    ParametricShape Shape;
+    bool BackCulled;
+};
+
+template <> struct MeshDataInfo<GlyphVertex>
+{
+    MeshDataLayout Layout;
+    FontData Data{};
+    Resource AtlasImage = NullHandle;
+    Resource AtlasTexture = NullHandle;
 };
 
 template <typename Vertex> struct MeshPoolData
@@ -82,14 +105,6 @@ template <typename Vertex> struct MeshResourceData
 {
     TKit::StaticHive<MeshPoolData<Vertex>, ONYX_MAX_RESOURCE_POOLS> Pools{};
     TKit::StaticArray<ResourcePool, ONYX_MAX_RESOURCE_POOLS> ToDestroy{};
-};
-
-template <> struct MeshDataInfo<GlyphVertex>
-{
-    MeshDataLayout Layout;
-    FontData Data{};
-    Resource AtlasImage = NullHandle;
-    Resource AtlasTexture = NullHandle;
 };
 
 template <> struct MeshPoolData<GlyphVertex>
@@ -677,6 +692,8 @@ static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &me
     minfo.Layout.IndexStart = icount;
     minfo.Layout.IndexCount = data.Indices.GetSize();
     minfo.Bounds = createBounds(CreateBoundsData(data));
+    if constexpr (Vertex::Dim == D3)
+        minfo.BackCulled = data.BackCulled;
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
         minfo.Shape = data.Shape;
@@ -1351,6 +1368,23 @@ MeshBuffers GetGlyphBuffers(const ResourcePool pool)
     const u32 pid = GetResourcePoolId(pool);
 
     return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
+}
+
+bool IsBackCulled(const Resource handle)
+{
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
+
+    const ResourceType rtype = GetResourceType(handle);
+    if (rtype == Resource_GlyphMesh)
+        return false;
+
+    const u32 pid = GetResourcePoolId(handle);
+    const u32 rid = GetResourceId(handle);
+    if (rtype == Resource_StaticMesh)
+        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].BackCulled;
+
+    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].BackCulled;
 }
 
 template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)

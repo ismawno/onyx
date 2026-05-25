@@ -32,6 +32,21 @@ template <Dimension D> struct MeshData<ParaVertex<D>>
     ParametricShape Shape{};
 };
 
+template <> struct MeshData<StatVertex<D3>>
+{
+    TKit::DynamicArray<StatVertex<D3>> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
+    bool BackCulled = false;
+};
+
+template <> struct MeshData<ParaVertex<D3>>
+{
+    TKit::DynamicArray<ParaVertex<D3>> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
+    ParametricShape Shape{};
+    bool BackCulled = false;
+};
+
 template <Dimension D> using StatMeshData = MeshData<StatVertex<D>>;
 template <Dimension D> using ParaMeshData = MeshData<ParaVertex<D>>;
 
