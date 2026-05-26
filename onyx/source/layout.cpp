@@ -2,9 +2,116 @@
 #include "onyx/layout.hpp"
 #include "onyx/resources.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/utils/bit.hpp"
+
+#define ONYX_LAYOUT_START_ID 14695981039346656037ULL
 
 namespace Onyx
 {
+static LayoutAxis getAxis(const LayoutDirection dir)
+{
+    return LayoutAxis(dir >> 1);
+}
+
+template <typename AllocState> static void mapClear(TKit::Array<LayoutMapElement, AllocState> &map)
+{
+    for (LayoutMapElement &elm : map)
+        elm.DataIndex = TKIT_U32_MAX;
+}
+
+static void mapClear(LayoutMap &map)
+{
+    mapClear(map.Elements);
+    map.Data.Clear();
+    map.LoadFactor = 0.f;
+}
+
+template <typename AllocState>
+static void mapAdd(TKit::Array<LayoutMapElement, AllocState> &map, const LayoutMapElement &elm)
+{
+    const u32 size = map.GetSize();
+    const u32 idx = elm.Id & (size - 1);
+
+    const auto checkSlot = [&map, &elm](const u32 i) {
+        LayoutMapElement &slot = map[i];
+        if (slot.DataIndex == TKIT_U32_MAX)
+        {
+            slot = elm;
+            return true;
+        }
+        return false;
+    };
+
+    for (u32 i = idx; i < size; ++i)
+        if (checkSlot(i))
+            return;
+
+    for (u32 i = 0; i < idx; ++i)
+        if (checkSlot(i))
+            return;
+
+    TKIT_FATAL("[ONYX][LAYOUT] Did not find any map slots");
+}
+
+static const LayoutMapData *mapGet(const LayoutMap &map, const usz id)
+{
+    const u32 size = map.Elements.GetSize();
+    const u32 idx = id & (size - 1);
+
+    struct Getter
+    {
+        const LayoutMapData *Data;
+        bool Found;
+        operator bool() const
+        {
+            return Found;
+        }
+    };
+
+    const auto getSlot = [&map, id](const u32 i) -> Getter {
+        const LayoutMapElement &slot = map.Elements[i];
+        if (slot.DataIndex == TKIT_U32_MAX)
+            return Getter{nullptr, true};
+        if (slot.Id != id)
+            return Getter{nullptr, false};
+
+        return Getter{&map.Data[slot.DataIndex], true};
+    };
+
+    for (u32 i = idx; i < size; ++i)
+        if (const Getter get = getSlot(i))
+            return get.Data;
+
+    for (u32 i = idx; i < size; ++i)
+        if (const Getter get = getSlot(i))
+            return get.Data;
+
+    return nullptr;
+}
+
+static void mapResizeIfNeeded(LayoutMap &map)
+{
+    if (map.LoadFactor <= 0.7f)
+        return;
+
+    const u32 size = map.Elements.GetSize();
+    TKIT_ASSERT(TKit::IsPowerOfTwo(size), "[ONYX][LAYOUT] Map size must be a power of 2, but is {}", size);
+
+    TKit::StackArray<LayoutMapElement> nelements{2 * size};
+    mapClear(nelements);
+    for (const LayoutMapElement &old : map.Elements)
+        if (old.DataIndex != TKIT_U32_MAX)
+            mapAdd(nelements, old);
+    map.Elements = nelements;
+}
+
+static void mapAdd(LayoutMap &map, const LayoutMapElement &elm)
+{
+    mapResizeIfNeeded(map);
+    mapAdd(map.Elements, elm);
+    map.LoadFactor = f32(map.Data.GetSize()) / f32(map.Elements.GetSize());
+}
+
 Layout::Layout(const LayoutSpecs &spc)
 {
     const DefaultResources &def = Resources::GetDefaultResources();
@@ -17,11 +124,16 @@ Layout::Layout(const LayoutSpecs &spc)
     assign(m_Specs.Font, spc.Font, def.Font);
     assign(m_Specs.RectangleMesh, spc.RectangleMesh, def.Quad2);
     assign(m_Specs.RoundedRectangleMesh, spc.RoundedRectangleMesh, def.RoundedRect2);
+
+    m_IdStack.Append(ONYX_LAYOUT_START_ID);
+    m_Map.Elements.Resize(64);
+    mapClear(m_Map);
 }
-void Layout::BeginPanel(const LayoutPanelParameters &params)
+usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
 {
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
+    current.Id = stackedId(id);
     if (params.Floating.Enable)
     {
         current.Type = LayoutElement_Floating;
@@ -112,6 +224,7 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
         current.SelfOffsetType[i] = params.SelfOffset[i].Type;
     }
     current.Padding = params.Padding;
+    return current.Id;
 }
 
 void Layout::EndPanel()
@@ -125,12 +238,15 @@ void Layout::EndPanel()
     m_Stack.Pop();
 }
 
-void Layout::Text(const TKit::StringView text, const LayoutTextParameters &params)
+usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
 {
+    const usz sid = stackedId(id);
     if (text.IsEmpty())
-        return;
+        return sid;
+
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
+    current.Id = sid;
     current.Type = LayoutElement_Text;
 
     const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
@@ -169,6 +285,21 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
     current.MinSize[1] = 0.f;
 
     current.MaxSize = f32v2{TKIT_F32_MAX};
+    return sid;
+}
+
+bool Layout::IsHovered(const usz id, const f32v2 &pos) const
+{
+    const LayoutMapData *data = mapGet(m_Map, id);
+    if (!data)
+        return false;
+
+    const f32v2 mn = data->Position;
+    const f32v2 mx = data->Position + data->Size;
+
+    const auto check = [](const f32 p, const f32 mn, const f32 mx) { return p >= mn && p <= mx; };
+
+    return check(pos[0], mn[0], mx[0]) && check(pos[1], mn[1], mx[1]);
 }
 
 void Layout::fitPass(const LayoutAxis axis)
@@ -562,7 +693,11 @@ void Layout::Compile()
 {
     TKIT_ASSERT(m_Stack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_Stack.GetSize());
-    m_ElementInfo.Clear();
+    TKIT_ASSERT(
+        m_IdStack.GetSize() == 1,
+        "[ONYX][LAYOUT] Id stack size mismatch (size = {}, should be 1). For every PushId(), there must be a PopId()",
+        m_IdStack.GetSize());
+    m_DrawInfo.Clear();
     fitPass(LayoutAxis_Horizontal);
     normPass(LayoutAxis_Horizontal);
     growShrinkPass(LayoutAxis_Horizontal);
@@ -572,8 +707,10 @@ void Layout::Compile()
     growShrinkPass(LayoutAxis_Vertical);
     positionPass();
 
-    TKit::StackArray<LayoutElementInfo> floats{};
+    TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
+
+    mapClear(m_Map);
     for (const LayoutElement &elm : m_Elements)
     {
         const bool fill = !TKit::ApproachesZero(elm.FillColor.rgba[3]);
@@ -584,7 +721,7 @@ void Layout::Compile()
         if ((!fill && !outline) || (!text && !sized))
             continue;
 
-        LayoutElementInfo &info = elm.FloatSibling ? floats.Append() : m_ElementInfo.Append();
+        LayoutDrawInfo &info = elm.FloatSibling ? floats.Append() : m_DrawInfo.Append();
         info.Material = elm.Material;
         info.RenderFlags = 0;
         if (fill)
@@ -640,11 +777,18 @@ void Layout::Compile()
                 break;
             }
         }
+        const u32 index = m_Map.Data.GetSize();
+        mapAdd(m_Map, LayoutMapElement{.Id = elm.Id, .DataIndex = index});
+
+        LayoutMapData &data = m_Map.Data.Append();
+        data.Position = info.Position;
+        data.Size = info.Size;
     }
-    m_ElementInfo.Insert(m_ElementInfo.end(), floats.begin(), floats.end());
+    m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 
     m_Elements.Clear();
     m_Breadth.Clear();
     m_ReversedBreadth.Clear();
+    m_AutoId = 0;
 }
 } // namespace Onyx
