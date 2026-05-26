@@ -12,16 +12,9 @@ int main()
     Onyx::Initialize();
     Onyx::Resources::CreateDefaultResources();
 
-    const Onyx::Resource lit2 = Onyx::Resources::RegisterMaterial<D2>();
-    const Onyx::Resource unlit2 = Onyx::Resources::RegisterMaterial<D2>({.Occluder = true});
-
-    const Onyx::Resource mat3 = Onyx::Resources::RegisterMaterial<D3>();
-
-    Onyx::Resources::Sync(Onyx::SyncFlag_Materials);
-
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Shadows;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Transparency;
 
     Onyx::Camera<D2> cam2{};
     Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
@@ -54,39 +47,55 @@ int main()
 
         {
             ctx2->Flush();
-            ctx2->RenderFlags(Onyx::RenderModeFlag_Shaded);
-            ctx2->Material(lit2);
 
             ctx2->Push();
             ctx2->Scale(20.f);
             ctx2->Quad();
             ctx2->Pop();
 
-            ctx2->Material(unlit2);
-            ctx2->DirectionalLight({.DepthBias = -0.00001f, .Flags = Onyx::LightFlag_CastShadows});
             ctx2->Rotate(time);
+
             ctx2->FillColor(Onyx::Color_Red);
+            ctx2->Alpha(0.8f);
             ctx2->Quad();
+
+            ctx2->FillColor(Onyx::Color_Green);
+            ctx2->Alpha(0.7f);
+            ctx2->Translate(0.2f);
+            ctx2->Triangle();
+
+            ctx2->FillColor(Onyx::Color_Blue);
+            ctx2->Alpha(0.9f);
+            ctx2->Translate(0.2f);
+            ctx2->Stadium();
         }
 
         {
             ctx3->Flush();
 
-            ctx3->Material(mat3);
-            ctx3->RenderFlags(Onyx::RenderModeFlag_Shaded);
-            ctx3->DirectionalLight({.Cascades = {.View = view3}, .Flags = Onyx::LightFlag_CastShadows});
-
             ctx3->Push();
-            ctx3->RotateZ(time);
-            ctx3->FillColor(Onyx::Color_Red);
-            ctx3->Box();
-            ctx3->Pop();
-
             ctx3->ScaleX(20.f);
             ctx3->ScaleY(20.f);
             ctx3->RotateX(0.5f * Onyx::Math::Pi());
             ctx3->TranslateY(-2.f);
             ctx3->Quad();
+            ctx3->Pop();
+
+            ctx3->RotateZ(time);
+
+            ctx3->FillColor(Onyx::Color_Red);
+            ctx3->Alpha(0.8f);
+            ctx3->Box();
+
+            ctx3->FillColor(Onyx::Color_Green);
+            ctx3->Alpha(0.7f);
+            ctx3->TranslateZ(-2.f);
+            ctx3->RoundedRect();
+
+            ctx3->FillColor(Onyx::Color_Blue);
+            ctx3->Alpha(0.9f);
+            ctx3->TranslateZ(-2.f);
+            ctx3->Capsule();
         }
 
         Onyx::Transfer();
