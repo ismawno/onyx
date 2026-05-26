@@ -62,8 +62,7 @@ struct FrameBuffer
 static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
 static ViewMask allocateViewBit()
 {
-    TKIT_ASSERT(s_ViewCache != 0,
-                "[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of {} windows",
+    TKIT_ASSERT(s_ViewCache != 0, "[ONYX][VIEW] Maximum amount of views exceeded. There is a hard limit of {} views",
                 8 * sizeof(ViewMask));
 
     const u32 index = u32(std::countr_zero(s_ViewCache));
@@ -694,14 +693,22 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeProjection() const
     const f32 aspect = viewport.Extent[0] / viewport.Extent[1];
 
     if constexpr (D == D2)
-        return Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect);
+    {
+        TKIT_ASSERT(m_Camera->Mode != CameraMode_Perspective, "[ONYX][VIEW] 2D does not support perspective cameras");
+        return m_Camera->Mode == CameraMode_Orthographic
+                   ? Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect)
+                   : Transform<D2>::Orthographic(viewport.Extent[1], aspect);
+    }
     else
     {
         const OrthographicParameters<D3> &oparams = m_Camera->OrthoParameters;
         const PerspectiveParameters &pparams = m_Camera->PerspParameters;
-        return m_Camera->Mode == CameraMode_Perspective
-                   ? Transform<D3>::Perspective(pparams.FieldOfView, pparams.Near, pparams.Far, aspect)
-                   : Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
+
+        if (m_Camera->Mode == CameraMode_Perspective)
+            return Transform<D3>::Perspective(pparams.FieldOfView, pparams.Near, pparams.Far, aspect);
+        if (m_Camera->Mode == CameraMode_Orthographic)
+            return Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
+        return Transform<D3>::Orthographic(viewport.Extent[1], aspect, oparams.Near, oparams.Far);
     }
 }
 

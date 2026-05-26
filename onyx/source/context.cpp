@@ -550,7 +550,7 @@ void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLight
 template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout &layout)
 {
     u32 depth = 0;
-    const auto translate = [this, &depth](const LayoutElementInfo &info) {
+    const auto translate = [this, &depth](const LayoutDrawInfo &info) {
         if constexpr (D == D2)
         {
             TKIT_UNUSED(depth);
@@ -562,7 +562,7 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
             Translate(f32v3{info.Position, z}, Transform_Intrinsic);
         }
     };
-    const auto scale = [this](const LayoutElementInfo &info) {
+    const auto scale = [this](const LayoutDrawInfo &info) {
         if constexpr (D == D2)
             Scale(info.Size, Transform_Intrinsic);
         else
@@ -571,7 +571,7 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
     Push();
     AlignX(Alignment_Left);
     AlignY(Alignment_Bottom);
-    for (const LayoutElementInfo &info : layout.GetElementsInfo())
+    for (const LayoutDrawInfo &info : layout.GetDrawInfo())
     {
         Push();
         RenderFlags(info.RenderFlags);

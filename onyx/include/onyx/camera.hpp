@@ -57,13 +57,15 @@ namespace Onyx
 enum CameraMode : u8
 {
     CameraMode_Orthographic,
-    CameraMode_Perspective
+    CameraMode_Viewport,
+    CameraMode_Perspective,
 };
 
 template <Dimension D> struct Camera
 {
     Transform<D> View{};
     OrthographicParameters<D> OrthoParameters{};
+    CameraMode Mode = CameraMode_Orthographic;
 };
 
 template <> struct Camera<D3>

@@ -5,6 +5,7 @@
 #include "onyx/instance.hpp"
 #include "onyx/pass.hpp"
 #include "tkit/container/tier_array.hpp"
+#include "tkit/utils/hash.hpp"
 
 namespace Onyx
 {
@@ -147,6 +148,7 @@ struct LayoutFloatingParameters
 
 struct LayoutElement
 {
+    usz Id;
     LayoutShape Shape;
     f32v2 Position{0.f};
     f32v2 Size;
@@ -187,7 +189,7 @@ struct LayoutElement
     LayoutOverflowMode ChildOverflow;
 };
 
-struct LayoutElementInfo
+struct LayoutDrawInfo
 {
     TKit::String Text;
     f32v2 Position;
@@ -205,8 +207,6 @@ struct LayoutElementInfo
     RenderModeFlags RenderFlags;
 };
 
-// TODO(Isma): Rename this file to layout
-// TODO(Isma): Implement default resources
 // TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
@@ -250,21 +250,87 @@ struct LayoutSpecs
     Resource Font = NullHandle;
 };
 
+struct LayoutMapData
+{
+    f32v2 Position;
+    f32v2 Size;
+};
+
+struct LayoutMapElement
+{
+    usz Id;
+    u32 DataIndex = TKIT_U32_MAX;
+};
+
+struct LayoutMap
+{
+    TKit::TierArray<LayoutMapElement> Elements{};
+    TKit::TierArray<LayoutMapData> Data{};
+    f32 LoadFactor = 0.f;
+};
+
 class Layout
 {
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    void BeginPanel(const LayoutPanelParameters &params);
+    usz BeginPanel(usz id, const LayoutPanelParameters &params);
+    usz BeginPanel(const char *id, const LayoutPanelParameters &params)
+    {
+        return BeginPanel(TKit::Hash(id), params);
+    }
+    usz BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params)
+    {
+        return BeginPanel(TKit::Hash(id), params);
+    }
+    usz BeginPanel(const LayoutPanelParameters &params)
+    {
+        return BeginPanel(++m_AutoId, params);
+    }
+
     void EndPanel();
 
-    void Text(TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(const char *id, TKit::StringView text, const LayoutTextParameters &params = {})
+    {
+        return Text(TKit::Hash(id), text, params);
+    }
+    usz Text(const TKit::StringView id, TKit::StringView text, const LayoutTextParameters &params = {})
+    {
+        return Text(TKit::Hash(id), text, params);
+    }
+    usz Text(TKit::StringView text, const LayoutTextParameters &params = {})
+    {
+        return Text(++m_AutoId, text, params);
+    }
+
+    bool IsHovered(usz id, const f32v2 &point) const;
+    bool IsHovered(const f32v2 &point) const
+    {
+        TKIT_ASSERT(!m_Stack.IsEmpty(),
+                    "[ONYX][LAYOUT] If no panel is currently active, an explicit id must be provided");
+        const u32 last = m_Stack.GetBack();
+        return IsHovered(m_Elements[last].Id, point);
+    }
+    bool IsHovered(const char *id, const f32v2 &point) const
+    {
+        return IsHovered(stackedId(TKit::Hash(id)), point);
+    }
 
     void Compile();
 
-    const TKit::TierArray<LayoutElementInfo> &GetElementsInfo() const
+    const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const
     {
-        return m_ElementInfo;
+        return m_DrawInfo;
+    }
+
+    void PushId(const usz id)
+    {
+        m_IdStack.Append(stackedId(id));
+    }
+    void PopId()
+    {
+        m_IdStack.Pop();
     }
 
   private:
@@ -273,17 +339,22 @@ class Layout
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();
-    LayoutAxis getAxis(const LayoutDirection dir)
+
+    usz stackedId(const usz id) const
     {
-        return LayoutAxis(dir >> 1);
+        return TKit::Hash(m_IdStack.GetBack(), id);
     }
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_Stack{};
     TKit::TierArray<u32> m_Breadth{};
     TKit::TierArray<u32> m_ReversedBreadth{};
-    TKit::TierArray<LayoutElementInfo> m_ElementInfo{};
+    TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
+    LayoutMap m_Map{};
+
+    TKit::TierArray<usz> m_IdStack{};
 
     LayoutSpecs m_Specs{};
+    usz m_AutoId = 0;
 };
 } // namespace Onyx

@@ -13,7 +13,7 @@ TKIT_MSVC_WARNING_IGNORE(4505)
 #    include <msdf-atlas-gen/msdf-atlas-gen.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()
 #    ifdef ONYX_INCLUDE_DEFAULT_FONT
-#        include "font.hpp"
+#        include "ttf.hpp"
 #    endif
 #endif
 
