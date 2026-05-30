@@ -61,6 +61,12 @@
 #    define ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(name) using Onyx_##name = u64;
 #endif
 
+#define ONYX_DECLARE_PLATFORM_HANDLES()                                                                                \
+    struct GLFWwindow;                                                                                                 \
+    struct GLFWcursor;                                                                                                 \
+    using Onyx_WindowHandle = GLFWwindow;                                                                              \
+    using Onyx_CursorHandle = GLFWcursor;
+
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.

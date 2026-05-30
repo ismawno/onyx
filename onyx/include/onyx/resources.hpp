@@ -156,10 +156,6 @@ void ReleaseImage(Resource image);
 Resource CreateTexture(Resource image, u32 viewIndex = TKIT_U32_MAX);
 void DestroyTexture(Resource texture);
 
-// TODO(Isma): Create a utility function that registers and loads all default resources. Create internally a struct with
-// default resources to be used by contexts. Contexts refresh default resources every flush, so the sync flush will
-// naturally refresh all defaults
-
 const DefaultResources &GetDefaultResources();
 const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts = {});
 
@@ -196,7 +192,9 @@ TKit::Span<const u32> GetFontPoolIds();
 const FontData &GetFontData(Resource font);
 
 Resource GetFontAtlas(Resource font);
-const Glyph *GetGlyph(Resource font, u32 codePoint);
+Resource GetFont(Resource glyph);
+Resource GetGlyph(Resource font, u32 codePoint);
+const GlyphData &GetGlyphData(Resource glyph);
 
 template <Dimension D> u32 GetDistinctBatchDrawCount();
 

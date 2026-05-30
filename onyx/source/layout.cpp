@@ -129,11 +129,13 @@ Layout::Layout(const LayoutSpecs &spc)
     m_Map.Elements.Resize(64);
     mapClear(m_Map);
 }
-usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
+void Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
 {
+    m_LastId = id;
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = stackedId(id);
+
     if (params.Floating.Enable)
     {
         current.Type = LayoutElement_Floating;
@@ -144,9 +146,9 @@ usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
     else
         current.Type = LayoutElement_Panel;
 
-    const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
+    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     current.Parent = p;
-    m_Stack.Append(c);
+    m_ElementStack.Append(c);
     if (p != TKIT_U32_MAX)
     {
         LayoutElement &parent = m_Elements[current.Parent];
@@ -224,32 +226,33 @@ usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
         current.SelfOffsetType[i] = params.SelfOffset[i].Type;
     }
     current.Padding = params.Padding;
-    return current.Id;
 }
 
 void Layout::EndPanel()
 {
-    TKIT_ASSERT(!m_Stack.IsEmpty(), "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
+    TKIT_ASSERT(!m_ElementStack.IsEmpty(),
+                "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
-    const u32 c = m_Stack.GetBack();
+    const u32 c = m_ElementStack.GetBack();
     if (!m_Elements[c].Children.IsEmpty())
         m_ReversedBreadth.Append(c);
 
-    m_Stack.Pop();
+    m_ElementStack.Pop();
 }
 
-usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
+void Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
 {
+    m_LastId = id;
     const usz sid = stackedId(id);
     if (text.IsEmpty())
-        return sid;
+        return;
 
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = sid;
     current.Type = LayoutElement_Text;
 
-    const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
+    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
     current.Parent = p;
 
@@ -285,12 +288,11 @@ usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextPara
     current.MinSize[1] = 0.f;
 
     current.MaxSize = f32v2{TKIT_F32_MAX};
-    return sid;
 }
 
 bool Layout::IsHovered(const usz id, const f32v2 &pos) const
 {
-    const LayoutMapData *data = mapGet(m_Map, id);
+    const LayoutMapData *data = mapGet(m_Map, stackedId(id));
     if (!data)
         return false;
 
@@ -544,6 +546,7 @@ void Layout::positionPass()
         else if (m_Specs.RootAlignment[axis] == Alignment_Center)
             root.Position[axis] -= 0.5f * root.Size[axis];
 
+    root.Position += root.SelfOffset;
     for (const u32 p : m_Breadth)
     {
         const LayoutElement &parent = m_Elements[p];
@@ -691,8 +694,8 @@ void Layout::positionPass()
 
 void Layout::Compile()
 {
-    TKIT_ASSERT(m_Stack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
-                m_Stack.GetSize());
+    TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
+                m_ElementStack.GetSize());
     TKIT_ASSERT(
         m_IdStack.GetSize() == 1,
         "[ONYX][LAYOUT] Id stack size mismatch (size = {}, should be 1). For every PushId(), there must be a PopId()",

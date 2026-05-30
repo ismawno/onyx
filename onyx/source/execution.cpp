@@ -66,7 +66,7 @@ CommandPool *FindSuitableCommandPool(const u32 family)
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-ring-command-pool-index-{}-family-{}",
                                                                  s_CommandPools->GetSize() - 1, family);
-        ONYX_CHECK_VKIT_RESULT(pool.Pool.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(pool.Pool.SetName(name.CString()));
     }
     return &pool;
 }
@@ -135,7 +135,7 @@ void Initialize(const Specs &specs)
         {
             const TKit::StackString name =
                 TKit::StackString::Format("onyx-timeline-semaphore-queue-index-{}-family-{}", i, q->GetFamily());
-            ONYX_CHECK_VKIT_RESULT(device.SetObjectName(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name.GetData()));
+            ONYX_CHECK_VKIT_RESULT(device.SetObjectName(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name.CString()));
         }
     }
 #ifdef TKIT_ENABLE_INFO_LOGS

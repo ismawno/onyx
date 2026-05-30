@@ -4,7 +4,6 @@
 #include "onyx/instance.hpp"
 #include "onyx/resources.hpp"
 #include "onyx/font.hpp"
-#include "onyx/pass.hpp"
 #include "onyx/view.hpp"
 #include "onyx/layout.hpp"
 
@@ -423,6 +422,32 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
                       params);
     }
 
+    void Glyph(const Resource glyph)
+    {
+        addGlyphData(glyph, m_Current->Transform);
+    }
+    void Glyph(const Resource glyph, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        addGlyphData(glyph, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
+                                                        : (m_Current->Transform * transform));
+    }
+    void Unicode(const u32 code)
+    {
+        Glyph(Resources::GetGlyph(m_Current->Font, code));
+    }
+    void Unicode(const u32 code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        Glyph(Resources::GetGlyph(m_Current->Font, code), transform, mode);
+    }
+    void Unicode(const char *s)
+    {
+        Unicode(DecodeUTF8(s));
+    }
+    void Unicode(const char *s, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        Unicode(DecodeUTF8(s), transform, mode);
+    }
+
     void Text(const TKit::StringView text, const ContextTextParameters &params = {})
     {
         addGlyphData(text, m_Current->Transform, params);
@@ -439,6 +464,29 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});
+
+    void Line(const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f)
+    {
+        if constexpr (D == D2)
+            Line(m_DefaultResources.Quad2, start, end, thickness);
+        else
+            Line(m_DefaultResources.Box, start, end, thickness);
+    }
+    void RoundedLine(const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f)
+    {
+        if constexpr (D == D2)
+            Line(m_DefaultResources.Stadium2, start, end, thickness);
+        else
+            Line(m_DefaultResources.Capsule, start, end, thickness);
+    }
+
+    void Axes(const AxesParameters &params = {})
+    {
+        if constexpr (D == D2)
+            Axes(m_DefaultResources.Quad2, params);
+        else
+            Axes(m_DefaultResources.Cylinder, params);
+    }
 
     void Push(const ContextState<D> &state)
     {
@@ -558,7 +606,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             TKit::Approximately(m_Current->FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
-    const auto &GetInstanceData() const
+    const InstanceDataGrouping<InstanceDataArrays *> &GetInstanceData() const
     {
         return m_InstanceData;
     }
@@ -627,7 +675,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
     void resizeBuffer(InstanceDataBuffer &buffer);
-    void resizeBufferArrays();
+    void resizeInstanceData();
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
     ClipRect<D> computeClipRect(const f32v<D> &position, const f32v<D> &dimensions);
 
@@ -638,14 +686,15 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
     void addGlyphData(TKit::StringView text, const f32m<D> &transform, const ContextTextParameters &params);
     void addGlyphData(TKit::StringView text, const f32m<D> &transform);
-    void addGlyphData(const Glyph *glyph, f32 unitRange, const f32m<D> &transform);
+    void addGlyphData(Resource glyph, f32 unitRange, const f32m<D> &transform);
+    void addGlyphData(Resource glyph, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Resource material);
 #endif
 
     TKit::TierArray<ContextState<D>> m_StateStack{};
-    TKit::FixedArray<TKit::FixedArray<InstanceDataArrays *, RenderMode_Count>, BlendPass_Count> m_InstanceData{};
+    InstanceDataGrouping<InstanceDataArrays *> m_InstanceData{};
 
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};

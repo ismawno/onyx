@@ -1,4 +1,5 @@
 #include "pch.hpp"
+#include "tkit/preprocessor/system.hpp"
 #if defined(ONYX_ENABLE_IMAGE_LOAD) && !defined(ONYX_ENABLE_GLTF_LOAD)
 #    define STB_IMAGE_IMPLEMENTATION
 #    include <stb_image.h>

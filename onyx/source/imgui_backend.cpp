@@ -1222,8 +1222,8 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
         {
             const TKit::StackString vbuffer = TKit::StackString::Format("onyx-imgui-vbuffer-image-index-{}", i);
             const TKit::StackString ibuffer = TKit::StackString::Format("onyx-imgui-ibuffer-image-index-{}", i);
-            ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.SetName(vbuffer.GetData()));
-            ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.SetName(ibuffer.GetData()));
+            ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.SetName(vbuffer.CString()));
+            ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.SetName(ibuffer.CString()));
         }
     }
     return vdata;
@@ -1358,9 +1358,9 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
             const TKit::StackString tname = TKit::StackString::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const TKit::StackString sname =
                 TKit::StackString::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
-            ONYX_CHECK_VKIT_RESULT(bckTex->Image.SetName(tname.GetData()));
+            ONYX_CHECK_VKIT_RESULT(bckTex->Image.SetName(tname.CString()));
             ONYX_CHECK_VKIT_RESULT(
-                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.GetData()));
+                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.CString()));
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());

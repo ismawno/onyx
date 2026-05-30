@@ -1,8 +1,9 @@
 #pragma once
 
+#include "onyx/core.hpp"
 #include "onyx/math.hpp"
 
-struct GLFWwindow;
+ONYX_DECLARE_PLATFORM_HANDLES()
 
 namespace Onyx
 {

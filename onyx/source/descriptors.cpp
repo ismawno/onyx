@@ -173,7 +173,7 @@ static void createDescriptorData(const Specs &specs)
             {
                 ONYX_CHECK_VKIT_RESULT(renders.SetName(
                     TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i, ToString(RenderPass(j++)))
-                        .GetData()));
+                        .CString()));
             }
             ++i;
         }

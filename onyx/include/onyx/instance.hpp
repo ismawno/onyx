@@ -1,7 +1,8 @@
 #pragma once
 
-#include "onyx/alias.hpp"
 #include "onyx/dimension.hpp"
+#include "onyx/handle.hpp"
+#include "onyx/pass.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
 // (without any cpu detours)
@@ -130,5 +131,11 @@ template <> struct WorldRect<D3>
 
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
+
+template <typename T>
+using MeshInstanceGrouping = TKit::FixedArray<TKit::FixedArray<T, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshCount>;
+
+template <typename T>
+using InstanceDataGrouping = TKit::FixedArray<TKit::FixedArray<T, RenderMode_Count>, BlendPass_Count>;
 
 } // namespace Onyx

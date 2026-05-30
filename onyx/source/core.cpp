@@ -72,7 +72,7 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    GLFWwindow *dummy = glfwCreateWindow(120, 120, "Eduardo", nullptr, nullptr);
+    Onyx_WindowHandle *dummy = glfwCreateWindow(120, 120, "Eduardo", nullptr, nullptr);
     TKIT_ASSERT(dummy, "[ONYX][CORE] Failed to create a dummy window so choose a device based on surface capabilities");
 
     VkSurfaceKHR surface;
@@ -345,7 +345,7 @@ static void initializeAllocators(const Specs &specs)
         if (userAlloc.Stack)
             libAlloc.Stack = userAlloc.Stack;
         else if (!libAlloc.Stack)
-            libAlloc.Stack = new TKit::StackAllocator(i == 0 ? 1_mib : 4_kib, TKIT_CACHE_LINE_SIZE);
+            libAlloc.Stack = new TKit::StackAllocator(i == 0 ? 32_mib : 4_kib, TKIT_CACHE_LINE_SIZE);
 
         if (userAlloc.Tier)
             libAlloc.Tier = userAlloc.Tier;

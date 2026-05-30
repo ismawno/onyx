@@ -9,8 +9,7 @@
 #include "vkit/resource/sampler.hpp"
 #include "vkit/resource/device_image.hpp"
 #include "vkit/resource/device_buffer.hpp"
-#include "tkit/container/arena_hive.hpp"
-#include "tkit/container/static_hive.hpp"
+#include "tkit/container/hive.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/container/dynamic_array.hpp"
 #include "tkit/profiling/clock.hpp"
@@ -113,7 +112,7 @@ template <> struct MeshPoolData<GlyphVertex>
     VKit::DeviceBuffer IndexBuffer{};
     TKit::TierArray<GlyphVertex> Vertices{};
     TKit::TierArray<Index> Indices{};
-    TKit::TierArray<Glyph> Glyphs{};
+    TKit::TierArray<u32> GlyphToFontId{};
     TKit::TierArray<MeshDataInfo<GlyphVertex>> Meshes{};
     StatusFlags Flags = 0;
 };
@@ -396,7 +395,7 @@ static void bindSampler(const Resource handle)
     if (IsDebugUtilsEnabled())
     {
         ONYX_CHECK_VKIT_RESULT(
-            sampler.SetName(TKit::StackString::Format("onyx-resources-sampler-{:#010x}", handle).GetData()));
+            sampler.SetName(TKit::StackString::Format("onyx-resources-sampler-{:#010x}", handle).CString()));
     }
 
     const VkDescriptorImageInfo info = VkDescriptorImageInfo{
@@ -503,9 +502,9 @@ Resource CreateImage(const ImageData &data)
     if (IsDebugUtilsEnabled())
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-resources-image-{:#010x}", handle);
-        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.CString()));
         ONYX_CHECK_VKIT_RESULT(uploadBuffer.SetName(
-            TKit::StackString::Format("onyx-resources-texture-upload-buffer-{:#010x}", handle).GetData()));
+            TKit::StackString::Format("onyx-resources-texture-upload-buffer-{:#010x}", handle).CString()));
     }
 
     uploadBuffer.Write(data.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
@@ -849,8 +848,8 @@ template <typename Vertex> static ResourcePool createMeshPool(const ResourceType
         const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
         const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}", pool);
 
-        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.GetData()));
-        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.GetData()));
+        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.CString()));
+        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.CString()));
     }
 
     return pool;
@@ -958,35 +957,6 @@ void DestroyFontPool(const ResourcePool pool)
     destroyMeshPool(pool, *s_FontData);
 }
 
-template <typename F1, typename F2, typename F3>
-static void buildFontBuffers(const FontData &data, const F1 addGlyph, const F2 addVertex, const F3 addIndex)
-{
-    for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
-    {
-        const GlyphData &glyph = data.Glyphs[i];
-        const f32v2 &min = glyph.Min;
-        const f32v2 &max = glyph.Max;
-
-        const f32v2 &mnuv = glyph.MinTexCoord;
-        const f32v2 &mxuv = glyph.MaxTexCoord;
-
-        addGlyph(i, glyph);
-
-        addVertex(min[0], min[1], mnuv[0], mnuv[1], 0.f, 1.f);
-        addVertex(max[0], min[1], mxuv[0], mnuv[1], 1.f, 1.f);
-        addVertex(min[0], max[1], mnuv[0], mxuv[1], 0.f, 0.f);
-        addVertex(max[0], max[1], mxuv[0], mxuv[1], 1.f, 0.f);
-
-        const u32 base = i * 4;
-        addIndex(base);
-        addIndex(base + 1);
-        addIndex(base + 2);
-        addIndex(base + 1);
-        addIndex(base + 3);
-        addIndex(base + 2);
-    }
-}
-
 Resource RegisterFont(const ResourcePool pool, const FontData &data)
 {
     CHECK_POOL_HANDLE(pool, Resource_Font);
@@ -1015,18 +985,37 @@ Resource RegisterFont(const ResourcePool pool, const FontData &data)
     finfo.Layout.IndexCount = gsize * 6;
     fpool.Flags = StatusFlag_NeedsSync;
 
-    const u32 goffset = fpool.Glyphs.GetSize();
-    const auto addGlyph = [&fpool, goffset](const u32 id, const GlyphData &data) {
-        fpool.Glyphs.Append(id + goffset, data.Advance);
-    };
     const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
         fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
     };
-
     const auto addIndex = [&fpool, &finfo](const u32 idx) {
         fpool.Indices.Append(Index(idx + finfo.Layout.VertexStart));
     };
-    buildFontBuffers(data, addGlyph, addVertex, addIndex);
+
+    for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
+    {
+        const GlyphData &glyph = data.Glyphs[i];
+        const f32v2 &min = glyph.Min;
+        const f32v2 &max = glyph.Max;
+
+        const f32v2 &mnuv = glyph.MinTexCoord;
+        const f32v2 &mxuv = glyph.MaxTexCoord;
+
+        fpool.GlyphToFontId.Append(fid);
+        addVertex(min[0], min[1], mnuv[0], mnuv[1], 0.f, 1.f);
+        addVertex(max[0], min[1], mxuv[0], mnuv[1], 1.f, 1.f);
+        addVertex(min[0], max[1], mnuv[0], mxuv[1], 0.f, 0.f);
+        addVertex(max[0], max[1], mxuv[0], mxuv[1], 1.f, 0.f);
+
+        const u32 base = i * 4;
+        addIndex(base);
+        addIndex(base + 1);
+        addIndex(base + 2);
+        addIndex(base + 1);
+        addIndex(base + 3);
+        addIndex(base + 2);
+    }
+
     return CreateResourceHandle(Resource_Font, fid, pid);
 }
 
@@ -1149,7 +1138,17 @@ Resource GetFontAtlas(const Resource handle)
 
     return s_FontData->Pools[pid].Meshes[fid].AtlasTexture;
 }
-const Glyph *GetGlyph(const Resource handle, const u32 codePoint)
+Resource GetFont(const Resource handle)
+{
+    CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_GlyphMesh);
+    const u32 pid = GetResourcePoolId(handle);
+    const u32 gid = GetResourceId(handle);
+
+    const FontPoolData &fpool = s_FontData->Pools[pid];
+    const u32 fid = fpool.GlyphToFontId[gid];
+    return CreateResourceHandle(Resource_Font, fid, pid);
+}
+Resource GetGlyph(const Resource handle, const u32 codePoint)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
 
@@ -1160,10 +1159,24 @@ const Glyph *GetGlyph(const Resource handle, const u32 codePoint)
     const FontDataInfo &finfo = fpool.Meshes[fid];
     const u32 gstart = finfo.Layout.VertexStart / 4;
 
-    const u32 idx = finfo.Data.GetGlyphDataIndex(codePoint);
-    if (idx == TKIT_U32_MAX)
-        return nullptr;
-    return &fpool.Glyphs[gstart + idx];
+    const auto it = finfo.Data.GlyphMap.Find(codePoint);
+    if (it == finfo.Data.GlyphMap.end())
+        return NullHandle;
+
+    return CreateResourceHandle(Resource_GlyphMesh, gstart + it->Value, pid);
+}
+
+const GlyphData &GetGlyphData(const Resource handle)
+{
+    CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_GlyphMesh);
+
+    const u32 pid = GetResourcePoolId(handle);
+    const u32 gid = GetResourceId(handle);
+
+    const FontPoolData &fpool = s_FontData->Pools[pid];
+    const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphToFontId[gid]];
+    const u32 gstart = finfo.Layout.VertexStart / 4;
+    return finfo.Data.Glyphs[gid - gstart];
 }
 
 template <typename Vertex> static MeshDataLayout getMeshLayout(const Resource handle, MeshResourceData<Vertex> &meshes)
@@ -1286,7 +1299,7 @@ static u32 getGlyphBatchCount()
 {
     u32 count = 0;
     for (const FontPoolData &fpool : s_FontData->Pools)
-        count += fpool.Glyphs.GetSize();
+        count += fpool.GlyphToFontId.GetSize();
 
     return count;
 }
@@ -1317,7 +1330,7 @@ u32 GetGlyphCount(const ResourcePool pool)
     ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
 
     const u32 pid = GetResourcePoolId(pool);
-    return s_FontData->Pools[pid].Glyphs.GetSize();
+    return s_FontData->Pools[pid].GlyphToFontId.GetSize();
 }
 
 template <Dimension D> u32 GetResourceCount(const ResourcePool pool)

@@ -2,6 +2,7 @@
 #include "onyx/color.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/math/math.hpp"
+#include "tkit/container/hash_map.hpp"
 #include <sstream>
 
 namespace Onyx
@@ -55,22 +56,22 @@ Color Color::FromHexadecimal(const TKit::StringView hex)
 
 Color Color::FromString(const TKit::String &color)
 {
-    static const std::unordered_map<TKit::String, Color *> s_ColorMap{{"red", &Color_Red},
-                                                                      {"green", &Color_Green},
-                                                                      {"blue", &Color_Blue},
-                                                                      {"magenta", &Color_Magenta},
-                                                                      {"cyan", &Color_Cyan},
-                                                                      {"orange", &Color_Orange},
-                                                                      {"yellow", &Color_Yellow},
-                                                                      {"black", &Color_Black},
-                                                                      {"pink", &Color_Pink},
-                                                                      {"purple", &Color_Purple},
-                                                                      {"white", &Color_White},
-                                                                      {"transparent", &Color_Transparent}
+    static const TKit::StaticHashMap<TKit::String, Color *, 128> s_ColorMap{{"red", &Color_Red},
+                                                                            {"green", &Color_Green},
+                                                                            {"blue", &Color_Blue},
+                                                                            {"magenta", &Color_Magenta},
+                                                                            {"cyan", &Color_Cyan},
+                                                                            {"orange", &Color_Orange},
+                                                                            {"yellow", &Color_Yellow},
+                                                                            {"black", &Color_Black},
+                                                                            {"pink", &Color_Pink},
+                                                                            {"purple", &Color_Purple},
+                                                                            {"white", &Color_White},
+                                                                            {"transparent", &Color_Transparent}
 
     };
-    TKIT_ASSERT(s_ColorMap.contains(color), "[ONYX][COLOR] Color '{}' not found", color);
-    return *s_ColorMap.at(color);
+    TKIT_ASSERT(s_ColorMap.Contains(color), "[ONYX][COLOR] Color '{}' not found", color);
+    return *s_ColorMap[color];
 }
 
 Color::operator const f32v4 &() const

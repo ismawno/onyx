@@ -4,13 +4,11 @@
 #    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_NFD"
 #endif
 
-#include "onyx/core.hpp"
+#include "onyx/window.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"
 #include <filesystem>
-
-struct GLFWwindow;
 
 namespace Onyx::Dialog
 {
@@ -37,7 +35,7 @@ struct Filter
 
 struct Options
 {
-    GLFWwindow *Window = nullptr;
+    Onyx_WindowHandle *Window = nullptr;
     const Char *DefaultName = nullptr;
     const Char *DefaultPath = nullptr;
     TKit::Span<const Filter> Filters{};

@@ -384,7 +384,7 @@ static VKit::DeviceBuffer createTransferInstanceBuffer(const Geometry geo,
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
     }
     return buffer;
 }
@@ -398,7 +398,7 @@ static VKit::DeviceBuffer createGraphicsInstanceBuffer(const Geometry geo,
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
     }
     return buffer;
 }
@@ -413,7 +413,7 @@ static VKit::DeviceBuffer createTransferLightBuffer(const LightType light,
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-transfer-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
     }
     return buffer;
 }
@@ -427,7 +427,7 @@ static VKit::DeviceBuffer createGraphicsLightBuffer(const LightType light,
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-graphics-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
     }
     return buffer;
 }
@@ -453,7 +453,7 @@ template <Dimension D> static void createPipelines()
                     const TKit::StackString name =
                         TKit::StackString::Format("onyx-renderer-geometry-pipeline-{}D-{}-pass-{}-geometry-'{}'", u8(D),
                                                   ToString(bpass), ToString(pass), ToString(geo));
-                    ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][pass][geo].SetName(name.GetData()));
+                    ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][pass][geo].SetName(name.CString()));
                 }
             }
         }
@@ -468,7 +468,7 @@ template <Dimension D> static void createPipelines()
         {
             const TKit::StackString name =
                 TKit::StackString::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'", u8(D), ToString(geo));
-            ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.GetData()));
+            ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.CString()));
         }
     }
 
@@ -608,7 +608,7 @@ template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
                 const auto &device = GetDevice();
                 const TKit::StackString name = TKit::StackString::Format(
                     "onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D), ToString(geo), ToString(rpass));
-                ONYX_CHECK_VKIT_RESULT(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.GetData()));
+                ONYX_CHECK_VKIT_RESULT(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.CString()));
             }
 
             const VkDescriptorBufferInfo info = gpool.Buffer.CreateDescriptorInfo();
@@ -1271,9 +1271,9 @@ static u32 findSuitableOcclusionMap()
 
     if (IsDebugUtilsEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(map.Image.SetName(TKit::StackString::Format("onyx-occlusion-map-{}", size).GetData()));
+        ONYX_CHECK_VKIT_RESULT(map.Image.SetName(TKit::StackString::Format("onyx-occlusion-map-{}", size).CString()));
         ONYX_CHECK_VKIT_RESULT(
-            map.Image.SetViewNames(TKit::StackString::Format("onyx-occlusion-map-view-{}", size).GetData()));
+            map.Image.SetViewNames(TKit::StackString::Format("onyx-occlusion-map-view-{}", size).CString()));
     }
 
     VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetRayMarchDescriptorLayout()};
@@ -1376,10 +1376,10 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
         {
             ONYX_CHECK_VKIT_RESULT(map.Image.SetName(
                 TKit::StackString::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
-                    .GetData()));
+                    .CString()));
             ONYX_CHECK_VKIT_RESULT(map.Image.SetViewNames(
                 TKit::StackString::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
-                    .GetData()));
+                    .CString()));
         }
 
         VkDescriptorImageInfo info{};
@@ -1699,6 +1699,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     ldata.Instances.ClearLights();
 
     ShadowData<D> &sdata = rdata.Shadows;
+
+    InstanceDataGrouping<MeshInstanceGrouping<LocalResourceRegistry>> resourceRegistry{};
     for (u32 i = 0; i < contexts.GetSize(); ++i)
     {
         ContextInfo<D> &cinfo = contexts[i];
@@ -1712,6 +1714,13 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         if (isDirty)
         {
             dirtyContexts.Append(i);
+            const InstanceDataGrouping<InstanceDataArrays *> &idata = ctx->GetInstanceData();
+            ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
+                InstanceResourceGroup &group = idata[bpass][rmode]->Meshes[mtype][pid];
+
+                for (const u32 rid : group.Registry.ResourceIds)
+                    resourceRegistry[bpass][rmode][mtype][pid].RegisterResourceId(rid);
+            });
             cinfo.Generation = ctx->GetGeneration();
         }
         const auto gatherLights =
@@ -1956,14 +1965,18 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
             for (const u32 pid : poolIds)
             {
-                const u32 mcount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
                 for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-                    for (u32 i = 0; i < mcount; ++i)
+                {
+                    const TKit::TierArray<Resource> &resources = resourceRegistry[bpass][rmode][rtype][pid].ResourceIds;
+                    for (const u32 rid : resources)
                         findInstanceRanges(
-                            rmode, bpass, geo, Resources::CreateResourceHandle(rtype, i, pid),
-                            [rtype, rmode, bpass, pid, i](const RenderContext<D> *ctx) -> const auto & {
-                                return ctx->GetInstanceData()[BlendPass(bpass)][rmode]->Meshes[rtype][pid][i];
+                            rmode, bpass, geo, Resources::CreateResourceHandle(rtype, rid, pid),
+                            [rtype, rmode, bpass, pid, rid](const RenderContext<D> *ctx) -> const auto & {
+                                return ctx->GetInstanceData()[BlendPass(bpass)][rmode]
+                                    ->Meshes[rtype][pid]
+                                    .Instances[rid];
                             });
+                }
             }
         }
 
@@ -3275,11 +3288,11 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
 
     if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
     {
-        ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).GetData());
+        ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).CString());
         for (const Range &range : pool.Ranges)
             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
-                ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size).GetData(),
-                            fmtb(range.Offset).GetData(), fmtb(range.Offset + range.Size).GetData());
+                ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size).CString(),
+                            fmtb(range.Offset).CString(), fmtb(range.Offset + range.Size).CString());
             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
             {
                 if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
@@ -3288,8 +3301,8 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                                         : (rdata.AreAllContextRangesDirty(range)
                                                ? "FREE"
                                                : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-                                    fmts(range.Size).GetData(), fmtb(range.Offset).GetData(),
-                                    fmtb(range.Offset + range.Size).GetData()))
+                                    fmts(range.Size).CString(), fmtb(range.Offset).CString(),
+                                    fmtb(range.Offset + range.Size).CString()))
                 {
                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
@@ -3299,14 +3312,14 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                     if (range.RenderFlags != 0)
                         ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
-                    ImGui::Text("View mask: %s", vmask.GetData());
+                    ImGui::Text("View mask: %s", vmask.CString());
                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
                     {
                         for (const ContextInstanceRange &crange : range.ContextRanges)
                             if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
                                                 rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
-                                                fmts(crange.Size).GetData(), fmtb(crange.Offset).GetData(),
-                                                fmtb(crange.Offset + crange.Size).GetData()))
+                                                fmts(crange.Size).CString(), fmtb(crange.Offset).CString(),
+                                                fmtb(crange.Offset + crange.Size).CString()))
                             {
                                 if (crange.ContextIndex != TKIT_U32_MAX)
                                 {
@@ -3321,7 +3334,7 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                                     ImGui::Text("Context index: None");
 
                                 const TKit::StackString cvmask = TKit::StackString::Format("{:032b}", crange.ViewMask);
-                                ImGui::Text("View mask: %s", cvmask.GetData());
+                                ImGui::Text("View mask: %s", cvmask.CString());
                                 ImGui::TreePop();
                                 ImGui::Spacing();
                             }
@@ -3335,8 +3348,8 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
             else
                 ImGui::Text("%s (%s): %s - %s",
                             range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
-                            fmts(range.Size).GetData(), fmtb(range.Offset).GetData(),
-                            fmtb(range.Offset + range.Size).GetData());
+                            fmts(range.Size).CString(), fmtb(range.Offset).CString(),
+                            fmtb(range.Offset + range.Size).CString());
         ImGui::TreePop();
         ImGui::Spacing();
     }
@@ -3393,12 +3406,12 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                 if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
                 {
                     ImGui::BeginTooltip();
-                    ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).GetData(), fmts(size).GetData());
+                    ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).CString(), fmts(size).CString());
                     if (rmode != RenderMode_None)
                     {
                         ImGui::SameLine();
                         ImGui::Text("- Mesh handle: %s - Render mode: %s",
-                                    TKit::StackString::Format("{:#010x}", meshHandle).GetData(), ToString(rmode));
+                                    TKit::StackString::Format("{:#010x}", meshHandle).CString(), ToString(rmode));
                     }
                     ImGui::EndTooltip();
                 }

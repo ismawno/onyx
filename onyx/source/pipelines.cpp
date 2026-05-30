@@ -148,7 +148,7 @@ static void createPipelineLayouts()
             for (auto &passes : dims)
             {
                 ONYX_CHECK_VKIT_RESULT(passes.SetName(
-                    TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i, ToString(RenderPass(j++))).GetData()));
+                    TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i, ToString(RenderPass(j++))).CString()));
             }
             ++i;
         }
@@ -264,12 +264,12 @@ static void createShaders()
         {
             const TKit::String v = "onyx-vertex-shader-" + name;
             const TKit::String of = "onyx-opaque-fragment-shader-" + name;
-            ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.GetData()));
-            ONYX_CHECK_VKIT_RESULT(data.OpaqueFragmentShaders[geo].SetName(of.GetData()));
+            ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.CString()));
+            ONYX_CHECK_VKIT_RESULT(data.OpaqueFragmentShaders[geo].SetName(of.CString()));
             if (hasTransparent)
             {
                 const TKit::String tf = "onyx-transparent-fragment-shader-" + name;
-                ONYX_CHECK_VKIT_RESULT(data.TransparentFragmentShaders[geo].SetName(tf.GetData()));
+                ONYX_CHECK_VKIT_RESULT(data.TransparentFragmentShaders[geo].SetName(tf.CString()));
             }
         }
     };
@@ -702,6 +702,7 @@ VKit::GraphicsPipeline CreateCompositorPipeline()
             .AddShaderStage(s_PipelineData->FullPassVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(s_PipelineData->CompositorFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
             .BeginColorAttachment()
+            .EnableBlending()
             .EndColorAttachment()
             .Bake()
             .Build());

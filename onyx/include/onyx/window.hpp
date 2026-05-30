@@ -9,8 +9,7 @@
 #include "tkit/container/static_array.hpp"
 
 ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(SurfaceKHR)
-
-struct GLFWwindow;
+ONYX_DECLARE_PLATFORM_HANDLES()
 
 namespace VKit
 {
@@ -21,6 +20,18 @@ class Queue;
 
 namespace Onyx
 {
+enum MouseCursor : u8
+{
+    MouseCursor_Default,
+    MouseCursor_Arrow,
+    MouseCursor_HorizontalResize,
+    MouseCursor_VerticalResize,
+    MouseCursor_Hand,
+    MouseCursor_CrossHair,
+    MouseCursor_IBeam,
+    MouseCursor_Count,
+};
+
 enum PresentMode : u8
 {
     PresentMode_Immediate,
@@ -73,7 +84,7 @@ class Window
     Window(const WindowSpecs &specs);
     ~Window();
 
-    static Window *FromHandle(GLFWwindow *window);
+    static Window *FromHandle(Onyx_WindowHandle *window);
 
     void MarkPresentationImageInUse(const Execution::Tracker &tracker);
 
@@ -82,11 +93,11 @@ class Window
 
     bool ShouldClose() const;
 
-    const GLFWwindow *GetHandle() const
+    const Onyx_WindowHandle *GetHandle() const
     {
         return m_Window;
     }
-    GLFWwindow *GetHandle()
+    Onyx_WindowHandle *GetHandle()
     {
         return m_Window;
     }
@@ -129,6 +140,8 @@ class Window
     void AddFlags(WindowFlags flags);
     void RemoveFlags(WindowFlags flags);
     void SetOpacity(f32 opacity);
+
+    void SetMouseCursor(MouseCursor cursor);
 
     void InstallCallbacks();
 
@@ -282,8 +295,9 @@ class Window
             return m_RenderViews3;
     }
 
-    GLFWwindow *m_Window;
+    Onyx_WindowHandle *m_Window;
 
+    TKit::FixedArray<Onyx_CursorHandle *, MouseCursor_Count> m_Cursors{};
     TKit::StaticArray<RenderView<D2> *, ONYX_MAX_VIEWS> m_RenderViews2{};
     TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> m_RenderViews3{};
 

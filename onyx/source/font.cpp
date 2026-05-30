@@ -23,41 +23,46 @@ namespace Onyx
 ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, msdfgen::FontHandle *font,
                                                  const FontLoadOptions &opts)
 {
-    const TKit::Span<const CodePointRange> ranges = opts.CharSets;
-
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fgeo{&glyphs};
-    msdf_atlas::Charset chset{};
 
     FontData data{};
-    for (u32 i = 0; i < ranges.GetSize(); ++i)
-    {
-        const CodePointRange &range = ranges[i];
-        TKIT_ASSERT(range.First < range.Last,
-                    "[ONYX][FONT] Code point range must not be empty or contain a negative range, but found First = "
-                    "{} and Last = {}",
-                    range.First, range.Last);
-        TKIT_ASSERT(i == 0 || (range.First > ranges[i - 1].First && range.Last > ranges[i - 1].Last),
-                    "[ONYX][FONT] Code point ranges must not interleave and must be sorted, but found range {} with "
-                    "First = {}, Last = {} and range {} with First = {}, Last = {}",
-                    i, range.First, range.Last, i - 1, ranges[i - 1].First, ranges[i - 1].Last);
-        for (u32 j = range.First; j <= range.Last; ++j)
-            chset.add(j);
-        data.CodePoints.Append(range);
-    }
-    const u32 count = u32(fgeo.loadCharset(font, opts.FontScale, chset));
-    TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", count, chset.size());
-    TKIT_UNUSED(count);
+    TKIT_ASSERT(!opts.CharSet.CodePoints.IsEmpty(), "[ONYX][FONT] The char set must not be empty");
 
-    const i32 dim = i32(opts.AtlasDimensions);
+    msdf_atlas::Charset chset{};
+    for (const u32 c : opts.CharSet.CodePoints)
+        chset.add(c);
+
+    const u32 loaded = u32(fgeo.loadCharset(font, opts.FontScale, chset));
+    TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", loaded, chset.size());
+    if (loaded == 0)
+        return Result<FontData>::Error(Error_LoadFailed, "[ONYX][FONT] No glyph was able to be loaded");
+
     msdf_atlas::TightAtlasPacker packer{};
-    packer.setDimensions(dim, dim);
+    if (opts.AtlasDimensions != 0)
+    {
+        const i32 dim = i32(opts.AtlasDimensions);
+        packer.setDimensions(dim, dim);
+    }
+    else
+        packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::SQUARE);
+
     packer.setPixelRange(opts.SDFRange);
     packer.setMiterLimit(1.0);
     packer.setInnerPixelPadding(msdf_atlas::Padding{opts.Padding});
     packer.setScale(opts.EmSize);
-    TKIT_CHECK_RETURNS(packer.pack(glyphs.data(), i32(glyphs.size())), 0,
-                       "[ONYX][FONT] Atlas packer did not pack all the glyphs!");
+
+    const i32 left = packer.pack(glyphs.data(), i32(glyphs.size()));
+    if (left != 0)
+        return Result<FontData>::Error(
+            Error_LoadFailed,
+            TKit::Format("[ONYX][FONT] The atlas packer was not able to pack all the glyphs. Remaining: {}", left));
+
+    i32v2 dims;
+    packer.getDimensions(dims[0], dims[1]);
+    TKIT_LOG_DEBUG("[ONYX][FONT] Atlas dimensions are {}x{}", dims[0], dims[1]);
+    TKIT_ASSERT(dims[0] == dims[1], "[ONYX][FONT] Atlas dimensions must be equal, but w = {} != {} = h", dims[0],
+                dims[1]);
 
     u64 seed = 0;
     for (msdf_atlas::GlyphGeometry &glyph : glyphs)
@@ -65,7 +70,7 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
 
     msdf_atlas::ImmediateAtlasGenerator<f32, 4, msdf_atlas::mtsdfGenerator,
                                         msdf_atlas::BitmapAtlasStorage<msdf_atlas::byte, 4>>
-        generator{dim, dim};
+        generator{dims[0], dims[1]};
 
     msdf_atlas::GeneratorAttributes att;
     att.config.overlapSupport = true;
@@ -80,7 +85,7 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     idata.Height = u32(bitmap.height);
     idata.Format = Format_R8G8B8A8_UNORM;
 
-    TKit::TierArray<u8> flipped{};
+    TKit::StackArray<u8> flipped{};
     flipped.Reserve(idata.Width * idata.Height * 4);
 
     for (u32 i = 0; i < idata.Height; ++i)
@@ -94,7 +99,14 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     idata.Data = scast<std::byte *>(TKit::Allocate(size));
     TKit::ForwardCopy(idata.Data, flipped.GetData(), size);
 
+    msdfgen::FontMetrics metrics;
+    msdfgen::getFontMetrics(metrics, font);
+
     data.AtlasData = idata;
+    data.Ascender = f32(metrics.ascenderY) / opts.EmSize;
+    data.Descender = f32(metrics.descenderY) / opts.EmSize;
+    data.LineHeight = opts.LineGapFactor * f32(metrics.lineHeight) / opts.EmSize;
+    data.UnitRange = opts.SDFRange / f32(dims[0]);
 
     for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
     {
@@ -118,28 +130,21 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
         gdata.MinTexCoord = texCoordMin / atlasSize;
         gdata.MaxTexCoord = texCoordMax / atlasSize;
 
+        data.GlyphMap[glyph.getCodepoint()] = data.Glyphs.GetSize();
         data.Glyphs.Append(gdata);
     }
-    for (msdf_atlas::unicode_t a : chset)
-        for (msdf_atlas::unicode_t b : chset)
+    for (const msdf_atlas::GlyphGeometry &g1 : glyphs)
+        for (const msdf_atlas::GlyphGeometry &g2 : glyphs)
         {
+            const msdf_atlas::unicode_t a = g1.getCodepoint();
+            const msdf_atlas::unicode_t b = g2.getCodepoint();
+
             const u64 key = u64(a) << 32 | u64(b);
             f64 kerning = 0.;
             msdfgen::getKerning(kerning, font, a, b, msdfgen::FONT_SCALING_EM_NORMALIZED);
             if (kerning != 0.)
-                data.Kerning.Append(key, f32(kerning));
+                data.Kerning[key] = f32(kerning);
         }
-    std::sort(data.Kerning.begin(), data.Kerning.end(),
-              [](const GlyphKerning &a, const GlyphKerning &b) { return a.Key < b.Key; });
-
-    msdfgen::FontMetrics metrics;
-    msdfgen::getFontMetrics(metrics, font);
-
-    data.AtlasData = idata;
-    data.Ascender = f32(metrics.ascenderY);
-    data.Descender = f32(metrics.descenderY);
-    data.LineHeight = f32(metrics.lineHeight);
-    data.UnitRange = opts.SDFRange / f32(dim);
 
     msdfgen::destroyFont(font);
     msdfgen::deinitializeFreetype(ft);
@@ -185,7 +190,7 @@ Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
         return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
 
     msdfgen::FontHandle *font =
-        msdfgen::loadFontData(ft, Inter_VariableFont_opsz_wght_ttf, i32(Inter_VariableFont_opsz_wght_ttf_len));
+        msdfgen::loadFontData(ft, NotoSansSymbols_Merged_ttf, i32(NotoSansSymbols_Merged_ttf_len));
     if (!font)
     {
         msdfgen::deinitializeFreetype(ft);
@@ -197,65 +202,95 @@ Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
 #    endif
 #endif
 
-u32 FontData::GetGlyphDataIndex(const u32 code) const
+// NOTE(Isma): At some point we may need to cache/use explicit utf8 strings if this decoding thing becomes a problem
+u32 DecodeUTF8(const char *code, u32 *count)
 {
-    u32 csize = 0;
-    for (const CodePointRange &range : CodePoints)
-    {
-        if (code >= range.First && code <= range.Last)
-            return code - range.First + csize;
-        csize += range.Last - range.First + 1;
-    }
-    return TKIT_U32_MAX;
-}
+    if (count)
+        *count = 1;
+    const u8 byte = *code++;
+    if (byte < 0x80)
+        return byte;
 
-f32 FontData::GetKerning(const u32 code0, const u32 code1) const
-{
-    const u64 key = u64(code0) << 32 | u64(code1);
-    auto it = std::lower_bound(Kerning.begin(), Kerning.end(), key,
-                               [](const GlyphKerning &glyphs, const u64 k) { return glyphs.Key < k; });
-    if (it != Kerning.end() && it->Key == key)
-        return it->Kerning;
-    return 0.0f;
+    u32 cp;
+    u32 remaining;
+
+    if ((byte & 0xE0) == 0xC0)
+    {
+        cp = byte & 0x1F;
+        remaining = 1;
+    }
+    else if ((byte & 0xF0) == 0xE0)
+    {
+        cp = byte & 0x0F;
+        remaining = 2;
+    }
+    else if ((byte & 0xF8) == 0xF0)
+    {
+        cp = byte & 0x07;
+        remaining = 3;
+    }
+    else
+        return 0xFFFD;
+
+    for (u32 i = 0; i < remaining; ++i)
+    {
+        if ((*code & 0xC0) != 0x80)
+            return 0xFFFD;
+
+        if (count)
+            ++(*count);
+        cp = (cp << 6) | (*code++ & 0x3F);
+    }
+    return cp;
 }
 
 f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
 {
-    const f32 lheight = GetLineHeight();
+    const f32 lheight = LineHeight;
     u32 nlcount = 1;
     f32 width = 0.f;
     f32 lastWidth = 0.f;
-    for (u32 i = 0; i < text.GetSize(); ++i)
+
+    u32 lastCode = TKIT_U32_MAX;
+    for (u32 i = 0; i < text.GetSize();)
     {
-        const char c = text[i];
-        if (c == '\n')
+        u32 byteCount;
+        const u32 code = DecodeUTF8(&text[i], &byteCount);
+
+        if (code == '\n')
         {
             ++nlcount;
             lastWidth = Math::Max(width, lastWidth);
             width = 0.f;
+            i += byteCount;
             continue;
         }
 
-        const u32 idx = GetGlyphDataIndex(c);
-        if (idx == TKIT_U32_MAX)
+        const GlyphData *gdata = GetGlyph(code);
+        if (!gdata)
         {
-            TKIT_LOG_ERROR("[ONYX][FONT] The character {} was not found as an available code point", c);
+            TKIT_LOG_ERROR("[ONYX][FONT] The code U+{:04X} ({}) was not found as an available code point", code,
+                           TKit::StringView{&text[i], byteCount});
+            i += byteCount;
             continue;
         }
 
         if (i != 0)
-            width += GetKerning(text[i - 1], c);
+            width += GetKerning(lastCode, code);
 
-        width += Glyphs[idx].Advance;
+        width += gdata->Advance;
+        i += byteCount;
+        lastCode = code;
     }
     return f32v2{Math::Max(width, lastWidth), nlcount * lheight};
 }
 
 f32 FontData::ComputeTextHeight(const TKit::StringView text) const
 {
-    const f32 lheight = GetLineHeight();
+    const f32 lheight = LineHeight;
     u32 nlcount = 1;
     for (const char c : text)
+        // NOTE(Isma): No decode here. we sould be fine
         if (c == '\n')
             ++nlcount;
     return nlcount * lheight;
@@ -290,39 +325,49 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
     f32 lastSize = 0.f;
     u32 lastSpace = TKIT_U32_MAX;
 
-    for (u32 i = 0; i < text.GetSize(); ++i)
+    u32 lastCode = TKIT_U32_MAX;
+    for (u32 i = 0; i < text.GetSize();)
     {
-        const char c = text[i];
-        wrapped.Append(c);
+        u32 byteCount;
+        const u32 code = DecodeUTF8(&text[i], &byteCount);
 
-        if (c == '\n')
+        for (u32 j = 0; j < byteCount; ++j)
+            wrapped.Append(text[i + j]);
+
+        if (code == '\n')
         {
             size = 0.f;
+            i += byteCount;
             continue;
         }
-        if (c == ' ')
+        if (code == ' ')
         {
             lastSpace = i;
             lastSize = size;
         }
 
-        const u32 idx = GetGlyphDataIndex(c);
-        if (idx == TKIT_U32_MAX)
+        const GlyphData *gdata = GetGlyph(code);
+        if (!gdata)
         {
-            TKIT_LOG_ERROR("[ONYX][FONT] The character {} was not found as an available code point", c);
+            TKIT_LOG_ERROR("[ONYX][FONT] The code U+{:04X} ({}) was not found as an available code point", code,
+                           TKit::StringView{&text[i], byteCount});
+            i += byteCount;
             continue;
         }
 
         if (i != 0)
-            size += GetKerning(text[i - 1], c);
+            size += GetKerning(lastCode, code);
 
-        size += Glyphs[idx].Advance;
+        size += gdata->Advance;
         if (size > maxWidth && lastSpace != TKIT_U32_MAX)
         {
             wrapped[lastSpace] = '\n';
             lastSpace = TKIT_U32_MAX;
             size -= lastSize;
         }
+
+        i += byteCount;
+        lastCode = code;
     }
     return wrapped;
 }

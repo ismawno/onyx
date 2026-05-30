@@ -229,8 +229,8 @@ template <Dimension D> void RenderView<D>::nameFramebuffers()
         for (u32 j = 0; j < m_FrameBuffers.GetSize(); ++j)
             if (fb->Attachments[j])
             {
-                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].GetData()));
-                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].GetData()));
+                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].CString()));
+                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].CString()));
             }
     }
 }

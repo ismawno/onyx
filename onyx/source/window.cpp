@@ -40,7 +40,7 @@ TKit::Timespan ToDeltaTime(const u32 frequency)
     return TKit::Timespan::FromSeconds(1.f / f32(frequency));
 }
 
-Window *Window::FromHandle(GLFWwindow *window)
+Window *Window::FromHandle(Onyx_WindowHandle *window)
 {
     return scast<Window *>(glfwGetWindowUserPointer(window));
 }
@@ -118,6 +118,11 @@ void Window::SetOpacity(const f32 opacity)
         "[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
         "the feature is available");
 #endif
+}
+
+void Window::SetMouseCursor(const MouseCursor cursor)
+{
+    glfwSetCursor(m_Window, m_Cursors[cursor]);
 }
 
 WindowFlags Window::GetFlags() const
@@ -261,6 +266,28 @@ void Window::extractSwapChainImages()
         m_Presentation.Append(&m_SwapChain->GetImage(i));
 }
 
+static u32 toGlfwCursor(const MouseCursor cursor)
+{
+    switch (cursor)
+    {
+    case MouseCursor_Arrow:
+        return GLFW_ARROW_CURSOR;
+    case MouseCursor_HorizontalResize:
+        return GLFW_HRESIZE_CURSOR;
+    case MouseCursor_VerticalResize:
+        return GLFW_VRESIZE_CURSOR;
+    case MouseCursor_Hand:
+        return GLFW_HAND_CURSOR;
+    case MouseCursor_CrossHair:
+        return GLFW_CROSSHAIR_CURSOR;
+    case MouseCursor_IBeam:
+        return GLFW_IBEAM_CURSOR;
+    default:
+        TKIT_FATAL("[ONYX][WINDOW] Failed to find cursors");
+        return TKIT_U32_MAX;
+    }
+}
+
 Window::Window(const WindowSpecs &specs)
 {
     TKit::TierAllocator *tier = GetTier();
@@ -278,6 +305,10 @@ Window::Window(const WindowSpecs &specs)
 #endif
 
     m_Window = glfwCreateWindow(i32(specs.Dimensions[0]), i32(specs.Dimensions[1]), specs.Title, nullptr, nullptr);
+
+    m_Cursors[0] = nullptr;
+    for (u32 i = 1; i < MouseCursor_Count; ++i)
+        m_Cursors[i] = glfwCreateStandardCursor(toGlfwCursor(MouseCursor(i)));
 
     TKIT_ASSERT(m_Window, "[ONYX][WINDOW] Failed to create window");
     u32v2 pos;
@@ -370,13 +401,13 @@ void Window::nameSurface()
 {
     const auto &device = GetDevice();
     const TKit::StackString name = TKit::StackString::Format("onyx-surface-window-'{}'", GetTitle());
-    ONYX_CHECK_VKIT_RESULT(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.GetData()));
+    ONYX_CHECK_VKIT_RESULT(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.CString()));
 }
 
 void Window::nameSwapChain()
 {
     const TKit::StackString name = TKit::StackString::Format("onyx-swapchain-window-'{}'", GetTitle());
-    ONYX_CHECK_VKIT_RESULT(m_SwapChain->SetName(name.GetData()));
+    ONYX_CHECK_VKIT_RESULT(m_SwapChain->SetName(name.CString()));
 }
 
 void Window::nameSyncData()
@@ -390,9 +421,9 @@ void Window::nameSyncData()
         const TKit::StackString iavail =
             TKit::StackString::Format("onyx-image-available-semaphore-index-{}-window-'{}'", i, title);
         ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_SyncData[i]->RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.GetData()));
+            device.SetObjectName(m_SyncData[i]->RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.CString()));
         ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_SyncData[i]->ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.GetData()));
+            device.SetObjectName(m_SyncData[i]->ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.CString()));
     }
 }
 
@@ -403,7 +434,7 @@ void Window::nameSwapChainImages()
     {
         const TKit::StackString pres =
             TKit::StackString::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
-        ONYX_CHECK_VKIT_RESULT(m_Presentation[i]->SetName(pres.GetData()));
+        ONYX_CHECK_VKIT_RESULT(m_Presentation[i]->SetName(pres.CString()));
     }
 }
 
@@ -1318,7 +1349,7 @@ static Mouse toMouse(const i32 mouse)
     }
 }
 
-void windowMoveCallback(GLFWwindow *handle, const i32 x, const i32 y)
+void windowMoveCallback(Onyx_WindowHandle *handle, const i32 x, const i32 y)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1330,7 +1361,7 @@ void windowMoveCallback(GLFWwindow *handle, const i32 x, const i32 y)
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
 }
 
-void windowSizeCallback(GLFWwindow *handle, const i32 width, const i32 height)
+void windowSizeCallback(Onyx_WindowHandle *handle, const i32 width, const i32 height)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1342,7 +1373,7 @@ void windowSizeCallback(GLFWwindow *handle, const i32 width, const i32 height)
     window->PushEvent(event);
 }
 
-static void framebufferSizeCallback(GLFWwindow *handle, const i32 width, const i32 height)
+static void framebufferSizeCallback(Onyx_WindowHandle *handle, const i32 width, const i32 height)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1354,7 +1385,7 @@ static void framebufferSizeCallback(GLFWwindow *handle, const i32 width, const i
     window->PushEvent(event);
 }
 
-static void windowFocusCallback(GLFWwindow *handle, const i32 focused)
+static void windowFocusCallback(Onyx_WindowHandle *handle, const i32 focused)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1362,7 +1393,7 @@ static void windowFocusCallback(GLFWwindow *handle, const i32 focused)
     window->PushEvent(event);
 }
 
-static void windowCloseCallback(GLFWwindow *handle)
+static void windowCloseCallback(Onyx_WindowHandle *handle)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1370,7 +1401,7 @@ static void windowCloseCallback(GLFWwindow *handle)
     window->PushEvent(event);
 }
 
-static void windowIconifyCallback(GLFWwindow *handle, const i32 iconified)
+static void windowIconifyCallback(Onyx_WindowHandle *handle, const i32 iconified)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1378,7 +1409,7 @@ static void windowIconifyCallback(GLFWwindow *handle, const i32 iconified)
     window->PushEvent(event);
 }
 
-static void keyCallback(GLFWwindow *handle, const i32 key, const i32, const i32 action, const i32)
+static void keyCallback(Onyx_WindowHandle *handle, const i32 key, const i32, const i32 action, const i32)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1402,7 +1433,7 @@ static void keyCallback(GLFWwindow *handle, const i32 key, const i32, const i32 
     window->PushEvent(event);
 }
 
-static void charCallback(GLFWwindow *handle, const u32 codepoint)
+static void charCallback(Onyx_WindowHandle *handle, const u32 codepoint)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1411,7 +1442,7 @@ static void charCallback(GLFWwindow *handle, const u32 codepoint)
     window->PushEvent(event);
 }
 
-static void cursorPositionCallback(GLFWwindow *handle, const f64 xpos, const f64 ypos)
+static void cursorPositionCallback(Onyx_WindowHandle *handle, const f64 xpos, const f64 ypos)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1420,7 +1451,7 @@ static void cursorPositionCallback(GLFWwindow *handle, const f64 xpos, const f64
     window->PushEvent(event);
 }
 
-static void cursorEnterCallback(GLFWwindow *handle, const i32 entered)
+static void cursorEnterCallback(Onyx_WindowHandle *handle, const i32 entered)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1428,7 +1459,7 @@ static void cursorEnterCallback(GLFWwindow *handle, const i32 entered)
     window->PushEvent(event);
 }
 
-static void mouseButtonCallback(GLFWwindow *handle, const i32 button, const i32 action, const i32)
+static void mouseButtonCallback(Onyx_WindowHandle *handle, const i32 button, const i32 action, const i32)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1437,7 +1468,7 @@ static void mouseButtonCallback(GLFWwindow *handle, const i32 button, const i32 
     window->PushEvent(event);
 }
 
-static void scrollCallback(GLFWwindow *handle, const f64 xoffset, const f64 yoffset)
+static void scrollCallback(Onyx_WindowHandle *handle, const f64 xoffset, const f64 yoffset)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
@@ -1446,7 +1477,7 @@ static void scrollCallback(GLFWwindow *handle, const f64 xoffset, const f64 yoff
     window->PushEvent(event);
 }
 
-static void installCallbacks(GLFWwindow *handle)
+static void installCallbacks(Onyx_WindowHandle *handle)
 {
     glfwSetWindowPosCallback(handle, windowMoveCallback);
     glfwSetWindowSizeCallback(handle, windowSizeCallback);

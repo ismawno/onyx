@@ -1,6 +1,8 @@
 #include "pch.hpp"
 #include "onyx/gltf.hpp"
 #include "conversion.hpp"
+#include "tkit/container/hash_map.hpp"
+#include "tkit/container/hash_set.hpp"
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_CLANG_WARNING_IGNORE("-Wdeprecated-literal-operator")
 TKIT_CLANG_WARNING_IGNORE("-Wmissing-field-initializers")
@@ -52,11 +54,12 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
     GltfData<D> data{};
     for (const auto &mesh : model.meshes)
     {
-        std::unordered_map<i32, u32> primToMeshIndex;
+        // TODO(Isma): Do something about this hardcoded value
+        TKit::StackHashMap<i32, u32> primToMeshIndex{2048};
         for (const auto &prim : mesh.primitives)
         {
             const i32 posAccessorIdx = prim.attributes.at("POSITION");
-            if (primToMeshIndex.contains(posAccessorIdx))
+            if (primToMeshIndex.Contains(posAccessorIdx))
                 continue;
 
             StatMeshData<D> meshData{};
@@ -150,15 +153,16 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
         }
     }
 
-    std::unordered_set<u32> srgbTexs;
+    // TODO(Isma): Do something about this hardcoded value
+    TKit::StackHashSet<u32> srgbTexs{1024};
     for (const auto &mat : model.materials)
     {
         const i32 albedoIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
         const i32 emissiveIdx = mat.emissiveTexture.index;
         if (albedoIdx >= 0)
-            srgbTexs.insert(u32(model.textures[albedoIdx].source));
+            srgbTexs.Insert(u32(model.textures[albedoIdx].source));
         if (emissiveIdx >= 0)
-            srgbTexs.insert(u32(model.textures[emissiveIdx].source));
+            srgbTexs.Insert(u32(model.textures[emissiveIdx].source));
 
         if constexpr (D == D2)
         {
@@ -299,7 +303,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
         img.Width = u32(image.width);
         img.Height = u32(image.height);
         img.Components = u32(image.component);
-        img.Format = GetFormat(image.component, getComponentType(image.pixel_type), srgbTexs.contains(i));
+        img.Format = GetFormat(image.component, getComponentType(image.pixel_type), srgbTexs.Contains(i));
 
         const usz size = img.ComputeSize();
         img.Data = scast<std::byte *>(TKit::Allocate(size));

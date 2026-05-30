@@ -274,47 +274,50 @@ class Layout
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(usz id, const LayoutPanelParameters &params);
-    usz BeginPanel(const char *id, const LayoutPanelParameters &params)
+    void BeginPanel(usz id, const LayoutPanelParameters &params = {});
+    void BeginPanel(const char *id, const LayoutPanelParameters &params = {})
     {
-        return BeginPanel(TKit::Hash(id), params);
+        BeginPanel(TKit::Hash(id), params);
     }
-    usz BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params)
+    void BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params = {})
     {
-        return BeginPanel(TKit::Hash(id), params);
+        BeginPanel(TKit::Hash(id), params);
     }
-    usz BeginPanel(const LayoutPanelParameters &params)
+    void BeginPanel(const LayoutPanelParameters &params = {})
     {
-        return BeginPanel(++m_AutoId, params);
+        BeginPanel(++m_AutoId, params);
     }
 
     void EndPanel();
 
-    usz Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
-    usz Text(const char *id, TKit::StringView text, const LayoutTextParameters &params = {})
+    void Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
+    void Text(const char *id, TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        return Text(TKit::Hash(id), text, params);
+        Text(TKit::Hash(id), text, params);
     }
-    usz Text(const TKit::StringView id, TKit::StringView text, const LayoutTextParameters &params = {})
+    void Text(const TKit::StringView id, TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        return Text(TKit::Hash(id), text, params);
+        Text(TKit::Hash(id), text, params);
     }
-    usz Text(TKit::StringView text, const LayoutTextParameters &params = {})
+    void Text(TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        return Text(++m_AutoId, text, params);
+        Text(++m_AutoId, text, params);
     }
 
     bool IsHovered(usz id, const f32v2 &point) const;
-    bool IsHovered(const f32v2 &point) const
-    {
-        TKIT_ASSERT(!m_Stack.IsEmpty(),
-                    "[ONYX][LAYOUT] If no panel is currently active, an explicit id must be provided");
-        const u32 last = m_Stack.GetBack();
-        return IsHovered(m_Elements[last].Id, point);
-    }
     bool IsHovered(const char *id, const f32v2 &point) const
     {
-        return IsHovered(stackedId(TKit::Hash(id)), point);
+        return IsHovered(TKit::Hash(id), point);
+    }
+    bool IsHovered(const TKit::StringView id, const f32v2 &point) const
+    {
+        return IsHovered(TKit::Hash(id), point);
+    }
+    bool IsHovered(const f32v2 &point) const
+    {
+        TKIT_ASSERT(m_LastId != TKIT_U64_MAX,
+                    "[ONYX][LAYOUT] If no panel is currently active, an explicit id must be provided");
+        return IsHovered(m_LastId, point);
     }
 
     void Compile();
@@ -346,7 +349,7 @@ class Layout
     }
 
     TKit::TierArray<LayoutElement> m_Elements{};
-    TKit::TierArray<u32> m_Stack{};
+    TKit::TierArray<u32> m_ElementStack{};
     TKit::TierArray<u32> m_Breadth{};
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
@@ -356,5 +359,6 @@ class Layout
 
     LayoutSpecs m_Specs{};
     usz m_AutoId = 0;
+    usz m_LastId = TKIT_U64_MAX;
 };
 } // namespace Onyx

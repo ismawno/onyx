@@ -24,7 +24,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
             buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
             buffer.InstanceSize = sizeof(CircleInstanceData<D>);
         }
-    resizeBufferArrays();
+    resizeInstanceData();
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
 {
@@ -35,7 +35,7 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
             instanceData->Circles.Data.Destroy();
             for (auto &meshes : instanceData->Meshes)
                 for (auto &pools : meshes)
-                    for (InstanceDataBuffer &buffer : pools)
+                    for (InstanceDataBuffer &buffer : pools.Instances)
                         buffer.Data.Destroy();
             tier->Destroy(instanceData);
         }
@@ -65,12 +65,16 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
                 auto &ipools = instanceData->Meshes[j];
                 for (const u32 pid : poolIds)
-                    for (InstanceDataBuffer &buffer : ipools[pid])
+                {
+                    InstanceResourceGroup &group = ipools[pid];
+                    group.Registry.Clear();
+                    for (InstanceDataBuffer &buffer : group.Instances)
                         buffer.Instances = 0;
+                }
             }
         }
 
-    resizeBufferArrays();
+    resizeInstanceData();
     ++m_Generation;
     m_DepthCounter = 0;
     m_PointLightData.Clear();
@@ -244,32 +248,24 @@ static Geometry getGeometry(const ResourceType rtype)
     }
 }
 
-template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
+template <Dimension D> void IRenderContext<D>::resizeInstanceData()
 {
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
-            for (u32 j = 0; j < Resource_MeshCount; ++j)
-            {
-                const ResourceType rtype = ResourceType(j);
-                const auto poolIds = Resources::GetResourcePoolIds<D>(rtype);
+    ForEachResourceGroup<D>([this](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
+        InstanceResourceGroup &group = m_InstanceData[bpass][rmode]->Meshes[mtype][pid];
+        const ResourceType rtype = ResourceType(mtype);
 
-                auto &ipools = instanceData->Meshes[j];
-                for (const u32 pid : poolIds)
-                {
-                    auto &buffers = ipools[pid];
-                    const u32 count = buffers.GetSize();
-                    const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
-                    for (u32 k = count; k < ncount; ++k)
-                    {
-                        InstanceDataBuffer &buffer = buffers.Append();
-                        const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
-                        buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
-                        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-                        buffer.InstanceSize = isize;
-                        buffer.Instances = 0;
-                    }
-                }
-            }
+        const u32 count = group.Instances.GetSize();
+        const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
+        for (u32 k = count; k < ncount; ++k)
+        {
+            InstanceDataBuffer &buffer = group.Instances.Append();
+            const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
+            buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
+            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+            buffer.InstanceSize = isize;
+            buffer.Instances = 0;
+        }
+    });
 }
 
 template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const ClipRect<D> &clip)
@@ -366,14 +362,18 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
     if (!m_Current->RenderFlags)
         return;
     CHECK_HANDLE(mesh, Resource_StaticMesh, D);
+
     const u32 pid = Resources::GetResourcePoolId(mesh);
     const u32 mid = Resources::GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
         createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
-    InstanceDataBuffer &buffer =
-        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid][mid];
-    addInstanceData(buffer, idata);
+
+    InstanceResourceGroup &group =
+        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid];
+
+    group.Registry.RegisterResourceId(mid);
+    addInstanceData(group.Instances[mid], idata);
 }
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &transform,
@@ -382,6 +382,7 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     if (!m_Current->RenderFlags)
         return;
     CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
+
     const u32 pid = Resources::GetResourcePoolId(mesh);
     const u32 mid = Resources::GetResourceId(mesh);
 
@@ -390,14 +391,16 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const ParametricInstanceData<D> idata = createParametricInstanceData(
         m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]
-                                     ->Meshes[Resource_ParametricMesh][pid][mid];
-    addInstanceData(buffer, idata);
+    InstanceResourceGroup &group =
+        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_ParametricMesh][pid];
+
+    group.Registry.RegisterResourceId(mid);
+    addInstanceData(group.Instances[mid], idata);
 }
 
 struct Character
 {
-    const Glyph *Glyph;
+    Resource Glyph;
     f32 Advance;
 };
 
@@ -448,10 +451,12 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     lines.Reserve(size);
 
     CharLine line{};
-    for (u32 i = 0; i < size; ++i)
+    u32 lastCode = TKIT_U32_MAX;
+    for (u32 i = 0; i < size;)
     {
-        const char c = text[i];
-        if (c == '\n')
+        u32 byteCount;
+        const u32 code = DecodeUTF8(&text[i], &byteCount);
+        if (code == '\n')
         {
             if (line.Start < line.End)
             {
@@ -459,24 +464,32 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
                 line.Start = line.End;
                 line.Width = 0.f;
             }
-            continue;
-        }
-        const Glyph *glyph = Resources::GetGlyph(font, c);
-        if (!glyph)
-        {
-            TKIT_LOG_ERROR("[ONYX][CONTEXT] The character {} was not found as an available code point", c);
+            i += byteCount;
             continue;
         }
 
+        const Resource glyph = Resources::GetGlyph(font, code);
+        if (glyph == NullHandle)
+        {
+            TKIT_LOG_ERROR("[ONYX][CONTEXT] The code U+{:04X} ({}) was not found as an available code point", code,
+                           TKit::StringView{&text[i], byteCount});
+            i += byteCount;
+            continue;
+        }
+
+        const GlyphData &gdata = Resources::GetGlyphData(glyph);
         f32 advance = 0.f;
         if (line.Start < line.End)
-            advance = fdata.GetKerning(text[i - 1], c);
+            advance = fdata.GetKerning(lastCode, code);
 
-        advance += glyph->Advance + params.Kerning;
+        advance += gdata.Advance + params.Kerning;
         chars.Append(glyph, advance);
 
         ++line.End;
         line.Width += advance;
+
+        i += byteCount;
+        lastCode = code;
     }
     if (line.Start < line.End)
         lines.Append(line);
@@ -486,8 +499,8 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const f32 xfactor = factors[alg0];
     const f32 yfactor = factors[2 - alg1];
 
-    const f32 dy = fdata.GetLineHeight() + params.LineSpacing;
-    pos[1] = yfactor * (f32(lines.GetSize()) - 1.f) * dy - 0.5f * factors[alg1] * dy;
+    const f32 dy = fdata.LineHeight + params.LineSpacing;
+    pos[1] = dy * (yfactor * (f32(lines.GetSize()) - 1.f) - factors[alg1] / fdata.GetLineFactor());
 
     const auto updateTransform = [&] {
         f32v<D + 1> p = transform[D];
@@ -515,14 +528,56 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     }
 }
 template <Dimension D>
-void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32 unitRange, const f32m<D> &transform)
+void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, const f32m<D> &transform)
 {
-    const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
+    const u32 pid = Resources::GetResourcePoolId(glyph);
+    const u32 gid = Resources::GetResourceId(glyph);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]
-                                     ->Meshes[Resource_GlyphMesh][pid][glyph->Id];
-    addInstanceData(buffer, idata);
+    InstanceResourceGroup &group =
+        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_GlyphMesh][pid];
+
+    group.Registry.RegisterResourceId(gid);
+    addInstanceData(group.Instances[gid], idata);
+}
+template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph, const f32m<D> &transform)
+{
+    ++m_DepthCounter;
+    const Resource font = Resources::GetFont(glyph);
+    const FontData &fdata = Resources::GetFontData(font);
+
+    const Alignment al0 = m_Current->Alignment[0];
+    const Alignment al1 = m_Current->Alignment[1];
+    if ((al0 == Alignment_None || al0 == Alignment_Left) && (al1 == Alignment_None || al1 == Alignment_Bottom))
+    {
+        addGlyphData(glyph, fdata.UnitRange, transform);
+        return;
+    }
+    const GlyphData &gdata = Resources::GetGlyphData(glyph);
+    const f32 dx = gdata.Advance;
+    const f32 dy = fdata.Ascender - fdata.Descender;
+
+    f32v2 pos{0.f};
+    if (al0 == Alignment_Right)
+        pos[0] -= dx;
+    else if (al0 == Alignment_Center)
+        pos[0] -= 0.5f * dx;
+
+    if (al1 == Alignment_Top)
+        pos[1] -= dy;
+    else if (al1 == Alignment_Center)
+        pos[1] -= 0.5f * dy;
+
+    f32m<D> t = transform;
+    f32v<D + 1> p = transform[D];
+    for (u32 i = 0; i < 2; ++i)
+        for (u32 j = 0; j < D; ++j)
+        {
+            p[j] += t[i][j] * pos[i];
+            t[D][j] += t[i][j] * pos[i];
+        }
+    t[D] = p;
+    addGlyphData(glyph, fdata.UnitRange, t);
 }
 
 template <Dimension D>

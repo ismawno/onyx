@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "onyx/mesh.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/container/hash_map.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    include <tiny_obj_loader.h>
 #endif
@@ -53,7 +54,7 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
 
-template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path)
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const u32 maxVertices)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -70,7 +71,7 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
         return Result<StatMeshData<D>>::Error(Error_LoadFailed,
                                               "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
 
-    std::unordered_map<StatVertex<D>, Index> uniqueVertices;
+    TKit::StackHashMap<StatVertex<D>, Index> uniqueVertices{maxVertices};
     StatMeshData<D> data;
 
     const u32 vcount = u32(attrib.vertices.size());
@@ -87,9 +88,9 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
                 for (Index i = 0; i < 3; ++i)
                     vertex.Normal[i] = attrib.normals[3 * index.normal_index + i];
 
-            if (!uniqueVertices.contains(vertex))
+            if (!uniqueVertices.Contains(vertex))
             {
-                uniqueVertices[vertex] = Index(uniqueVertices.size());
+                uniqueVertices[vertex] = Index(uniqueVertices.GetSize());
                 data.Vertices.Append(vertex);
             }
             data.Indices.Append(uniqueVertices[vertex]);
@@ -1547,7 +1548,7 @@ template ParaMeshData<D2> CreateRoundedRectMeshData<D2>();
 template ParaMeshData<D3> CreateRoundedRectMeshData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path);
-template Result<StatMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path);
+template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path, u32 maxVertices);
+template Result<StatMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path, u32 maxVertices);
 #endif
 } // namespace Onyx

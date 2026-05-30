@@ -3,7 +3,9 @@
 #include "onyx/instance.hpp"
 #include "onyx/math.hpp"
 #include "onyx/handle.hpp"
+#include "onyx/resources.hpp"
 #include "vkit/resource/host_buffer.hpp"
+#include "tkit/container/bitset.hpp"
 
 namespace Onyx
 {
@@ -286,11 +288,52 @@ struct InstanceDataBuffer
     u32 Capacity = 0;
 };
 
+struct LocalResourceRegistry
+{
+    TKit::TierArray<Resource> ResourceIds{};
+
+    // NOTE(Isma): Is this enough?
+    TKit::StaticBitSet2048 UsedResourceIds{2048};
+
+    void Clear()
+    {
+        ResourceIds.Clear();
+        UsedResourceIds.ClearAll();
+    }
+
+    void RegisterResourceId(const u32 rid)
+    {
+        if (!UsedResourceIds[rid])
+        {
+            UsedResourceIds.Set(rid);
+            ResourceIds.Append(rid);
+        }
+    }
+};
+
+struct InstanceResourceGroup
+{
+    TKit::TierArray<InstanceDataBuffer> Instances{};
+    LocalResourceRegistry Registry{};
+};
+
 struct InstanceDataArrays
 {
     InstanceDataBuffer Circles{};
-    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshCount>
-        Meshes{};
+    MeshInstanceGrouping<InstanceResourceGroup> Meshes{};
 };
+
+template <Dimension D, typename F> void ForEachResourceGroup(F &&func)
+{
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
+            for (u32 mtype = 0; mtype < Resource_MeshCount; ++mtype)
+            {
+                const ResourceType rtype = ResourceType(mtype);
+                const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+                for (const u32 pid : poolIds)
+                    func(bpass, rmode, mtype, pid);
+            }
+}
 
 } // namespace Onyx
