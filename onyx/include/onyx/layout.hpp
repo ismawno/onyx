@@ -4,7 +4,9 @@
 #include "onyx/color.hpp"
 #include "onyx/instance.hpp"
 #include "onyx/pass.hpp"
+#include "onyx/font.hpp"
 #include "tkit/container/tier_array.hpp"
+#include "tkit/container/hash_map.hpp"
 #include "tkit/utils/hash.hpp"
 
 namespace Onyx
@@ -81,7 +83,12 @@ enum LayoutShapeType : u8
 {
     LayoutShape_Circle,
     LayoutShape_Rectangle,
+    // NOTE(Isma): Could support stadiums as well for scrollbars instead of relying on "degenerate" rounded rect state
+    // where width or height is zero
     LayoutShape_RoundedRectangle,
+    LayoutShape_Glyph,
+    LayoutShape_Text,
+    LayoutShape_Unicode,
     LayoutShape_Custom
 };
 
@@ -103,6 +110,10 @@ struct LayoutShape
     {
         return {handle, radius, TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
     }
+    static constexpr LayoutShape Glyph(const Resource handle)
+    {
+        return {handle, 0.f, LayoutShape_Glyph};
+    }
     static constexpr LayoutShape Custom(const Resource handle)
     {
         return {handle, 0.f, LayoutShape_Custom};
@@ -113,7 +124,8 @@ enum LayoutElementType : u8
 {
     LayoutElement_Panel,
     LayoutElement_Floating,
-    LayoutElement_Text
+    LayoutElement_Text,
+    LayoutElement_Unicode,
 };
 
 enum LayoutTextMode : u8
@@ -171,6 +183,7 @@ struct LayoutElement
     u32 Parent;
     Resource Font;
     Resource Material;
+    u32 Unicode;
     TKit::String Text;
     TKit::TierArray<u32> Children{};
 
@@ -200,14 +213,13 @@ struct LayoutDrawInfo
     Color OutlineColor;
     f32 Radius;
     f32 OutlineWidth;
+    u32 Unicode;
     Resource Handle;
     Resource Material;
-    Geometry Geo;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
 };
 
-// TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
     Color FillColor = Color_Transparent;
@@ -242,6 +254,17 @@ struct LayoutTextParameters
     Resource Material = NullHandle;
 };
 
+struct LayoutUnicodeParameters
+{
+    Color FillColor = Color_White;
+    Color OutlineColor = Color_Transparent;
+    f32 Size = 1.f;
+    f32 OutlineWidth = 0.f;
+    vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
+    Resource Font = NullHandle;
+    Resource Material = NullHandle;
+};
+
 struct LayoutSpecs
 {
     vec2<Alignment> RootAlignment{Alignment_Canonical};
@@ -256,32 +279,19 @@ struct LayoutMapData
     f32v2 Size;
 };
 
-struct LayoutMapElement
-{
-    usz Id;
-    u32 DataIndex = TKIT_U32_MAX;
-};
-
-struct LayoutMap
-{
-    TKit::TierArray<LayoutMapElement> Elements{};
-    TKit::TierArray<LayoutMapData> Data{};
-    f32 LoadFactor = 0.f;
-};
-
 class Layout
 {
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    void BeginPanel(usz id, const LayoutPanelParameters &params = {});
-    void BeginPanel(const char *id, const LayoutPanelParameters &params = {})
+    usz BeginPanel(usz id, const LayoutPanelParameters &params = {});
+    usz BeginPanel(const char *id, const LayoutPanelParameters &params = {})
     {
-        BeginPanel(TKit::Hash(id), params);
+        return BeginPanel(TKit::Hash(id), params);
     }
-    void BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params = {})
+    usz BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params = {})
     {
-        BeginPanel(TKit::Hash(id), params);
+        return BeginPanel(TKit::Hash(id), params);
     }
     void BeginPanel(const LayoutPanelParameters &params = {})
     {
@@ -290,18 +300,24 @@ class Layout
 
     void EndPanel();
 
-    void Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
-    void Text(const char *id, TKit::StringView text, const LayoutTextParameters &params = {})
+    usz Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        Text(TKit::Hash(id), text, params);
+        return Text(TKit::Hash(text), text, params);
     }
-    void Text(const TKit::StringView id, TKit::StringView text, const LayoutTextParameters &params = {})
+
+    usz Unicode(usz id, u32 code, const LayoutUnicodeParameters &params = {});
+    usz Unicode(const usz id, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
-        Text(TKit::Hash(id), text, params);
+        return Unicode(id, DecodeUTF8(code.GetData()), params);
     }
-    void Text(TKit::StringView text, const LayoutTextParameters &params = {})
+    usz Unicode(u32 code, const LayoutUnicodeParameters &params = {})
     {
-        Text(++m_AutoId, text, params);
+        return Unicode(TKit::Hash(code), code, params);
+    }
+    usz Unicode(const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    {
+        return Unicode(DecodeUTF8(code.GetData()), params);
     }
 
     bool IsHovered(usz id, const f32v2 &point) const;
@@ -353,7 +369,7 @@ class Layout
     TKit::TierArray<u32> m_Breadth{};
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
-    LayoutMap m_Map{};
+    TKit::TierHashMap<usz, LayoutMapData> m_Map{};
 
     TKit::TierArray<usz> m_IdStack{};
 

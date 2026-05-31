@@ -59,7 +59,7 @@ void UserInterface::Draw()
     for (LayoutData &ldata : m_Layouts)
     {
         ldata.Layout.Compile();
-        m_Context->UserInterfaceLayout(ldata.Layout);
+        m_Context->Layout(ldata.Layout);
     }
 }
 

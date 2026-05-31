@@ -173,7 +173,7 @@ int main()
 
             DrawPanels(layout, root, panels);
             layout.Compile();
-            ctx->UserInterfaceLayout(layout);
+            ctx->Layout(layout);
 
             for (const Onyx::Event &ev : win->GetNewEvents())
                 if (!ImGui::GetIO().WantCaptureMouse && ev.Type == Onyx::Event_Scrolled)

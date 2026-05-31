@@ -2,7 +2,6 @@
 #include "onyx/layout.hpp"
 #include "onyx/resources.hpp"
 #include "tkit/container/stack_array.hpp"
-#include "tkit/utils/bit.hpp"
 
 #define ONYX_LAYOUT_START_ID 14695981039346656037ULL
 
@@ -11,105 +10,6 @@ namespace Onyx
 static LayoutAxis getAxis(const LayoutDirection dir)
 {
     return LayoutAxis(dir >> 1);
-}
-
-template <typename AllocState> static void mapClear(TKit::Array<LayoutMapElement, AllocState> &map)
-{
-    for (LayoutMapElement &elm : map)
-        elm.DataIndex = TKIT_U32_MAX;
-}
-
-static void mapClear(LayoutMap &map)
-{
-    mapClear(map.Elements);
-    map.Data.Clear();
-    map.LoadFactor = 0.f;
-}
-
-template <typename AllocState>
-static void mapAdd(TKit::Array<LayoutMapElement, AllocState> &map, const LayoutMapElement &elm)
-{
-    const u32 size = map.GetSize();
-    const u32 idx = elm.Id & (size - 1);
-
-    const auto checkSlot = [&map, &elm](const u32 i) {
-        LayoutMapElement &slot = map[i];
-        if (slot.DataIndex == TKIT_U32_MAX)
-        {
-            slot = elm;
-            return true;
-        }
-        return false;
-    };
-
-    for (u32 i = idx; i < size; ++i)
-        if (checkSlot(i))
-            return;
-
-    for (u32 i = 0; i < idx; ++i)
-        if (checkSlot(i))
-            return;
-
-    TKIT_FATAL("[ONYX][LAYOUT] Did not find any map slots");
-}
-
-static const LayoutMapData *mapGet(const LayoutMap &map, const usz id)
-{
-    const u32 size = map.Elements.GetSize();
-    const u32 idx = id & (size - 1);
-
-    struct Getter
-    {
-        const LayoutMapData *Data;
-        bool Found;
-        operator bool() const
-        {
-            return Found;
-        }
-    };
-
-    const auto getSlot = [&map, id](const u32 i) -> Getter {
-        const LayoutMapElement &slot = map.Elements[i];
-        if (slot.DataIndex == TKIT_U32_MAX)
-            return Getter{nullptr, true};
-        if (slot.Id != id)
-            return Getter{nullptr, false};
-
-        return Getter{&map.Data[slot.DataIndex], true};
-    };
-
-    for (u32 i = idx; i < size; ++i)
-        if (const Getter get = getSlot(i))
-            return get.Data;
-
-    for (u32 i = idx; i < size; ++i)
-        if (const Getter get = getSlot(i))
-            return get.Data;
-
-    return nullptr;
-}
-
-static void mapResizeIfNeeded(LayoutMap &map)
-{
-    if (map.LoadFactor <= 0.7f)
-        return;
-
-    const u32 size = map.Elements.GetSize();
-    TKIT_ASSERT(TKit::IsPowerOfTwo(size), "[ONYX][LAYOUT] Map size must be a power of 2, but is {}", size);
-
-    TKit::StackArray<LayoutMapElement> nelements{2 * size};
-    mapClear(nelements);
-    for (const LayoutMapElement &old : map.Elements)
-        if (old.DataIndex != TKIT_U32_MAX)
-            mapAdd(nelements, old);
-    map.Elements = nelements;
-}
-
-static void mapAdd(LayoutMap &map, const LayoutMapElement &elm)
-{
-    mapResizeIfNeeded(map);
-    mapAdd(map.Elements, elm);
-    map.LoadFactor = f32(map.Data.GetSize()) / f32(map.Elements.GetSize());
 }
 
 Layout::Layout(const LayoutSpecs &spc)
@@ -126,10 +26,8 @@ Layout::Layout(const LayoutSpecs &spc)
     assign(m_Specs.RoundedRectangleMesh, spc.RoundedRectangleMesh, def.RoundedRect2);
 
     m_IdStack.Append(ONYX_LAYOUT_START_ID);
-    m_Map.Elements.Resize(64);
-    mapClear(m_Map);
 }
-void Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
+usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
 {
     m_LastId = id;
     const u32 c = m_Elements.GetSize();
@@ -226,6 +124,8 @@ void Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
         current.SelfOffsetType[i] = params.SelfOffset[i].Type;
     }
     current.Padding = params.Padding;
+    PushId(id);
+    return id;
 }
 
 void Layout::EndPanel()
@@ -238,19 +138,21 @@ void Layout::EndPanel()
         m_ReversedBreadth.Append(c);
 
     m_ElementStack.Pop();
+    PopId();
 }
 
-void Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
+usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
 {
     m_LastId = id;
-    const usz sid = stackedId(id);
     if (text.IsEmpty())
-        return;
+        return id;
 
+    const usz sid = stackedId(id);
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = sid;
     current.Type = LayoutElement_Text;
+    current.Shape.Type = LayoutShape_Text;
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
@@ -284,20 +186,70 @@ void Layout::Text(const usz id, const TKit::StringView text, const LayoutTextPar
     current.FontSize = fs;
     current.Size = fs * fdata.ComputeTextSize(text);
 
-    current.MinSize[0] = 0.f; // fs * fdata.ComputeTextMinimumWidth(text);
-    current.MinSize[1] = 0.f;
+    // current.MinSize[0] = 0.f; // fs * fdata.ComputeTextMinimumWidth(text);
 
+    current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
+    return id;
+}
+
+// NOTE(Isma): A bit repetitive here with text
+usz Layout::Unicode(const usz id, const u32 code, const LayoutUnicodeParameters &params)
+{
+    m_LastId = id;
+
+    const usz sid = stackedId(id);
+    const u32 c = m_Elements.GetSize();
+
+    LayoutElement &current = m_Elements.Append();
+    current.Id = sid;
+    current.Type = LayoutElement_Unicode;
+    current.Shape.Type = LayoutShape_Unicode;
+
+    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
+    TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A unicode element cannot be a root ui element");
+    current.Parent = p;
+
+    LayoutElement &parent = m_Elements[current.Parent];
+    if (parent.Children.IsEmpty())
+        m_Breadth.Append(current.Parent);
+    parent.Children.Append(c);
+    current.Alignment = parent.Alignment;
+    current.SelfOverflow = parent.ChildOverflow;
+    current.FloatSibling = parent.FloatSibling;
+    for (u32 i = 0; i < 2; ++i)
+    {
+        current.SelfOffset[i] = params.Offset[i].Offset;
+        current.SelfOffsetType[i] = params.Offset[i].Type;
+    }
+    current.FillColor = params.FillColor;
+    current.OutlineColor = params.OutlineColor;
+    current.OutlineWidth = params.OutlineWidth;
+    current.Unicode = code;
+    current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
+    current.Material = params.Material;
+
+    const FontData &fdata = Resources::GetFontData(current.Font);
+    const Resource glyph = Resources::GetGlyph(current.Font, code);
+    const GlyphData &gdata = Resources::GetGlyphData(glyph);
+
+    const f32 fs = params.Size;
+    current.FontSize = fs;
+    current.Size = fs * f32v2{gdata.Advance, fdata.LineHeight};
+    current.MinSize = current.Size;
+    current.MaxSize = current.Size;
+    return id;
 }
 
 bool Layout::IsHovered(const usz id, const f32v2 &pos) const
 {
-    const LayoutMapData *data = mapGet(m_Map, stackedId(id));
-    if (!data)
+    const auto it = m_Map.Find(stackedId(id));
+    if (it == m_Map.end())
         return false;
 
-    const f32v2 mn = data->Position;
-    const f32v2 mx = data->Position + data->Size;
+    const LayoutMapData &data = it->Value;
+    const f32v2 mn = data.Position;
+    const f32v2 mx = data.Position + data.Size;
 
     const auto check = [](const f32 p, const f32 mn, const f32 mx) { return p >= mn && p <= mx; };
 
@@ -310,7 +262,10 @@ void Layout::fitPass(const LayoutAxis axis)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
-        if (parent.Type == LayoutElement_Text || parent.Sizing[axis] != LayoutSizing_Fit)
+        TKIT_ASSERT(parent.Type != LayoutElement_Text && parent.Type != LayoutElement_Unicode,
+                    "[ONYX][LAYOUT] A parent node cannot be text or unicode");
+
+        if (parent.Sizing[axis] != LayoutSizing_Fit)
             continue;
 
         const LayoutAxis paxis = getAxis(parent.Direction);
@@ -713,7 +668,7 @@ void Layout::Compile()
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
 
-    mapClear(m_Map);
+    m_Map.Clear();
     for (const LayoutElement &elm : m_Elements)
     {
         const bool fill = !TKit::ApproachesZero(elm.FillColor.rgba[3]);
@@ -744,48 +699,33 @@ void Layout::Compile()
         info.Position = elm.Position;
         info.ClipMin = elm.ClipMin;
         info.ClipMax = elm.ClipMax;
-        if (text)
+        info.ShapeType = elm.Shape.Type;
+        switch (elm.Shape.Type)
         {
-            info.Geo = Geometry_Glyph;
+        case LayoutShape_Circle:
+        case LayoutShape_Rectangle:
+        case LayoutShape_Glyph:
+        case LayoutShape_Custom:
+            info.Handle = elm.Shape.Handle;
+            info.Size = elm.Size;
+            break;
+        case LayoutShape_RoundedRectangle:
+            info.Handle = elm.Shape.Handle;
+            info.Radius = Math::Min(elm.Shape.Radius, 0.5f * Math::Min(elm.Size[0], elm.Size[1]));
+            info.Size = elm.Size - 2.f * info.Radius;
+            break;
+        case LayoutShape_Text:
             info.Handle = elm.Font;
             info.Text = elm.Text;
             info.Size = f32v2{elm.FontSize};
+            break;
+        case LayoutShape_Unicode:
+            info.Handle = elm.Font;
+            info.Unicode = elm.Unicode;
+            info.Size = f32v2{elm.FontSize};
+            break;
         }
-        else
-        {
-            info.ShapeType = elm.Shape.Type;
-            info.Handle = elm.Shape.Handle;
-            switch (elm.Shape.Type)
-            {
-            case LayoutShape_Circle:
-                info.Geo = Geometry_Circle;
-                info.Size = elm.Size;
-                break;
-            case LayoutShape_Custom:
-            case LayoutShape_Rectangle:
-                info.Geo = Geometry_Static;
-                info.Size = elm.Size;
-                break;
-            // case LayoutShape_Stadium: {
-            //     info.Geo = Geometry_Parametric;
-            //     const f32 smallAxis = Math::Min(elm.Size[0], elm.Size[1]);
-            //     info.Size[0] = 0.5f * smallAxis;
-            //     info.Size[1] = elm.Size[1] - smallAxis;
-            //     break;
-            // }
-            case LayoutShape_RoundedRectangle:
-                info.Geo = Geometry_Parametric;
-                info.Radius = Math::Min(elm.Shape.Radius, 0.5f * Math::Min(elm.Size[0], elm.Size[1]));
-                info.Size = elm.Size - 2.f * info.Radius;
-                break;
-            }
-        }
-        const u32 index = m_Map.Data.GetSize();
-        mapAdd(m_Map, LayoutMapElement{.Id = elm.Id, .DataIndex = index});
-
-        LayoutMapData &data = m_Map.Data.Append();
-        data.Position = info.Position;
-        data.Size = info.Size;
+        m_Map[elm.Id] = LayoutMapData{.Position = info.Position, .Size = info.Size};
     }
     m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 

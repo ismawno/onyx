@@ -602,7 +602,7 @@ void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLight
     p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
 }
 
-template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout &layout)
+template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout)
 {
     u32 depth = 0;
     const auto translate = [this, &depth](const LayoutDrawInfo &info) {
@@ -649,35 +649,45 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         }
         Clip(rect);
 
-        switch (info.Geo)
+        switch (info.ShapeType)
         {
-        case Geometry_Circle:
+        case LayoutShape_Circle:
             translate(info);
             scale(info);
             Circle();
             break;
 
-        case Geometry_Static:
+        case LayoutShape_Rectangle:
             translate(info);
             scale(info);
             StaticMesh(info.Handle);
             break;
 
-        case Geometry_Parametric:
+        case LayoutShape_RoundedRectangle:
             translate(info);
-            if (info.ShapeType == LayoutShape_RoundedRectangle)
-                ParametricMesh(info.Handle, RoundedRectParameters{
-                                                .Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
-            else
-                ParametricMesh(info.Handle, StadiumParameters{.Height = info.Size[1], .Radius = info.Size[0]});
+            ParametricMesh(info.Handle,
+                           RoundedRectParameters{.Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
             break;
+        case LayoutShape_Glyph:
+            translate(info);
+            scale(info);
 
-        case Geometry_Glyph:
+            Glyph(info.Handle);
+            break;
+        case LayoutShape_Text:
             translate(info);
             scale(info);
 
             Font(info.Handle);
             Text(info.Text);
+            break;
+
+        case LayoutShape_Unicode:
+            translate(info);
+            scale(info);
+
+            Font(info.Handle);
+            Unicode(info.Unicode);
             break;
 
         default:

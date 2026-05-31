@@ -1451,8 +1451,8 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
         return IsResourcePoolValid<D>(handle, Resource_Font) && aid < s_FontData->Pools[pid].Meshes.GetSize();
     case Resource_GlyphMesh:
         return IsResourcePoolValid<D>(handle, Resource_GlyphMesh) &&
-               aid < 4 * s_FontData->Pools[pid].Vertices.GetSize() &&
-               aid < 6 * s_FontData->Pools[pid].Indices.GetSize();
+               aid < s_FontData->Pools[pid].Vertices.GetSize() / 4 &&
+               aid < s_FontData->Pools[pid].Indices.GetSize() / 6;
     case Resource_Sampler:
         return IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(aid);
     case Resource_Texture:

@@ -439,13 +439,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         Glyph(Resources::GetGlyph(m_Current->Font, code), transform, mode);
     }
-    void Unicode(const char *s)
+    void Unicode(const TKit::StringView code)
     {
-        Unicode(DecodeUTF8(s));
+        Unicode(DecodeUTF8(code.GetData()));
     }
-    void Unicode(const char *s, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    void Unicode(const TKit::StringView code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        Unicode(DecodeUTF8(s), transform, mode);
+        Unicode(DecodeUTF8(code.GetData()), transform, mode);
     }
 
     void Text(const TKit::StringView text, const ContextTextParameters &params = {})
@@ -460,7 +460,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             params);
     }
 
-    void UserInterfaceLayout(const Layout &layout);
+    void Layout(const Layout &layout);
 
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});
