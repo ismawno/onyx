@@ -18,6 +18,10 @@ int main()
         ui.Draw();
 
         ui.BeginWindow("Test");
+        ui.Button("Hey!");
+        ui.Button("Wow!");
+        ui.Button("Yes!");
+        ui.Button("No!");
         ui.EndWindow();
 
         Onyx::Transfer();

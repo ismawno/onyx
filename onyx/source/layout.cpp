@@ -12,7 +12,7 @@ static LayoutAxis getAxis(const LayoutDirection dir)
     return LayoutAxis(dir >> 1);
 }
 
-Layout::Layout(const LayoutSpecs &spc)
+Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
 {
     const DefaultResources &def = Resources::GetDefaultResources();
     const auto assign = [&](Resource &res, const Resource specific, const Resource fallback) {
@@ -52,6 +52,10 @@ usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
         if (parent.Children.IsEmpty())
             m_Breadth.Append(current.Parent);
         parent.Children.Append(c);
+
+        if (!params.Floating.Enable)
+            ++parent.NonFloatChildCount;
+
         current.SelfOverflow = parent.ChildOverflow;
         current.DrawOnTop |= parent.DrawOnTop;
     }
@@ -158,7 +162,10 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     LayoutElement &parent = m_Elements[current.Parent];
     if (parent.Children.IsEmpty())
         m_Breadth.Append(current.Parent);
+
     parent.Children.Append(c);
+    ++parent.NonFloatChildCount;
+
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
     current.DrawOnTop = parent.DrawOnTop;
@@ -183,9 +190,9 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     current.FontSize = fs;
     current.Size = fs * fdata.ComputeTextSize(text);
 
-    // current.MinSize[0] = 0.f; // fs * fdata.ComputeTextMinimumWidth(text);
-
-    current.MinSize = f32v2{0.f};
+    current.MinSize[0] = fs * fdata.ComputeTextMinimumWidth(text) + parent.Padding[0] + parent.Padding[1];
+    current.MinSize[1] = 0.f;
+    // current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
     return current.Id;
 }
@@ -207,7 +214,10 @@ usz Layout::Unicode(const usz label, const u32 code, const LayoutUnicodeParamete
     LayoutElement &parent = m_Elements[current.Parent];
     if (parent.Children.IsEmpty())
         m_Breadth.Append(current.Parent);
+
     parent.Children.Append(c);
+    ++parent.NonFloatChildCount;
+
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
     current.DrawOnTop = parent.DrawOnTop;
@@ -298,7 +308,7 @@ void Layout::fitPass(const LayoutAxis axis)
         psize += padding;
 
         if (paxis == axis)
-            psize += parent.ChildGap * (parent.Children.GetSize() - 1);
+            psize += parent.ChildGap * (parent.NonFloatChildCount - 1);
 
         psize = Math::Clamp(psize, pmnsize, pmxsize);
     }
@@ -338,7 +348,7 @@ void Layout::growShrinkPass(const LayoutAxis axis)
         f32 remainingSize = parent.Size[axis] - padding;
         if (paxis == axis)
         {
-            remainingSize -= parent.ChildGap * (parent.Children.GetSize() - 1);
+            remainingSize -= parent.ChildGap * (parent.NonFloatChildCount - 1);
             TKit::StackArray<u32> toGrow{};
             toGrow.Reserve(m_Elements.GetSize());
             TKit::StackArray<u32> toShrink{};
@@ -476,13 +486,20 @@ void Layout::growShrinkPass(const LayoutAxis axis)
 void Layout::wrapText()
 {
     for (LayoutElement &elm : m_Elements)
-        if (elm.Type == LayoutElement_Text && elm.TextMode == TextMode_Wrapped)
-        {
-            const FontData &fdata = Resources::GetFontData(elm.Font);
-            const f32 fs = elm.FontSize;
+    {
+        if (elm.Type != LayoutElement_Text && elm.Type != LayoutElement_Unicode)
+            continue;
+
+        const FontData &fdata = Resources::GetFontData(elm.Font);
+        const f32 fs = elm.FontSize;
+        if (elm.TextMode == TextMode_Wrapped)
             elm.Text = fdata.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
-            elm.Size[1] = fs * fdata.ComputeTextHeight(elm.Text);
-        }
+
+        elm.Size[1] = fs * fdata.ComputeTextHeight(elm.Text);
+
+        const LayoutElement &parent = m_Elements[elm.Parent];
+        elm.MinSize[1] = elm.Size[1] + parent.Padding[2] + parent.Padding[3];
+    }
 }
 
 void Layout::positionPass()
@@ -518,8 +535,12 @@ void Layout::positionPass()
 
                 tcs = 0.f;
                 for (const u32 c : parent.Children)
-                    tcs += m_Elements[c].Size[axis];
-                tcs += cgap * (parent.Children.GetSize() - 1);
+                {
+                    const LayoutElement &child = m_Elements[c];
+                    if (child.Type != LayoutElement_Floating)
+                        tcs += m_Elements[c].Size[axis];
+                }
+                tcs += cgap * (parent.NonFloatChildCount - 1);
                 return tcs;
             };
 

@@ -204,7 +204,7 @@ struct LayoutElement
     vec2<Alignment> FloatAlignment;
     bool DrawOnTop;
 
-    f32v4 Padding;
+    f32v4 Padding; // left right bottom top
 
     u32 Parent;
     Resource Font;
@@ -212,6 +212,7 @@ struct LayoutElement
     u32 Unicode;
     TKit::String Text;
     TKit::TierArray<u32> Children{};
+    u32 NonFloatChildCount = 0;
 
     f32 CornerRadius;
     f32 ChildGap;
@@ -368,6 +369,12 @@ class Layout
     }
 
     bool IsHovered(usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const;
+
+    // Only works if called within the same id stack
+    bool IsHovered(const TKit::StringView label, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    {
+        return IsHovered(stackedId(TKit::Hash(label)), point, padding);
+    }
     void Compile();
 
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const

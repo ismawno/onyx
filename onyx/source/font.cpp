@@ -298,6 +298,9 @@ f32 FontData::ComputeTextHeight(const TKit::StringView text) const
 
 f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
 {
+    if (text.IsEmpty())
+        return 0.f;
+
     f32 size = 0.f;
     u32 start = 0;
     u32 end = 0;
@@ -313,6 +316,8 @@ f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
     }
     if (start < end)
         size = Math::Max(size, ComputeTextWidth(text.SubString(start, end)));
+    else if (end == 0)
+        size = ComputeTextWidth(text);
     return size;
 }
 
