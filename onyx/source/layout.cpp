@@ -27,19 +27,18 @@ Layout::Layout(const LayoutSpecs &spc)
 
     m_IdStack.Append(ONYX_LAYOUT_START_ID);
 }
-usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
+usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
 {
-    m_LastId = id;
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = stackedId(id);
+    current.Id = stackedId(label);
 
     if (params.Floating.Enable)
     {
         current.Type = LayoutElement_Floating;
         current.FloatAttachment = params.Floating.Attachment;
         current.FloatAlignment = params.Floating.Alignment;
-        current.FloatSibling = true;
+        current.DrawOnTop = params.Floating.DrawOnTop;
     }
     else
         current.Type = LayoutElement_Panel;
@@ -54,7 +53,7 @@ usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
             m_Breadth.Append(current.Parent);
         parent.Children.Append(c);
         current.SelfOverflow = parent.ChildOverflow;
-        current.FloatSibling |= parent.FloatSibling;
+        current.DrawOnTop |= parent.DrawOnTop;
     }
     else
     {
@@ -124,8 +123,8 @@ usz Layout::BeginPanel(const usz id, const LayoutPanelParameters &params)
         current.SelfOffsetType[i] = params.SelfOffset[i].Type;
     }
     current.Padding = params.Padding;
-    PushId(id);
-    return id;
+    PushId(label);
+    return current.Id;
 }
 
 void Layout::EndPanel()
@@ -141,16 +140,14 @@ void Layout::EndPanel()
     PopId();
 }
 
-usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextParameters &params)
+usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextParameters &params)
 {
-    m_LastId = id;
     if (text.IsEmpty())
-        return id;
+        return label;
 
-    const usz sid = stackedId(id);
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = sid;
+    current.Id = stackedId(label);
     current.Type = LayoutElement_Text;
     current.Shape.Type = LayoutShape_Text;
 
@@ -164,7 +161,7 @@ usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextPara
     parent.Children.Append(c);
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
-    current.FloatSibling = parent.FloatSibling;
+    current.DrawOnTop = parent.DrawOnTop;
 
     for (u32 i = 0; i < 2; ++i)
     {
@@ -190,19 +187,16 @@ usz Layout::Text(const usz id, const TKit::StringView text, const LayoutTextPara
 
     current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
-    return id;
+    return current.Id;
 }
 
 // NOTE(Isma): A bit repetitive here with text
-usz Layout::Unicode(const usz id, const u32 code, const LayoutUnicodeParameters &params)
+usz Layout::Unicode(const usz label, const u32 code, const LayoutUnicodeParameters &params)
 {
-    m_LastId = id;
-
-    const usz sid = stackedId(id);
     const u32 c = m_Elements.GetSize();
 
     LayoutElement &current = m_Elements.Append();
-    current.Id = sid;
+    current.Id = stackedId(label);
     current.Type = LayoutElement_Unicode;
     current.Shape.Type = LayoutShape_Unicode;
 
@@ -216,7 +210,7 @@ usz Layout::Unicode(const usz id, const u32 code, const LayoutUnicodeParameters 
     parent.Children.Append(c);
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
-    current.FloatSibling = parent.FloatSibling;
+    current.DrawOnTop = parent.DrawOnTop;
     for (u32 i = 0; i < 2; ++i)
     {
         current.SelfOffset[i] = params.Offset[i].Offset;
@@ -238,18 +232,20 @@ usz Layout::Unicode(const usz id, const u32 code, const LayoutUnicodeParameters 
     current.Size = fs * f32v2{gdata.Advance, fdata.LineHeight};
     current.MinSize = current.Size;
     current.MaxSize = current.Size;
-    return id;
+    return current.Id;
 }
 
-bool Layout::IsHovered(const usz id, const f32v2 &pos) const
+bool Layout::IsHovered(const usz id, const f32v2 &pos, const f32v2 &padding) const
 {
-    const auto it = m_Map.Find(stackedId(id));
+    const auto it = m_Map.Find(id);
     if (it == m_Map.end())
         return false;
 
     const LayoutMapData &data = it->Value;
-    const f32v2 mn = data.Position;
-    const f32v2 mx = data.Position + data.Size;
+
+    const f32v2 hpad = 0.5f * padding;
+    const f32v2 mn = data.Position - hpad;
+    const f32v2 mx = data.Position + data.Size + hpad;
 
     const auto check = [](const f32 p, const f32 mn, const f32 mx) { return p >= mn && p <= mx; };
 
@@ -676,10 +672,7 @@ void Layout::Compile()
         const bool text = elm.Type == LayoutElement_Text;
         const bool sized = !TKit::ApproachesZero(elm.Size[0]) && !TKit::ApproachesZero(elm.Size[1]);
 
-        if ((!fill && !outline) || (!text && !sized))
-            continue;
-
-        LayoutDrawInfo &info = elm.FloatSibling ? floats.Append() : m_DrawInfo.Append();
+        LayoutDrawInfo info;
         info.Material = elm.Material;
         info.RenderFlags = 0;
         if (fill)
@@ -726,12 +719,20 @@ void Layout::Compile()
             break;
         }
         m_Map[elm.Id] = LayoutMapData{.Position = info.Position, .Size = info.Size};
+
+        if ((!fill && !outline) || (!text && !sized))
+            continue;
+
+        if (elm.DrawOnTop)
+            floats.Append(info);
+        else
+            m_DrawInfo.Append(info);
     }
     m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 
     m_Elements.Clear();
     m_Breadth.Clear();
     m_ReversedBreadth.Clear();
-    m_AutoId = 0;
+    m_AutoLabel = 0;
 }
 } // namespace Onyx

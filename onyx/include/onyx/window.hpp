@@ -24,8 +24,10 @@ enum MouseCursor : u8
 {
     MouseCursor_Default,
     MouseCursor_Arrow,
-    MouseCursor_HorizontalResize,
-    MouseCursor_VerticalResize,
+    MouseCursor_NS,
+    MouseCursor_EW,
+    MouseCursor_NWSE,
+    MouseCursor_NESW,
     MouseCursor_Hand,
     MouseCursor_CrossHair,
     MouseCursor_IBeam,

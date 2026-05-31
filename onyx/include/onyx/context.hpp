@@ -460,7 +460,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             params);
     }
 
-    void Layout(const Layout &layout);
+    void Layout(const Onyx::Layout &layout);
 
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});

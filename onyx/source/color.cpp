@@ -46,7 +46,8 @@ Color Color::FromHexadecimal(const u32 hex, const bool alpha)
 }
 Color Color::FromHexadecimal(const TKit::StringView hex)
 {
-    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8, "[ONYX][COLOR] Invalid hexadecimal color");
+    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8,
+                "[ONYX][COLOR] Invalid hexadecimal color (the '#' at the beginning is not supported)");
     u32 val;
     std::stringstream ss;
     ss << std::hex << hex;

@@ -55,6 +55,23 @@ struct LayoutSizing
     {
         return {0.f, min, max, LayoutSizing_Grow};
     }
+
+    static constexpr vec2<LayoutSizing> Absolute(const f32v2 &size)
+    {
+        return {Absolute(size[0]), Absolute(size[1])};
+    }
+    static constexpr vec2<LayoutSizing> Normalized(const f32v2 &size)
+    {
+        return {Normalized(size[0]), Normalized(size[1])};
+    }
+    static constexpr vec2<LayoutSizing> Fit(const f32v2 &mn, const f32v2 &mx)
+    {
+        return {Fit(mn[0], mx[0]), Fit(mn[1], mx[1])};
+    }
+    static constexpr vec2<LayoutSizing> Grow(const f32v2 &mn, const f32v2 &mx)
+    {
+        return {Grow(mn[0], mx[0]), Grow(mn[1], mx[1])};
+    }
 };
 
 enum LayoutOffsetType : u8
@@ -76,6 +93,14 @@ struct LayoutOffset
     static constexpr LayoutOffset Normalized(const f32 offset)
     {
         return {offset, LayoutOffset_Normalized};
+    }
+    static constexpr vec2<LayoutOffset> Absolute(const f32v2 &offset)
+    {
+        return {Absolute(offset[0]), Absolute(offset[1])};
+    }
+    static constexpr vec2<LayoutOffset> Normalized(const f32v2 &offset)
+    {
+        return {Normalized(offset[0]), Normalized(offset[1])};
     }
 };
 
@@ -154,6 +179,7 @@ enum LayoutAttachment : u8
 struct LayoutFloatingParameters
 {
     bool Enable = false;
+    bool DrawOnTop = true;
     vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutAttachment> Attachment{LayoutAttachment_Canonical};
 };
@@ -176,7 +202,7 @@ struct LayoutElement
     vec2<LayoutOffsetType> SelfOffsetType;
     vec2<LayoutAttachment> FloatAttachment;
     vec2<Alignment> FloatAlignment;
-    bool FloatSibling;
+    bool DrawOnTop;
 
     f32v4 Padding;
 
@@ -279,37 +305,58 @@ struct LayoutMapData
     f32v2 Size;
 };
 
+constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
+
 class Layout
 {
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(usz id, const LayoutPanelParameters &params = {});
-    usz BeginPanel(const char *id, const LayoutPanelParameters &params = {})
+    usz BeginPanel(usz label, const LayoutPanelParameters &params = {});
+    usz BeginPanel(const char *label, const LayoutPanelParameters &params = {})
     {
-        return BeginPanel(TKit::Hash(id), params);
+        return BeginPanel(TKit::Hash(label), params);
     }
-    usz BeginPanel(const TKit::StringView id, const LayoutPanelParameters &params = {})
+    usz BeginPanel(const TKit::StringView label, const LayoutPanelParameters &params = {})
     {
-        return BeginPanel(TKit::Hash(id), params);
+        return BeginPanel(TKit::Hash(label), params);
     }
     void BeginPanel(const LayoutPanelParameters &params = {})
     {
-        BeginPanel(++m_AutoId, params);
+        BeginPanel(++m_AutoLabel, params);
+    }
+
+    usz Panel(usz label, const LayoutPanelParameters &params = {})
+    {
+        const usz id = BeginPanel(label, params);
+        EndPanel();
+        return id;
+    }
+    usz Panel(const char *label, const LayoutPanelParameters &params = {})
+    {
+        return Panel(TKit::Hash(label), params);
+    }
+    usz Panel(const TKit::StringView label, const LayoutPanelParameters &params = {})
+    {
+        return Panel(TKit::Hash(label), params);
+    }
+    void Panel(const LayoutPanelParameters &params = {})
+    {
+        Panel(++m_AutoLabel, params);
     }
 
     void EndPanel();
 
-    usz Text(usz id, TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(usz label, TKit::StringView text, const LayoutTextParameters &params = {});
     usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
         return Text(TKit::Hash(text), text, params);
     }
 
-    usz Unicode(usz id, u32 code, const LayoutUnicodeParameters &params = {});
-    usz Unicode(const usz id, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    usz Unicode(usz label, u32 code, const LayoutUnicodeParameters &params = {});
+    usz Unicode(const usz label, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
-        return Unicode(id, DecodeUTF8(code.GetData()), params);
+        return Unicode(label, DecodeUTF8(code.GetData()), params);
     }
     usz Unicode(u32 code, const LayoutUnicodeParameters &params = {})
     {
@@ -320,22 +367,7 @@ class Layout
         return Unicode(DecodeUTF8(code.GetData()), params);
     }
 
-    bool IsHovered(usz id, const f32v2 &point) const;
-    bool IsHovered(const char *id, const f32v2 &point) const
-    {
-        return IsHovered(TKit::Hash(id), point);
-    }
-    bool IsHovered(const TKit::StringView id, const f32v2 &point) const
-    {
-        return IsHovered(TKit::Hash(id), point);
-    }
-    bool IsHovered(const f32v2 &point) const
-    {
-        TKIT_ASSERT(m_LastId != TKIT_U64_MAX,
-                    "[ONYX][LAYOUT] If no panel is currently active, an explicit id must be provided");
-        return IsHovered(m_LastId, point);
-    }
-
+    bool IsHovered(usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const;
     void Compile();
 
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const
@@ -346,6 +378,14 @@ class Layout
     void PushId(const usz id)
     {
         m_IdStack.Append(stackedId(id));
+    }
+    void PushId(const char *id)
+    {
+        PushId(TKit::Hash(id));
+    }
+    void PushId(const TKit::StringView id)
+    {
+        PushId(TKit::Hash(id));
     }
     void PopId()
     {
@@ -374,7 +414,6 @@ class Layout
     TKit::TierArray<usz> m_IdStack{};
 
     LayoutSpecs m_Specs{};
-    usz m_AutoId = 0;
-    usz m_LastId = TKIT_U64_MAX;
+    usz m_AutoLabel = 0;
 };
 } // namespace Onyx

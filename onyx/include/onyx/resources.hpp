@@ -112,7 +112,7 @@ struct DefaultResourcesOptions
 
     SamplerData FontSamplerData{};
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
-    FontLoadOptions FontOpts{};
+    FontLoadOptions FontOpts{.CharSet = {CharSets[CharSet_ASCII], CharSets[CharSet_GeometricShapes]}};
 #endif
 
     StatMeshData<D2> TriangleData2 = CreateTriangleMeshData<D2>();
