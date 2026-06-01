@@ -116,9 +116,9 @@ Color Gradient::Evaluate(const f32 t) const
 {
     TKIT_ASSERT(t >= 0.f && t <= 1.f, "[ONYX][GRADIENT] Gradient evaluation parameter must be in the range [0, 1]");
 
-    if (TKit::ApproachesZero(t))
+    if (Math::ApproachesZero(t))
         return m_Colors.GetFront();
-    if (TKit::Approximately(t, 1.f))
+    if (Math::Approximately(t, 1.f))
         return m_Colors.GetBack();
 
     const f32 loc = t * (m_Colors.GetSize() - 1);

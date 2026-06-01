@@ -37,23 +37,28 @@ struct LayoutSizing
     f32 Size;
     f32 Min;
     f32 Max;
+    f32 ShrinkTolerance;
     LayoutSizingType Type;
 
     static constexpr LayoutSizing Absolute(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Absolute};
+        return {size, 0.f, TKIT_F32_MAX, 1.f, LayoutSizing_Absolute};
     }
     static constexpr LayoutSizing Normalized(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Normalized};
+        return {size, 0.f, TKIT_F32_MAX, 1.f, LayoutSizing_Normalized};
     }
-    static constexpr LayoutSizing Fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    static constexpr LayoutSizing Fit(const f32 min, const f32 max, const f32 shrinkTolerance = 1.f)
     {
-        return {0.f, min, max, LayoutSizing_Fit};
+        return {0.f, min, max, shrinkTolerance, LayoutSizing_Fit};
+    }
+    static constexpr LayoutSizing Fit(const f32 shrinkTolerance = 1.f)
+    {
+        return {0.f, 0.f, TKIT_F32_MAX, shrinkTolerance, LayoutSizing_Fit};
     }
     static constexpr LayoutSizing Grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return {0.f, min, max, LayoutSizing_Grow};
+        return {0.f, min, max, 1.f, LayoutSizing_Grow};
     }
 
     static constexpr vec2<LayoutSizing> Absolute(const f32v2 &size)
@@ -133,7 +138,7 @@ struct LayoutShape
     }
     static constexpr LayoutShape Rectangle(const f32 radius, const Resource handle = NullHandle)
     {
-        return {handle, radius, TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
+        return {handle, radius, Math::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
     }
     static constexpr LayoutShape Glyph(const Resource handle)
     {
@@ -196,6 +201,7 @@ struct LayoutElement
     f32v2 ClipMax;
     f32v2 ChildOffset;
     f32v2 SelfOffset;
+    f32v2 ShrinkTolerance;
 
     vec2<LayoutSizingType> Sizing;
     vec2<LayoutOffsetType> ChildOffsetType;
@@ -314,14 +320,12 @@ class Layout
     Layout(const LayoutSpecs &specs = {});
 
     usz BeginPanel(usz label, const LayoutPanelParameters &params = {});
-    usz BeginPanel(const char *label, const LayoutPanelParameters &params = {})
-    {
-        return BeginPanel(TKit::Hash(label), params);
-    }
     usz BeginPanel(const TKit::StringView label, const LayoutPanelParameters &params = {})
     {
         return BeginPanel(TKit::Hash(label), params);
     }
+
+    // here id is not guaranteed to be persisted accross frames, so no point in returning it
     void BeginPanel(const LayoutPanelParameters &params = {})
     {
         BeginPanel(++m_AutoLabel, params);
@@ -332,10 +336,6 @@ class Layout
         const usz id = BeginPanel(label, params);
         EndPanel();
         return id;
-    }
-    usz Panel(const char *label, const LayoutPanelParameters &params = {})
-    {
-        return Panel(TKit::Hash(label), params);
     }
     usz Panel(const TKit::StringView label, const LayoutPanelParameters &params = {})
     {
@@ -354,12 +354,12 @@ class Layout
         return Text(TKit::Hash(text), text, params);
     }
 
-    usz Unicode(usz label, u32 code, const LayoutUnicodeParameters &params = {});
+    usz Unicode(usz label, CodePoint code, const LayoutUnicodeParameters &params = {});
     usz Unicode(const usz label, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(label, DecodeUTF8(code.GetData()), params);
     }
-    usz Unicode(u32 code, const LayoutUnicodeParameters &params = {})
+    usz Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(TKit::Hash(code), code, params);
     }
@@ -368,13 +368,31 @@ class Layout
         return Unicode(DecodeUTF8(code.GetData()), params);
     }
 
+    usz GetNextId(const usz label) const
+    {
+        return TKit::Hash(m_IdStack.GetBack(), label);
+    }
+    usz GetNextId(const TKit::StringView label) const
+    {
+        return GetNextId(TKit::Hash(label));
+    }
+    usz GetNextId(const CodePoint code) const
+    {
+        return GetNextId(TKit::Hash(code));
+    }
+
     bool IsHovered(usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const;
 
-    // Only works if called within the same id stack
+    // These only work if called within the same id stack
     bool IsHovered(const TKit::StringView label, const f32v2 &point, const f32v2 &padding = {0.f}) const
     {
-        return IsHovered(stackedId(TKit::Hash(label)), point, padding);
+        return IsHovered(GetNextId(TKit::Hash(label)), point, padding);
     }
+    bool IsHovered(const CodePoint code, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    {
+        return IsHovered(GetNextId(TKit::Hash(code)), point, padding);
+    }
+
     void Compile();
 
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const
@@ -384,11 +402,7 @@ class Layout
 
     void PushId(const usz id)
     {
-        m_IdStack.Append(stackedId(id));
-    }
-    void PushId(const char *id)
-    {
-        PushId(TKit::Hash(id));
+        m_IdStack.Append(GetNextId(id));
     }
     void PushId(const TKit::StringView id)
     {
@@ -405,11 +419,6 @@ class Layout
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();
-
-    usz stackedId(const usz id) const
-    {
-        return TKit::Hash(m_IdStack.GetBack(), id);
-    }
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_ElementStack{};

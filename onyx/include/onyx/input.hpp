@@ -187,7 +187,7 @@ struct Event
 
     struct Char
     {
-        u32 Codepoint;
+        CodePoint Codepoint;
     };
 
     bool Empty = false;

@@ -30,7 +30,7 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     TKIT_ASSERT(!opts.CharSet.CodePoints.IsEmpty(), "[ONYX][FONT] The char set must not be empty");
 
     msdf_atlas::Charset chset{};
-    for (const u32 c : opts.CharSet.CodePoints)
+    for (const CodePoint c : opts.CharSet.CodePoints)
         chset.add(c);
 
     const u32 loaded = u32(fgeo.loadCharset(font, opts.FontScale, chset));
@@ -203,7 +203,7 @@ Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
 #endif
 
 // NOTE(Isma): At some point we may need to cache/use explicit utf8 strings if this decoding thing becomes a problem
-u32 DecodeUTF8(const char *code, u32 *count)
+CodePoint DecodeUTF8(const char *code, u32 *count)
 {
     if (count)
         *count = 1;
@@ -255,7 +255,7 @@ f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
     for (u32 i = 0; i < text.GetSize();)
     {
         u32 byteCount;
-        const u32 code = DecodeUTF8(&text[i], &byteCount);
+        const CodePoint code = DecodeUTF8(&text[i], &byteCount);
 
         if (code == '\n')
         {
@@ -330,11 +330,11 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
     f32 lastSize = 0.f;
     u32 lastSpace = TKIT_U32_MAX;
 
-    u32 lastCode = TKIT_U32_MAX;
+    CodePoint lastCode = TKIT_U32_MAX;
     for (u32 i = 0; i < text.GetSize();)
     {
         u32 byteCount;
-        const u32 code = DecodeUTF8(&text[i], &byteCount);
+        const CodePoint code = DecodeUTF8(&text[i], &byteCount);
 
         for (u32 j = 0; j < byteCount; ++j)
             wrapped.Append(text[i + j]);

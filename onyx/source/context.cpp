@@ -455,7 +455,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     for (u32 i = 0; i < size;)
     {
         u32 byteCount;
-        const u32 code = DecodeUTF8(&text[i], &byteCount);
+        const CodePoint code = DecodeUTF8(&text[i], &byteCount);
         if (code == '\n')
         {
             if (line.Start < line.End)
@@ -708,7 +708,7 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, c
         const f32v3 dir = Math::Normalize(delta);
         const f32v3 r{dir[2], 0.f, -dir[0]};
         const f32 theta = 0.5f * Math::AntiCosine(dir[1]);
-        if (!TKit::ApproachesZero(Math::NormSquared(r)))
+        if (!Math::ApproachesZero(Math::NormSquared(r)))
             return f32q{Math::Cosine(theta), Math::Normalize(r) * Math::Sine(theta)};
         if (dir[1] < 0.f)
             return f32q{0.f, 1.f, 0.f, 0.f};

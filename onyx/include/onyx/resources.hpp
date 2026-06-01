@@ -193,7 +193,7 @@ const FontData &GetFontData(Resource font);
 
 Resource GetFontAtlas(Resource font);
 Resource GetFont(Resource glyph);
-Resource GetGlyph(Resource font, u32 codePoint);
+Resource GetGlyph(Resource font, CodePoint codePoint);
 const GlyphData &GetGlyphData(Resource glyph);
 
 template <Dimension D> u32 GetDistinctBatchDrawCount();

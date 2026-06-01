@@ -112,7 +112,7 @@ template <> struct MeshPoolData<GlyphVertex>
     VKit::DeviceBuffer IndexBuffer{};
     TKit::TierArray<GlyphVertex> Vertices{};
     TKit::TierArray<Index> Indices{};
-    TKit::TierArray<u32> GlyphToFontId{};
+    TKit::TierArray<u32> GlyphIdToFontId{};
     TKit::TierArray<MeshDataInfo<GlyphVertex>> Meshes{};
     StatusFlags Flags = 0;
 };
@@ -1001,7 +1001,7 @@ Resource RegisterFont(const ResourcePool pool, const FontData &data)
         const f32v2 &mnuv = glyph.MinTexCoord;
         const f32v2 &mxuv = glyph.MaxTexCoord;
 
-        fpool.GlyphToFontId.Append(fid);
+        fpool.GlyphIdToFontId.Append(fid);
         addVertex(min[0], min[1], mnuv[0], mnuv[1], 0.f, 1.f);
         addVertex(max[0], min[1], mxuv[0], mnuv[1], 1.f, 1.f);
         addVertex(min[0], max[1], mnuv[0], mxuv[1], 0.f, 0.f);
@@ -1145,10 +1145,10 @@ Resource GetFont(const Resource handle)
     const u32 gid = GetResourceId(handle);
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
-    const u32 fid = fpool.GlyphToFontId[gid];
+    const u32 fid = fpool.GlyphIdToFontId[gid];
     return CreateResourceHandle(Resource_Font, fid, pid);
 }
-Resource GetGlyph(const Resource handle, const u32 codePoint)
+Resource GetGlyph(const Resource handle, const CodePoint codePoint)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
 
@@ -1174,7 +1174,7 @@ const GlyphData &GetGlyphData(const Resource handle)
     const u32 gid = GetResourceId(handle);
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
-    const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphToFontId[gid]];
+    const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
     const u32 gstart = finfo.Layout.VertexStart / 4;
     return finfo.Data.Glyphs[gid - gstart];
 }
@@ -1299,7 +1299,7 @@ static u32 getGlyphBatchCount()
 {
     u32 count = 0;
     for (const FontPoolData &fpool : s_FontData->Pools)
-        count += fpool.GlyphToFontId.GetSize();
+        count += fpool.GlyphIdToFontId.GetSize();
 
     return count;
 }
@@ -1330,7 +1330,7 @@ u32 GetGlyphCount(const ResourcePool pool)
     ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
 
     const u32 pid = GetResourcePoolId(pool);
-    return s_FontData->Pools[pid].GlyphToFontId.GetSize();
+    return s_FontData->Pools[pid].GlyphIdToFontId.GetSize();
 }
 
 template <Dimension D> u32 GetResourceCount(const ResourcePool pool)

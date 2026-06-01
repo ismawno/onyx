@@ -4,7 +4,8 @@
 
 namespace Onyx
 {
-UserInterface::UserInterface(Window *win, const LayoutSpecs &layoutSpecs) : m_LayoutSpecs(layoutSpecs), m_Window(win)
+UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
+    : m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors)
 {
     m_Camera.Mode = CameraMode_Viewport;
     m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_PostProcess |
@@ -23,39 +24,36 @@ static void drawResizes(OverlayWindow &win, const vec2<LayoutSizing> &sizing)
 
     OverlayResizeInfo &rinfo = win.Resize;
 
-    const bool l = rinfo.Flags & OverlayResizeRectFlag_Left;
-    const bool r = rinfo.Flags & OverlayResizeRectFlag_Right;
-    const bool b = rinfo.Flags & OverlayResizeRectFlag_Bottom;
-    const bool t = rinfo.Flags & OverlayResizeRectFlag_Top;
+    const bool l = rinfo.Flags & OverlayResizeFlag_Left;
+    const bool r = rinfo.Flags & OverlayResizeFlag_Right;
+    const bool b = rinfo.Flags & OverlayResizeFlag_Bottom;
+    const bool t = rinfo.Flags & OverlayResizeFlag_Top;
 
     const vec2<LayoutSizing> hsizing = {LayoutSizing::Absolute(rinfo.BarWidth), LayoutSizing::Grow()};
     const vec2<LayoutSizing> vsizing = {LayoutSizing::Grow(), LayoutSizing::Absolute(rinfo.BarWidth)};
     const vec2<LayoutSizing> grow = LayoutSizing::Grow();
 
+    const OverlayResizeEdge left = OverlayResizeEdge_Left;
+    const OverlayResizeEdge right = OverlayResizeEdge_Right;
+    const OverlayResizeEdge bottom = OverlayResizeEdge_Bottom;
+    const OverlayResizeEdge top = OverlayResizeEdge_Top;
+
     const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
     ly.BeginPanel(
         LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
 
-    rinfo.Ids[OverlayResizeEdge_Left] =
-        ly.Panel("Left resize", LayoutPanelParameters{.FillColor = l ? col : trp, .Sizing = hsizing});
-
+    rinfo.Ids[left] = ly.Panel("Left resize", LayoutPanelParameters{.FillColor = l ? col : trp, .Sizing = hsizing});
     ly.Panel(LayoutPanelParameters{.Sizing = grow});
-
-    rinfo.Ids[OverlayResizeEdge_Right] =
-        ly.Panel("Right resize", LayoutPanelParameters{.FillColor = r ? col : trp, .Sizing = hsizing});
+    rinfo.Ids[right] = ly.Panel("Right resize", LayoutPanelParameters{.FillColor = r ? col : trp, .Sizing = hsizing});
 
     ly.EndPanel();
 
     ly.BeginPanel(
         LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
 
-    rinfo.Ids[OverlayResizeEdge_Bottom] =
-        ly.Panel("Bottom resize", LayoutPanelParameters{.FillColor = b ? col : trp, .Sizing = vsizing});
-
+    rinfo.Ids[bottom] = ly.Panel("Bottom resize", LayoutPanelParameters{.FillColor = b ? col : trp, .Sizing = vsizing});
     ly.Panel(LayoutPanelParameters{.Sizing = grow});
-
-    rinfo.Ids[OverlayResizeEdge_Top] =
-        ly.Panel("Top resize", LayoutPanelParameters{.FillColor = t ? col : trp, .Sizing = vsizing});
+    rinfo.Ids[top] = ly.Panel("Top resize", LayoutPanelParameters{.FillColor = t ? col : trp, .Sizing = vsizing});
 
     ly.EndPanel();
 }
@@ -70,25 +68,38 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
     m_Current->MinSize = computeWindowMinSize(m_WindowPadding, m_HeaderPadding, m_FontSize);
 
     Layout &ly = m_Current->Layout;
+    const bool collapsed = m_Current->HeaderIcon == m_CollapsedHeaderIcon;
+
     const vec2<LayoutSizing> sizing = LayoutSizing::Absolute(m_Current->Size);
-    m_Current->Id = ly.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackground],
-                                                            .Direction = LayoutDirection_TopToBottom,
-                                                            .Alignment = {Alignment_Left, Alignment_Top},
-                                                            .Sizing = sizing,
-                                                            .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
-                                                            .Padding = m_WindowPadding,
-                                                            .ChildGap = 8.f});
+    m_Current->Id = ly.BeginPanel(
+        id, LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowBackgroundCollapsed]
+                                                         : m_Colors[OverlayColor_WindowBackgroundExpanded],
+                                  .Direction = LayoutDirection_TopToBottom,
+                                  .Alignment = {Alignment_Left, Alignment_Top},
+                                  .Sizing = sizing,
+                                  .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
+                                  .Padding = m_WindowPadding,
+                                  .ChildGap = 8.f});
 
     drawResizes(*m_Current, sizing);
-    ly.BeginPanel("Header", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowHeaderBackground],
-                                                  .Alignment = {Alignment_Left, Alignment_Top},
-                                                  .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()},
-                                                  .Padding = m_HeaderPadding,
-                                                  .ChildGap = 8.f});
+    ly.BeginPanel("Header",
+                  LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
+                                                               : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
+                                        .Alignment = {Alignment_Left, Alignment_Center},
+                                        .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
+                                        .Padding = m_HeaderPadding,
+                                        .ChildGap = 8.f});
 
-    ly.Unicode(m_HeaderIcon, LayoutUnicodeParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                                     .Size = m_FontSize,
-                                                     .Offset = m_TextOffset});
+    if (collapseButton())
+    {
+        if (collapsed)
+            m_Current->Size[1] = m_Current->LastHeight;
+        else
+        {
+            m_Current->LastHeight = m_Current->Size[1];
+            m_Current->Size[1] = m_Current->MinSize[1];
+        }
+    }
 
     ly.Text(title, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
                                         .FontSize = m_FontSize,
@@ -103,12 +114,43 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
     return true;
 }
 
+bool UserInterface::collapseButton()
+{
+    Layout &ly = m_Current->Layout;
+    const bool hovered = ly.IsHovered("Collapse button", m_MousePos);
+    const bool clicked = m_Current->Flags & OverlayWindowFlag_MouseReleased;
+    const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
+
+    m_Current->Flags |= hovered * OverlayWindowFlag_HoveringWidget;
+
+    const Color *col = &Color_Transparent;
+    if (pressed && hovered)
+        col = &m_Colors[OverlayColor_ButtonPressed];
+    // else if (hovered)
+    //     col = &m_Colors[OverlayColor_ButtonHovered];
+
+    ly.BeginPanel("Collapse button",
+                  LayoutPanelParameters{.FillColor = *col,
+                                        .Alignment = Alignment_Center,
+                                        .Sizing = {LayoutSizing::Fit(20.f, TKIT_F32_MAX, 0.f), LayoutSizing::Fit(0.f)},
+                                        .Padding = 0.f});
+
+    ly.Unicode(m_Current->HeaderIcon, LayoutUnicodeParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
+                                                              .Size = m_FontSize,
+                                                              .Offset = m_TextOffset});
+
+    ly.EndPanel();
+    return hovered && clicked;
+}
+
 bool UserInterface::Button(const TKit::StringView label)
 {
     Layout &ly = m_Current->Layout;
     const bool hovered = ly.IsHovered(label, m_MousePos);
-    const bool clicked = m_Current->Flags & OverlayWindowFlag_Pressed;
+    const bool clicked = m_Current->Flags & OverlayWindowFlag_MouseReleased;
     const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
+
+    m_Current->Flags |= hovered * OverlayWindowFlag_HoveringWidget;
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
     if (pressed && hovered)
@@ -116,9 +158,9 @@ bool UserInterface::Button(const TKit::StringView label)
     else if (hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
-    ly.BeginPanel(label,
-                  LayoutPanelParameters{
-                      .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(), .Padding = 8.f});
+    ly.BeginPanel(
+        label, LayoutPanelParameters{
+                   .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(0.f), .Padding = 8.f});
 
     ly.Text(label, LayoutTextParameters{
                        .FillColor = m_Colors[OverlayColor_ButtonText], .FontSize = m_FontSize, .Offset = m_TextOffset});
@@ -151,63 +193,72 @@ void UserInterface::processEvents()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
-    bool mpressed = false;
-    for (const Event &ev : m_Window->GetNewEvents())
-        mpressed |= (ev.Type == Event_MousePressed);
-
     for (OverlayWindow &win : m_OverlayWindows)
     {
-        win.Flags &= ~OverlayWindowFlag_Pressed;
+        const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 0.5f);
+        win.HeaderIcon = collapsed ? m_CollapsedHeaderIcon : m_ExpandedHeaderIcon;
+
+        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_MouseReleased);
         if (m_Grabbed == &win)
         {
             win.Resize.Color = &m_Colors[OverlayColor_WindowResizePressed];
             continue;
         }
+        if (win.Flags & OverlayWindowFlag_HoveringWidget)
+            continue;
+
         OverlayResizeInfo &rinfo = win.Resize;
-        OverlayResizeRectFlags flags = 0;
+        OverlayResizeFlags rflags = 0;
         for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
         {
             const usz id = rinfo.Ids[i];
             if (win.Layout.IsHovered(id, m_MousePos, 16.f))
             {
                 win.Resize.Color = &m_Colors[OverlayColor_WindowResizeHovered];
-                flags |= 1U << i;
+                rflags |= 1U << i;
             }
         }
-        const auto cf = [&flags](const OverlayResizeRectFlags f) { return f & flags; };
+        const auto cf = [&rflags](const OverlayResizeFlags f) { return f & rflags; };
 
         // TODO(Isma): Handle resize and grab resize
-        rinfo.Flags = flags;
-        if (flags == 0)
+        rinfo.Flags = rflags;
+        if (rflags == 0)
             m_Window->SetMouseCursor(MouseCursor_Default);
 
-        else if ((cf(OverlayResizeRectFlag_Left) && cf(OverlayResizeRectFlag_Bottom)) ||
-                 (cf(OverlayResizeRectFlag_Right) && cf(OverlayResizeRectFlag_Top)))
+        else if ((cf(OverlayResizeFlag_Left) && cf(OverlayResizeFlag_Bottom)) ||
+                 (cf(OverlayResizeFlag_Right) && cf(OverlayResizeFlag_Top)))
             m_Window->SetMouseCursor(MouseCursor_NESW);
 
-        else if ((cf(OverlayResizeRectFlag_Right) && cf(OverlayResizeRectFlag_Bottom)) ||
-                 (cf(OverlayResizeRectFlag_Left) && cf(OverlayResizeRectFlag_Top)))
+        else if ((cf(OverlayResizeFlag_Right) && cf(OverlayResizeFlag_Bottom)) ||
+                 (cf(OverlayResizeFlag_Left) && cf(OverlayResizeFlag_Top)))
             m_Window->SetMouseCursor(MouseCursor_NWSE);
 
-        else if (cf(OverlayResizeRectFlag_Left | OverlayResizeRectFlag_Right))
+        else if (cf(OverlayResizeFlag_Left | OverlayResizeFlag_Right))
             m_Window->SetMouseCursor(MouseCursor_EW);
         else
             m_Window->SetMouseCursor(MouseCursor_NS);
     }
 
-    if (mpressed)
+    OverlayWindowFlags wflags = 0;
+    for (const Event &ev : m_Window->GetNewEvents())
+        wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) +
+                  OverlayWindowFlag_MouseReleased * (ev.Type == Event_MouseReleased);
+
+    for (OverlayWindow &win : m_OverlayWindows)
     {
-        for (OverlayWindow &win : m_OverlayWindows)
-            if (win.Resize.Flags != 0 || win.Layout.IsHovered(win.Id, m_MousePos))
-            {
-                win.Resize.Position = win.Position;
-                win.Resize.Size = win.Size;
-                win.Flags |= OverlayWindowFlag_Pressed;
-                m_Grabbed = &win;
-                break;
-            }
+        const bool hovering = win.CheckFlags(OverlayWindowFlag_HoveringWidget);
+        win.Flags = wflags;
+        const bool pressed = win.CheckFlags(OverlayWindowFlag_MousePressed);
+        if (pressed && !hovering && (win.Resize.Flags != 0 || win.Layout.IsHovered(win.Id, m_MousePos)))
+        {
+            win.Resize.Position = win.Position;
+            win.Resize.Size = win.Size;
+            m_Grabbed = &win;
+            break;
+        }
     }
-    else if (!m_Window->IsMousePressed(Mouse_Button1))
+
+    if (!m_Window->IsMousePressed(Mouse_Button1))
         m_Grabbed = nullptr;
     else if (m_Grabbed)
     {
@@ -218,8 +269,8 @@ void UserInterface::processEvents()
 
         const f32v2 &md = m_MouseDelta;
 
-        const auto handleResizeAxis = [&](const u32 idx, const OverlayResizeRectFlags canonical,
-                                          const OverlayResizeRectFlags mirrored, const f32 sign = 1.f) {
+        const auto handleResizeAxis = [&](const u32 idx, const OverlayResizeFlags canonical,
+                                          const OverlayResizeFlags mirrored, const f32 sign = 1.f) {
             const f32 step = md[idx];
             if (rinfo.Flags & canonical)
             {
@@ -243,8 +294,8 @@ void UserInterface::processEvents()
         }
         else
         {
-            handleResizeAxis(0, OverlayResizeRectFlag_Left, OverlayResizeRectFlag_Right);
-            handleResizeAxis(1, OverlayResizeRectFlag_Top, OverlayResizeRectFlag_Bottom, -1.f);
+            handleResizeAxis(0, OverlayResizeFlag_Left, OverlayResizeFlag_Right);
+            handleResizeAxis(1, OverlayResizeFlag_Top, OverlayResizeFlag_Bottom, -1.f);
         }
     }
 }
@@ -256,7 +307,9 @@ OverlayWindow *UserInterface::getOrCreateOverlayWindow(const u64 id)
             return &m_OverlayWindows[i];
 
     m_LayoutIds.Append(id);
-    return &m_OverlayWindows.Append(m_LayoutSpecs);
+    OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
+    win.HeaderIcon = m_ExpandedHeaderIcon;
+    return &win;
 }
 
 f32 UserInterface::computeWindowMinSize(const f32 winPadding, const f32 headPadding, const f32 fontSize) const

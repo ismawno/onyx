@@ -24,8 +24,8 @@ struct Glyph
 
 struct CodePointRange
 {
-    u32 First;
-    u32 Last;
+    CodePoint First;
+    CodePoint Last;
 };
 
 enum FontCharSet : u32
@@ -180,20 +180,20 @@ struct CharSet
 
     void LoadRange(const CodePointRange &range)
     {
-        for (u32 c = range.First; c <= range.Last; ++c)
+        for (CodePoint c = range.First; c <= range.Last; ++c)
             CodePoints.Insert(c);
     }
-    void Load(const u32 c)
+    void Load(const CodePoint c)
     {
         CodePoints.Insert(c);
     }
-    TKit::TierHashSet<u32> CodePoints{};
+    TKit::TierHashSet<CodePoint> CodePoints{};
 };
 
 struct FontData
 {
     TKit::TierArray<GlyphData> Glyphs{};
-    TKit::TierHashMap<u32, u32> GlyphMap{}; // code point to idx into Glyphs
+    TKit::TierHashMap<CodePoint, u32> GlyphMap{}; // code point to idx into Glyphs
     TKit::TierHashMap<u64, f32> Kerning{};
 
     ImageData AtlasData{};
@@ -202,7 +202,7 @@ struct FontData
     f32 LineHeight = 0.f;
     f32 UnitRange = 0.f;
 
-    f32 GetKerning(const u32 code0, const u32 code1) const
+    f32 GetKerning(const CodePoint code0, const CodePoint code1) const
     {
         const u64 key = u64(code0) << 32 | u64(code1);
         const auto it = Kerning.Find(key);
@@ -210,7 +210,7 @@ struct FontData
             return 0.f;
         return it->Value;
     }
-    const GlyphData *GetGlyph(const u32 code) const
+    const GlyphData *GetGlyph(const CodePoint code) const
     {
         const auto it = GlyphMap.Find(code);
         if (it == GlyphMap.end())
@@ -233,7 +233,7 @@ struct FontData
     TKit::String WrapText(TKit::StringView text, f32 maxWidth) const;
 };
 
-u32 DecodeUTF8(const char *code, u32 *count = nullptr);
+CodePoint DecodeUTF8(const char *code, u32 *count = nullptr);
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 struct FontLoadOptions

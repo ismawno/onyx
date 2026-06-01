@@ -31,7 +31,7 @@ usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
 {
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = stackedId(label);
+    current.Id = GetNextId(label);
 
     if (params.Floating.Enable)
     {
@@ -117,6 +117,12 @@ usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
             current.MaxSize[i] = params.Sizing[i].Max;
             if (current.Sizing[i] != LayoutSizing_Fit)
                 current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
+            else
+            {
+                const f32 s = params.Sizing[i].ShrinkTolerance;
+                TKIT_ASSERT(s >= 0.f && s <= 1.f, "[ONYX][LAYOUT] Shrink tolerance must be between 0 and 1");
+                current.ShrinkTolerance[i] = s;
+            }
         }
 
         // bc fits get clamped in the fit pass
@@ -151,7 +157,7 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
 
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = stackedId(label);
+    current.Id = GetNextId(label);
     current.Type = LayoutElement_Text;
     current.Shape.Type = LayoutShape_Text;
 
@@ -190,7 +196,7 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     current.FontSize = fs;
     current.Size = fs * fdata.ComputeTextSize(text);
 
-    current.MinSize[0] = fs * fdata.ComputeTextMinimumWidth(text) + parent.Padding[0] + parent.Padding[1];
+    current.MinSize[0] = fs * fdata.ComputeTextMinimumWidth(text);
     current.MinSize[1] = 0.f;
     // current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
@@ -198,12 +204,12 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
 }
 
 // NOTE(Isma): A bit repetitive here with text
-usz Layout::Unicode(const usz label, const u32 code, const LayoutUnicodeParameters &params)
+usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodeParameters &params)
 {
     const u32 c = m_Elements.GetSize();
 
     LayoutElement &current = m_Elements.Append();
-    current.Id = stackedId(label);
+    current.Id = GetNextId(label);
     current.Type = LayoutElement_Unicode;
     current.Shape.Type = LayoutShape_Unicode;
 
@@ -240,8 +246,9 @@ usz Layout::Unicode(const usz label, const u32 code, const LayoutUnicodeParamete
     const f32 fs = params.Size;
     current.FontSize = fs;
     current.Size = fs * f32v2{gdata.Advance, fdata.LineHeight};
+
     current.MinSize = current.Size;
-    current.MaxSize = current.Size;
+    current.MaxSize = f32v2{TKIT_F32_MAX};
     return current.Id;
 }
 
@@ -302,9 +309,10 @@ void Layout::fitPass(const LayoutAxis axis)
                 childMinSizeTotal = Math::Max(childMinSizeTotal, cmnsize);
             }
         }
-        pmnsize = Math::Max(pmnsize, childMinSizeTotal);
-
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
+        const f32 pfactor = 1.f - parent.ShrinkTolerance[axis];
+
+        pmnsize = Math::Max(pmnsize, childMinSizeTotal) + pfactor * padding;
         psize += padding;
 
         if (paxis == axis)
@@ -401,7 +409,7 @@ void Layout::growShrinkPass(const LayoutAxis axis)
                     const u32 c = toGrow[i];
                     LayoutElement &child = m_Elements[c];
                     f32 &csize = child.Size[axis];
-                    if (!TKit::Approximately(csize, smallest))
+                    if (!Math::Approximately(csize, smallest))
                         continue;
 
                     const f32 msize = child.MaxSize[axis];
@@ -443,7 +451,7 @@ void Layout::growShrinkPass(const LayoutAxis axis)
                     const u32 c = toShrink[i];
                     LayoutElement &child = m_Elements[c];
                     f32 &csize = child.Size[axis];
-                    if (!TKit::Approximately(csize, biggest))
+                    if (!Math::Approximately(csize, biggest))
                         continue;
 
                     const f32 msize = child.MinSize[axis];
@@ -496,9 +504,7 @@ void Layout::wrapText()
             elm.Text = fdata.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
 
         elm.Size[1] = fs * fdata.ComputeTextHeight(elm.Text);
-
-        const LayoutElement &parent = m_Elements[elm.Parent];
-        elm.MinSize[1] = elm.Size[1] + parent.Padding[2] + parent.Padding[3];
+        elm.MinSize[1] = elm.Size[1];
     }
 }
 
@@ -688,10 +694,10 @@ void Layout::Compile()
     m_Map.Clear();
     for (const LayoutElement &elm : m_Elements)
     {
-        const bool fill = !TKit::ApproachesZero(elm.FillColor.rgba[3]);
-        const bool outline = !TKit::ApproachesZero(elm.OutlineWidth);
+        const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
+        const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool text = elm.Type == LayoutElement_Text;
-        const bool sized = !TKit::ApproachesZero(elm.Size[0]) && !TKit::ApproachesZero(elm.Size[1]);
+        const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
 
         LayoutDrawInfo info;
         info.Material = elm.Material;

@@ -538,7 +538,7 @@ static void platform_KeyCallback(GLFWwindow *window, i32 keycode, const i32 scan
     io.SetKeyEventNativeData(imkey, keycode, scancode); // To support legacy indexing (<1.87 user code)
 }
 
-static void platform_CharCallback(GLFWwindow *window, const u32 code)
+static void platform_CharCallback(GLFWwindow *window, const CodePoint code)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkChar && window == pdata->Window->GetHandle())
@@ -645,7 +645,7 @@ static void platform_UpdateMonitors()
         }
 #endif
         const f32 scale = platform_GetContentScaleForMonitor(monitors[n]);
-        if (TKit::ApproachesZero(scale))
+        if (Math::ApproachesZero(scale))
             continue;
         monitor.DpiScale = scale;
         monitor.PlatformHandle = scast<void *>(monitors[n]); // [...] GLFW doc states: "guaranteed to be valid

@@ -14,13 +14,13 @@ enum OverlayResizeEdge : u8
     OverlayResizeEdge_Top,
     OverlayResizeEdge_Count
 };
-using OverlayResizeRectFlags = u8;
-enum OverlayResizeRectFlagBit : OverlayResizeRectFlags
+using OverlayResizeFlags = u8;
+enum OverlayResizeFlagBit : OverlayResizeFlags
 {
-    OverlayResizeRectFlag_Left = 1U << 0,
-    OverlayResizeRectFlag_Right = 1U << 1,
-    OverlayResizeRectFlag_Bottom = 1U << 2,
-    OverlayResizeRectFlag_Top = 1U << 3,
+    OverlayResizeFlag_Left = 1U << 0,
+    OverlayResizeFlag_Right = 1U << 1,
+    OverlayResizeFlag_Bottom = 1U << 2,
+    OverlayResizeFlag_Top = 1U << 3,
 };
 
 struct OverlayResizeInfo
@@ -30,14 +30,16 @@ struct OverlayResizeInfo
     f32v2 Position;
     f32v2 Size;
     f32 BarWidth = 4.f;
-    OverlayResizeRectFlags Flags = 0;
+    OverlayResizeFlags Flags = 0;
 };
 
 using OverlayWindowFlags = u8;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
     OverlayWindowFlag_Collapsed = 1U << 0,
-    OverlayWindowFlag_Pressed = 1U << 1,
+    OverlayWindowFlag_MousePressed = 1U << 1,
+    OverlayWindowFlag_MouseReleased = 1U << 2,
+    OverlayWindowFlag_HoveringWidget = 1U << 3,
 };
 
 struct OverlayWindow
@@ -53,13 +55,31 @@ struct OverlayWindow
     f32v2 Position{0.f};
     f32v2 Size{240.f};
     f32v2 MinSize;
+    f32 LastHeight = 240.f;
+    CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
+
+    bool CheckFlags(const OverlayWindowFlags flags) const
+    {
+        return flags & Flags;
+    }
+    void AddFlags(const OverlayWindowFlags flags)
+    {
+        Flags |= flags;
+    }
+    void RemoveFlags(const OverlayWindowFlags flags)
+    {
+        Flags &= ~flags;
+    }
 };
 
 enum OverlayColor : u8
 {
-    OverlayColor_WindowBackground,
-    OverlayColor_WindowHeaderBackground,
+    OverlayColor_WindowBackgroundExpanded,
+    OverlayColor_WindowBackgroundCollapsed,
+
+    OverlayColor_WindowHeaderBackgroundExpanded,
+    OverlayColor_WindowHeaderBackgroundCollapsed,
     OverlayColor_WindowHeader,
 
     OverlayColor_WindowResizeHovered,
@@ -75,8 +95,11 @@ enum OverlayColor : u8
 
 struct OverlayColors
 {
-    Color WindowBackground;
-    Color WindowHeaderBackground;
+    Color WindowBackgroundExpanded;
+    Color WindowBackgroundCollapsed;
+
+    Color WindowHeaderBackgroundExpanded;
+    Color WindowHeaderBackgroundCollapsed;
     Color WindowHeader;
 
     Color WindowResizeHovered;
@@ -92,11 +115,16 @@ struct OverlayColorRegistry
 {
     OverlayColorRegistry()
         : Named{
-              .WindowBackground = Color::FromHexadecimal("2A3F5F"),
-              .WindowHeaderBackground = Color::FromHexadecimal("344E6E"),
+              .WindowBackgroundExpanded = Color::FromHexadecimal("2A3F5F"),
+              .WindowBackgroundCollapsed = Color::FromHexadecimal("1E2D45D9"),
+
+              .WindowHeaderBackgroundExpanded = Color::FromHexadecimal("344E6E"),
+              .WindowHeaderBackgroundCollapsed = Color::FromHexadecimal("2A3F5FD9"),
+
               .WindowHeader = Color::FromHexadecimal("E2E8F0"),
               .WindowResizeHovered = Color::FromHexadecimal("4A5568"),
               .WindowResizePressed = Color::FromHexadecimal("718096"),
+
               .ButtonIdle = Color::FromHexadecimal("2D3748"),
               .ButtonHovered = Color::FromHexadecimal("4A5568"),
               .ButtonPressed = Color::FromHexadecimal("63B3ED"),
@@ -119,6 +147,7 @@ struct OverlayColorRegistry
 struct UserInterfaceSpecs
 {
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
+    OverlayColorRegistry Colors{};
 };
 
 // TODO(Isma): Add ui specs and color array
@@ -127,7 +156,7 @@ class UserInterface
     TKIT_NON_COPYABLE(UserInterface)
 
   public:
-    UserInterface(Window *win, const LayoutSpecs &layoutSpecs = {.RootAlignment = {Alignment_Left, Alignment_Top}});
+    UserInterface(Window *win, const UserInterfaceSpecs &specs = {});
 
     // TODO(Isma): Should return id
     bool BeginWindow(TKit::StringView title);
@@ -138,12 +167,14 @@ class UserInterface
     void Draw();
 
   private:
+    // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
+    bool collapseButton();
+
     f32v2 getMousePos() const;
     void processEvents();
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
-
     f32 computeWindowMinSize(f32 winPadding, f32 headPadding, f32 fontSize) const;
 
     LayoutSpecs m_LayoutSpecs{};
@@ -163,7 +194,10 @@ class UserInterface
     f32 m_FontSize = 16.f;
     f32 m_WindowPadding = 8.f;
     f32 m_HeaderPadding = 4.f;
-    u32 m_HeaderIcon = 0x25BC;
+
+    CodePoint m_ExpandedHeaderIcon = 0x25BC;
+    CodePoint m_CollapsedHeaderIcon = 0x25B6;
+
     vec2<LayoutOffset> m_TextOffset = LayoutOffset::Absolute(f32v2{0.f, 2.f});
 
     // TODO(Isma): Should be a hash map

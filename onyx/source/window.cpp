@@ -24,7 +24,7 @@ struct WindowSyncData
 u32 ToFrequency(const TKit::Timespan deltaTime)
 {
     const f32 seconds = deltaTime.AsSeconds();
-    if (TKit::ApproachesZero(seconds))
+    if (Math::ApproachesZero(seconds))
         return TKIT_U32_MAX;
     if (seconds == TKIT_F32_MAX)
         return 0;
@@ -1437,12 +1437,12 @@ static void keyCallback(Onyx_WindowHandle *handle, const i32 key, const i32, con
     window->PushEvent(event);
 }
 
-static void charCallback(Onyx_WindowHandle *handle, const u32 codepoint)
+static void charCallback(Onyx_WindowHandle *handle, const CodePoint code)
 {
     Event event{};
     Window *window = Window::FromHandle(handle);
     event.Type = Event_CharInput;
-    event.Character.Codepoint = codepoint;
+    event.Character.Codepoint = code;
     window->PushEvent(event);
 }
 

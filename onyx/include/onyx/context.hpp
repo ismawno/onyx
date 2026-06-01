@@ -431,11 +431,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         addGlyphData(glyph, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
                                                         : (m_Current->Transform * transform));
     }
-    void Unicode(const u32 code)
+    void Unicode(const CodePoint code)
     {
         Glyph(Resources::GetGlyph(m_Current->Font, code));
     }
-    void Unicode(const u32 code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    void Unicode(const CodePoint code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
         Glyph(Resources::GetGlyph(m_Current->Font, code), transform, mode);
     }
@@ -551,7 +551,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void FillColor(const Color &color)
     {
         m_Current->FillColor = color;
-        m_Current->Blend = TKit::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+        m_Current->Blend = Math::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // required when material has a color factor with alpha < 1 or circles have fading
     void Blend(const bool enable = true)
@@ -561,7 +561,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Alpha(const f32 alpha)
     {
         m_Current->FillColor.rgba[3] = alpha;
-        m_Current->Blend = TKit::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+        m_Current->Blend = Math::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // there is no support for alpha channel in outlines
     void OutlineColor(const Color &color)
@@ -603,7 +603,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         *m_Current = state;
         m_Current->Blend =
-            TKit::Approximately(m_Current->FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+            Math::Approximately(m_Current->FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
     const InstanceDataGrouping<InstanceDataArrays *> &GetInstanceData() const

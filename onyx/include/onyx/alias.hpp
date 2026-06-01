@@ -10,5 +10,6 @@ namespace Onyx
 using namespace TKit::Alias;
 using namespace TKit::Literals;
 using ViewMask = u<ONYX_MAX_VIEWS>;
+using CodePoint = u32;
 
 } // namespace Onyx
