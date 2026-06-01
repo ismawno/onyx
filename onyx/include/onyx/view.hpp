@@ -341,7 +341,7 @@ template <Dimension D> class RenderView
     Color ClearColor{Color_Black};
     // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
-    u32 Layer = 0;
+    u64 Layer = 0;
 
   private:
     void createFramebuffers(u32 imageCount);

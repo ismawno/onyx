@@ -23,6 +23,9 @@ int main()
         ui.Button("No!");
         ui.EndWindow();
 
+        ui.BeginWindow("Another");
+        ui.EndWindow();
+
         Onyx::Transfer();
         Onyx::Render();
     }

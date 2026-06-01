@@ -77,6 +77,21 @@ struct WindowSpecs
                         WindowFlag_InstallCallbacks;
 };
 
+struct LayerAssign
+{
+    u64 LayerIncrease = TKIT_U64_MAX / 2;
+    u64 LayerDecrease = TKIT_U64_MAX / 2;
+
+    u64 ToTop()
+    {
+        return LayerIncrease++;
+    }
+    u64 ToBottom()
+    {
+        return --LayerDecrease;
+    }
+};
+
 struct WindowSyncData;
 
 class Window
@@ -193,11 +208,11 @@ class Window
 
     template <Dimension D> void BringToTop(RenderView<D> *rv)
     {
-        rv->Layer = m_LayerIncrease++;
+        rv->Layer = m_LayerAssign.ToTop();
     }
     template <Dimension D> void BringToBottom(RenderView<D> *rv)
     {
-        rv->Layer = --m_LayerDecrease;
+        rv->Layer = m_LayerAssign.ToBottom();
     }
 
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
@@ -315,10 +330,9 @@ class Window
 
     VKit::Queue *m_Present;
 
+    LayerAssign m_LayerAssign{};
     u32 m_ImageIndex;
     u32 m_SyncIndex = 0;
-    u32 m_LayerIncrease = TKIT_U32_MAX / 2;
-    u32 m_LayerDecrease = TKIT_U32_MAX / 2;
     mutable f32v2 m_PrevMousePos{0.f};
 
     PresentMode m_PresentMode;

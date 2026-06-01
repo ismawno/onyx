@@ -306,12 +306,6 @@ struct LayoutSpecs
     Resource Font = NullHandle;
 };
 
-struct LayoutMapData
-{
-    f32v2 Position;
-    f32v2 Size;
-};
-
 constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
 
 class Layout
@@ -425,7 +419,9 @@ class Layout
     TKit::TierArray<u32> m_Breadth{};
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
-    TKit::TierHashMap<usz, LayoutMapData> m_Map{};
+
+    TKit::TierHashMap<usz, u32> m_Map{};
+    TKit::TierArray<LayoutElement> m_PreviousElements{};
 
     TKit::TierArray<usz> m_IdStack{};
 

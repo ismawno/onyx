@@ -40,6 +40,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_MousePressed = 1U << 1,
     OverlayWindowFlag_MouseReleased = 1U << 2,
     OverlayWindowFlag_HoveringWidget = 1U << 3,
+    OverlayWindowFlag_Hovered = 1U << 4,
 };
 
 struct OverlayWindow
@@ -49,6 +50,7 @@ struct OverlayWindow
     }
 
     usz Id = NullLayoutId;
+
     OverlayResizeInfo Resize{};
 
     Layout Layout;
@@ -162,6 +164,7 @@ class UserInterface
     bool BeginWindow(TKit::StringView title);
     void EndWindow();
 
+    // TODO(Isma): Implement slider
     bool Button(TKit::StringView label);
 
     void Draw();
@@ -169,9 +172,11 @@ class UserInterface
   private:
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
     bool collapseButton();
+    template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;
-    void processEvents();
+    void processWindows();
+    void bringWindowToTop(u32 idx);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
@@ -202,6 +207,6 @@ class UserInterface
 
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};
-    TKit::TierArray<usz> m_LayoutIds{};
+    TKit::TierArray<usz> m_WindowIds{};
 };
 } // namespace Onyx

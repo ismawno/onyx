@@ -258,15 +258,22 @@ bool Layout::IsHovered(const usz id, const f32v2 &pos, const f32v2 &padding) con
     if (it == m_Map.end())
         return false;
 
-    const LayoutMapData &data = it->Value;
+    const u32 idx = it->Value;
+    const LayoutElement &elm = m_PreviousElements[idx];
 
     const f32v2 hpad = 0.5f * padding;
-    const f32v2 mn = data.Position - hpad;
-    const f32v2 mx = data.Position + data.Size + hpad;
 
-    const auto check = [](const f32 p, const f32 mn, const f32 mx) { return p >= mn && p <= mx; };
+    const f32v2 mn = elm.Position - hpad;
+    const f32v2 mx = elm.Position + elm.Size + hpad;
 
-    return check(pos[0], mn[0], mx[0]) && check(pos[1], mn[1], mx[1]);
+    const f32v2 cmn = elm.ClipMin - hpad;
+    const f32v2 cmx = elm.ClipMax + hpad;
+
+    const auto check = [](const f32v2 &p, const f32v2 &mn, const f32v2 &mx) {
+        return p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1];
+    };
+
+    return check(pos, mn, mx) && check(pos, cmn, cmx);
 }
 
 void Layout::fitPass(const LayoutAxis axis)
@@ -678,7 +685,6 @@ void Layout::Compile()
         m_IdStack.GetSize() == 1,
         "[ONYX][LAYOUT] Id stack size mismatch (size = {}, should be 1). For every PushId(), there must be a PopId()",
         m_IdStack.GetSize());
-    m_DrawInfo.Clear();
     fitPass(LayoutAxis_Horizontal);
     normPass(LayoutAxis_Horizontal);
     growShrinkPass(LayoutAxis_Horizontal);
@@ -692,8 +698,13 @@ void Layout::Compile()
     floats.Reserve(m_Elements.GetSize());
 
     m_Map.Clear();
+    m_PreviousElements.Clear();
+    m_DrawInfo.Clear();
+
+    u32 idx = 0;
     for (const LayoutElement &elm : m_Elements)
     {
+        m_PreviousElements.Append(elm);
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool text = elm.Type == LayoutElement_Text;
@@ -745,7 +756,7 @@ void Layout::Compile()
             info.Size = f32v2{elm.FontSize};
             break;
         }
-        m_Map[elm.Id] = LayoutMapData{.Position = info.Position, .Size = info.Size};
+        m_Map[elm.Id] = idx++;
 
         if ((!fill && !outline) || (!text && !sized))
             continue;

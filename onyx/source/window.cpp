@@ -752,7 +752,7 @@ template <Dimension D> RenderView<D> *Window::CreateRenderView(Camera<D> *camera
     RenderView<D> *rv = tier->Create<RenderView<D>>(u32v2{extent.width, extent.height}, camera, flags);
     views.Append(rv);
 
-    rv->Layer = m_LayerIncrease++;
+    rv->Layer = m_LayerAssign.ToTop();
     rv->createFramebuffers(m_SwapChain->GetImageCount());
     rv->acquireImage(m_ImageIndex);
     return rv;
