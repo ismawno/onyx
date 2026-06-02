@@ -16,7 +16,7 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
     m_Context->AddTarget(m_View);
 }
 
-void UserInterface::drawBorders(const vec2<LayoutSizing> &sizing)
+void UserInterface::drawWindowBorders()
 {
     Layout &ly = m_Current->Layout;
     const Color &interaction = *m_Current->Resize.InteractionColor;
@@ -29,6 +29,7 @@ void UserInterface::drawBorders(const vec2<LayoutSizing> &sizing)
     const bool b = rinfo.Flags & OverlayResizeFlag_Bottom;
     const bool t = rinfo.Flags & OverlayResizeFlag_Top;
 
+    const vec2<LayoutSizing> sizing = LayoutSizing::Normalized(1.f);
     const vec2<LayoutSizing> hsizing = {LayoutSizing::Absolute(rinfo.BarWidth), LayoutSizing::Grow()};
     const vec2<LayoutSizing> vsizing = {LayoutSizing::Grow(), LayoutSizing::Absolute(rinfo.BarWidth)};
     const vec2<LayoutSizing> grow = LayoutSizing::Grow();
@@ -88,6 +89,65 @@ void UserInterface::drawBorders(const vec2<LayoutSizing> &sizing)
     }
 }
 
+void UserInterface::drawWindowScrollBar()
+{
+    Layout &ly = m_Current->Layout;
+    const LayoutElement *contentArea = ly.QueryElement("Content area");
+    if (!contentArea)
+        return;
+
+    const f32 size = contentArea->Size[1];
+    const f32 csize = contentArea->ChildSize[1];
+
+    ScrollBarInfo &sinfo = m_Current->ScrollBar;
+    if (csize > size)
+    {
+        const Color *col = &m_Colors[OverlayColor_ScrollBarIdle];
+
+        const LayoutElement *scrollBar = ly.QueryElement("Scroll bar");
+        if (scrollBar)
+        {
+            const ScrollBarInputInfo iinfo = getScrollBarInputInfo(scrollBar, sinfo.Pressed);
+
+            m_Current->Flags |= iinfo.FlagsToAdd;
+            sinfo.Pressed = iinfo.Pressed;
+
+            if (iinfo.Pressed)
+            {
+                col = &m_Colors[OverlayColor_ScrollBarPressed];
+                sinfo.CursorOffset += m_MouseDelta[1];
+            }
+            else
+                sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
+
+            if (!iinfo.Pressed && iinfo.Hovered)
+                col = &m_Colors[OverlayColor_ScrollBarHovered];
+
+            const f32 barSize = scrollBar->Size[1]; // could just query the scroll bar as well and get its Size
+            const f32 maxOffset = size - barSize;
+
+            const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
+            sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
+
+            const f32 margin = 24.f;
+            sinfo.ElementOffset = (csize + margin) * sinfo.BarOffset / size;
+        }
+
+        ly.Panel("Scroll bar",
+                 LayoutPanelParameters{
+                     .FillColor = *col,
+                     .Sizing = {LayoutSizing::Absolute(m_ScrollBarWidth), LayoutSizing::Normalized(size / csize)},
+                     .SelfOffset = {LayoutOffset::Absolute(0.f), LayoutOffset::Absolute(sinfo.BarOffset)},
+                     .Shape = LayoutShape::Rectangle(m_ScrollBarWidth)});
+    }
+    else
+    {
+        sinfo.BarOffset = 0.f;
+        sinfo.CursorOffset = 0.f;
+    }
+    sinfo.WheelOffset = 0.f;
+}
+
 bool UserInterface::BeginWindow(const TKit::StringView title)
 {
     TKIT_ASSERT(!m_Current, "[ONYX][Overlay] Cannot begin a new window when another one is being processed");
@@ -100,17 +160,18 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
     const bool collapsed = m_Current->HeaderIcon == m_CollapsedHeaderIcon;
 
     const vec2<LayoutSizing> sizing = LayoutSizing::Absolute(m_Current->Size);
+    const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
     m_Current->Id = ly.BeginPanel(
         id, LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowBackgroundCollapsed]
                                                          : m_Colors[OverlayColor_WindowBackgroundExpanded],
                                   .Direction = LayoutDirection_TopToBottom,
-                                  .Alignment = {Alignment_Left, Alignment_Top},
+                                  .Alignment = topLeft,
                                   .Sizing = sizing,
                                   .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
                                   .Padding = m_WindowPadding,
                                   .ChildGap = 8.f});
 
-    drawBorders(sizing);
+    drawWindowBorders();
     ly.BeginPanel("Header",
                   LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
                                                                : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
@@ -135,26 +196,43 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
                                         .Offset = m_TextOffset});
 
     ly.EndPanel();
-    ly.BeginPanel("Content area", LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
-                                                        .Alignment = {Alignment_Left, Alignment_Top},
-                                                        .Sizing = LayoutSizing::Grow(),
-                                                        .Padding = 4.f,
-                                                        .ChildGap = 8.f});
-    return true;
+
+    ly.BeginPanel("Scroll area", LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
+                                                       .Alignment = topLeft,
+                                                       .Sizing = LayoutSizing::Grow(),
+                                                       .ChildGap = 4.f});
+    // must pass the id bc at this point, querying plainly with "Scroll area" will mix with the actual "Scroll area"
+    // panel, giving a different id
+    drawWindowScrollBar();
+    ly.BeginPanel("Content area",
+                  LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
+                                        .Alignment = topLeft,
+                                        .Sizing = LayoutSizing::Grow(),
+                                        .ChildOffset = {LayoutOffset::Absolute(0.f),
+                                                        LayoutOffset::Absolute(-m_Current->ScrollBar.ElementOffset)},
+                                        .Padding = 4.f,
+                                        .ChildGap = 8.f});
+    return !collapsed;
+}
+
+void UserInterface::EndWindow()
+{
+    TKIT_ASSERT(m_Current, "[ONYX][Overlay] Cannot end a window without having started one");
+    m_Current->Layout.EndPanel();
+    m_Current->Layout.EndPanel();
+    m_Current->Layout.EndPanel();
+    m_Current = nullptr;
 }
 
 // TODO(Isma): Too much repetition between this and Button()
 bool UserInterface::collapseButton()
 {
     Layout &ly = m_Current->Layout;
-    const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
-    const bool hovered = canFocus && ly.IsHovered("Collapse button", m_MousePos);
-    const bool clicked = hovered && (m_Current->Flags & OverlayWindowFlag_MouseReleased);
-    const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
-    m_Current->Flags |= hovered * OverlayWindowFlag_HoveringWidget;
+    const ButtonInputInfo info = getButtonInputInfo("Collapse button");
+    m_Current->Flags |= info.FlagsToAdd;
 
     const Color *col = &Color_Transparent;
-    if (pressed)
+    if (info.Pressed)
         col = &m_Colors[OverlayColor_ButtonPressed];
 
     ly.BeginPanel("Collapse button",
@@ -168,22 +246,57 @@ bool UserInterface::collapseButton()
                                                               .Offset = m_TextOffset});
 
     ly.EndPanel();
-    return clicked;
+    return info.Clicked;
 }
 
-bool UserInterface::Button(const TKit::StringView label)
+ButtonInputInfo UserInterface::getButtonInputInfo(const TKit::StringView label) const
 {
     Layout &ly = m_Current->Layout;
     const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
     const bool hovered = canFocus && ly.IsHovered(label, m_MousePos);
     const bool clicked = hovered && (m_Current->Flags & OverlayWindowFlag_MouseReleased);
     const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
-    m_Current->Flags |= hovered * OverlayWindowFlag_HoveringWidget;
+
+    ButtonInputInfo info;
+    info.Clicked = clicked;
+    info.Pressed = pressed;
+    info.Hovered = hovered;
+    info.FlagsToAdd = hovered * OverlayWindowFlag_HoveringWidget;
+    return info;
+}
+
+ScrollBarInputInfo UserInterface::getScrollBarInputInfo(const LayoutElement *elm, const bool wasPressed) const
+{
+    ScrollBarInputInfo info;
+    if (wasPressed)
+    {
+        info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
+        info.Hovered = true; // doesnt matter
+        info.FlagsToAdd = OverlayWindowFlag_HoveringWidget;
+    }
+    else
+    {
+        const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
+        const bool hovered = canFocus && elm->IsHovered(m_MousePos);
+        const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
+
+        info.Pressed = pressed;
+        info.Hovered = hovered;
+        info.FlagsToAdd = hovered * OverlayWindowFlag_HoveringWidget;
+    }
+    return info;
+}
+
+bool UserInterface::Button(const TKit::StringView label)
+{
+    Layout &ly = m_Current->Layout;
+    const ButtonInputInfo info = getButtonInputInfo(label);
+    m_Current->Flags |= info.FlagsToAdd;
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
-    if (pressed)
+    if (info.Pressed)
         col = &m_Colors[OverlayColor_ButtonPressed];
-    else if (hovered)
+    else if (info.Hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
     ly.BeginPanel(
@@ -193,15 +306,7 @@ bool UserInterface::Button(const TKit::StringView label)
     ly.Text(label, LayoutTextParameters{
                        .FillColor = m_Colors[OverlayColor_ButtonText], .FontSize = m_FontSize, .Offset = m_TextOffset});
     ly.EndPanel();
-    return clicked;
-}
-
-void UserInterface::EndWindow()
-{
-    TKIT_ASSERT(m_Current, "[ONYX][Overlay] Cannot end a window without having started one");
-    m_Current->Layout.EndPanel();
-    m_Current->Layout.EndPanel();
-    m_Current = nullptr;
+    return info.Clicked;
 }
 
 void UserInterface::Draw()
@@ -246,7 +351,7 @@ void UserInterface::processWindows()
             for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
             {
                 const usz id = rinfo.Ids[i];
-                if (win.Layout.IsHovered(id, m_MousePos, 16.f))
+                if (win.Layout.IsHovered(id, m_MousePos, m_BorderHoverPadding))
                 {
                     win.Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderHovered];
                     rflags |= 1U << i;
@@ -276,16 +381,24 @@ void UserInterface::processWindows()
     // remove some state flags and check whether the window is collapsed
     for (OverlayWindow &win : m_OverlayWindows)
     {
-        const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 0.5f);
+        const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
         win.HeaderIcon = collapsed ? m_CollapsedHeaderIcon : m_ExpandedHeaderIcon;
         win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_MouseReleased | OverlayWindowFlag_Hovered);
     };
 
     // check for mouse events
     OverlayWindowFlags wflags = 0;
+    f32 scroll = 0.f;
     for (const Event &ev : m_Window->GetNewEvents())
+    {
         wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) +
                   OverlayWindowFlag_MouseReleased * (ev.Type == Event_MouseReleased);
+        if (ev.Type == Event_Scrolled)
+        {
+            wflags |= OverlayWindowFlag_Scrolled;
+            scroll = m_ScrollSensitivity * ev.ScrollOffset[1];
+        }
+    }
 
     bool canAssignHover = true;
 
@@ -295,7 +408,7 @@ void UserInterface::processWindows()
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
         const bool widgHovering = win.CheckFlags(OverlayWindowFlag_HoveringWidget);
-        const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos);
+        const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, m_BorderHoverPadding);
         const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
         win.RemoveFlags(OverlayWindowFlag_HoveringWidget);
@@ -303,6 +416,7 @@ void UserInterface::processWindows()
         if (winHovered)
         {
             win.AddFlags(OverlayWindowFlag_Hovered);
+            win.ScrollBar.WheelOffset += scroll;
             canAssignHover = false;
         }
 

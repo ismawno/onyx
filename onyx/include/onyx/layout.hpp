@@ -99,6 +99,10 @@ struct LayoutOffset
     {
         return {offset, LayoutOffset_Normalized};
     }
+    static constexpr LayoutOffset Relative(const f32 offset)
+    {
+        return {offset, LayoutOffset_Relative};
+    }
     static constexpr vec2<LayoutOffset> Absolute(const f32v2 &offset)
     {
         return {Absolute(offset[0]), Absolute(offset[1])};
@@ -106,6 +110,10 @@ struct LayoutOffset
     static constexpr vec2<LayoutOffset> Normalized(const f32v2 &offset)
     {
         return {Normalized(offset[0]), Normalized(offset[1])};
+    }
+    static constexpr vec2<LayoutOffset> Relative(const f32v2 &offset)
+    {
+        return {Relative(offset[0]), Relative(offset[1])};
     }
 };
 
@@ -389,6 +397,16 @@ class Layout
 
     const LayoutElement *QueryElement(usz id) const;
 
+    // These only work if called within the same id stack
+    const LayoutElement *QueryElement(const TKit::StringView label) const
+    {
+        return QueryElement(GetNextId(TKit::Hash(label)));
+    }
+    const LayoutElement *QueryElement(const CodePoint code) const
+    {
+        return QueryElement(GetNextId(TKit::Hash(code)));
+    }
+
     bool IsHovered(const usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const
     {
         const LayoutElement *elm = QueryElement(id);
@@ -430,7 +448,6 @@ class Layout
     void endPanel();
 
     void fitPass(LayoutAxis axis);
-    void normPass(LayoutAxis axis);
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();

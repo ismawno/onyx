@@ -21,6 +21,8 @@ int main()
         ui.Button("Wow!");
         ui.Button("Yes!");
         ui.Button("No!");
+        ui.Button("A!");
+        ui.Button("BBB!");
         ui.EndWindow();
 
         ui.BeginWindow("Another");

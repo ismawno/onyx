@@ -332,28 +332,6 @@ void Layout::fitPass(const LayoutAxis axis)
     }
 }
 
-void Layout::normPass(const LayoutAxis axis)
-{
-    for (const u32 p : m_Breadth)
-    {
-        const LayoutElement &parent = m_Elements[p];
-        TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
-
-        const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
-        const f32 factor = Math::Max(0.f, parent.Size[axis] - padding);
-        for (const u32 c : parent.Children)
-        {
-            LayoutElement &child = m_Elements[c];
-            if (child.Sizing[axis] == LayoutSizing_Normalized)
-            {
-                child.Size[axis] *= factor;
-                child.MinSize[axis] *= factor;
-                child.MaxSize[axis] *= factor;
-            }
-        }
-    }
-}
-
 void Layout::growShrinkPass(const LayoutAxis axis)
 {
     for (const u32 p : m_Breadth)
@@ -361,8 +339,22 @@ void Layout::growShrinkPass(const LayoutAxis axis)
         const LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
 
-        const LayoutAxis paxis = getAxis(parent.Direction);
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
+        const f32 floatFactor = parent.Size[axis];
+        const f32 normFactor = Math::Max(0.f, floatFactor - padding);
+        for (const u32 c : parent.Children)
+        {
+            LayoutElement &child = m_Elements[c];
+            if (child.Sizing[axis] == LayoutSizing_Normalized)
+            {
+                const f32 factor = child.Type == LayoutElement_Floating ? floatFactor : normFactor;
+                child.Size[axis] *= factor;
+                child.MinSize[axis] *= factor;
+                child.MaxSize[axis] *= factor;
+            }
+        }
+
+        const LayoutAxis paxis = getAxis(parent.Direction);
         f32 remainingSize = parent.Size[axis] - padding;
         if (paxis == axis)
         {
@@ -680,11 +672,9 @@ void Layout::Compile()
         "[ONYX][LAYOUT] Id stack size mismatch (size = {}, should be 1). For every PushId(), there must be a PopId()",
         m_IdStack.GetSize());
     fitPass(LayoutAxis_Horizontal);
-    normPass(LayoutAxis_Horizontal);
     growShrinkPass(LayoutAxis_Horizontal);
     wrapText();
     fitPass(LayoutAxis_Vertical);
-    normPass(LayoutAxis_Vertical);
     growShrinkPass(LayoutAxis_Vertical);
     positionPass();
 

@@ -33,6 +33,15 @@ struct OverlayResizeInfo
     OverlayResizeFlags Flags = 0;
 };
 
+struct ScrollBarInfo
+{
+    f32 BarOffset = 0.f;
+    f32 ElementOffset = 0.f;
+    f32 CursorOffset = 0.f;
+    f32 WheelOffset = 0.f;
+    bool Pressed = false;
+};
+
 using OverlayWindowFlags = u8;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
@@ -41,6 +50,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_MouseReleased = 1U << 2,
     OverlayWindowFlag_HoveringWidget = 1U << 3,
     OverlayWindowFlag_Hovered = 1U << 4,
+    OverlayWindowFlag_Scrolled = 1U << 5,
 };
 
 struct OverlayWindow
@@ -52,6 +62,7 @@ struct OverlayWindow
     usz Id = NullLayoutId;
 
     OverlayResizeInfo Resize{};
+    ScrollBarInfo ScrollBar{};
 
     Layout Layout;
     f32v2 Position{0.f};
@@ -88,6 +99,10 @@ enum OverlayColor : u8
     OverlayColor_WindowBorderHovered,
     OverlayColor_WindowBorderPressed,
 
+    OverlayColor_ScrollBarIdle,
+    OverlayColor_ScrollBarHovered,
+    OverlayColor_ScrollBarPressed,
+
     OverlayColor_ButtonIdle,
     OverlayColor_ButtonHovered,
     OverlayColor_ButtonPressed,
@@ -108,6 +123,10 @@ struct OverlayColors
     Color WindowBorderIdle;
     Color WindowBorderHovered;
     Color WindowBorderPressed;
+
+    Color ScrollBarIdle;
+    Color ScrollBarHovered;
+    Color ScrollBarPressed;
 
     Color ButtonIdle;
     Color ButtonHovered;
@@ -130,6 +149,10 @@ struct OverlayColorRegistry
               .WindowBorderHovered = Color::FromHexadecimal("4A5568"),
               .WindowBorderPressed = Color::FromHexadecimal("718096"),
 
+              .ScrollBarIdle = Color::FromHexadecimal("3A4F6F"),
+              .ScrollBarHovered = Color::FromHexadecimal("5A7A9E"),
+              .ScrollBarPressed = Color::FromHexadecimal("63B3ED"),
+
               .ButtonIdle = Color::FromHexadecimal("2D3748"),
               .ButtonHovered = Color::FromHexadecimal("4A5568"),
               .ButtonPressed = Color::FromHexadecimal("63B3ED"),
@@ -147,6 +170,21 @@ struct OverlayColorRegistry
     {
         return Flat[idx];
     }
+};
+
+struct ButtonInputInfo
+{
+    bool Clicked;
+    bool Pressed;
+    bool Hovered;
+    OverlayWindowFlags FlagsToAdd;
+};
+
+struct ScrollBarInputInfo
+{
+    bool Pressed;
+    bool Hovered;
+    OverlayWindowFlags FlagsToAdd;
 };
 
 struct UserInterfaceSpecs
@@ -180,7 +218,11 @@ class UserInterface
     f32v2 getMousePos() const;
     void processWindows();
     void bringWindowToTop(u32 idx);
-    void drawBorders(const vec2<LayoutSizing> &sizing);
+    void drawWindowBorders();
+    void drawWindowScrollBar();
+
+    ButtonInputInfo getButtonInputInfo(const TKit::StringView label) const;
+    ScrollBarInputInfo getScrollBarInputInfo(const LayoutElement *elm, bool wasPressed) const;
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
@@ -203,6 +245,9 @@ class UserInterface
     f32 m_FontSize = 16.f;
     f32 m_WindowPadding = 8.f;
     f32 m_HeaderPadding = 4.f;
+    f32 m_ScrollBarWidth = 8.f;
+    f32 m_BorderHoverPadding = 8.f;
+    f32 m_ScrollSensitivity = 8.f;
 
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;
