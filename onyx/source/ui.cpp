@@ -107,7 +107,7 @@ void UserInterface::drawWindowScrollBar()
         const LayoutElement *scrollBar = ly.QueryElement("Scroll bar");
         if (scrollBar)
         {
-            const ScrollBarInputInfo iinfo = getScrollBarInputInfo(scrollBar, sinfo.Pressed);
+            const DragInputInfo iinfo = getDragInputInfo(scrollBar, sinfo.Pressed);
 
             m_Current->Flags |= iinfo.FlagsToAdd;
             sinfo.Pressed = iinfo.Pressed;
@@ -129,6 +129,7 @@ void UserInterface::drawWindowScrollBar()
             const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
             sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
 
+            // TODO(Isma): Parametrize this
             const f32 margin = 24.f;
             sinfo.ElementOffset = (csize + margin) * sinfo.BarOffset / size;
         }
@@ -141,10 +142,8 @@ void UserInterface::drawWindowScrollBar()
                      .Shape = LayoutShape::Rectangle(m_ScrollBarWidth)});
     }
     else
-    {
-        sinfo.BarOffset = 0.f;
-        sinfo.CursorOffset = 0.f;
-    }
+        sinfo.Reset();
+
     sinfo.WheelOffset = 0.f;
 }
 
@@ -183,7 +182,10 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
     if (collapseButton())
     {
         if (collapsed)
+        {
             m_Current->Size[1] = m_Current->LastHeight;
+            m_Current->ScrollBar.Reset();
+        }
         else
         {
             m_Current->LastHeight = m_Current->Size[1];
@@ -228,7 +230,7 @@ void UserInterface::EndWindow()
 bool UserInterface::collapseButton()
 {
     Layout &ly = m_Current->Layout;
-    const ButtonInputInfo info = getButtonInputInfo("Collapse button");
+    const ClickInputInfo info = getClickInputInfo("Collapse button");
     m_Current->Flags |= info.FlagsToAdd;
 
     const Color *col = &Color_Transparent;
@@ -249,7 +251,7 @@ bool UserInterface::collapseButton()
     return info.Clicked;
 }
 
-ButtonInputInfo UserInterface::getButtonInputInfo(const TKit::StringView label) const
+ClickInputInfo UserInterface::getClickInputInfo(const TKit::StringView label) const
 {
     Layout &ly = m_Current->Layout;
     const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
@@ -257,7 +259,7 @@ ButtonInputInfo UserInterface::getButtonInputInfo(const TKit::StringView label) 
     const bool clicked = hovered && (m_Current->Flags & OverlayWindowFlag_MouseReleased);
     const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
 
-    ButtonInputInfo info;
+    ClickInputInfo info;
     info.Clicked = clicked;
     info.Pressed = pressed;
     info.Hovered = hovered;
@@ -265,9 +267,9 @@ ButtonInputInfo UserInterface::getButtonInputInfo(const TKit::StringView label) 
     return info;
 }
 
-ScrollBarInputInfo UserInterface::getScrollBarInputInfo(const LayoutElement *elm, const bool wasPressed) const
+DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm, const bool wasPressed) const
 {
-    ScrollBarInputInfo info;
+    DragInputInfo info;
     if (wasPressed)
     {
         info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
@@ -290,7 +292,7 @@ ScrollBarInputInfo UserInterface::getScrollBarInputInfo(const LayoutElement *elm
 bool UserInterface::Button(const TKit::StringView label)
 {
     Layout &ly = m_Current->Layout;
-    const ButtonInputInfo info = getButtonInputInfo(label);
+    const ClickInputInfo info = getClickInputInfo(label);
     m_Current->Flags |= info.FlagsToAdd;
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
@@ -305,6 +307,43 @@ bool UserInterface::Button(const TKit::StringView label)
 
     ly.Text(label, LayoutTextParameters{
                        .FillColor = m_Colors[OverlayColor_ButtonText], .FontSize = m_FontSize, .Offset = m_TextOffset});
+    ly.EndPanel();
+    return info.Clicked;
+}
+
+bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
+{
+    Layout &ly = m_Current->Layout;
+    const ClickInputInfo info = getClickInputInfo(label);
+    m_Current->Flags |= info.FlagsToAdd;
+
+    const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
+    if (info.Pressed)
+        col = &m_Colors[OverlayColor_CheckBoxPressed];
+    else if (info.Hovered)
+        col = &m_Colors[OverlayColor_CheckBoxHovered];
+
+    if (info.Clicked)
+        *enable = !*enable;
+
+    ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                               .Sizing = LayoutSizing::Fit(0.f),
+                                               .ChildGap = 8.f});
+
+    ly.BeginPanel("Outer button", LayoutPanelParameters{.FillColor = *col,
+                                                        .Alignment = Alignment_Center,
+                                                        .Sizing = LayoutSizing::Absolute(32.f),
+                                                        .Padding = 8.f});
+
+    ly.Panel("Inner button",
+             LayoutPanelParameters{.FillColor = *enable ? m_Colors[OverlayColor_CheckBoxInner] : Color_Transparent,
+                                   .Sizing = LayoutSizing::Grow()});
+    ly.EndPanel();
+
+    ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_CheckBoxText],
+                                        .FontSize = m_FontSize,
+                                        .Offset = m_TextOffset});
+
     ly.EndPanel();
     return info.Clicked;
 }

@@ -40,6 +40,14 @@ struct ScrollBarInfo
     f32 CursorOffset = 0.f;
     f32 WheelOffset = 0.f;
     bool Pressed = false;
+
+    void Reset()
+    {
+        BarOffset = 0.f;
+        ElementOffset = 0.f;
+        CursorOffset = 0.f;
+        WheelOffset = 0.f;
+    }
 };
 
 using OverlayWindowFlags = u8;
@@ -88,75 +96,77 @@ struct OverlayWindow
 
 enum OverlayColor : u8
 {
+    OverlayColor_Idle,
+    OverlayColor_Hovered,
+    OverlayColor_Pressed,
+    OverlayColor_Text,
+
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
 
     OverlayColor_WindowHeaderBackgroundExpanded,
     OverlayColor_WindowHeaderBackgroundCollapsed,
-    OverlayColor_WindowHeader,
+    OverlayColor_WindowHeader = OverlayColor_Text,
 
-    OverlayColor_WindowBorderIdle,
-    OverlayColor_WindowBorderHovered,
-    OverlayColor_WindowBorderPressed,
+    OverlayColor_WindowBorderIdle = OverlayColor_Idle,
+    OverlayColor_WindowBorderHovered = OverlayColor_Hovered,
+    OverlayColor_WindowBorderPressed = OverlayColor_Pressed,
 
     OverlayColor_ScrollBarIdle,
     OverlayColor_ScrollBarHovered,
     OverlayColor_ScrollBarPressed,
 
-    OverlayColor_ButtonIdle,
-    OverlayColor_ButtonHovered,
-    OverlayColor_ButtonPressed,
-    OverlayColor_ButtonText,
+    OverlayColor_ButtonIdle = OverlayColor_Idle,
+    OverlayColor_ButtonHovered = OverlayColor_Hovered,
+    OverlayColor_ButtonPressed = OverlayColor_Pressed,
+    OverlayColor_ButtonText = OverlayColor_Text,
+
+    OverlayColor_CheckBoxIdle = OverlayColor_Idle,
+    OverlayColor_CheckBoxHovered = OverlayColor_Hovered,
+    OverlayColor_CheckBoxPressed = OverlayColor_Pressed,
+    OverlayColor_CheckBoxText = OverlayColor_Text,
+    OverlayColor_CheckBoxInner = OverlayColor_Text,
 
     OverlayColor_Count,
 };
 
 struct OverlayColors
 {
+    Color Idle;
+    Color Hovered;
+    Color Pressed;
+    Color Text;
+
     Color WindowBackgroundExpanded;
     Color WindowBackgroundCollapsed;
 
     Color WindowHeaderBackgroundExpanded;
     Color WindowHeaderBackgroundCollapsed;
-    Color WindowHeader;
-
-    Color WindowBorderIdle;
-    Color WindowBorderHovered;
-    Color WindowBorderPressed;
 
     Color ScrollBarIdle;
     Color ScrollBarHovered;
     Color ScrollBarPressed;
-
-    Color ButtonIdle;
-    Color ButtonHovered;
-    Color ButtonPressed;
-    Color ButtonText;
 };
 
 struct OverlayColorRegistry
 {
     OverlayColorRegistry()
         : Named{
+
+              .Idle = Color::FromHexadecimal("2D3748"),
+              .Hovered = Color::FromHexadecimal("4A5568"),
+              .Pressed = Color::FromHexadecimal("718096"),
+              .Text = Color::FromHexadecimal("E2E8F0"),
+
               .WindowBackgroundExpanded = Color::FromHexadecimal("2A3F5F"),
               .WindowBackgroundCollapsed = Color::FromHexadecimal("1E2D45D9"),
 
               .WindowHeaderBackgroundExpanded = Color::FromHexadecimal("344E6E"),
               .WindowHeaderBackgroundCollapsed = Color::FromHexadecimal("2A3F5FD9"),
-              .WindowHeader = Color::FromHexadecimal("E2E8F0"),
-
-              .WindowBorderIdle = Color::FromHexadecimal("2D3748"),
-              .WindowBorderHovered = Color::FromHexadecimal("4A5568"),
-              .WindowBorderPressed = Color::FromHexadecimal("718096"),
 
               .ScrollBarIdle = Color::FromHexadecimal("3A4F6F"),
               .ScrollBarHovered = Color::FromHexadecimal("5A7A9E"),
               .ScrollBarPressed = Color::FromHexadecimal("63B3ED"),
-
-              .ButtonIdle = Color::FromHexadecimal("2D3748"),
-              .ButtonHovered = Color::FromHexadecimal("4A5568"),
-              .ButtonPressed = Color::FromHexadecimal("63B3ED"),
-              .ButtonText = Color::FromHexadecimal("E2E8F0"),
           }
     {
     }
@@ -172,7 +182,7 @@ struct OverlayColorRegistry
     }
 };
 
-struct ButtonInputInfo
+struct ClickInputInfo
 {
     bool Clicked;
     bool Pressed;
@@ -180,7 +190,7 @@ struct ButtonInputInfo
     OverlayWindowFlags FlagsToAdd;
 };
 
-struct ScrollBarInputInfo
+struct DragInputInfo
 {
     bool Pressed;
     bool Hovered;
@@ -205,8 +215,8 @@ class UserInterface
     bool BeginWindow(TKit::StringView title);
     void EndWindow();
 
-    // TODO(Isma): Implement slider
     bool Button(TKit::StringView label);
+    bool CheckBox(TKit::StringView label, bool *enable);
 
     void Draw();
 
@@ -221,8 +231,8 @@ class UserInterface
     void drawWindowBorders();
     void drawWindowScrollBar();
 
-    ButtonInputInfo getButtonInputInfo(const TKit::StringView label) const;
-    ScrollBarInputInfo getScrollBarInputInfo(const LayoutElement *elm, bool wasPressed) const;
+    ClickInputInfo getClickInputInfo(const TKit::StringView label) const;
+    DragInputInfo getDragInputInfo(const LayoutElement *elm, bool wasPressed) const;
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);

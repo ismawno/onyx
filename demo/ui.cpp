@@ -22,7 +22,8 @@ int main()
         ui.Button("Yes!");
         ui.Button("No!");
         ui.Button("A!");
-        ui.Button("BBB!");
+        static bool yes = false;
+        ui.CheckBox("BBB!", &yes);
         ui.EndWindow();
 
         ui.BeginWindow("Another");
