@@ -547,11 +547,8 @@ void Layout::positionPass()
                 tcsize += cgap * (parent.NonFloatChildCount - 1);
             }
             else
-            {
-                f32 tcsize = 0.f;
                 for (const u32 c : parent.Children)
                     tcsize = Math::Max(tcsize, m_Elements[c].Size[axis]);
-            }
 
             const f32 p0 = parent.Padding[2 * axis];
             const f32 p1 = parent.Padding[2 * axis + 1];
