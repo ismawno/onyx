@@ -252,28 +252,31 @@ usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodePa
     return current.Id;
 }
 
-bool Layout::IsHovered(const usz id, const f32v2 &pos, const f32v2 &padding) const
+bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding) const
 {
-    const auto it = m_Map.Find(id);
-    if (it == m_Map.end())
-        return false;
-
-    const u32 idx = it->Value;
-    const LayoutElement &elm = m_PreviousElements[idx];
-
     const f32v2 hpad = 0.5f * padding;
 
-    const f32v2 mn = elm.Position - hpad;
-    const f32v2 mx = elm.Position + elm.Size + hpad;
+    const f32v2 mn = Position - hpad;
+    const f32v2 mx = Position + Size + hpad;
 
-    const f32v2 cmn = elm.ClipMin - hpad;
-    const f32v2 cmx = elm.ClipMax + hpad;
+    const f32v2 cmn = ClipMin - hpad;
+    const f32v2 cmx = ClipMax + hpad;
 
     const auto check = [](const f32v2 &p, const f32v2 &mn, const f32v2 &mx) {
         return p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1];
     };
 
     return check(pos, mn, mx) && check(pos, cmn, cmx);
+}
+
+const LayoutElement *Layout::QueryElement(const usz id) const
+{
+    const auto it = m_Map.Find(id);
+    if (it == m_Map.end())
+        return nullptr;
+
+    const u32 idx = it->Value;
+    return &m_PreviousElements[idx];
 }
 
 void Layout::fitPass(const LayoutAxis axis)
@@ -530,7 +533,7 @@ void Layout::positionPass()
     root.Position += root.SelfOffset;
     for (const u32 p : m_Breadth)
     {
-        const LayoutElement &parent = m_Elements[p];
+        LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
 
         const LayoutDirection dir = parent.Direction;
@@ -539,30 +542,24 @@ void Layout::positionPass()
 
         for (u32 axis = 0; axis < 2; ++axis)
         {
-            f32 tcs;
-            bool tcomputed = false;
-            const auto computeTotalChildrenSize = [&] {
-                if (tcomputed)
-                    return tcs;
-                tcomputed = true;
-
-                tcs = 0.f;
+            f32 &tcsize = parent.ChildSize[axis];
+            tcsize = 0.f;
+            if (paxis == axis)
+            {
                 for (const u32 c : parent.Children)
                 {
                     const LayoutElement &child = m_Elements[c];
                     if (child.Type != LayoutElement_Floating)
-                        tcs += m_Elements[c].Size[axis];
+                        tcsize += m_Elements[c].Size[axis];
                 }
-                tcs += cgap * (parent.NonFloatChildCount - 1);
-                return tcs;
-            };
-
-            const auto computeMaxChildrenSize = [&] {
-                f32 mcs = 0.f;
+                tcsize += cgap * (parent.NonFloatChildCount - 1);
+            }
+            else
+            {
+                f32 tcsize = 0.f;
                 for (const u32 c : parent.Children)
-                    mcs = Math::Max(mcs, m_Elements[c].Size[axis]);
-                return mcs;
-            };
+                    tcsize = Math::Max(tcsize, m_Elements[c].Size[axis]);
+            }
 
             const f32 p0 = parent.Padding[2 * axis];
             const f32 p1 = parent.Padding[2 * axis + 1];
@@ -577,23 +574,21 @@ void Layout::positionPass()
                 return p0 - p1;
             };
 
+            const f32 padding = computePadding();
             const f32 psize = parent.Size[axis];
             const f32 ppos = parent.Position[axis];
 
-            const auto computeAlignOffset = [&](const bool aligned, const f32 size) {
-                if (!aligned)
-                    return 0.f;
+            const auto computeAlignOffset = [&](const f32 size) {
                 if (alg == Alignment_Mirrored)
                     return psize - size;
                 if (alg == Alignment_Center)
                     return 0.5f * (psize - size);
                 return 0.f;
             };
-            const auto computeParentAlignOffset = [&] {
-                return computeAlignOffset(paxis == axis, computeTotalChildrenSize());
-            };
+
+            const f32 parentAlignOffset = paxis == axis ? computeAlignOffset(tcsize) : 0.f;
             const auto computeChildAlignOffset = [&](const f32 size) {
-                return computeAlignOffset(paxis != axis, size);
+                return paxis != axis ? computeAlignOffset(size) : 0.f;
             };
 
             const f32 offsetNormFactor = psize - p0 - p1;
@@ -601,10 +596,9 @@ void Layout::positionPass()
             f32 coffset = parent.ChildOffset[axis];
             if (parent.ChildOffsetType[axis] != LayoutOffset_Absolute)
             {
-                const f32 factor =
-                    parent.ChildOffsetType[axis] == LayoutOffset_Normalized
-                        ? offsetNormFactor
-                        : (offsetNormFactor - (paxis == axis ? computeTotalChildrenSize() : computeMaxChildrenSize()));
+                const f32 factor = parent.ChildOffsetType[axis] == LayoutOffset_Normalized
+                                       ? offsetNormFactor
+                                       : (offsetNormFactor - tcsize);
                 coffset *= Math::Absolute(factor);
             }
 
@@ -614,7 +608,7 @@ void Layout::positionPass()
             const f32 pmn = ppos;
             const f32 pmx = ppos + psize;
 
-            f32 poffset = ppos + coffset + computePadding() + computeParentAlignOffset();
+            f32 poffset = ppos + coffset + padding + parentAlignOffset;
             const auto processChild = [&](const u32 c) {
                 LayoutElement &child = m_Elements[c];
 

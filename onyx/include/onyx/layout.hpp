@@ -202,6 +202,7 @@ struct LayoutElement
     f32v2 ChildOffset;
     f32v2 SelfOffset;
     f32v2 ShrinkTolerance;
+    f32v2 ChildSize;
 
     vec2<LayoutSizingType> Sizing;
     vec2<LayoutOffsetType> ChildOffsetType;
@@ -233,6 +234,8 @@ struct LayoutElement
     LayoutTextMode TextMode;
     LayoutOverflowMode SelfOverflow;
     LayoutOverflowMode ChildOverflow;
+
+    bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}) const;
 };
 
 struct LayoutDrawInfo
@@ -384,7 +387,13 @@ class Layout
         return GetNextId(TKit::Hash(code));
     }
 
-    bool IsHovered(usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const;
+    const LayoutElement *QueryElement(usz id) const;
+
+    bool IsHovered(const usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    {
+        const LayoutElement *elm = QueryElement(id);
+        return elm ? elm->IsHovered(point, padding) : false;
+    }
 
     // These only work if called within the same id stack
     bool IsHovered(const TKit::StringView label, const f32v2 &point, const f32v2 &padding = {0.f}) const

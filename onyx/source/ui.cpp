@@ -40,40 +40,51 @@ void UserInterface::drawBorders(const vec2<LayoutSizing> &sizing)
 
     const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
 
-    const auto drawVerticalBorders = [&] {
+    const auto drawLeftBorder = [&] {
         ly.BeginPanel(
-            "Vertical borders",
+            "Left border",
             LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
         rinfo.Ids[left] =
-            ly.Panel("Left resize", LayoutPanelParameters{.FillColor = l ? interaction : idle, .Sizing = hsizing});
+            ly.Panel("Left", LayoutPanelParameters{.FillColor = l ? interaction : idle, .Sizing = hsizing});
+        ly.EndPanel();
+    };
+    const auto drawRightBorder = [&] {
+        ly.BeginPanel(
+            "Right border",
+            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
         ly.Panel(LayoutPanelParameters{.Sizing = grow});
         rinfo.Ids[right] =
-            ly.Panel("Right resize", LayoutPanelParameters{.FillColor = r ? interaction : idle, .Sizing = hsizing});
+            ly.Panel("Right", LayoutPanelParameters{.FillColor = r ? interaction : idle, .Sizing = hsizing});
         ly.EndPanel();
     };
-
-    const auto drawHorizontalBorders = [&] {
+    const auto drawBottomBorder = [&] {
         ly.BeginPanel(
-            "Horizontal borders",
+            "Bottom border",
             LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
-
         rinfo.Ids[bottom] =
-            ly.Panel("Bottom resize", LayoutPanelParameters{.FillColor = b ? interaction : idle, .Sizing = vsizing});
-        ly.Panel(LayoutPanelParameters{.Sizing = grow});
-        rinfo.Ids[top] =
-            ly.Panel("Top resize", LayoutPanelParameters{.FillColor = t ? interaction : idle, .Sizing = vsizing});
-
+            ly.Panel("Bottom", LayoutPanelParameters{.FillColor = b ? interaction : idle, .Sizing = vsizing});
         ly.EndPanel();
     };
-    if (l || r)
+    const auto drawTopBorder = [&] {
+        ly.BeginPanel(
+            "Top border",
+            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
+        ly.Panel(LayoutPanelParameters{.Sizing = grow});
+        rinfo.Ids[top] = ly.Panel("Top", LayoutPanelParameters{.FillColor = t ? interaction : idle, .Sizing = vsizing});
+        ly.EndPanel();
+    };
+
+    for (u32 pass = 0; pass < 2; ++pass)
     {
-        drawHorizontalBorders();
-        drawVerticalBorders();
-    }
-    else
-    {
-        drawVerticalBorders();
-        drawHorizontalBorders();
+        const bool wantHovered = pass == 1;
+        if (l == wantHovered)
+            drawLeftBorder();
+        if (r == wantHovered)
+            drawRightBorder();
+        if (b == wantHovered)
+            drawBottomBorder();
+        if (t == wantHovered)
+            drawTopBorder();
     }
 }
 
