@@ -107,10 +107,7 @@ void UserInterface::drawWindowScrollBar()
         const LayoutElement *scrollBar = ly.QueryElement("Scroll bar");
         if (scrollBar)
         {
-            const DragInputInfo iinfo = getDragInputInfo(scrollBar, sinfo.Pressed);
-
-            m_Current->Flags |= iinfo.FlagsToAdd;
-            sinfo.Pressed = iinfo.Pressed;
+            const DragInputInfo iinfo = getDragInputInfo(scrollBar);
 
             if (iinfo.Pressed)
             {
@@ -123,7 +120,7 @@ void UserInterface::drawWindowScrollBar()
             if (!iinfo.Pressed && iinfo.Hovered)
                 col = &m_Colors[OverlayColor_ScrollBarHovered];
 
-            const f32 barSize = scrollBar->Size[1]; // could just query the scroll bar as well and get its Size
+            const f32 barSize = scrollBar->Size[1];
             const f32 maxOffset = size - barSize;
 
             const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
@@ -230,8 +227,7 @@ void UserInterface::EndWindow()
 bool UserInterface::collapseButton()
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo("Collapse button");
-    m_Current->Flags |= info.FlagsToAdd;
+    const ClickInputInfo info = getClickInputInfo(ly.QueryElement("Collapse button"));
 
     const Color *col = &Color_Transparent;
     if (info.Pressed)
@@ -251,40 +247,56 @@ bool UserInterface::collapseButton()
     return info.Clicked;
 }
 
-ClickInputInfo UserInterface::getClickInputInfo(const TKit::StringView label) const
+ClickInputInfo UserInterface::getClickInputInfo(const LayoutElement *elm)
 {
-    Layout &ly = m_Current->Layout;
+    if (!elm)
+        return ClickInputInfo{};
+
     const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
-    const bool hovered = canFocus && ly.IsHovered(label, m_MousePos);
+
+    const bool canHover = canFocus && m_PressedDragger == NullLayoutId &&
+                          (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
+    const bool hovered = canHover && elm->IsHovered(m_MousePos);
     const bool clicked = hovered && (m_Current->Flags & OverlayWindowFlag_MouseReleased);
     const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
+
+    if (pressed)
+        m_PressedClicker = elm->Id;
+    if (hovered)
+        m_HoveredClicker = elm->Id;
 
     ClickInputInfo info;
     info.Clicked = clicked;
     info.Pressed = pressed;
     info.Hovered = hovered;
-    info.FlagsToAdd = hovered * OverlayWindowFlag_HoveringWidget;
     return info;
 }
 
-DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm, const bool wasPressed) const
+DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm)
 {
+    if (!elm)
+        return DragInputInfo{};
+
     DragInputInfo info;
-    if (wasPressed)
+    if (m_PressedDragger == elm->Id)
     {
         info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
         info.Hovered = true; // doesnt matter
-        info.FlagsToAdd = OverlayWindowFlag_HoveringWidget;
+        m_HoveredDragger = elm->Id;
     }
     else
     {
         const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
-        const bool hovered = canFocus && elm->IsHovered(m_MousePos);
+        const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
+        const bool hovered = canHover && elm->IsHovered(m_MousePos);
         const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
 
         info.Pressed = pressed;
         info.Hovered = hovered;
-        info.FlagsToAdd = hovered * OverlayWindowFlag_HoveringWidget;
+        if (pressed)
+            m_PressedDragger = elm->Id;
+        if (hovered)
+            m_HoveredDragger = elm->Id;
     }
     return info;
 }
@@ -292,8 +304,7 @@ DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm, const bo
 bool UserInterface::Button(const TKit::StringView label)
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo(label);
-    m_Current->Flags |= info.FlagsToAdd;
+    const ClickInputInfo info = getClickInputInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
     if (info.Pressed)
@@ -314,8 +325,7 @@ bool UserInterface::Button(const TKit::StringView label)
 bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo(label);
-    m_Current->Flags |= info.FlagsToAdd;
+    const ClickInputInfo info = getClickInputInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
     if (info.Pressed)
@@ -330,12 +340,12 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
                                                .Sizing = LayoutSizing::Fit(0.f),
                                                .ChildGap = 8.f});
 
-    ly.BeginPanel("Outer button", LayoutPanelParameters{.FillColor = *col,
-                                                        .Alignment = Alignment_Center,
-                                                        .Sizing = LayoutSizing::Absolute(32.f),
-                                                        .Padding = 8.f});
+    ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,
+                                                          .Alignment = Alignment_Center,
+                                                          .Sizing = LayoutSizing::Absolute(m_WidgetWidth),
+                                                          .Padding = 6.f});
 
-    ly.Panel("Inner button",
+    ly.Panel("Inner checkbox",
              LayoutPanelParameters{.FillColor = *enable ? m_Colors[OverlayColor_CheckBoxInner] : Color_Transparent,
                                    .Sizing = LayoutSizing::Grow()});
     ly.EndPanel();
@@ -372,13 +382,15 @@ void UserInterface::processWindows()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
+    const bool hoveringWidget = m_HoveredClicker != NullLayoutId || m_HoveredDragger != NullLayoutId;
+
     // if nothing is grabbed, we check resize hovers here
     if (!m_Grabbed)
     {
         MouseCursor cursor = MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow &win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
-            if (win.CheckFlags(OverlayWindowFlag_HoveringWidget) || !win.CheckFlags(OverlayWindowFlag_Hovered))
+            if (hoveringWidget || !win.CheckFlags(OverlayWindowFlag_Hovered))
             {
                 win.Resize.Flags = 0;
                 return true;
@@ -446,11 +458,9 @@ void UserInterface::processWindows()
     // grabbed if user pressed the mouse
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
-        const bool widgHovering = win.CheckFlags(OverlayWindowFlag_HoveringWidget);
         const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, m_BorderHoverPadding);
         const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
-        win.RemoveFlags(OverlayWindowFlag_HoveringWidget);
         win.AddFlags(wflags & OverlayWindowFlag_MouseReleased);
         if (winHovered)
         {
@@ -461,7 +471,7 @@ void UserInterface::processWindows()
 
         if (pressed && (win.Resize.Flags != 0 || winHovered))
         {
-            if (!widgHovering)
+            if (!hoveringWidget)
             {
                 win.Flags = wflags;
                 win.Resize.Position = win.Position;
@@ -477,7 +487,11 @@ void UserInterface::processWindows()
 
     // now just handle grabbing, which is straightforward
     if (!m_Window->IsMousePressed(Mouse_Button1))
+    {
         m_Grabbed = nullptr;
+        m_PressedClicker = NullLayoutId;
+        m_PressedDragger = NullLayoutId;
+    }
     else if (m_Grabbed)
     {
         m_Grabbed->Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderPressed];
@@ -517,6 +531,9 @@ void UserInterface::processWindows()
             handleResizeAxis(1, OverlayResizeFlag_Top, OverlayResizeFlag_Bottom, -1.f);
         }
     }
+
+    m_HoveredClicker = NullLayoutId;
+    m_HoveredDragger = NullLayoutId;
 }
 
 void UserInterface::bringWindowToTop(const u32 idx)

@@ -38,10 +38,14 @@ usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
         current.Type = LayoutElement_Floating;
         current.FloatAttachment = params.Floating.Attachment;
         current.FloatAlignment = params.Floating.Alignment;
+        current.FloatClip = params.Floating.Clip;
         current.DrawOnTop = params.Floating.DrawOnTop;
     }
     else
+    {
         current.Type = LayoutElement_Panel;
+        current.DrawOnTop = false;
+    }
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     current.Parent = p;
@@ -598,6 +602,20 @@ void Layout::positionPass()
             const f32 pmx = ppos + psize;
 
             f32 poffset = ppos + coffset + padding + parentAlignOffset;
+
+            const auto clipChild = [&](LayoutElement &child) {
+                if (parent.ChildOverflow == LayoutOverflow_Clip)
+                {
+                    child.ClipMin[axis] = Math::Max(pmn, clmn);
+                    child.ClipMax[axis] = Math::Min(pmx, clmx);
+                }
+                else
+                {
+                    child.ClipMin[axis] = clmn;
+                    child.ClipMax[axis] = clmx;
+                }
+            };
+
             const auto processChild = [&](const u32 c) {
                 LayoutElement &child = m_Elements[c];
 
@@ -628,22 +646,18 @@ void Layout::positionPass()
                     else if (fatt == LayoutAttachment_Center)
                         cpos += 0.5f * psize;
 
-                    child.ClipMin[axis] = TKIT_F32_LOWEST;
-                    child.ClipMax[axis] = TKIT_F32_MAX;
+                    if (child.FloatClip)
+                        clipChild(child);
+                    else
+                    {
+                        child.ClipMin[axis] = TKIT_F32_LOWEST;
+                        child.ClipMax[axis] = TKIT_F32_MAX;
+                    }
                     return;
                 }
 
                 cpos += poffset + soffset + computeChildAlignOffset(csize);
-                if (parent.ChildOverflow == LayoutOverflow_Clip)
-                {
-                    child.ClipMin[axis] = Math::Max(pmn, clmn);
-                    child.ClipMax[axis] = Math::Min(pmx, clmx);
-                }
-                else
-                {
-                    child.ClipMin[axis] = clmn;
-                    child.ClipMax[axis] = clmx;
-                }
+                clipChild(child);
 
                 if (paxis == axis)
                     poffset += csize + cgap;

@@ -24,6 +24,9 @@ int main()
         ui.Button("A!");
         static bool yes = false;
         ui.CheckBox("BBB!", &yes);
+
+        static float val = 4.f;
+        ui.Slider("My slider", &val, 0.f, 10.f);
         ui.EndWindow();
 
         ui.BeginWindow("Another");

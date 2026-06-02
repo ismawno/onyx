@@ -39,7 +39,6 @@ struct ScrollBarInfo
     f32 ElementOffset = 0.f;
     f32 CursorOffset = 0.f;
     f32 WheelOffset = 0.f;
-    bool Pressed = false;
 
     void Reset()
     {
@@ -56,9 +55,8 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_Collapsed = 1U << 0,
     OverlayWindowFlag_MousePressed = 1U << 1,
     OverlayWindowFlag_MouseReleased = 1U << 2,
-    OverlayWindowFlag_HoveringWidget = 1U << 3,
-    OverlayWindowFlag_Hovered = 1U << 4,
-    OverlayWindowFlag_Scrolled = 1U << 5,
+    OverlayWindowFlag_Hovered = 1U << 3,
+    OverlayWindowFlag_Scrolled = 1U << 4,
 };
 
 struct OverlayWindow
@@ -100,21 +98,23 @@ enum OverlayColor : u8
     OverlayColor_Hovered,
     OverlayColor_Pressed,
     OverlayColor_Text,
+    OverlayColor_Inner,
 
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
 
     OverlayColor_WindowHeaderBackgroundExpanded,
     OverlayColor_WindowHeaderBackgroundCollapsed,
+
+    OverlayColor_ScrollBarIdle,
+    OverlayColor_ScrollBarHovered,
+    OverlayColor_ScrollBarPressed = OverlayColor_Inner,
+
     OverlayColor_WindowHeader = OverlayColor_Text,
 
     OverlayColor_WindowBorderIdle = OverlayColor_Idle,
     OverlayColor_WindowBorderHovered = OverlayColor_Hovered,
     OverlayColor_WindowBorderPressed = OverlayColor_Pressed,
-
-    OverlayColor_ScrollBarIdle,
-    OverlayColor_ScrollBarHovered,
-    OverlayColor_ScrollBarPressed,
 
     OverlayColor_ButtonIdle = OverlayColor_Idle,
     OverlayColor_ButtonHovered = OverlayColor_Hovered,
@@ -125,7 +125,13 @@ enum OverlayColor : u8
     OverlayColor_CheckBoxHovered = OverlayColor_Hovered,
     OverlayColor_CheckBoxPressed = OverlayColor_Pressed,
     OverlayColor_CheckBoxText = OverlayColor_Text,
-    OverlayColor_CheckBoxInner = OverlayColor_Text,
+    OverlayColor_CheckBoxInner = OverlayColor_Inner,
+
+    OverlayColor_SliderIdle = OverlayColor_Idle,
+    OverlayColor_SliderHovered = OverlayColor_Hovered,
+    OverlayColor_SliderPressed = OverlayColor_Pressed,
+    OverlayColor_SliderText = OverlayColor_Text,
+    OverlayColor_SliderInner = OverlayColor_Inner,
 
     OverlayColor_Count,
 };
@@ -136,6 +142,7 @@ struct OverlayColors
     Color Hovered;
     Color Pressed;
     Color Text;
+    Color Inner;
 
     Color WindowBackgroundExpanded;
     Color WindowBackgroundCollapsed;
@@ -145,7 +152,6 @@ struct OverlayColors
 
     Color ScrollBarIdle;
     Color ScrollBarHovered;
-    Color ScrollBarPressed;
 };
 
 struct OverlayColorRegistry
@@ -155,8 +161,9 @@ struct OverlayColorRegistry
 
               .Idle = Color::FromHexadecimal("2D3748"),
               .Hovered = Color::FromHexadecimal("4A5568"),
-              .Pressed = Color::FromHexadecimal("718096"),
+              .Pressed = Color::FromHexadecimal("5A6A7E"),
               .Text = Color::FromHexadecimal("E2E8F0"),
+              .Inner = Color::FromHexadecimal("4A8EC2"),
 
               .WindowBackgroundExpanded = Color::FromHexadecimal("2A3F5F"),
               .WindowBackgroundCollapsed = Color::FromHexadecimal("1E2D45D9"),
@@ -166,7 +173,6 @@ struct OverlayColorRegistry
 
               .ScrollBarIdle = Color::FromHexadecimal("3A4F6F"),
               .ScrollBarHovered = Color::FromHexadecimal("5A7A9E"),
-              .ScrollBarPressed = Color::FromHexadecimal("63B3ED"),
           }
     {
     }
@@ -184,17 +190,15 @@ struct OverlayColorRegistry
 
 struct ClickInputInfo
 {
-    bool Clicked;
-    bool Pressed;
-    bool Hovered;
-    OverlayWindowFlags FlagsToAdd;
+    bool Clicked = false;
+    bool Pressed = false;
+    bool Hovered = false;
 };
 
 struct DragInputInfo
 {
-    bool Pressed;
-    bool Hovered;
-    OverlayWindowFlags FlagsToAdd;
+    bool Pressed = false;
+    bool Hovered = false;
 };
 
 struct UserInterfaceSpecs
@@ -218,6 +222,77 @@ class UserInterface
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
 
+    template <typename T> bool Slider(const TKit::StringView label, T *value, const T mn, const T mx)
+    {
+        Layout &ly = m_Current->Layout;
+        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                   .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
+                                                   .ChildGap = 8.f});
+
+        const LayoutElement *elm = ly.QueryElement("Outer slider");
+        const Color *col = &m_Colors[OverlayColor_SliderIdle];
+        bool pressed = false;
+        if (elm)
+        {
+            const DragInputInfo info = getDragInputInfo(elm);
+
+            if (info.Pressed)
+                col = &m_Colors[OverlayColor_SliderPressed];
+            else if (info.Hovered)
+                col = &m_Colors[OverlayColor_SliderHovered];
+            pressed = info.Pressed;
+        }
+
+        const f32 padding = 6.f;
+        const f32 length = elm ? elm->Size[0] : 0.f;
+
+        const f32 maxOffset = 0.5f * (length - m_WidgetWidth) - padding;
+
+        f32 offset = 0.f;
+        if (pressed)
+        {
+            const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            offset = Math::Clamp(relPos, -maxOffset, maxOffset);
+        }
+        else if (elm)
+        {
+            *value = Math::Clamp(*value, mn, mx);
+            const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
+            offset = Math::Clamp(normalized * maxOffset + pressed * m_MouseDelta[0], -maxOffset, maxOffset);
+        }
+        if (elm)
+            *value = Math::Map(offset, -maxOffset, maxOffset, mn, mx);
+
+        ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
+                                                            .Alignment = Alignment_Center,
+                                                            .Sizing = {LayoutSizing::Normalized(0.6f),
+                                                                       LayoutSizing::Absolute(m_WidgetWidth)},
+                                                            .Padding = padding});
+
+        ly.Panel("Inner slider",
+                 LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_CheckBoxInner],
+                                       .Sizing = {LayoutSizing::Absolute(m_WidgetWidth), LayoutSizing::Grow()},
+                                       .SelfOffset = {LayoutOffset::Absolute(offset), LayoutOffset::Absolute(0.f)}});
+
+        ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                         .Sizing = LayoutSizing::Normalized(1.f),
+                                                         .Floating = {.Enable = true, .DrawOnTop = false, .Clip = true},
+                                                         .Padding = padding});
+
+        const TKit::StackString text = TKit::StackString::Format("{:.3f}", *value);
+        ly.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
+                                           .FontSize = m_FontSize,
+                                           .Offset = m_TextOffset});
+        ly.EndPanel();
+
+        ly.EndPanel();
+        ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
+                                            .FontSize = m_FontSize,
+                                            .Offset = m_TextOffset});
+        ly.EndPanel();
+        return pressed;
+    }
+
     void Draw();
 
   private:
@@ -231,8 +306,8 @@ class UserInterface
     void drawWindowBorders();
     void drawWindowScrollBar();
 
-    ClickInputInfo getClickInputInfo(const TKit::StringView label) const;
-    DragInputInfo getDragInputInfo(const LayoutElement *elm, bool wasPressed) const;
+    ClickInputInfo getClickInputInfo(const LayoutElement *elm);
+    DragInputInfo getDragInputInfo(const LayoutElement *elm);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
@@ -258,11 +333,18 @@ class UserInterface
     f32 m_ScrollBarWidth = 8.f;
     f32 m_BorderHoverPadding = 8.f;
     f32 m_ScrollSensitivity = 8.f;
+    f32 m_WidgetWidth = 24.f;
 
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;
 
     vec2<LayoutOffset> m_TextOffset = LayoutOffset::Absolute(f32v2{0.f, 2.f});
+
+    usz m_HoveredClicker = NullLayoutId;
+    usz m_HoveredDragger = NullLayoutId;
+
+    usz m_PressedClicker = NullLayoutId;
+    usz m_PressedDragger = NullLayoutId;
 
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};

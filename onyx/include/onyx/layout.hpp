@@ -191,10 +191,12 @@ enum LayoutAttachment : u8
 
 struct LayoutFloatingParameters
 {
+    // NOTE(Isma): Should maybe use flags here? 3 bools already
     bool Enable = false;
     bool DrawOnTop = true;
-    vec2<Alignment> Alignment{Alignment_Canonical};
+    bool Clip = false;
     vec2<LayoutAttachment> Attachment{LayoutAttachment_Canonical};
+    vec2<Alignment> Alignment{Alignment_Canonical};
 };
 
 struct LayoutElement
@@ -217,6 +219,7 @@ struct LayoutElement
     vec2<LayoutOffsetType> SelfOffsetType;
     vec2<LayoutAttachment> FloatAttachment;
     vec2<Alignment> FloatAlignment;
+    bool FloatClip;
     bool DrawOnTop;
 
     f32v4 Padding; // left right bottom top
@@ -317,6 +320,7 @@ struct LayoutSpecs
     Resource Font = NullHandle;
 };
 
+// TODO(Isma): Have a tkit macro for this ::Max()
 constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
 
 class Layout
