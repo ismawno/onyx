@@ -26,7 +26,7 @@ enum OverlayResizeFlagBit : OverlayResizeFlags
 struct OverlayResizeInfo
 {
     TKit::FixedArray<usz, OverlayResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
-    const Color *Color = nullptr;
+    const Color *InteractionColor = nullptr; // Whether hovered or pressed
     f32v2 Position;
     f32v2 Size;
     f32 BarWidth = 4.f;
@@ -84,8 +84,9 @@ enum OverlayColor : u8
     OverlayColor_WindowHeaderBackgroundCollapsed,
     OverlayColor_WindowHeader,
 
-    OverlayColor_WindowResizeHovered,
-    OverlayColor_WindowResizePressed,
+    OverlayColor_WindowBorderIdle,
+    OverlayColor_WindowBorderHovered,
+    OverlayColor_WindowBorderPressed,
 
     OverlayColor_ButtonIdle,
     OverlayColor_ButtonHovered,
@@ -104,8 +105,9 @@ struct OverlayColors
     Color WindowHeaderBackgroundCollapsed;
     Color WindowHeader;
 
-    Color WindowResizeHovered;
-    Color WindowResizePressed;
+    Color WindowBorderIdle;
+    Color WindowBorderHovered;
+    Color WindowBorderPressed;
 
     Color ButtonIdle;
     Color ButtonHovered;
@@ -122,10 +124,11 @@ struct OverlayColorRegistry
 
               .WindowHeaderBackgroundExpanded = Color::FromHexadecimal("344E6E"),
               .WindowHeaderBackgroundCollapsed = Color::FromHexadecimal("2A3F5FD9"),
-
               .WindowHeader = Color::FromHexadecimal("E2E8F0"),
-              .WindowResizeHovered = Color::FromHexadecimal("4A5568"),
-              .WindowResizePressed = Color::FromHexadecimal("718096"),
+
+              .WindowBorderIdle = Color::FromHexadecimal("2D3748"),
+              .WindowBorderHovered = Color::FromHexadecimal("4A5568"),
+              .WindowBorderPressed = Color::FromHexadecimal("718096"),
 
               .ButtonIdle = Color::FromHexadecimal("2D3748"),
               .ButtonHovered = Color::FromHexadecimal("4A5568"),
@@ -177,6 +180,7 @@ class UserInterface
     f32v2 getMousePos() const;
     void processWindows();
     void bringWindowToTop(u32 idx);
+    void drawBorders(const vec2<LayoutSizing> &sizing);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);

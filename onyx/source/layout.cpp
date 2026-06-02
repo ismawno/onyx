@@ -27,7 +27,7 @@ Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
 
     m_IdStack.Append(ONYX_LAYOUT_START_ID);
 }
-usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
+usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
 {
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
@@ -137,7 +137,7 @@ usz Layout::BeginPanel(const usz label, const LayoutPanelParameters &params)
     return current.Id;
 }
 
-void Layout::EndPanel()
+void Layout::endPanel()
 {
     TKIT_ASSERT(!m_ElementStack.IsEmpty(),
                 "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");

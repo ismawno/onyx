@@ -313,7 +313,12 @@ class Layout
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(usz label, const LayoutPanelParameters &params = {});
+    usz BeginPanel(usz label, const LayoutPanelParameters &params = {})
+    {
+        const usz id = beginPanel(label, params);
+        PushId(label);
+        return id;
+    }
     usz BeginPanel(const TKit::StringView label, const LayoutPanelParameters &params = {})
     {
         return BeginPanel(TKit::Hash(label), params);
@@ -327,8 +332,8 @@ class Layout
 
     usz Panel(usz label, const LayoutPanelParameters &params = {})
     {
-        const usz id = BeginPanel(label, params);
-        EndPanel();
+        const usz id = beginPanel(label, params);
+        endPanel();
         return id;
     }
     usz Panel(const TKit::StringView label, const LayoutPanelParameters &params = {})
@@ -340,7 +345,11 @@ class Layout
         Panel(++m_AutoLabel, params);
     }
 
-    void EndPanel();
+    void EndPanel()
+    {
+        PopId();
+        endPanel();
+    }
 
     usz Text(usz label, TKit::StringView text, const LayoutTextParameters &params = {});
     usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
@@ -408,6 +417,9 @@ class Layout
     }
 
   private:
+    usz beginPanel(usz label, const LayoutPanelParameters &params);
+    void endPanel();
+
     void fitPass(LayoutAxis axis);
     void normPass(LayoutAxis axis);
     void growShrinkPass(LayoutAxis axis);

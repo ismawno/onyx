@@ -16,14 +16,13 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
     m_Context->AddTarget(m_View);
 }
 
-static void drawResizes(OverlayWindow &win, const vec2<LayoutSizing> &sizing)
+void UserInterface::drawBorders(const vec2<LayoutSizing> &sizing)
 {
-    Layout &ly = win.Layout;
-    const Color &col = *win.Resize.Color;
-    // TODO(Isma): Set this for a border color
-    const Color &trp = Color_Transparent;
+    Layout &ly = m_Current->Layout;
+    const Color &interaction = *m_Current->Resize.InteractionColor;
+    const Color &idle = m_Colors[OverlayColor_WindowBorderIdle];
 
-    OverlayResizeInfo &rinfo = win.Resize;
+    OverlayResizeInfo &rinfo = m_Current->Resize;
 
     const bool l = rinfo.Flags & OverlayResizeFlag_Left;
     const bool r = rinfo.Flags & OverlayResizeFlag_Right;
@@ -40,23 +39,42 @@ static void drawResizes(OverlayWindow &win, const vec2<LayoutSizing> &sizing)
     const OverlayResizeEdge top = OverlayResizeEdge_Top;
 
     const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
-    ly.BeginPanel(
-        LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
 
-    rinfo.Ids[left] = ly.Panel("Left resize", LayoutPanelParameters{.FillColor = l ? col : trp, .Sizing = hsizing});
-    ly.Panel(LayoutPanelParameters{.Sizing = grow});
-    rinfo.Ids[right] = ly.Panel("Right resize", LayoutPanelParameters{.FillColor = r ? col : trp, .Sizing = hsizing});
+    const auto drawVerticalBorders = [&] {
+        ly.BeginPanel(
+            "Vertical borders",
+            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
+        rinfo.Ids[left] =
+            ly.Panel("Left resize", LayoutPanelParameters{.FillColor = l ? interaction : idle, .Sizing = hsizing});
+        ly.Panel(LayoutPanelParameters{.Sizing = grow});
+        rinfo.Ids[right] =
+            ly.Panel("Right resize", LayoutPanelParameters{.FillColor = r ? interaction : idle, .Sizing = hsizing});
+        ly.EndPanel();
+    };
 
-    ly.EndPanel();
+    const auto drawHorizontalBorders = [&] {
+        ly.BeginPanel(
+            "Horizontal borders",
+            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
 
-    ly.BeginPanel(
-        LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
+        rinfo.Ids[bottom] =
+            ly.Panel("Bottom resize", LayoutPanelParameters{.FillColor = b ? interaction : idle, .Sizing = vsizing});
+        ly.Panel(LayoutPanelParameters{.Sizing = grow});
+        rinfo.Ids[top] =
+            ly.Panel("Top resize", LayoutPanelParameters{.FillColor = t ? interaction : idle, .Sizing = vsizing});
 
-    rinfo.Ids[bottom] = ly.Panel("Bottom resize", LayoutPanelParameters{.FillColor = b ? col : trp, .Sizing = vsizing});
-    ly.Panel(LayoutPanelParameters{.Sizing = grow});
-    rinfo.Ids[top] = ly.Panel("Top resize", LayoutPanelParameters{.FillColor = t ? col : trp, .Sizing = vsizing});
-
-    ly.EndPanel();
+        ly.EndPanel();
+    };
+    if (l || r)
+    {
+        drawHorizontalBorders();
+        drawVerticalBorders();
+    }
+    else
+    {
+        drawVerticalBorders();
+        drawHorizontalBorders();
+    }
 }
 
 bool UserInterface::BeginWindow(const TKit::StringView title)
@@ -81,7 +99,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title)
                                   .Padding = m_WindowPadding,
                                   .ChildGap = 8.f});
 
-    drawResizes(*m_Current, sizing);
+    drawBorders(sizing);
     ly.BeginPanel("Header",
                   LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
                                                                : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
@@ -219,7 +237,7 @@ void UserInterface::processWindows()
                 const usz id = rinfo.Ids[i];
                 if (win.Layout.IsHovered(id, m_MousePos, 16.f))
                 {
-                    win.Resize.Color = &m_Colors[OverlayColor_WindowResizeHovered];
+                    win.Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderHovered];
                     rflags |= 1U << i;
                 }
             }
@@ -298,7 +316,7 @@ void UserInterface::processWindows()
         m_Grabbed = nullptr;
     else if (m_Grabbed)
     {
-        m_Grabbed->Resize.Color = &m_Colors[OverlayColor_WindowResizePressed];
+        m_Grabbed->Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderPressed];
         OverlayResizeInfo &rinfo = m_Grabbed->Resize;
         f32v2 &p = rinfo.Position;
         f32v2 &s = rinfo.Size;
