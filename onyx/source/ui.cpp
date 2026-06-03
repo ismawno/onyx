@@ -177,12 +177,15 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     const LayoutSizing fit = LayoutSizing::Fit();
     const LayoutSizing fit0 = LayoutSizing::Fit(0.f);
     const LayoutSizing grow = LayoutSizing::Grow();
+    const LayoutSizing flex = LayoutSizing::Flex();
 
     Layout &ly = m_Current->Layout;
 
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noHeader && m_Current->HeaderIcon == m_CollapsedHeaderIcon;
     const bool autoResize = flags & OverlayWindowFlag_AlwaysAutoResize;
+    if (autoResize)
+        m_Current->ScrollBar.Reset();
 
     // ugly
     const vec2<LayoutSizing> sizing = [&]() -> vec2<LayoutSizing> {
@@ -219,7 +222,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                     .FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
                                                            : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
                                     .Alignment = {Alignment_Left, Alignment_Center},
-                                    .Sizing = {grow, fit0},
+                                    .Sizing = {flex, fit0},
                                     .Padding = m_HeaderPadding,
                                     .ChildGap = 8.f});
 

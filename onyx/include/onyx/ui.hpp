@@ -333,7 +333,7 @@ class UserInterface
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
+                                                   .Sizing = {LayoutSizing::Grow(300.f), LayoutSizing::Fit(0.f)},
                                                    .ChildGap = 8.f});
 
         const LayoutElement *elm = ly.QueryElement("Outer slider");
@@ -416,7 +416,7 @@ class UserInterface
         const bool hasLimits = mn < mx;
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
+                                                   .Sizing = {LayoutSizing::Grow(300.f), LayoutSizing::Fit(0.f)},
                                                    .ChildGap = 8.f});
 
         const LayoutElement *elm = ly.QueryElement("Outer drag");

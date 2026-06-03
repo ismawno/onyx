@@ -31,6 +31,7 @@ enum LayoutSizingType : u8
     LayoutSizing_Normalized,
     LayoutSizing_Fit,
     LayoutSizing_Grow,
+    LayoutSizing_Flex,
 };
 struct LayoutSizing
 {
@@ -60,6 +61,14 @@ struct LayoutSizing
     {
         return {0.f, min, max, 1.f, LayoutSizing_Grow};
     }
+    static constexpr LayoutSizing Flex(const f32 min, const f32 max, const f32 shrinkTolerance = 1.f)
+    {
+        return {0.f, min, max, shrinkTolerance, LayoutSizing_Flex};
+    }
+    static constexpr LayoutSizing Flex(const f32 shrinkTolerance = 1.f)
+    {
+        return {0.f, 0.f, TKIT_F32_MAX, shrinkTolerance, LayoutSizing_Flex};
+    }
 
     static constexpr vec2<LayoutSizing> Absolute(const f32v2 &size)
     {
@@ -69,11 +78,11 @@ struct LayoutSizing
     {
         return {Normalized(size[0]), Normalized(size[1])};
     }
-    static constexpr vec2<LayoutSizing> Fit(const f32v2 &mn, const f32v2 &mx)
+    static constexpr vec2<LayoutSizing> Fit(const f32v2 &mn, const f32v2 &mx = f32v2{TKIT_F32_MAX})
     {
         return {Fit(mn[0], mx[0]), Fit(mn[1], mx[1])};
     }
-    static constexpr vec2<LayoutSizing> Grow(const f32v2 &mn, const f32v2 &mx)
+    static constexpr vec2<LayoutSizing> Grow(const f32v2 &mn, const f32v2 &mx = f32v2{TKIT_F32_MAX})
     {
         return {Grow(mn[0], mx[0]), Grow(mn[1], mx[1])};
     }

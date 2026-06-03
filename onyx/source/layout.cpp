@@ -119,7 +119,7 @@ usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
             current.Size[i] = 0.f;
             current.MinSize[i] = params.Sizing[i].Min;
             current.MaxSize[i] = params.Sizing[i].Max;
-            if (current.Sizing[i] != LayoutSizing_Fit)
+            if (current.Sizing[i] != LayoutSizing_Fit && current.Sizing[i] != LayoutSizing_Flex)
                 current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
             else
             {
@@ -147,8 +147,7 @@ void Layout::endPanel()
                 "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
     const u32 c = m_ElementStack.GetBack();
-    if (!m_Elements[c].Children.IsEmpty())
-        m_ReversedBreadth.Append(c);
+    m_ReversedBreadth.Append(c);
 
     m_ElementStack.Pop();
     PopId();
@@ -288,11 +287,10 @@ void Layout::fitPass(const LayoutAxis axis)
     for (const u32 p : m_ReversedBreadth)
     {
         LayoutElement &parent = m_Elements[p];
-        TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
         TKIT_ASSERT(parent.Type != LayoutElement_Text && parent.Type != LayoutElement_Unicode,
                     "[ONYX][LAYOUT] A parent node cannot be text or unicode");
 
-        if (parent.Sizing[axis] != LayoutSizing_Fit)
+        if (parent.Sizing[axis] != LayoutSizing_Fit && parent.Sizing[axis] != LayoutSizing_Flex)
             continue;
 
         const LayoutAxis paxis = getAxis(parent.Direction);
@@ -379,8 +377,9 @@ void Layout::growShrinkPass(const LayoutAxis axis)
 
                 const bool isPanel = child.Type == LayoutElement_Panel;
                 const bool isText = child.Type == LayoutElement_Text;
-                const bool isGrow = child.Sizing[axis] == LayoutSizing_Grow;
-                const bool isFit = child.Sizing[axis] == LayoutSizing_Fit;
+                const bool isFlex = child.Sizing[axis] == LayoutSizing_Flex;
+                const bool isGrow = isFlex || child.Sizing[axis] == LayoutSizing_Grow;
+                const bool isFit = isFlex || child.Sizing[axis] == LayoutSizing_Fit;
                 const bool isWrapped = isText && child.TextMode == TextMode_Wrapped;
                 const bool canGrow = csize < child.MaxSize[axis];
                 const bool canShrink = csize > child.MinSize[axis];
@@ -484,14 +483,18 @@ void Layout::growShrinkPass(const LayoutAxis axis)
 
                 const bool isPanel = child.Type == LayoutElement_Panel;
                 const bool isText = child.Type == LayoutElement_Text;
-                const bool isGrow = child.Sizing[axis] == LayoutSizing_Grow;
-                const bool isFit = child.Sizing[axis] == LayoutSizing_Fit;
+                const bool isFlex = child.Sizing[axis] == LayoutSizing_Flex;
+                const bool isGrow = isFlex || child.Sizing[axis] == LayoutSizing_Grow;
+                const bool isFit = isFlex || child.Sizing[axis] == LayoutSizing_Fit;
                 const bool isHor = axis == LayoutAxis_Horizontal;
                 const bool isWrapped = isText && child.TextMode == TextMode_Wrapped;
 
+                // size is now the remaining size of the parent. straightforward for non layout direction
                 if (isPanel && isGrow)
                     child.Size[axis] = Math::Clamp(remainingSize, child.MinSize[axis], child.MaxSize[axis]);
-                else if (isFit || (isHor && isWrapped))
+                // check if current size is overflowing. if it is, bring it back to remainingSize, unless its too small
+                // in minSize terms
+                if ((isPanel && isFit) || (isHor && isWrapped))
                     child.Size[axis] = Math::Min(child.Size[axis], Math::Max(remainingSize, child.MinSize[axis]));
             }
     }
