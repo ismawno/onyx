@@ -4,6 +4,91 @@
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
 
+// ============================================================
+// TODO(Isma): Overlay widget roadmap
+// ============================================================
+//
+// --- Missing widgets ---
+//
+// [ ] Separator
+// [ ] Tooltip
+// [ ] SameLine
+// [ ] Indent / Unindent
+// [ ] TextInput (single line)
+// [ ] ColorDisplay
+// [ ] RadioButton
+// [ ] ProgressBar
+// [ ] Combo / Dropdown
+// [ ] TreeNode
+// [ ] Tabs
+// [ ] TextInput (multiline)
+// [ ] ColorPicker
+// [ ] Table
+// [ ] Docking
+// [ ] MenuBar
+//
+// --- Global ---
+//
+// [ ] BeginDisabled / EndDisabled
+//
+// --- Per-widget flags ---
+//
+// Window:
+//   [ ] NoResize
+//   [ ] NoMove
+//   [ ] NoCollapse
+//   [ ] NoScrollBar
+//   [ ] NoBackground
+//   [ ] NoTitleBar
+//   [ ] AlwaysAutoResize
+//   [ ] NoBringToFrontOnFocus
+//
+// Button:
+//   [ ] Small
+//
+// Slider:
+//   [ ] NoLabel
+//   [ ] Logarithmic
+//   [ ] Vertical
+//
+// Drag:
+//   [ ] NoLabel
+//
+// Text:
+//   [ ] Bullet
+//
+// TextInput:
+//   [ ] ReadOnly
+//   [ ] Password (mask characters)
+//   [ ] EnterReturnsTrue (confirm on enter only)
+//   [ ] Hint (placeholder text)
+//
+// Combo:
+//   [ ] NoPreview (hide current selection)
+//   [ ] HeightSmall / HeightLarge (popup size)
+//
+// TreeNode:
+//   [ ] DefaultOpen
+//   [ ] Leaf (no arrow, not expandable)
+//   [ ] Bullet (bullet instead of arrow)
+//
+// Tabs:
+//   [ ] Reorderable
+//   [ ] NoCloseButton
+//
+// Table:
+//   [ ] Sortable
+//   [ ] Resizable
+//   [ ] NoBorders
+//   [ ] RowBackground (alternating row colors)
+//
+// ColorPicker:
+//   [ ] NoAlpha
+//   [ ] NoLabel
+//   [ ] NoInputs (hide text input fields)
+//
+// ============================================================
+
 namespace Onyx
 {
 enum OverlayResizeEdge : u8
@@ -134,6 +219,11 @@ enum OverlayColor : u8
     OverlayColor_SliderPressed = OverlayColor_Pressed,
     OverlayColor_SliderText = OverlayColor_Text,
     OverlayColor_SliderInner = OverlayColor_Inner,
+
+    OverlayColor_DragIdle = OverlayColor_Idle,
+    OverlayColor_DragHovered = OverlayColor_Hovered,
+    OverlayColor_DragPressed = OverlayColor_Pressed,
+    OverlayColor_DragText = OverlayColor_Text,
 };
 
 struct OverlayColors
@@ -219,12 +309,16 @@ class UserInterface
     bool BeginWindow(TKit::StringView title);
     void EndWindow();
 
+    // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
+    void Text(TKit::StringView text);
 
+    // TODO(Isma): Implement flags
     template <typename T, std::convertible_to<T> U>
     bool Slider(const TKit::StringView label, T *value, const U mn, const U mx)
     {
+        TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
@@ -254,10 +348,10 @@ class UserInterface
         if (pressed)
         {
             const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
-            // that double conversion is used for snapping
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
             *value = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
             if constexpr (Integer<T>)
+                // snapping
                 offset = normalized * maxOffset;
         }
         else if (elm)
@@ -273,7 +367,7 @@ class UserInterface
                                                             .Padding = padding});
 
         ly.Panel("Inner slider",
-                 LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_CheckBoxInner],
+                 LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
                                        .Sizing = {LayoutSizing::Absolute(m_WidgetWidth), LayoutSizing::Grow()},
                                        .SelfOffset = {LayoutOffset::Absolute(offset), LayoutOffset::Absolute(0.f)}});
 
@@ -297,6 +391,67 @@ class UserInterface
 
         ly.EndPanel();
         ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
+                                            .FontSize = m_FontSize,
+                                            .Offset = m_TextOffset});
+        ly.EndPanel();
+        return pressed;
+    }
+
+    // TODO(Isma): Implement flags
+    template <typename T, std::convertible_to<T> U = T>
+    bool Drag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
+    {
+        const bool hasLimits = mn < mx;
+        Layout &ly = m_Current->Layout;
+        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                   .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
+                                                   .ChildGap = 8.f});
+
+        const LayoutElement *elm = ly.QueryElement("Outer drag");
+        const Color *col = &m_Colors[OverlayColor_DragIdle];
+        bool pressed = false;
+        if (elm)
+        {
+            const DragInputInfo info = getDragInputInfo(elm);
+
+            if (info.Pressed)
+                col = &m_Colors[OverlayColor_DragPressed];
+            else if (info.Hovered)
+                col = &m_Colors[OverlayColor_DragHovered];
+            pressed = info.Pressed;
+        }
+
+        if (pressed)
+        {
+            const f32 md = m_MouseDelta[0];
+            const T nval = *value + T(speed * md);
+            if ((md > 0.f && nval > *value) || (md < 0.f && nval < *value))
+                *value = nval;
+        }
+        if (hasLimits)
+            *value = Math::Clamp(*value, T(mn), T(mx));
+
+        const f32 padding = 6.f;
+        ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
+                                                          .Alignment = Alignment_Center,
+                                                          .Sizing = {LayoutSizing::Normalized(0.6f),
+                                                                     LayoutSizing::Absolute(m_WidgetWidth)},
+                                                          .Padding = padding});
+
+        const TKit::StackString text = [&] {
+            // TODO(Isma): Pass formatting as a parameter
+            if constexpr (Float<T>)
+                return TKit::StackString::Format("{:.3f}", *value);
+            else
+                return TKit::StackString::Format("{}", *value);
+        }();
+
+        ly.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_DragText],
+                                           .FontSize = m_FontSize,
+                                           .Offset = m_TextOffset});
+
+        ly.EndPanel();
+        ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_DragText],
                                             .FontSize = m_FontSize,
                                             .Offset = m_TextOffset});
         ly.EndPanel();

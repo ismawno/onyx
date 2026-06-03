@@ -358,6 +358,13 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     return info.Clicked;
 }
 
+void UserInterface::Text(const TKit::StringView text)
+{
+    m_Current->Layout.Text(
+        text,
+        LayoutTextParameters{.FillColor = m_Colors[OverlayColor_Text], .FontSize = m_FontSize, .Offset = m_TextOffset});
+}
+
 void UserInterface::Draw()
 {
     processWindows();
