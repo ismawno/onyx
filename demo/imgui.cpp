@@ -12,6 +12,8 @@ int main()
     {
         if (Onyx::CanRenderImGui(win))
             ImGui::ShowDemoWindow();
+        ImGui::Begin("Hey", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::End();
 
         Onyx::Render();
     }

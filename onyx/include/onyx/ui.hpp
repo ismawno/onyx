@@ -100,12 +100,18 @@ enum OverlayResizeEdge : u8
     OverlayResizeEdge_Count
 };
 using OverlayResizeFlags = u8;
-enum OverlayResizeFlagBit : OverlayResizeFlags
+using OverlayWindowFlags = u16;
+
+enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayResizeFlag_Left = 1U << 0,
-    OverlayResizeFlag_Right = 1U << 1,
-    OverlayResizeFlag_Bottom = 1U << 2,
-    OverlayResizeFlag_Top = 1U << 3,
+    OverlayWindowFlag_NoResize = 1U << 4,
+    OverlayWindowFlag_NoMove = 1U << 5,
+    OverlayWindowFlag_NoCollapse = 1U << 6,
+    OverlayWindowFlag_NoScrollBar = 1U << 7,
+    OverlayWindowFlag_NoHeaderBar = 1U << 8,
+    OverlayWindowFlag_NoBackground = 1U << 9,
+    OverlayWindowFlag_NoBringToFocus = 1U << 10,
+    OverlayWindowFlag_AlwaysAutoResize = 1U << 11,
 };
 
 struct OverlayResizeInfo
@@ -132,16 +138,6 @@ struct ScrollBarInfo
         CursorOffset = 0.f;
         WheelOffset = 0.f;
     }
-};
-
-using OverlayWindowFlags = u8;
-enum OverlayWindowFlagBit : OverlayWindowFlags
-{
-    OverlayWindowFlag_Collapsed = 1U << 0,
-    OverlayWindowFlag_MousePressed = 1U << 1,
-    OverlayWindowFlag_MouseReleased = 1U << 2,
-    OverlayWindowFlag_Hovered = 1U << 3,
-    OverlayWindowFlag_Scrolled = 1U << 4,
 };
 
 struct OverlayWindow
@@ -306,16 +302,32 @@ class UserInterface
     UserInterface(Window *win, const UserInterfaceSpecs &specs = {});
 
     // TODO(Isma): Should return id
-    bool BeginWindow(TKit::StringView title);
+    bool BeginWindow(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndWindow();
 
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
+
+    template <TKit::Integer T, std::convertible_to<T> U>
+    bool CheckBoxFlags(TKit::StringView label, T *flags, const U flag)
+    {
+        bool enabled = *flags & T(flag);
+        if (CheckBox(label, &enabled))
+        {
+            if (enabled)
+                *flags |= T(flag);
+            else
+                *flags &= ~T(flag);
+            return true;
+        }
+        return false;
+    }
+
     void Text(TKit::StringView text);
 
     // TODO(Isma): Implement flags
-    template <typename T, std::convertible_to<T> U>
+    template <TKit::Numeric T, std::convertible_to<T> U>
     bool Slider(const TKit::StringView label, T *value, const U mn, const U mx)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
@@ -398,7 +410,7 @@ class UserInterface
     }
 
     // TODO(Isma): Implement flags
-    template <typename T, std::convertible_to<T> U = T>
+    template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool Drag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
     {
         const bool hasLimits = mn < mx;

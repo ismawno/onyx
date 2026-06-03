@@ -538,7 +538,7 @@ void Layout::positionPass()
 
         for (u32 axis = 0; axis < 2; ++axis)
         {
-            f32 &tcsize = parent.ChildSize[axis];
+            f32 &tcsize = parent.ChildrenSize[axis];
             tcsize = 0.f;
             if (paxis == axis)
             {

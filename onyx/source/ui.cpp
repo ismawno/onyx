@@ -4,6 +4,22 @@
 
 namespace Onyx
 {
+enum OverlayResizeFlagBit : OverlayResizeFlags
+{
+    OverlayResizeFlag_Left = 1U << 0,
+    OverlayResizeFlag_Right = 1U << 1,
+    OverlayResizeFlag_Bottom = 1U << 2,
+    OverlayResizeFlag_Top = 1U << 3,
+};
+enum OverlayWindowInternalFlagBit : OverlayWindowFlags
+{
+    OverlayWindowFlag_Collapsed = 1U << 0,
+    OverlayWindowFlag_MousePressed = 1U << 1,
+    OverlayWindowFlag_MouseReleased = 1U << 2,
+    OverlayWindowFlag_Hovered = 1U << 3,
+    OverlayWindowFlagClear = (1U << 4) - 1U
+};
+
 UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
     : m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors)
 {
@@ -97,7 +113,7 @@ void UserInterface::drawWindowScrollBar()
         return;
 
     const f32 size = contentArea->Size[1];
-    const f32 csize = contentArea->ChildSize[1];
+    const f32 csize = contentArea->ChildrenSize[1];
 
     ScrollBarInfo &sinfo = m_Current->ScrollBar;
     if (csize > size)
@@ -119,24 +135,28 @@ void UserInterface::drawWindowScrollBar()
 
             if (!iinfo.Pressed && iinfo.Hovered)
                 col = &m_Colors[OverlayColor_ScrollBarHovered];
-
-            const f32 barSize = scrollBar->Size[1];
-            const f32 maxOffset = size - barSize;
-
-            const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
-            sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
-
-            // TODO(Isma): Parametrize this
-            const f32 margin = 24.f;
-            sinfo.ElementOffset = (csize + margin) * sinfo.BarOffset / size;
         }
+        else
+            sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
 
-        ly.Panel("Scroll bar",
-                 LayoutPanelParameters{
-                     .FillColor = *col,
-                     .Sizing = {LayoutSizing::Absolute(m_ScrollBarWidth), LayoutSizing::Normalized(size / csize)},
-                     .SelfOffset = {LayoutOffset::Absolute(0.f), LayoutOffset::Absolute(sinfo.BarOffset)},
-                     .Shape = LayoutShape::Rectangle(m_ScrollBarWidth)});
+        const f32 barSize = size * size / csize;
+        const f32 maxOffset = size - barSize;
+
+        const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
+        sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
+
+        // TODO(Isma): Parametrize this
+        const f32 margin = 24.f;
+        sinfo.ElementOffset = (csize + margin) * sinfo.BarOffset / size;
+
+        const bool noScroll = m_Current->Flags & OverlayWindowFlag_NoScrollBar;
+        if (!noScroll)
+            ly.Panel("Scroll bar",
+                     LayoutPanelParameters{
+                         .FillColor = *col,
+                         .Sizing = {LayoutSizing::Absolute(m_ScrollBarWidth), LayoutSizing::Absolute(barSize)},
+                         .SelfOffset = {LayoutOffset::Absolute(0.f), LayoutOffset::Absolute(sinfo.BarOffset)},
+                         .Shape = LayoutShape::Rectangle(m_ScrollBarWidth)});
     }
     else
         sinfo.Reset();
@@ -144,69 +164,99 @@ void UserInterface::drawWindowScrollBar()
     sinfo.WheelOffset = 0.f;
 }
 
-bool UserInterface::BeginWindow(const TKit::StringView title)
+bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
 {
     TKIT_ASSERT(!m_Current, "[ONYX][Overlay] Cannot begin a new window when another one is being processed");
 
     const usz id = TKit::Hash(title);
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->MinSize = computeWindowMinSize(m_WindowPadding, m_HeaderPadding, m_FontSize);
+    m_Current->Flags &= OverlayWindowFlagClear;
+    m_Current->Flags |= flags;
+
+    const LayoutSizing fit = LayoutSizing::Fit();
+    const LayoutSizing fit0 = LayoutSizing::Fit(0.f);
+    const LayoutSizing grow = LayoutSizing::Grow();
 
     Layout &ly = m_Current->Layout;
-    const bool collapsed = m_Current->HeaderIcon == m_CollapsedHeaderIcon;
 
-    const vec2<LayoutSizing> sizing = LayoutSizing::Absolute(m_Current->Size);
+    const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
+    const bool collapsed = !noHeader && m_Current->HeaderIcon == m_CollapsedHeaderIcon;
+    const bool autoResize = flags & OverlayWindowFlag_AlwaysAutoResize;
+
+    // ugly
+    const vec2<LayoutSizing> sizing = [&]() -> vec2<LayoutSizing> {
+        if (autoResize)
+            return collapsed ? vec2<LayoutSizing>{fit, LayoutSizing::Absolute(m_Current->Size[1])}
+                             : vec2<LayoutSizing>{fit};
+
+        return LayoutSizing::Absolute(m_Current->Size);
+    }();
+
     const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
-    m_Current->Id = ly.BeginPanel(
-        id, LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowBackgroundCollapsed]
-                                                         : m_Colors[OverlayColor_WindowBackgroundExpanded],
-                                  .Direction = LayoutDirection_TopToBottom,
-                                  .Alignment = topLeft,
-                                  .Sizing = sizing,
-                                  .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
-                                  .Padding = m_WindowPadding,
-                                  .ChildGap = 8.f});
+
+    const bool noBckg = flags & OverlayWindowFlag_NoBackground;
+    m_Current->Id =
+        ly.BeginPanel(id, LayoutPanelParameters{.FillColor =
+                                                    [&] {
+                                                        if (noBckg)
+                                                            return Color_Transparent;
+                                                        if (collapsed)
+                                                            return m_Colors[OverlayColor_WindowBackgroundCollapsed];
+                                                        return m_Colors[OverlayColor_WindowBackgroundExpanded];
+                                                    }(),
+                                                .Direction = LayoutDirection_TopToBottom,
+                                                .Alignment = topLeft,
+                                                .Sizing = sizing,
+                                                .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
+                                                .Padding = m_WindowPadding,
+                                                .ChildGap = 8.f});
 
     drawWindowBorders();
-    ly.BeginPanel("Header",
-                  LayoutPanelParameters{.FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
-                                                               : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
-                                        .Alignment = {Alignment_Left, Alignment_Center},
-                                        .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit(0.f)},
-                                        .Padding = m_HeaderPadding,
-                                        .ChildGap = 8.f});
-
-    if (collapseButton())
+    if (!noHeader)
     {
-        if (collapsed)
+        ly.BeginPanel("Header", LayoutPanelParameters{
+                                    .FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
+                                                           : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
+                                    .Alignment = {Alignment_Left, Alignment_Center},
+                                    .Sizing = {grow, fit0},
+                                    .Padding = m_HeaderPadding,
+                                    .ChildGap = 8.f});
+
+        const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
+        if (!noCollapse && collapseButton())
         {
-            m_Current->Size[1] = m_Current->LastHeight;
-            m_Current->ScrollBar.Reset();
+            if (collapsed)
+            {
+                m_Current->Size[1] = m_Current->LastHeight;
+                m_Current->ScrollBar.Reset();
+            }
+            else
+            {
+                m_Current->LastHeight = m_Current->Size[1];
+                m_Current->Size[1] = m_Current->MinSize[1];
+            }
         }
-        else
-        {
-            m_Current->LastHeight = m_Current->Size[1];
-            m_Current->Size[1] = m_Current->MinSize[1];
-        }
+
+        ly.Text(title, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
+                                            .FontSize = m_FontSize,
+                                            .Offset = m_TextOffset});
+
+        ly.EndPanel();
     }
-
-    ly.Text(title, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                        .FontSize = m_FontSize,
-                                        .Offset = m_TextOffset});
-
-    ly.EndPanel();
 
     ly.BeginPanel("Scroll area", LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
                                                        .Alignment = topLeft,
-                                                       .Sizing = LayoutSizing::Grow(),
+                                                       .Sizing = autoResize ? fit : grow,
                                                        .ChildGap = 4.f});
     // must pass the id bc at this point, querying plainly with "Scroll area" will mix with the actual "Scroll area"
     // panel, giving a different id
-    drawWindowScrollBar();
+    if (!collapsed && !autoResize)
+        drawWindowScrollBar();
     ly.BeginPanel("Content area",
                   LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
                                         .Alignment = topLeft,
-                                        .Sizing = LayoutSizing::Grow(),
+                                        .Sizing = autoResize ? fit : grow,
                                         .ChildOffset = {LayoutOffset::Absolute(0.f),
                                                         LayoutOffset::Absolute(-m_Current->ScrollBar.ElementOffset)},
                                         .Padding = 4.f,
@@ -402,6 +452,8 @@ void UserInterface::processWindows()
                 win.Resize.Flags = 0;
                 return true;
             }
+            if (win.CheckFlags(OverlayWindowFlag_NoResize | OverlayWindowFlag_AlwaysAutoResize))
+                return true;
             // else, check if there is resize hover
 
             OverlayResizeFlags rflags = 0;
@@ -449,13 +501,10 @@ void UserInterface::processWindows()
     f32 scroll = 0.f;
     for (const Event &ev : m_Window->GetNewEvents())
     {
-        wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) +
+        wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) |
                   OverlayWindowFlag_MouseReleased * (ev.Type == Event_MouseReleased);
         if (ev.Type == Event_Scrolled)
-        {
-            wflags |= OverlayWindowFlag_Scrolled;
             scroll = m_ScrollSensitivity * ev.ScrollOffset[1];
-        }
     }
 
     bool canAssignHover = true;
@@ -469,6 +518,7 @@ void UserInterface::processWindows()
         const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
         win.AddFlags(wflags & OverlayWindowFlag_MouseReleased);
+        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_Hovered);
         if (winHovered)
         {
             win.AddFlags(OverlayWindowFlag_Hovered);
@@ -478,14 +528,16 @@ void UserInterface::processWindows()
 
         if (pressed && (win.Resize.Flags != 0 || winHovered))
         {
+            const bool noFocus = win.Flags & OverlayWindowFlag_NoBringToFocus;
             if (!hoveringWidget)
             {
-                win.Flags = wflags;
+                win.Flags |= wflags;
                 win.Resize.Position = win.Position;
                 win.Resize.Size = win.Size;
-                m_Grabbed = &m_OverlayWindows.GetBack();
+                m_Grabbed = noFocus ? &win : &m_OverlayWindows.GetBack();
             }
-            bringWindowToTop(idx);
+            if (!noFocus)
+                bringWindowToTop(idx);
             // because we just moved the current window to the front (back of the array)
             return false;
         }
@@ -509,31 +561,33 @@ void UserInterface::processWindows()
 
         const f32v2 &md = m_MouseDelta;
 
-        const auto handleResizeAxis = [&](const u32 idx, const OverlayResizeFlags canonical,
-                                          const OverlayResizeFlags mirrored, const f32 sign = 1.f) {
-            const f32 step = md[idx];
-            if (rinfo.Flags & canonical)
-            {
-                s[idx] -= sign * step;
-                p[idx] += step;
-            }
-            else if (rinfo.Flags & mirrored)
-                s[idx] += sign * step;
+        const bool noMove = m_Grabbed->Flags & OverlayWindowFlag_NoMove;
+        const bool noResize = m_Grabbed->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AlwaysAutoResize);
 
-            if (s[idx] >= ms[idx])
-            {
-                m_Grabbed->Position[idx] = p[idx];
-                m_Grabbed->Size[idx] = s[idx];
-            }
-        };
-
-        if (rinfo.Flags == 0)
+        if (rinfo.Flags == 0 && !noMove)
         {
             p += md;
             m_Grabbed->Position = p;
         }
-        else
+        else if (!noResize)
         {
+            const auto handleResizeAxis = [&](const u32 idx, const OverlayResizeFlags canonical,
+                                              const OverlayResizeFlags mirrored, const f32 sign = 1.f) {
+                const f32 step = md[idx];
+                if (rinfo.Flags & canonical)
+                {
+                    s[idx] -= sign * step;
+                    p[idx] += step;
+                }
+                else if (rinfo.Flags & mirrored)
+                    s[idx] += sign * step;
+
+                if (s[idx] >= ms[idx])
+                {
+                    m_Grabbed->Position[idx] = p[idx];
+                    m_Grabbed->Size[idx] = s[idx];
+                }
+            };
             handleResizeAxis(0, OverlayResizeFlag_Left, OverlayResizeFlag_Right);
             handleResizeAxis(1, OverlayResizeFlag_Top, OverlayResizeFlag_Bottom, -1.f);
         }

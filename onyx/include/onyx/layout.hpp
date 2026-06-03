@@ -212,7 +212,7 @@ struct LayoutElement
     f32v2 ChildOffset;
     f32v2 SelfOffset;
     f32v2 ShrinkTolerance;
-    f32v2 ChildSize;
+    f32v2 ChildrenSize;
 
     vec2<LayoutSizingType> Sizing;
     vec2<LayoutOffsetType> ChildOffsetType;

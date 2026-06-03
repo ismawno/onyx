@@ -18,7 +18,19 @@ int main()
     {
         ui.Draw();
 
-        ui.BeginWindow("Test");
+        static Onyx::OverlayWindowFlags flags = 0;
+        ui.BeginWindow("Window settings", flags);
+        ui.CheckBoxFlags("No resize", &flags, Onyx::OverlayWindowFlag_NoResize);
+        ui.CheckBoxFlags("No move", &flags, Onyx::OverlayWindowFlag_NoMove);
+        ui.CheckBoxFlags("No collapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
+        ui.CheckBoxFlags("No scroll bar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
+        ui.CheckBoxFlags("No background", &flags, Onyx::OverlayWindowFlag_NoBackground);
+        ui.CheckBoxFlags("No header bar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+        ui.CheckBoxFlags("No bring to focus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+        ui.CheckBoxFlags("Always auto resize", &flags, Onyx::OverlayWindowFlag_AlwaysAutoResize);
+        ui.EndWindow();
+
+        ui.BeginWindow("Test", flags);
         ui.Button("Wow!");
         ui.Button("Yes!");
         ui.Button("No!");
@@ -45,7 +57,7 @@ int main()
 
         if (anotherWindow)
         {
-            ui.BeginWindow("Im another window!");
+            ui.BeginWindow("Im another window!", flags);
             ui.Text("Happy to be here!");
             ui.EndWindow();
         }
