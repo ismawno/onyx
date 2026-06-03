@@ -4,6 +4,7 @@
 #include "onyx/ui.hpp"
 
 using Onyx::D2;
+using namespace TKit::Alias;
 
 int main()
 {
@@ -22,11 +23,18 @@ int main()
         ui.Button("Yes!");
         ui.Button("No!");
         ui.Button("A!");
-        static bool yes = false;
-        ui.CheckBox("BBB!", &yes);
+        static bool sliders = false;
+        ui.CheckBox("Enable sliders", &sliders);
 
-        static float val = 4.f;
-        ui.Slider("My slider", &val, 0.f, 10.f);
+        if (sliders)
+        {
+            static f32 fval = 4;
+            ui.Slider("My slider float", &fval, 0.f, 10.f);
+
+            static u32 uval = 7;
+            ui.Slider("My slider uint", &uval, 3, 28);
+        }
+
         ui.EndWindow();
 
         ui.BeginWindow("Another");

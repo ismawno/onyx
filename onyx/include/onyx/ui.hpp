@@ -108,6 +108,8 @@ enum OverlayColor : u8
 
     OverlayColor_ScrollBarIdle,
     OverlayColor_ScrollBarHovered,
+    OverlayColor_Count,
+
     OverlayColor_ScrollBarPressed = OverlayColor_Inner,
 
     OverlayColor_WindowHeader = OverlayColor_Text,
@@ -132,8 +134,6 @@ enum OverlayColor : u8
     OverlayColor_SliderPressed = OverlayColor_Pressed,
     OverlayColor_SliderText = OverlayColor_Text,
     OverlayColor_SliderInner = OverlayColor_Inner,
-
-    OverlayColor_Count,
 };
 
 struct OverlayColors
@@ -222,7 +222,8 @@ class UserInterface
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
 
-    template <typename T> bool Slider(const TKit::StringView label, T *value, const T mn, const T mx)
+    template <typename T, std::convertible_to<T> U>
+    bool Slider(const TKit::StringView label, T *value, const U mn, const U mx)
     {
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -249,19 +250,21 @@ class UserInterface
         const f32 maxOffset = 0.5f * (length - m_WidgetWidth) - padding;
 
         f32 offset = 0.f;
+        const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
         if (pressed)
         {
             const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            // that double conversion is used for snapping
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
+            *value = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
+            if constexpr (Integer<T>)
+                offset = normalized * maxOffset;
         }
         else if (elm)
         {
-            *value = Math::Clamp(*value, mn, mx);
-            const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
-            offset = Math::Clamp(normalized * maxOffset + pressed * m_MouseDelta[0], -maxOffset, maxOffset);
+            *value = Math::Clamp(*value, T(mn), T(mx));
+            offset = normalized * maxOffset;
         }
-        if (elm)
-            *value = Math::Map(offset, -maxOffset, maxOffset, mn, mx);
 
         ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
                                                             .Alignment = Alignment_Center,
@@ -279,7 +282,14 @@ class UserInterface
                                                          .Floating = {.Enable = true, .DrawOnTop = false, .Clip = true},
                                                          .Padding = padding});
 
-        const TKit::StackString text = TKit::StackString::Format("{:.3f}", *value);
+        const TKit::StackString text = [&] {
+            // TODO(Isma): Pass formatting as a parameter
+            if constexpr (Float<T>)
+                return TKit::StackString::Format("{:.3f}", *value);
+            else
+                return TKit::StackString::Format("{}", *value);
+        }();
+
         ly.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
                                            .FontSize = m_FontSize,
                                            .Offset = m_TextOffset});
