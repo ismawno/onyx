@@ -197,6 +197,10 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     current.MinSize[1] = 0.f;
     // current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
+
+    // HACK(Isma): Text wont align properly naturally. Ive found adding these two aligns it nicely. Kinda hacky bc i
+    // dont know how it will work with other fonts
+    // current.SelfOffset[1] += fs * (fdata.Ascender + fdata.Descender);
     return current.Id;
 }
 
@@ -246,6 +250,10 @@ usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodePa
 
     current.MinSize = current.Size;
     current.MaxSize = f32v2{TKIT_F32_MAX};
+
+    // HACK(Isma): Text wont align properly naturally. Ive found adding these two aligns it nicely. Kinda hacky bc i
+    // dont know how it will work with other fonts
+    // current.SelfOffset[1] += fs * (fdata.Ascender + fdata.Descender);
     return current.Id;
 }
 
@@ -591,24 +599,28 @@ void Layout::positionPass()
                 coffset *= Math::Absolute(factor);
             }
 
-            const f32 clmn = parent.ClipMin[axis];
-            const f32 clmx = parent.ClipMax[axis];
+            const f32 mn = parent.ClipMin[axis];
+            const f32 mx = parent.ClipMax[axis];
 
-            const f32 pmn = ppos + p0;
             const f32 pmx = ppos + psize - p1;
+            const f32 pmn = ppos + p0;
 
             f32 poffset = ppos + coffset + padding + parentAlignOffset;
 
             const auto clipChild = [&](LayoutElement &child) {
+                f32 &cmn = child.ClipMin[axis];
+                f32 &cmx = child.ClipMax[axis];
                 if (parent.ChildOverflow == LayoutOverflow_Clip)
                 {
-                    child.ClipMin[axis] = Math::Max(pmn, clmn);
-                    child.ClipMax[axis] = Math::Min(pmx, clmx);
+                    cmn = Math::Max(pmn, mn);
+                    cmx = Math::Min(pmx, mx);
+                    if (cmn > cmx)
+                        cmn = cmx;
                 }
                 else
                 {
-                    child.ClipMin[axis] = clmn;
-                    child.ClipMax[axis] = clmx;
+                    cmn = mn;
+                    cmx = mx;
                 }
             };
 

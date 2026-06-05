@@ -16,7 +16,6 @@ int main()
 
     while (Onyx::Running())
     {
-
         static Onyx::OverlayWindowFlags flags = 0;
         ui.BeginWindow("Window settings", flags);
         ui.CheckBoxFlags("No resize", &flags, Onyx::OverlayWindowFlag_NoResize);

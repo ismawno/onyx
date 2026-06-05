@@ -493,6 +493,8 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     }
     if (line.Start < line.End)
         lines.Append(line);
+    if (lines.IsEmpty())
+        return;
 
     f32v2 pos;
     constexpr f32 factors[3] = {0.f, 0.5f, 1.f};
@@ -500,7 +502,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const f32 yfactor = factors[2 - alg1];
 
     const f32 dy = fdata.LineHeight + params.LineSpacing;
-    pos[1] = dy * (yfactor * (f32(lines.GetSize()) - 1.f) - factors[alg1] / fdata.GetLineFactor());
+    pos[1] = dy * (yfactor * f32(lines.GetSize() - 1) - factors[alg1]);
 
     const auto updateTransform = [&] {
         f32v<D + 1> p = transform[D];

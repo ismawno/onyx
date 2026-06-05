@@ -21,11 +21,10 @@ enum OverlayWindowInternalFlagBit : OverlayWindowFlags
 };
 
 UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
-    : m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors)
+    : Config(specs.Config), m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors)
 {
     m_Camera.Mode = CameraMode_Viewport;
-    m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_PostProcess |
-                                                      RenderViewFlag_Outlines | RenderViewFlag_Transparency);
+    m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
     m_View->ClearColor.rgba[3] = 0.f;
 
     m_Context = CreateRenderContext<D2>();
@@ -143,21 +142,23 @@ void UserInterface::drawWindowScrollBar()
         const f32 barSize = size * size / csize;
         const f32 maxOffset = size - barSize;
 
-        const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset;
-        sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
-
         // TODO(Isma): Parametrize this
         const f32 margin = 24.f;
-        sinfo.ElementOffset = (csize + margin) * sinfo.BarOffset / size;
+        const f32 elementFactor = (csize + margin) / size;
+
+        const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset / elementFactor;
+        sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
+
+        sinfo.ElementOffset = elementFactor * sinfo.BarOffset;
 
         const bool noScroll = m_Current->Flags & OverlayWindowFlag_NoScrollBar;
         if (!noScroll)
             ly.Panel("Scroll bar",
                      LayoutPanelParameters{
                          .FillColor = *col,
-                         .Sizing = {LayoutSizing::Absolute(m_ScrollBarWidth), LayoutSizing::Absolute(barSize)},
+                         .Sizing = {LayoutSizing::Absolute(Config.ScrollBarWidth), LayoutSizing::Absolute(barSize)},
                          .SelfOffset = {LayoutOffset::Absolute(0.f), LayoutOffset::Absolute(sinfo.BarOffset)},
-                         .Shape = LayoutShape::Rectangle(m_ScrollBarWidth)});
+                         .Shape = LayoutShape::Rectangle(Config.ScrollBarWidth)});
     }
     else
         sinfo.Reset();
@@ -171,7 +172,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
 
     const usz id = TKit::Hash(title);
     m_Current = getOrCreateOverlayWindow(id);
-    m_Current->MinSize = computeWindowMinSize(m_WindowPadding, m_HeaderPadding, m_FontSize);
+    m_Current->MinSize = computeWindowMinSize(Config.WindowPadding, Config.HeaderPadding, Config.FontSize);
     m_Current->Flags &= OverlayWindowFlagClear;
     m_Current->Flags |= flags;
 
@@ -212,7 +213,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                 .Alignment = topLeft,
                                                 .Sizing = sizing,
                                                 .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
-                                                .Padding = m_WindowPadding,
+                                                .Padding = Config.WindowPadding,
                                                 .ChildGap = 8.f});
 
     drawWindowBorders();
@@ -223,7 +224,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                            : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
                                     .Alignment = {Alignment_Left, Alignment_Center},
                                     .Sizing = {flex, fit},
-                                    .Padding = m_HeaderPadding,
+                                    .Padding = Config.HeaderPadding,
                                     .ChildGap = 8.f});
 
         const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
@@ -242,7 +243,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
         }
 
         ly.Text(title, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                            .FontSize = m_FontSize,
+                                            .FontSize = Config.FontSize,
                                             .Offset = m_TextOffset});
 
         ly.EndPanel();
@@ -293,7 +294,7 @@ bool UserInterface::collapseButton()
                                         .Padding = 0.f});
 
     ly.Unicode(m_Current->HeaderIcon, LayoutUnicodeParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                                              .Size = m_FontSize,
+                                                              .Size = Config.FontSize,
                                                               .Offset = m_TextOffset});
 
     ly.EndPanel();
@@ -369,8 +370,9 @@ bool UserInterface::Button(const TKit::StringView label)
                   LayoutPanelParameters{
                       .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(), .Padding = 8.f});
 
-    ly.Text(label, LayoutTextParameters{
-                       .FillColor = m_Colors[OverlayColor_ButtonText], .FontSize = m_FontSize, .Offset = m_TextOffset});
+    ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_ButtonText],
+                                        .FontSize = Config.FontSize,
+                                        .Offset = m_TextOffset});
     ly.EndPanel();
     return info.Clicked;
 }
@@ -395,7 +397,7 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 
     ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = Alignment_Center,
-                                                          .Sizing = LayoutSizing::Absolute(m_WidgetWidth),
+                                                          .Sizing = LayoutSizing::Absolute(Config.WidgetWidth),
                                                           .Padding = 6.f});
 
     ly.Panel("Inner checkbox",
@@ -404,7 +406,7 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     ly.EndPanel();
 
     ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_CheckBoxText],
-                                        .FontSize = m_FontSize,
+                                        .FontSize = Config.FontSize,
                                         .Offset = m_TextOffset});
 
     ly.EndPanel();
@@ -413,9 +415,9 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 
 void UserInterface::Text(const TKit::StringView text)
 {
-    m_Current->Layout.Text(
-        text,
-        LayoutTextParameters{.FillColor = m_Colors[OverlayColor_Text], .FontSize = m_FontSize, .Offset = m_TextOffset});
+    m_Current->Layout.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_Text],
+                                                      .FontSize = Config.FontSize,
+                                                      .Offset = m_TextOffset});
 }
 
 void UserInterface::Draw()
@@ -464,7 +466,7 @@ void UserInterface::processWindows()
             for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
             {
                 const usz id = rinfo.Ids[i];
-                if (win.Layout.IsHovered(id, m_MousePos, m_BorderHoverPadding))
+                if (win.Layout.IsHovered(id, m_MousePos, Config.BorderHoverPadding))
                 {
                     win.Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderHovered];
                     rflags |= 1U << i;
@@ -507,7 +509,7 @@ void UserInterface::processWindows()
         wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) |
                   OverlayWindowFlag_MouseReleased * (ev.Type == Event_MouseReleased);
         if (ev.Type == Event_Scrolled)
-            scroll = m_ScrollSensitivity * ev.ScrollOffset[1];
+            scroll = Config.ScrollSensitivity * ev.ScrollOffset[1];
     }
 
     bool canAssignHover = true;
@@ -517,7 +519,7 @@ void UserInterface::processWindows()
     // grabbed if user pressed the mouse
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
-        const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, m_BorderHoverPadding);
+        const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, Config.BorderHoverPadding);
         const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
         win.AddFlags(wflags & OverlayWindowFlag_MouseReleased);
@@ -620,6 +622,8 @@ OverlayWindow *UserInterface::getOrCreateOverlayWindow(const usz id)
     m_WindowIds.Append(id);
     OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
     win.HeaderIcon = m_ExpandedHeaderIcon;
+    win.Position += m_WindowSpawnOffset;
+    m_WindowSpawnOffset += Config.WindowSpawnDelta;
     return &win;
 }
 

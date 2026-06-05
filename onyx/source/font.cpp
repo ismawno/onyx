@@ -105,8 +105,11 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     data.AtlasData = idata;
     data.Ascender = f32(metrics.ascenderY) / opts.EmSize;
     data.Descender = f32(metrics.descenderY) / opts.EmSize;
-    data.LineHeight = opts.LineGapFactor * f32(metrics.lineHeight) / opts.EmSize;
+    const f32 lh = f32(metrics.lineHeight) / opts.EmSize;
+    data.LineHeight = opts.LineGapFactor * lh;
     data.UnitRange = opts.SDFRange / f32(dims[0]);
+
+    const f32 yoffset = 0.5f * (data.LineHeight - lh + data.Ascender + data.Descender);
 
     for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
     {
@@ -115,8 +118,8 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
 
         f64 pl, pb, pr, pt;
         glyph.getQuadPlaneBounds(pl, pb, pr, pt);
-        const f32v2 quadMin{f32(pl), f32(pb)};
-        const f32v2 quadMax{f32(pr), f32(pt)};
+        const f32v2 quadMin{f32(pl), f32(pb) + yoffset};
+        const f32v2 quadMax{f32(pr), f32(pt) + yoffset};
 
         f64 al, ab, ar, at;
         glyph.getQuadAtlasBounds(al, ab, ar, at);

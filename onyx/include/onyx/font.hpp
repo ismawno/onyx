@@ -242,7 +242,7 @@ struct FontLoadOptions
     f32 Padding = 2.f;
     f32 SDFRange = 4.f;
     f32 FontScale = 1.f;
-    f32 LineGapFactor = 1.2f;
+    f32 LineGapFactor = 1.5f;
     f32 MaxCornerAngle = 3.f;
     f32 EmSize = 40.f;
     u32 AtlasDimensions = 0; // zero means dimensions will be automatic
