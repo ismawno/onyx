@@ -197,10 +197,6 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     current.MinSize[1] = 0.f;
     // current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
-
-    // HACK(Isma): Text wont align properly naturally. Ive found adding these two aligns it nicely. Kinda hacky bc i
-    // dont know how it will work with other fonts
-    // current.SelfOffset[1] += fs * (fdata.Ascender + fdata.Descender);
     return current.Id;
 }
 
@@ -250,10 +246,6 @@ usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodePa
 
     current.MinSize = current.Size;
     current.MaxSize = f32v2{TKIT_F32_MAX};
-
-    // HACK(Isma): Text wont align properly naturally. Ive found adding these two aligns it nicely. Kinda hacky bc i
-    // dont know how it will work with other fonts
-    // current.SelfOffset[1] += fs * (fdata.Ascender + fdata.Descender);
     return current.Id;
 }
 

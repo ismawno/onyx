@@ -29,6 +29,9 @@ int main()
         ui.EndWindow();
 
         ui.BeginWindow("Test", flags);
+        const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
+        ui.Text("Delta time: {:.2f} ms", ftime);
+
         ui.Button("Wow!");
         ui.Button("Yes!");
         ui.Button("No!");

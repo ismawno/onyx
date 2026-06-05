@@ -337,7 +337,13 @@ class UserInterface
         return false;
     }
 
-    void Text(TKit::StringView text);
+    template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        m_Current->Layout.Text(txt, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_Text],
+                                                         .FontSize = Config.FontSize,
+                                                         .Offset = m_TextOffset});
+    }
 
     // TODO(Isma): Implement flags
     template <TKit::Numeric T, std::convertible_to<T> U>
