@@ -16,7 +16,6 @@ int main()
 
     while (Onyx::Running())
     {
-        ui.Draw();
 
         static Onyx::OverlayWindowFlags flags = 0;
         ui.BeginWindow("Window settings", flags);
@@ -34,7 +33,9 @@ int main()
         ui.Button("Wow!");
         ui.Button("Yes!");
         ui.Button("No!");
-        ui.Button("A!");
+        if (ui.Button("A!"))
+            TKit::PrintLine("Hello! ive been pressed");
+
         static bool sliders = false;
         static bool anotherWindow = false;
         ui.CheckBox("Extra window", &anotherWindow);
@@ -61,6 +62,8 @@ int main()
             ui.Text("Happy to be here!");
             ui.EndWindow();
         }
+
+        ui.Draw();
 
         Onyx::Transfer();
         Onyx::Render();

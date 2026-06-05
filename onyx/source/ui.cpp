@@ -30,6 +30,7 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
+    m_Context->Flush();
 }
 
 void UserInterface::drawWindowBorders()
@@ -175,7 +176,6 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     m_Current->Flags |= flags;
 
     const LayoutSizing fit = LayoutSizing::Fit();
-    const LayoutSizing fit0 = LayoutSizing::Fit(0.f);
     const LayoutSizing grow = LayoutSizing::Grow();
     const LayoutSizing flex = LayoutSizing::Flex();
 
@@ -222,7 +222,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                     .FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
                                                            : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
                                     .Alignment = {Alignment_Left, Alignment_Center},
-                                    .Sizing = {flex, fit0},
+                                    .Sizing = {flex, fit},
                                     .Padding = m_HeaderPadding,
                                     .ChildGap = 8.f});
 
@@ -289,7 +289,7 @@ bool UserInterface::collapseButton()
     ly.BeginPanel("Collapse button",
                   LayoutPanelParameters{.FillColor = *col,
                                         .Alignment = Alignment_Center,
-                                        .Sizing = {LayoutSizing::Fit(20.f, TKIT_F32_MAX, 0.f), LayoutSizing::Fit(0.f)},
+                                        .Sizing = {LayoutSizing::Fit(20.f, TKIT_F32_MAX), LayoutSizing::Fit()},
                                         .Padding = 0.f});
 
     ly.Unicode(m_Current->HeaderIcon, LayoutUnicodeParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
@@ -365,9 +365,9 @@ bool UserInterface::Button(const TKit::StringView label)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
-    ly.BeginPanel(
-        label, LayoutPanelParameters{
-                   .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(0.f), .Padding = 8.f});
+    ly.BeginPanel(label,
+                  LayoutPanelParameters{
+                      .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(), .Padding = 8.f});
 
     ly.Text(label, LayoutTextParameters{
                        .FillColor = m_Colors[OverlayColor_ButtonText], .FontSize = m_FontSize, .Offset = m_TextOffset});
@@ -390,7 +390,7 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
         *enable = !*enable;
 
     ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                               .Sizing = LayoutSizing::Fit(0.f),
+                                               .Sizing = LayoutSizing::Fit(),
                                                .ChildGap = 8.f});
 
     ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,

@@ -121,12 +121,6 @@ usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
             current.MaxSize[i] = params.Sizing[i].Max;
             if (current.Sizing[i] != LayoutSizing_Fit && current.Sizing[i] != LayoutSizing_Flex)
                 current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
-            else
-            {
-                const f32 s = params.Sizing[i].ShrinkTolerance;
-                TKIT_ASSERT(s >= 0.f && s <= 1.f, "[ONYX][LAYOUT] Shrink tolerance must be between 0 and 1");
-                current.ShrinkTolerance[i] = s;
-            }
         }
 
         // bc fits get clamped in the fit pass
@@ -322,9 +316,8 @@ void Layout::fitPass(const LayoutAxis axis)
             }
         }
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
-        const f32 pfactor = 1.f - parent.ShrinkTolerance[axis];
 
-        pmnsize = Math::Max(pmnsize, childMinSizeTotal) + pfactor * padding;
+        pmnsize = Math::Max(pmnsize, childMinSizeTotal + padding);
         psize += padding;
 
         if (paxis == axis)
@@ -601,8 +594,8 @@ void Layout::positionPass()
             const f32 clmn = parent.ClipMin[axis];
             const f32 clmx = parent.ClipMax[axis];
 
-            const f32 pmn = ppos;
-            const f32 pmx = ppos + psize;
+            const f32 pmn = ppos + p0;
+            const f32 pmx = ppos + psize - p1;
 
             f32 poffset = ppos + coffset + padding + parentAlignOffset;
 

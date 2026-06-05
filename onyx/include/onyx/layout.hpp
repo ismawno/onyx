@@ -38,36 +38,27 @@ struct LayoutSizing
     f32 Size;
     f32 Min;
     f32 Max;
-    f32 ShrinkTolerance;
     LayoutSizingType Type;
 
     static constexpr LayoutSizing Absolute(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, 1.f, LayoutSizing_Absolute};
+        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Absolute};
     }
     static constexpr LayoutSizing Normalized(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, 1.f, LayoutSizing_Normalized};
+        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Normalized};
     }
-    static constexpr LayoutSizing Fit(const f32 min, const f32 max, const f32 shrinkTolerance = 1.f)
+    static constexpr LayoutSizing Fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return {0.f, min, max, shrinkTolerance, LayoutSizing_Fit};
-    }
-    static constexpr LayoutSizing Fit(const f32 shrinkTolerance = 1.f)
-    {
-        return {0.f, 0.f, TKIT_F32_MAX, shrinkTolerance, LayoutSizing_Fit};
+        return {0.f, min, max, LayoutSizing_Fit};
     }
     static constexpr LayoutSizing Grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return {0.f, min, max, 1.f, LayoutSizing_Grow};
+        return {0.f, min, max, LayoutSizing_Grow};
     }
-    static constexpr LayoutSizing Flex(const f32 min, const f32 max, const f32 shrinkTolerance = 1.f)
+    static constexpr LayoutSizing Flex(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return {0.f, min, max, shrinkTolerance, LayoutSizing_Flex};
-    }
-    static constexpr LayoutSizing Flex(const f32 shrinkTolerance = 1.f)
-    {
-        return {0.f, 0.f, TKIT_F32_MAX, shrinkTolerance, LayoutSizing_Flex};
+        return {0.f, min, max, LayoutSizing_Flex};
     }
 
     static constexpr vec2<LayoutSizing> Absolute(const f32v2 &size)
