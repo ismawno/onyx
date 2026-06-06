@@ -156,6 +156,7 @@ struct OverlayWindow
     OverlayWindowFlags Flags = 0;
 
     TKit::String TextInput{};
+    f32 TextHighlightSize = 0.f;
     f32 TextCursorPos = 0.f;
 
     bool CheckFlags(const OverlayWindowFlags flags) const
@@ -299,8 +300,8 @@ struct LayoutConfig
     f32 WidgetSize = 24.f;
     f32 WindowSpawnDelta = 32.f;
     f32 ScrollMargin = 24.f;
-    f32 DragPadding = 6.f;
-    f32 DoubleClickMilliseconds = 500.f;
+    f32 WidgetPadding = 6.f;
+    f32 ClickMilliseconds = 200.f;
     f32 CursorWidth = 2.f;
 };
 
@@ -434,7 +435,7 @@ class UserInterface
         const f32 w = 0.5f * Config.WidgetSize;
         const f32 h = Config.WidgetSize;
 
-        const f32 maxOffset = 0.5f * (length - w) - Config.DragPadding;
+        const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
 
         f32 offset = 0.f;
         const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
@@ -459,7 +460,7 @@ class UserInterface
         ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
                                                             .Alignment = {Alignment_Left, Alignment_Center},
                                                             .Sizing = {snorm(0.6f), fit()},
-                                                            .Padding = Config.DragPadding});
+                                                            .Padding = Config.WidgetPadding});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text length
         // cannot interfere with slider button positioning in layout calculation
@@ -534,7 +535,7 @@ class UserInterface
         ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = Alignment_Center,
                                                           .Sizing = {snorm(0.6f), fit()},
-                                                          .Padding = Config.DragPadding});
+                                                          .Padding = Config.WidgetPadding});
 
         const TKit::StackString text = [&] {
             // TODO(Isma): Pass formatting as a parameter
@@ -655,6 +656,8 @@ class UserInterface
     usz m_PressedDragger = NullLayoutId;
 
     usz m_FocusedInputter = NullLayoutId;
+
+    u32 m_OverflowClicks = 0;
 
     TKit::Clock m_ClickClock{};
 

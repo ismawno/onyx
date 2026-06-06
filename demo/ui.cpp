@@ -40,8 +40,10 @@ int main()
         if (ui.Button("A!"))
             TKit::PrintLine("Hello! ive been pressed");
 
-        static char buf[32] = "This is a test";
-        ui.InputText("Text", buf, 32);
+        static char buf1[32] = "Some long wooords tooo test";
+        ui.InputText("Text 1", buf1, 32);
+        static char buf2[32] = "Some wooords test... again!";
+        ui.InputText("Text 2", buf2, 32);
 
         static bool sliders = false;
         static bool anotherWindow = false;
