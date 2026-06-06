@@ -45,10 +45,8 @@ void UserInterface::drawWindowBorders()
     const bool b = rinfo.Flags & OverlayResizeFlag_Bottom;
     const bool t = rinfo.Flags & OverlayResizeFlag_Top;
 
-    const vec2<LayoutSizing> sizing = LayoutSizing::Normalized(1.f);
-    const vec2<LayoutSizing> hsizing = {LayoutSizing::Absolute(rinfo.BarWidth), LayoutSizing::Grow()};
-    const vec2<LayoutSizing> vsizing = {LayoutSizing::Grow(), LayoutSizing::Absolute(rinfo.BarWidth)};
-    const vec2<LayoutSizing> grow = LayoutSizing::Grow();
+    const vec2<LayoutSizing> hsizing = {sabs(Config.WindowBorderWidth), grow()};
+    const vec2<LayoutSizing> vsizing = {grow(), sabs(Config.WindowBorderWidth)};
 
     const OverlayResizeEdge left = OverlayResizeEdge_Left;
     const OverlayResizeEdge right = OverlayResizeEdge_Right;
@@ -60,7 +58,7 @@ void UserInterface::drawWindowBorders()
     const auto drawLeftBorder = [&] {
         ly.BeginPanel(
             "Left border",
-            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
+            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
         rinfo.Ids[left] =
             ly.Panel("Left", LayoutPanelParameters{.FillColor = l ? interaction : idle, .Sizing = hsizing});
         ly.EndPanel();
@@ -68,8 +66,8 @@ void UserInterface::drawWindowBorders()
     const auto drawRightBorder = [&] {
         ly.BeginPanel(
             "Right border",
-            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = sizing, .Floating = fparams});
-        ly.Panel(LayoutPanelParameters{.Sizing = grow});
+            LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
+        ly.Panel(LayoutPanelParameters{.Sizing = grow()});
         rinfo.Ids[right] =
             ly.Panel("Right", LayoutPanelParameters{.FillColor = r ? interaction : idle, .Sizing = hsizing});
         ly.EndPanel();
@@ -77,7 +75,7 @@ void UserInterface::drawWindowBorders()
     const auto drawBottomBorder = [&] {
         ly.BeginPanel(
             "Bottom border",
-            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
+            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
         rinfo.Ids[bottom] =
             ly.Panel("Bottom", LayoutPanelParameters{.FillColor = b ? interaction : idle, .Sizing = vsizing});
         ly.EndPanel();
@@ -85,8 +83,8 @@ void UserInterface::drawWindowBorders()
     const auto drawTopBorder = [&] {
         ly.BeginPanel(
             "Top border",
-            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = sizing, .Floating = fparams});
-        ly.Panel(LayoutPanelParameters{.Sizing = grow});
+            LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
+        ly.Panel(LayoutPanelParameters{.Sizing = grow()});
         rinfo.Ids[top] = ly.Panel("Top", LayoutPanelParameters{.FillColor = t ? interaction : idle, .Sizing = vsizing});
         ly.EndPanel();
     };
@@ -143,8 +141,7 @@ void UserInterface::drawWindowScrollBar()
         const f32 maxOffset = size - barSize;
 
         // TODO(Isma): Parametrize this
-        const f32 margin = 24.f;
-        const f32 elementFactor = (csize + margin) / size;
+        const f32 elementFactor = (csize + Config.ScrollMargin) / size;
 
         const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset / elementFactor;
         sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
@@ -153,12 +150,10 @@ void UserInterface::drawWindowScrollBar()
 
         const bool noScroll = m_Current->Flags & OverlayWindowFlag_NoScrollBar;
         if (!noScroll)
-            ly.Panel("Scroll bar",
-                     LayoutPanelParameters{
-                         .FillColor = *col,
-                         .Sizing = {LayoutSizing::Absolute(Config.ScrollBarWidth), LayoutSizing::Absolute(barSize)},
-                         .SelfOffset = {LayoutOffset::Absolute(0.f), LayoutOffset::Absolute(sinfo.BarOffset)},
-                         .Shape = LayoutShape::Rectangle(Config.ScrollBarWidth)});
+            ly.Panel("Scroll bar", LayoutPanelParameters{.FillColor = *col,
+                                                         .Sizing = sabs({Config.ScrollBarWidth, barSize}),
+                                                         .SelfOffset = oabs({0.f, sinfo.BarOffset}),
+                                                         .Shape = LayoutShape::Rectangle(Config.ScrollBarWidth)});
     }
     else
         sinfo.Reset();
@@ -176,10 +171,6 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     m_Current->Flags &= OverlayWindowFlagClear;
     m_Current->Flags |= flags;
 
-    const LayoutSizing fit = LayoutSizing::Fit();
-    const LayoutSizing grow = LayoutSizing::Grow();
-    const LayoutSizing flex = LayoutSizing::Flex();
-
     Layout &ly = m_Current->Layout;
 
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
@@ -191,10 +182,9 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     // ugly
     const vec2<LayoutSizing> sizing = [&]() -> vec2<LayoutSizing> {
         if (autoResize)
-            return collapsed ? vec2<LayoutSizing>{fit, LayoutSizing::Absolute(m_Current->Size[1])}
-                             : vec2<LayoutSizing>{fit};
+            return collapsed ? vec2<LayoutSizing>{fit(), sabs(m_Current->Size[1])} : vec2<LayoutSizing>{fit()};
 
-        return LayoutSizing::Absolute(m_Current->Size);
+        return sabs(m_Current->Size);
     }();
 
     const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
@@ -212,9 +202,9 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                 .Direction = LayoutDirection_TopToBottom,
                                                 .Alignment = topLeft,
                                                 .Sizing = sizing,
-                                                .SelfOffset = LayoutOffset::Absolute(m_Current->Position),
+                                                .SelfOffset = oabs(m_Current->Position),
                                                 .Padding = Config.WindowPadding,
-                                                .ChildGap = 8.f});
+                                                .ChildGap = Config.ChildGap});
 
     drawWindowBorders();
     if (!noHeader)
@@ -223,9 +213,9 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                     .FillColor = collapsed ? m_Colors[OverlayColor_WindowHeaderBackgroundCollapsed]
                                                            : m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
                                     .Alignment = {Alignment_Left, Alignment_Center},
-                                    .Sizing = {flex, fit},
+                                    .Sizing = {flex(), fit()},
                                     .Padding = Config.HeaderPadding,
-                                    .ChildGap = 8.f});
+                                    .ChildGap = Config.ChildGap});
 
         const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
         if (!noCollapse && collapseButton())
@@ -242,29 +232,25 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
             }
         }
 
-        ly.Text(title, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                            .FontSize = Config.FontSize,
-                                            .Offset = m_TextOffset});
+        ly.Text(title, getTextParams(OverlayColor_WindowHeader));
 
         ly.EndPanel();
     }
 
     ly.BeginPanel("Scroll area", LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
                                                        .Alignment = topLeft,
-                                                       .Sizing = autoResize ? fit : grow,
-                                                       .ChildGap = 4.f});
+                                                       .Sizing = autoResize ? fit() : grow(),
+                                                       .ChildGap = 0.5f * Config.ChildGap});
     // must pass the id bc at this point, querying plainly with "Scroll area" will mix with the actual "Scroll area"
     // panel, giving a different id
     if (!collapsed && !autoResize)
         drawWindowScrollBar();
-    ly.BeginPanel("Content area",
-                  LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
-                                        .Alignment = topLeft,
-                                        .Sizing = autoResize ? fit : grow,
-                                        .ChildOffset = {LayoutOffset::Absolute(0.f),
-                                                        LayoutOffset::Absolute(-m_Current->ScrollBar.ElementOffset)},
-                                        .Padding = 4.f,
-                                        .ChildGap = 8.f});
+    ly.BeginPanel("Content area", LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
+                                                        .Alignment = topLeft,
+                                                        .Sizing = autoResize ? fit() : grow(),
+                                                        .ChildOffset = oabs({0.f, -m_Current->ScrollBar.ElementOffset}),
+                                                        .Padding = 4.f,
+                                                        .ChildGap = Config.ChildGap});
     return !collapsed;
 }
 
@@ -287,15 +273,11 @@ bool UserInterface::collapseButton()
     if (info.Pressed)
         col = &m_Colors[OverlayColor_ButtonPressed];
 
-    ly.BeginPanel("Collapse button",
-                  LayoutPanelParameters{.FillColor = *col,
-                                        .Alignment = Alignment_Center,
-                                        .Sizing = {LayoutSizing::Fit(20.f, TKIT_F32_MAX), LayoutSizing::Fit()},
-                                        .Padding = 0.f});
+    ly.BeginPanel("Collapse button", LayoutPanelParameters{.FillColor = *col,
+                                                           .Alignment = Alignment_Center,
+                                                           .Sizing = {fit(20.f, TKIT_F32_MAX), fit()}});
 
-    ly.Unicode(m_Current->HeaderIcon, LayoutUnicodeParameters{.FillColor = m_Colors[OverlayColor_WindowHeader],
-                                                              .Size = Config.FontSize,
-                                                              .Offset = m_TextOffset});
+    ly.Unicode(m_Current->HeaderIcon, getUnicodeParams(OverlayColor_WindowHeader));
 
     ly.EndPanel();
     return info.Clicked;
@@ -366,13 +348,10 @@ bool UserInterface::Button(const TKit::StringView label)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
-    ly.BeginPanel(label,
-                  LayoutPanelParameters{
-                      .FillColor = *col, .Alignment = Alignment_Center, .Sizing = LayoutSizing::Fit(), .Padding = 8.f});
+    ly.BeginPanel(label, LayoutPanelParameters{
+                             .FillColor = *col, .Alignment = Alignment_Center, .Sizing = fit(), .Padding = 8.f});
 
-    ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_ButtonText],
-                                        .FontSize = Config.FontSize,
-                                        .Offset = m_TextOffset});
+    ly.Text(label, getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
     return info.Clicked;
 }
@@ -392,22 +371,20 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
         *enable = !*enable;
 
     ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                               .Sizing = LayoutSizing::Fit(),
-                                               .ChildGap = 8.f});
+                                               .Sizing = fit(),
+                                               .ChildGap = Config.ChildGap});
 
     ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = Alignment_Center,
-                                                          .Sizing = LayoutSizing::Absolute(Config.WidgetWidth),
+                                                          .Sizing = sabs(Config.WidgetSize),
                                                           .Padding = 6.f});
 
     ly.Panel("Inner checkbox",
              LayoutPanelParameters{.FillColor = *enable ? m_Colors[OverlayColor_CheckBoxInner] : Color_Transparent,
-                                   .Sizing = LayoutSizing::Grow()});
+                                   .Sizing = grow()});
     ly.EndPanel();
 
-    ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_CheckBoxText],
-                                        .FontSize = Config.FontSize,
-                                        .Offset = m_TextOffset});
+    ly.Text(label, getTextParams(OverlayColor_CheckBoxText));
 
     ly.EndPanel();
     return info.Clicked;

@@ -47,13 +47,13 @@ int main()
         {
             ui.Text("Here are some sliders!");
             static f32 fval = 4;
-            ui.Slider("My slider float", &fval, 0.f, 10.f);
+            ui.HorizontalSlider("My slider float", &fval, 0.f, 10.f);
 
             static u32 uval = 7;
-            ui.Slider("My slider uint", &uval, 3, 28);
+            ui.HorizontalSlider("My slider uint", &uval, 3, 28);
 
             static u32 uval2 = 7;
-            ui.Drag("My drag uint", &uval2, 1);
+            ui.HorizontalDrag("My drag uint", &uval2, 1);
         }
 
         ui.EndWindow();

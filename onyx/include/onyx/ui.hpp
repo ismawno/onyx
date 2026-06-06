@@ -43,9 +43,6 @@
 //   [ ] AlwaysAutoResize
 //   [ ] NoBringToFrontOnFocus
 //
-// Button:
-//   [ ] Small
-//
 // Slider:
 //   [ ] NoLabel
 //   [ ] Logarithmic
@@ -120,7 +117,6 @@ struct OverlayResizeInfo
     const Color *InteractionColor = nullptr; // Whether hovered or pressed
     f32v2 Position;
     f32v2 Size;
-    f32 BarWidth = 4.f;
     OverlayResizeFlags Flags = 0;
 };
 
@@ -291,12 +287,16 @@ struct LayoutConfig
 {
     f32 FontSize = 14.f;
     f32 WindowPadding = 8.f;
+    f32 WindowBorderWidth = 4.f;
+    f32 ChildGap = 8.f;
     f32 HeaderPadding = 4.f;
     f32 ScrollBarWidth = 8.f;
     f32 BorderHoverPadding = 8.f;
     f32 ScrollSensitivity = 16.f;
-    f32 WidgetWidth = 24.f;
+    f32 WidgetSize = 24.f;
     f32 WindowSpawnDelta = 32.f;
+    f32 ScrollMargin = 24.f;
+    f32 DragPadding = 6.f;
 };
 
 struct UserInterfaceSpecs
@@ -306,7 +306,8 @@ struct UserInterfaceSpecs
     LayoutConfig Config{};
 };
 
-// TODO(Isma): Add ui specs and color array
+// TODO(Isma): Tidy up things. create aliases for common sizing modes. parametrize hardcodes into config (child gap and
+// all as well)
 class UserInterface
 {
     TKIT_NON_COPYABLE(UserInterface)
@@ -340,19 +341,17 @@ class UserInterface
     template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
     {
         const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        m_Current->Layout.Text(txt, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_Text],
-                                                         .FontSize = Config.FontSize,
-                                                         .Offset = m_TextOffset});
+        m_Current->Layout.Text(txt, getTextParams(OverlayColor_Text));
     }
 
     // TODO(Isma): Implement flags
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool Slider(const TKit::StringView label, T *value, const U mn, const U mx)
+    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {LayoutSizing::Grow(300.f), LayoutSizing::Fit()},
+                                                   .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = 8.f});
 
         const LayoutElement *elm = ly.QueryElement("Outer slider");
@@ -369,10 +368,11 @@ class UserInterface
             pressed = info.Pressed;
         }
 
-        const f32 padding = 6.f;
         const f32 length = elm ? elm->Size[0] : 0.f;
+        const f32 w = 0.5f * Config.WidgetSize;
+        const f32 h = Config.WidgetSize;
 
-        const f32 maxOffset = 0.5f * (length - Config.WidgetWidth) - padding;
+        const f32 maxOffset = 0.5f * (length - w) - Config.DragPadding;
 
         f32 offset = 0.f;
         const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
@@ -394,11 +394,10 @@ class UserInterface
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
 
-        ly.BeginPanel("Outer slider",
-                      LayoutPanelParameters{.FillColor = *col,
-                                            .Alignment = {Alignment_Left, Alignment_Center},
-                                            .Sizing = {LayoutSizing::Normalized(0.6f), LayoutSizing::Fit()},
-                                            .Padding = padding});
+        ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
+                                                            .Alignment = {Alignment_Left, Alignment_Center},
+                                                            .Sizing = {snorm(0.6f), fit()},
+                                                            .Padding = Config.DragPadding});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text length
         // cannot interfere with slider button positioning in layout calculation
@@ -408,19 +407,16 @@ class UserInterface
         // offset text slot by 1 parent to align it correctly
 
         ly.BeginPanel("Slider slot",
-                      LayoutPanelParameters{.Alignment = Alignment_Center,
-                                            .Sizing = {LayoutSizing::Normalized(1.f), LayoutSizing::Fit()}});
+                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}});
 
-        ly.Panel("Slider button",
-                 LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
-                                       .Sizing = LayoutSizing::Absolute(Config.WidgetWidth),
-                                       .SelfOffset = {LayoutOffset::Absolute(offset), LayoutOffset::Absolute(0.f)}});
+        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
+                                                        .Sizing = sabs({w, h}),
+                                                        .SelfOffset = oabs({offset, 0.f})});
 
         ly.EndPanel();
-        ly.BeginPanel("Text slot", LayoutPanelParameters{
-                                       .Alignment = Alignment_Center,
-                                       .Sizing = {LayoutSizing::Normalized(1.f), LayoutSizing::Fit()},
-                                       .SelfOffset = {LayoutOffset::Normalized(-1.f), LayoutOffset::Absolute(0.f)}});
+        ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                         .Sizing = {snorm(1.f), fit()},
+                                                         .SelfOffset = onorm({-1.f, 0.f})});
 
         const TKit::StackString text = [&] {
             // TODO(Isma): Pass formatting as a parameter
@@ -430,27 +426,23 @@ class UserInterface
                 return TKit::StackString::Format("{}", *value);
         }();
 
-        ly.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
-                                           .FontSize = Config.FontSize,
-                                           .Offset = m_TextOffset});
+        ly.Text(text, getTextParams(OverlayColor_SliderText));
 
         ly.EndPanel();
         ly.EndPanel();
-        ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_SliderText],
-                                            .FontSize = Config.FontSize,
-                                            .Offset = m_TextOffset});
+        ly.Text(label, getTextParams(OverlayColor_SliderText));
         ly.EndPanel();
         return pressed;
     }
 
     // TODO(Isma): Implement flags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool Drag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
+    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
     {
         const bool hasLimits = mn < mx;
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {LayoutSizing::Grow(300.f), LayoutSizing::Fit()},
+                                                   .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = 8.f});
 
         const LayoutElement *elm = ly.QueryElement("Outer drag");
@@ -477,12 +469,10 @@ class UserInterface
         if (hasLimits)
             *value = Math::Clamp(*value, T(mn), T(mx));
 
-        const f32 padding = 6.f;
-        ly.BeginPanel("Outer drag",
-                      LayoutPanelParameters{.FillColor = *col,
-                                            .Alignment = Alignment_Center,
-                                            .Sizing = {LayoutSizing::Normalized(0.6f), LayoutSizing::Fit()},
-                                            .Padding = padding});
+        ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
+                                                          .Alignment = Alignment_Center,
+                                                          .Sizing = {snorm(0.6f), fit()},
+                                                          .Padding = Config.DragPadding});
 
         const TKit::StackString text = [&] {
             // TODO(Isma): Pass formatting as a parameter
@@ -492,10 +482,10 @@ class UserInterface
                 return TKit::StackString::Format("{}", *value);
         }();
 
-        ly.Text(text, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_DragText], .FontSize = Config.FontSize});
+        ly.Text(text, getTextParams(OverlayColor_DragText));
 
         ly.EndPanel();
-        ly.Text(label, LayoutTextParameters{.FillColor = m_Colors[OverlayColor_DragText], .FontSize = Config.FontSize});
+        ly.Text(label, getTextParams(OverlayColor_DragText));
         ly.EndPanel();
         return pressed;
     }
@@ -522,6 +512,60 @@ class UserInterface
     OverlayWindow *getOrCreateOverlayWindow(usz id);
     f32 computeWindowMinSize(f32 winPadding, f32 headPadding, f32 fontSize) const;
 
+    LayoutTextParameters getTextParams(const OverlayColor color) const
+    {
+        return {.FillColor = m_Colors[color], .FontSize = Config.FontSize};
+    }
+    LayoutUnicodeParameters getUnicodeParams(const OverlayColor color) const
+    {
+        return {.FillColor = m_Colors[color], .Size = Config.FontSize};
+    }
+
+    static constexpr LayoutSizing fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    {
+        return LayoutSizing::Fit(min, max);
+    }
+    static constexpr LayoutSizing grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    {
+        return LayoutSizing::Grow(min, max);
+    }
+    static constexpr LayoutSizing flex(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    {
+        return LayoutSizing::Flex(min, max);
+    }
+    static constexpr LayoutSizing sabs(const f32 size)
+    {
+        return LayoutSizing::Absolute(size);
+    }
+    static constexpr vec2<LayoutSizing> sabs(const f32v2 &size)
+    {
+        return LayoutSizing::Absolute(size);
+    }
+    static constexpr LayoutSizing snorm(const f32 size)
+    {
+        return LayoutSizing::Normalized(size);
+    }
+    static constexpr vec2<LayoutSizing> snorm(const f32v2 &size)
+    {
+        return LayoutSizing::Normalized(size);
+    }
+    static constexpr LayoutOffset oabs(const f32 size)
+    {
+        return LayoutOffset::Absolute(size);
+    }
+    static constexpr vec2<LayoutOffset> oabs(const f32v2 &size)
+    {
+        return LayoutOffset::Absolute(size);
+    }
+    static constexpr LayoutOffset onorm(const f32 size)
+    {
+        return LayoutOffset::Normalized(size);
+    }
+    static constexpr vec2<LayoutOffset> onorm(const f32v2 &size)
+    {
+        return LayoutOffset::Normalized(size);
+    }
+
     LayoutSpecs m_LayoutSpecs{};
     Window *m_Window;
     RenderView<D2> *m_View;
@@ -539,8 +583,6 @@ class UserInterface
 
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;
-
-    vec2<LayoutOffset> m_TextOffset = LayoutOffset::Absolute(f32v2{0.f, 0.f});
 
     usz m_HoveredClicker = NullLayoutId;
     usz m_HoveredDragger = NullLayoutId;
