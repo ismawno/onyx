@@ -1442,7 +1442,7 @@ static void charCallback(Onyx_WindowHandle *handle, const CodePoint code)
     Event event{};
     Window *window = Window::FromHandle(handle);
     event.Type = Event_CharInput;
-    event.Character.Codepoint = code;
+    event.Character = code;
     window->PushEvent(event);
 }
 

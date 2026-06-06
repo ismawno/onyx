@@ -10,10 +10,10 @@
 //
 // --- Missing widgets ---
 //
-// [ ] Separator
+// [x] Separator
 // [ ] Tooltip
-// [ ] SameLine
-// [ ] Indent / Unindent
+// [x] SameLine
+// [x] Indent / Unindent
 // [ ] TextInput (single line)
 // [ ] ColorDisplay
 // [ ] RadioButton
@@ -34,14 +34,14 @@
 // --- Per-widget flags ---
 //
 // Window:
-//   [ ] NoResize
-//   [ ] NoMove
-//   [ ] NoCollapse
-//   [ ] NoScrollBar
-//   [ ] NoBackground
-//   [ ] NoTitleBar
-//   [ ] AlwaysAutoResize
-//   [ ] NoBringToFrontOnFocus
+//   [x] NoResize
+//   [x] NoMove
+//   [x] NoCollapse
+//   [x] NoScrollBar
+//   [x] NoBackground
+//   [x] NoTitleBar
+//   [x] AlwaysAutoResize
+//   [x] NoBringToFrontOnFocus
 //
 // Slider:
 //   [ ] NoLabel
@@ -101,14 +101,14 @@ using OverlayWindowFlags = u16;
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoResize = 1U << 4,
-    OverlayWindowFlag_NoMove = 1U << 5,
-    OverlayWindowFlag_NoCollapse = 1U << 6,
-    OverlayWindowFlag_NoScrollBar = 1U << 7,
-    OverlayWindowFlag_NoHeaderBar = 1U << 8,
-    OverlayWindowFlag_NoBackground = 1U << 9,
-    OverlayWindowFlag_NoBringToFocus = 1U << 10,
-    OverlayWindowFlag_AlwaysAutoResize = 1U << 11,
+    OverlayWindowFlag_NoResize = 1U << 8,
+    OverlayWindowFlag_NoMove = 1U << 9,
+    OverlayWindowFlag_NoCollapse = 1U << 10,
+    OverlayWindowFlag_NoScrollBar = 1U << 11,
+    OverlayWindowFlag_NoHeaderBar = 1U << 12,
+    OverlayWindowFlag_NoBackground = 1U << 13,
+    OverlayWindowFlag_NoBringToFocus = 1U << 14,
+    OverlayWindowFlag_AlwaysAutoResize = 1U << 15,
 };
 
 struct OverlayResizeInfo
@@ -154,6 +154,9 @@ struct OverlayWindow
     f32 LastHeight = 240.f;
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
+
+    TKit::String TextInput{};
+    f32 TextCursorPos = 0.f;
 
     bool CheckFlags(const OverlayWindowFlags flags) const
     {
@@ -297,6 +300,8 @@ struct LayoutConfig
     f32 WindowSpawnDelta = 32.f;
     f32 ScrollMargin = 24.f;
     f32 DragPadding = 6.f;
+    f32 DoubleClickMilliseconds = 500.f;
+    f32 CursorWidth = 2.f;
 };
 
 struct UserInterfaceSpecs
@@ -322,6 +327,63 @@ class UserInterface
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
+
+    bool InputText(TKit::StringView label, char *buf, u32 size);
+
+    void Separator(const f32 width = 4.f)
+    {
+        const LayoutElement &elm = m_Current->Layout.GetCurrentElement();
+        if (elm.Direction == LayoutDirection_LeftToRight || elm.Direction == LayoutDirection_RightToLeft)
+            VerticalLine(width);
+        else
+            HorizontalLine(width);
+    }
+    void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
+    void HorizontalLine(const f32 width = 4.f)
+    {
+        m_Current->Layout.Panel(LayoutPanelParameters{
+            .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {grow(), sabs(width)}});
+    }
+    void VerticalLine(const f32 width = 4.f)
+    {
+        m_Current->Layout.Panel(LayoutPanelParameters{
+            .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {sabs(width), grow()}});
+    }
+
+    Layout *BeginPanel(const LayoutPanelParameters &params = {})
+    {
+        m_Current->Layout.BeginPanel(params);
+        return &m_Current->Layout;
+    }
+    void EndPanel()
+    {
+        m_Current->Layout.EndPanel();
+    }
+
+    void PushDirection(const LayoutDirection dir)
+    {
+        BeginPanel({.Direction = dir,
+                    .Alignment = {Alignment_Left, Alignment_Top},
+                    .Sizing = fit(),
+                    .ChildGap = Config.ChildGap});
+    }
+    void PushIndent(const f32 indent)
+    {
+        BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                    .Alignment = {Alignment_Left, Alignment_Top},
+                    .Sizing = fit(),
+                    .ChildOffset = oabs({indent, 0.f}),
+                    .ChildGap = Config.ChildGap});
+    }
+    void Pop()
+    {
+        EndPanel();
+    }
+
+    Layout *GetCurrentLayout()
+    {
+        return m_Current ? &m_Current->Layout : nullptr;
+    }
 
     template <TKit::Integer T, std::convertible_to<T> U>
     bool CheckBoxFlags(TKit::StringView label, T *flags, const U flag)
@@ -352,7 +414,7 @@ class UserInterface
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = 8.f});
+                                                   .ChildGap = Config.ChildGap});
 
         const LayoutElement *elm = ly.QueryElement("Outer slider");
         const Color *col = &m_Colors[OverlayColor_SliderIdle];
@@ -443,7 +505,7 @@ class UserInterface
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = 8.f});
+                                                   .ChildGap = Config.ChildGap});
 
         const LayoutElement *elm = ly.QueryElement("Outer drag");
         const Color *col = &m_Colors[OverlayColor_DragIdle];
@@ -507,12 +569,14 @@ class UserInterface
 
     ClickInputInfo getClickInputInfo(const LayoutElement *elm);
     DragInputInfo getDragInputInfo(const LayoutElement *elm);
+    bool isInputBoxFocused(const LayoutElement *elm);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
+    const FontData &getFontData() const;
     f32 computeWindowMinSize(f32 winPadding, f32 headPadding, f32 fontSize) const;
 
-    LayoutTextParameters getTextParams(const OverlayColor color) const
+    LayoutTextParameters getTextParams(const OverlayColor color = OverlayColor_Text) const
     {
         return {.FillColor = m_Colors[color], .FontSize = Config.FontSize};
     }
@@ -589,6 +653,10 @@ class UserInterface
 
     usz m_PressedClicker = NullLayoutId;
     usz m_PressedDragger = NullLayoutId;
+
+    usz m_FocusedInputter = NullLayoutId;
+
+    TKit::Clock m_ClickClock{};
 
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};

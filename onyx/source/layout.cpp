@@ -149,9 +149,6 @@ void Layout::endPanel()
 
 usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextParameters &params)
 {
-    if (text.IsEmpty())
-        return label;
-
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = GetNextId(label);
@@ -193,8 +190,9 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
     current.FontSize = fs;
     current.Size = fs * fdata.ComputeTextSize(text);
 
-    current.MinSize[0] = fs * fdata.ComputeTextMinimumWidth(text);
-    current.MinSize[1] = 0.f;
+    current.MinSize[0] =
+        current.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : current.Size[0];
+    current.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero
     // current.MinSize = f32v2{0.f};
     current.MaxSize = f32v2{TKIT_F32_MAX};
     return current.Id;
@@ -316,12 +314,10 @@ void Layout::fitPass(const LayoutAxis axis)
             }
         }
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
+        const f32 cgap = paxis == axis ? (parent.ChildGap * (parent.NonFloatChildCount - 1)) : 0.f;
 
-        pmnsize = Math::Max(pmnsize, childMinSizeTotal + padding);
-        psize += padding;
-
-        if (paxis == axis)
-            psize += parent.ChildGap * (parent.NonFloatChildCount - 1);
+        pmnsize = Math::Max(pmnsize, childMinSizeTotal + padding + cgap);
+        psize += padding + cgap;
 
         psize = Math::Clamp(psize, pmnsize, pmxsize);
     }
@@ -702,7 +698,6 @@ void Layout::Compile()
         m_PreviousElements.Append(elm);
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
-        const bool text = elm.Type == LayoutElement_Text;
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
 
         LayoutDrawInfo info;
@@ -753,7 +748,7 @@ void Layout::Compile()
         }
         m_Map[elm.Id] = idx++;
 
-        if ((!fill && !outline) || (!text && !sized))
+        if ((!fill && !outline) || !sized)
             continue;
 
         if (elm.DrawOnTop)

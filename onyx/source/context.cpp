@@ -25,6 +25,10 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
             buffer.InstanceSize = sizeof(CircleInstanceData<D>);
         }
     resizeInstanceData();
+    m_DefaultResources = Resources::GetDefaultResources();
+
+    m_Current->Font = m_DefaultResources.Font;
+    m_Current->FontSampler = m_DefaultResources.FontSampler;
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
 {

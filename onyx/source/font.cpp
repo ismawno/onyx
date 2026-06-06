@@ -246,6 +246,32 @@ CodePoint DecodeUTF8(const char *code, u32 *count)
     }
     return cp;
 }
+u32 EncodeUTF8(char *buf, const CodePoint code)
+{
+    if (code < 0x80)
+    {
+        buf[0] = code;
+        return 1;
+    }
+    if (code < 0x800)
+    {
+        buf[0] = 0xC0 | (code >> 6);
+        buf[1] = 0x80 | (code & 0x3F);
+        return 2;
+    }
+    if (code < 0x10000)
+    {
+        buf[0] = 0xE0 | (code >> 12);
+        buf[1] = 0x80 | ((code >> 6) & 0x3F);
+        buf[2] = 0x80 | (code & 0x3F);
+        return 3;
+    }
+    buf[0] = 0xF0 | (code >> 18);
+    buf[1] = 0x80 | ((code >> 12) & 0x3F);
+    buf[2] = 0x80 | ((code >> 6) & 0x3F);
+    buf[3] = 0x80 | (code & 0x3F);
+    return 4;
+}
 
 f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
 {
@@ -254,37 +280,18 @@ f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
     f32 width = 0.f;
     f32 lastWidth = 0.f;
 
-    u32 lastCode = TKIT_U32_MAX;
-    for (u32 i = 0; i < text.GetSize();)
-    {
-        u32 byteCount;
-        const CodePoint code = DecodeUTF8(&text[i], &byteCount);
-
+    WalkText(text, [&](const u32, const u32, const CodePoint code, const f32 w) {
         if (code == '\n')
         {
             ++nlcount;
             lastWidth = Math::Max(width, lastWidth);
             width = 0.f;
-            i += byteCount;
-            continue;
+            return true;
         }
+        width += w;
+        return true;
+    });
 
-        const GlyphData *gdata = GetGlyph(code);
-        if (!gdata)
-        {
-            TKIT_LOG_ERROR("[ONYX][FONT] The code U+{:04X} ({}) was not found as an available code point", code,
-                           TKit::StringView{&text[i], byteCount});
-            i += byteCount;
-            continue;
-        }
-
-        if (i != 0)
-            width += GetKerning(lastCode, code);
-
-        width += gdata->Advance;
-        i += byteCount;
-        lastCode = code;
-    }
     return f32v2{Math::Max(width, lastWidth), nlcount * lheight};
 }
 
@@ -306,21 +313,19 @@ f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
 
     f32 size = 0.f;
     u32 start = 0;
-    u32 end = 0;
-    for (u32 i = 0; i < text.GetSize(); ++i)
+    u32 count = 0;
+    for (u32 i = 0; i < text.GetSize(); ++i, ++count)
     {
         const char c = text[i];
         if (c == '\n' || c == ' ')
         {
-            end = i;
-            size = Math::Max(size, ComputeTextWidth(text.SubString(start, end)));
-            start = end;
+            size = Math::Max(size, ComputeTextWidth(text.SubString(start, count)));
+            start = i;
+            count = 0;
         }
     }
-    if (start < end)
-        size = Math::Max(size, ComputeTextWidth(text.SubString(start, end)));
-    else if (end == 0)
-        size = ComputeTextWidth(text);
+    if (count != 0)
+        size = Math::Max(size, ComputeTextWidth(text.SubString(start, count)));
     return size;
 }
 
@@ -333,50 +338,29 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
     f32 lastSize = 0.f;
     u32 lastSpace = TKIT_U32_MAX;
 
-    CodePoint lastCode = TKIT_U32_MAX;
-    for (u32 i = 0; i < text.GetSize();)
-    {
-        u32 byteCount;
-        const CodePoint code = DecodeUTF8(&text[i], &byteCount);
-
+    WalkText(text, [&](const u32 i, const u32 byteCount, const CodePoint code, const f32 width) {
         for (u32 j = 0; j < byteCount; ++j)
             wrapped.Append(text[i + j]);
-
         if (code == '\n')
         {
             size = 0.f;
-            i += byteCount;
-            continue;
+            return true;
         }
         if (code == ' ')
         {
             lastSpace = i;
             lastSize = size;
         }
-
-        const GlyphData *gdata = GetGlyph(code);
-        if (!gdata)
-        {
-            TKIT_LOG_ERROR("[ONYX][FONT] The code U+{:04X} ({}) was not found as an available code point", code,
-                           TKit::StringView{&text[i], byteCount});
-            i += byteCount;
-            continue;
-        }
-
-        if (i != 0)
-            size += GetKerning(lastCode, code);
-
-        size += gdata->Advance;
+        size += width;
         if (size > maxWidth && lastSpace != TKIT_U32_MAX)
         {
             wrapped[lastSpace] = '\n';
             lastSpace = TKIT_U32_MAX;
             size -= lastSize;
         }
+        return true;
+    });
 
-        i += byteCount;
-        lastCode = code;
-    }
     return wrapped;
 }
 } // namespace Onyx

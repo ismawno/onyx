@@ -190,6 +190,9 @@ struct CharSet
     TKit::TierHashSet<CodePoint> CodePoints{};
 };
 
+CodePoint DecodeUTF8(const char *code, u32 *count = nullptr);
+u32 EncodeUTF8(char *buf, CodePoint code);
+
 struct FontData
 {
     TKit::TierArray<GlyphData> Glyphs{};
@@ -201,6 +204,37 @@ struct FontData
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;
     f32 UnitRange = 0.f;
+
+    template <typename F> void WalkText(const TKit::StringView text, F &&fun) const
+    {
+        u32 lastCode = TKIT_U32_MAX;
+        for (u32 i = 0; i < text.GetSize();)
+        {
+            u32 byteCount;
+            const CodePoint code = DecodeUTF8(&text[i], &byteCount);
+            if (code == '\n')
+            {
+                if (!fun(i, byteCount, code, 0.f))
+                    return;
+                i += byteCount;
+                continue;
+            }
+            const GlyphData *gdata = GetGlyph(code);
+            if (!gdata)
+            {
+                TKIT_LOG_ERROR("[ONYX][FONT] The code U+{:04X} ({}) was not found as an available code point", code,
+                               TKit::StringView{&text[i], byteCount});
+                i += byteCount;
+                continue;
+            }
+            const f32 width = gdata->Advance + GetKerning(lastCode, code);
+            if (!fun(i, byteCount, code, width))
+                return;
+
+            i += byteCount;
+            lastCode = code;
+        }
+    }
 
     f32 GetKerning(const CodePoint code0, const CodePoint code1) const
     {
@@ -232,8 +266,6 @@ struct FontData
     f32 ComputeTextMinimumWidth(TKit::StringView text) const;
     TKit::String WrapText(TKit::StringView text, f32 maxWidth) const;
 };
-
-CodePoint DecodeUTF8(const char *code, u32 *count = nullptr);
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 struct FontLoadOptions

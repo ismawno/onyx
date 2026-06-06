@@ -17,7 +17,10 @@ enum OverlayWindowInternalFlagBit : OverlayWindowFlags
     OverlayWindowFlag_MousePressed = 1U << 1,
     OverlayWindowFlag_MouseReleased = 1U << 2,
     OverlayWindowFlag_Hovered = 1U << 3,
-    OverlayWindowFlagClear = (1U << 4) - 1U
+    OverlayWindowFlag_DoubleClick = 1U << 4,
+    OverlayWindowFlag_InputHovered = 1U << 5,
+    OverlayWindowFlag_DeleteChar = 1U << 6,
+    OverlayWindowFlagClear = (1U << 7) - 1U
 };
 
 UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
@@ -29,7 +32,6 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
-    m_Context->Flush();
 }
 
 void UserInterface::drawWindowBorders()
@@ -148,7 +150,7 @@ void UserInterface::drawWindowScrollBar()
 
         sinfo.ElementOffset = elementFactor * sinfo.BarOffset;
 
-        const bool noScroll = m_Current->Flags & OverlayWindowFlag_NoScrollBar;
+        const bool noScroll = m_Current->CheckFlags(OverlayWindowFlag_NoScrollBar);
         if (!noScroll)
             ly.Panel("Scroll bar", LayoutPanelParameters{.FillColor = *col,
                                                          .Sizing = sabs({Config.ScrollBarWidth, barSize}),
@@ -263,6 +265,22 @@ void UserInterface::EndWindow()
     m_Current = nullptr;
 }
 
+void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
+{
+    Layout &ly = m_Current->Layout;
+    ly.BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
+                                        .Alignment = {Alignment_Left, Alignment_Center},
+                                        .Sizing = {grow(), fit()},
+                                        .ChildGap = Config.ChildGap});
+
+    ly.Panel(LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
+                                   .Sizing = sabs({textOffset, width})});
+    ly.Text(label, getTextParams());
+    ly.Panel(LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded],
+                                   .Sizing = {grow(), sabs(width)}});
+    ly.EndPanel();
+}
+
 // TODO(Isma): Too much repetition between this and Button()
 bool UserInterface::collapseButton()
 {
@@ -288,12 +306,12 @@ ClickInputInfo UserInterface::getClickInputInfo(const LayoutElement *elm)
     if (!elm)
         return ClickInputInfo{};
 
-    const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
+    const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
 
     const bool canHover = canFocus && m_PressedDragger == NullLayoutId &&
                           (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
-    const bool clicked = hovered && (m_Current->Flags & OverlayWindowFlag_MouseReleased);
+    const bool clicked = hovered && m_Current->CheckFlags(OverlayWindowFlag_MouseReleased);
     const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
 
     if (pressed)
@@ -322,7 +340,7 @@ DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm)
     }
     else
     {
-        const bool canFocus = (m_Current->Flags & OverlayWindowFlag_Hovered) && !m_Grabbed;
+        const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
         const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
         const bool hovered = canHover && elm->IsHovered(m_MousePos);
         const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
@@ -335,6 +353,30 @@ DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm)
             m_HoveredDragger = elm->Id;
     }
     return info;
+}
+
+bool UserInterface::isInputBoxFocused(const LayoutElement *elm)
+{
+    if (!elm)
+        return false;
+
+    const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
+    const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
+    const bool hovered = canHover && elm->IsHovered(m_MousePos);
+
+    if (hovered)
+        m_Current->Flags |= OverlayWindowFlag_InputHovered;
+
+    if (m_FocusedInputter == elm->Id)
+        return true;
+
+    if (hovered && m_Window->IsMousePressed(Mouse_Button1))
+    {
+        m_FocusedInputter = elm->Id;
+        m_Current->TextCursorPos = m_MousePos[0];
+        return true;
+    }
+    return false;
 }
 
 bool UserInterface::Button(const TKit::StringView label)
@@ -390,6 +432,93 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     return info.Clicked;
 }
 
+bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
+{
+    TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
+    Layout &ly = m_Current->Layout;
+    ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                               .Sizing = {grow(300.f), fit()},
+                                               .ChildGap = Config.ChildGap});
+
+    const u32 bufSize = u32(std::strlen(buf));
+    TKIT_ASSERT(bufSize < size, "[ONYX][UI] The input character length ({}) exceeds buffer size ({})", bufSize, size);
+
+    TKit::StackString str;
+    str.Reserve(size);
+    str.Insert(str.end(), buf, buf + bufSize);
+
+    const LayoutElement *outer = ly.QueryElement("Outer input");
+    const bool focused = isInputBoxFocused(outer);
+    ly.BeginPanel("Outer input", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundCollapsed],
+                                                       .Alignment = {Alignment_Left, Alignment_Center},
+                                                       .Sizing = {snorm(0.6f), fit()},
+                                                       .Padding = Config.DragPadding});
+
+    ly.Text(str, getTextParams());
+    if (focused)
+    {
+        const f32 relCursorPos = outer ? (m_Current->TextCursorPos - outer->Position[0]) : 0.f;
+
+        const FontData &fdata = getFontData();
+        const f32 fs = Config.FontSize;
+        f32 cursorWidth = 0.f;
+        u32 cursorRange = 0;
+        f32 textWidth = 0.f;
+
+        fdata.WalkText(str, [&](const u32 i, const u32, const CodePoint, const f32 width) {
+            const f32 size = textWidth + fs * width;
+            if (size < relCursorPos)
+            {
+                cursorRange = i + 1;
+                cursorWidth = size;
+            }
+
+            textWidth = size;
+            return true;
+        });
+
+        const f32 cursorOffset = cursorWidth - textWidth;
+        ly.Panel("Cursor", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_Text],
+                                                 .Sizing = {sabs(Config.CursorWidth), grow()},
+                                                 .SelfOffset = oabs({cursorOffset, 0.f})});
+
+        const u32 spotsLeft = size - 1 - bufSize;
+        const u32 spots = Math::Min(m_Current->TextInput.GetSize(), spotsLeft);
+
+        for (u32 i = 0; i < spots; ++i)
+            str.Insert(str.begin() + cursorRange, m_Current->TextInput[i]);
+
+        if (cursorRange != 0 && !str.IsEmpty() && m_Current->CheckFlags(OverlayWindowFlag_DeleteChar))
+        {
+            const u32 idx = cursorRange - 1;
+            const char c = str[idx];
+
+            const GlyphData *glyph = fdata.GetGlyph(c); // guaranteed to not be null bc we ve already written it
+
+            f32 width = glyph->Advance;
+            if (idx != 0)
+                width += fdata.GetKerning(str[idx - 1], c);
+
+            m_Current->TextCursorPos -= fs * width;
+            str.RemoveOrdered(str.begin() + idx);
+        }
+
+        for (u32 i = 0; i < str.GetSize(); ++i)
+            buf[i] = str[i];
+
+        buf[str.GetSize()] = '\0';
+        if (spots != 0)
+            m_Current->TextCursorPos += fs * fdata.ComputeTextWidth(m_Current->TextInput);
+    }
+    ly.EndPanel();
+
+    ly.Text(label, getTextParams());
+
+    ly.EndPanel();
+    TKIT_UNUSED(size);
+    return false;
+}
+
 void UserInterface::Draw()
 {
     processWindows();
@@ -414,15 +543,21 @@ void UserInterface::processWindows()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
-    const bool hoveringWidget = m_HoveredClicker != NullLayoutId || m_HoveredDragger != NullLayoutId;
-
-    // if nothing is grabbed, we check resize hovers here
+    // if nothing is grabbed, we check mouse cursors here
     if (!m_Grabbed)
     {
+        const bool hoveringWidget = m_HoveredClicker != NullLayoutId || m_HoveredDragger != NullLayoutId;
         MouseCursor cursor = MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow &win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
-            if (hoveringWidget || !win.CheckFlags(OverlayWindowFlag_Hovered))
+            const bool winHovered = win.CheckFlags(OverlayWindowFlag_Hovered);
+            if (winHovered && win.CheckFlags(OverlayWindowFlag_InputHovered))
+            {
+                win.Resize.Flags = 0;
+                cursor = MouseCursor_IBeam;
+                return false;
+            }
+            if (!winHovered || hoveringWidget)
             {
                 win.Resize.Flags = 0;
                 return true;
@@ -468,18 +603,38 @@ void UserInterface::processWindows()
     {
         const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
         win.HeaderIcon = collapsed ? m_CollapsedHeaderIcon : m_ExpandedHeaderIcon;
-        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_MouseReleased | OverlayWindowFlag_Hovered);
+        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_MouseReleased | OverlayWindowFlag_Hovered |
+                        OverlayWindowFlag_DoubleClick | OverlayWindowFlag_DeleteChar);
+        win.TextInput.Clear();
     };
 
     // check for mouse events
     OverlayWindowFlags wflags = 0;
     f32 scroll = 0.f;
+    TKit::String textInput{};
     for (const Event &ev : m_Window->GetNewEvents())
     {
-        wflags |= OverlayWindowFlag_MousePressed * (ev.Type == Event_MousePressed) |
-                  OverlayWindowFlag_MouseReleased * (ev.Type == Event_MouseReleased);
-        if (ev.Type == Event_Scrolled)
+        if (ev.Type == Event_MousePressed)
+        {
+            wflags |= OverlayWindowFlag_MousePressed;
+            m_FocusedInputter = NullLayoutId;
+        }
+        else if (ev.Type == Event_MouseReleased)
+        {
+            wflags |= OverlayWindowFlag_MouseReleased;
+            if (m_ClickClock.Restart().AsMilliseconds() <= Config.DoubleClickMilliseconds)
+                wflags |= OverlayWindowFlag_DoubleClick;
+        }
+        else if (ev.Type == Event_Scrolled)
             scroll = Config.ScrollSensitivity * ev.ScrollOffset[1];
+        else if (ev.Type == Event_CharInput)
+        {
+            char buf[4];
+            const u32 count = EncodeUTF8(buf, ev.Character);
+            textInput.Insert(textInput.end(), buf, buf + count);
+        }
+        else if ((ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat) && ev.Key == Key_Backspace)
+            wflags |= OverlayWindowFlag_DeleteChar;
     }
 
     bool canAssignHover = true;
@@ -487,24 +642,27 @@ void UserInterface::processWindows()
     u32 idx = m_OverlayWindows.GetSize();
     // go through the windows to 1. assign the mouse events to the uppermost hovered window and 2. assign such window as
     // grabbed if user pressed the mouse
+    const bool pressingWidget = m_PressedClicker != NullLayoutId || m_PressedDragger != NullLayoutId;
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
         const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, Config.BorderHoverPadding);
+        const bool inputHovered = win.CheckFlags(OverlayWindowFlag_InputHovered);
         const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
-        win.AddFlags(wflags & OverlayWindowFlag_MouseReleased);
-        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_Hovered);
+        win.AddFlags((wflags & OverlayWindowFlag_MouseReleased) | (wflags & OverlayWindowFlag_DeleteChar));
+        win.RemoveFlags(OverlayWindowFlag_InputHovered);
         if (winHovered)
         {
             win.AddFlags(OverlayWindowFlag_Hovered);
             win.ScrollBar.WheelOffset += scroll;
+            win.TextInput = std::move(textInput);
             canAssignHover = false;
         }
 
         if (pressed && (win.Resize.Flags != 0 || winHovered))
         {
             const bool noFocus = win.Flags & OverlayWindowFlag_NoBringToFocus;
-            if (!hoveringWidget)
+            if (!pressingWidget && !inputHovered)
             {
                 win.Flags |= wflags;
                 win.Resize.Position = win.Position;
@@ -597,11 +755,14 @@ OverlayWindow *UserInterface::getOrCreateOverlayWindow(const usz id)
     return &win;
 }
 
-f32 UserInterface::computeWindowMinSize(const f32 winPadding, const f32 headPadding, const f32 fontSize) const
+const FontData &UserInterface::getFontData() const
 {
     const Resource font = m_Context->GetState().Font;
-    const FontData &fdata = Resources::GetFontData(font);
-
+    return Resources::GetFontData(font);
+}
+f32 UserInterface::computeWindowMinSize(const f32 winPadding, const f32 headPadding, const f32 fontSize) const
+{
+    const FontData &fdata = getFontData();
     return fontSize * fdata.LineHeight + 2.f * (winPadding + headPadding);
 }
 

@@ -199,6 +199,7 @@ struct LayoutFloatingParameters
     vec2<Alignment> Alignment{Alignment_Canonical};
 };
 
+// TODO(Isma): Add here helpers such as ShouldParticipateInFit etc, for when we add custom rendering to layouts
 struct LayoutElement
 {
     usz Id;
@@ -397,6 +398,11 @@ class Layout
     usz GetNextId(const CodePoint code) const
     {
         return GetNextId(TKit::Hash(code));
+    }
+
+    const LayoutElement &GetCurrentElement() const
+    {
+        return m_Elements[m_ElementStack.GetBack()];
     }
 
     const LayoutElement *QueryElement(usz id) const;

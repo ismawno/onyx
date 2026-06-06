@@ -17,15 +17,17 @@ int main()
     while (Onyx::Running())
     {
         static Onyx::OverlayWindowFlags flags = 0;
-        ui.BeginWindow("Window settings", flags);
-        ui.CheckBoxFlags("No resize", &flags, Onyx::OverlayWindowFlag_NoResize);
-        ui.CheckBoxFlags("No move", &flags, Onyx::OverlayWindowFlag_NoMove);
-        ui.CheckBoxFlags("No collapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
-        ui.CheckBoxFlags("No scroll bar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
-        ui.CheckBoxFlags("No background", &flags, Onyx::OverlayWindowFlag_NoBackground);
-        ui.CheckBoxFlags("No header bar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
-        ui.CheckBoxFlags("No bring to focus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-        ui.CheckBoxFlags("Always auto resize", &flags, Onyx::OverlayWindowFlag_AlwaysAutoResize);
+        if (ui.BeginWindow("Window settings", flags))
+        {
+            ui.CheckBoxFlags("No resize", &flags, Onyx::OverlayWindowFlag_NoResize);
+            ui.CheckBoxFlags("No move", &flags, Onyx::OverlayWindowFlag_NoMove);
+            ui.CheckBoxFlags("No collapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
+            ui.CheckBoxFlags("No scroll bar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
+            ui.CheckBoxFlags("No background", &flags, Onyx::OverlayWindowFlag_NoBackground);
+            ui.CheckBoxFlags("No header bar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+            ui.CheckBoxFlags("No bring to focus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+            ui.CheckBoxFlags("Always auto resize", &flags, Onyx::OverlayWindowFlag_AlwaysAutoResize);
+        }
         ui.EndWindow();
 
         ui.BeginWindow("Test", flags);
@@ -38,14 +40,20 @@ int main()
         if (ui.Button("A!"))
             TKit::PrintLine("Hello! ive been pressed");
 
+        static char buf[32] = "This is a test";
+        ui.InputText("Text", buf, 32);
+
         static bool sliders = false;
         static bool anotherWindow = false;
+        ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
         ui.CheckBox("Extra window", &anotherWindow);
+        ui.Separator();
         ui.CheckBox("Enable sliders", &sliders);
+        ui.Pop();
 
         if (sliders)
         {
-            ui.Text("Here are some sliders!");
+            ui.HorizontalSeparator("Here are some sliders!");
             static f32 fval = 4;
             ui.HorizontalSlider("My slider float", &fval, 0.f, 10.f);
 

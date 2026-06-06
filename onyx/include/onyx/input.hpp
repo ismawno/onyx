@@ -185,11 +185,6 @@ struct Event
         Mouse Button;
     };
 
-    struct Char
-    {
-        CodePoint Codepoint;
-    };
-
     bool Empty = false;
     EventType Type;
     Key Key;
@@ -198,7 +193,7 @@ struct Event
     u32v2 WindowSize{0};
 
     MouseState Mouse;
-    Char Character;
+    CodePoint Character;
     f32v2 ScrollOffset{0.f};
 
     operator bool() const
