@@ -4,88 +4,6 @@
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
 
-// ============================================================
-// TODO(Isma): Overlay widget roadmap
-// ============================================================
-//
-// --- Missing widgets ---
-//
-// [x] Separator
-// [ ] Tooltip
-// [x] SameLine
-// [x] Indent / Unindent
-// [ ] TextInput (single line)
-// [ ] ColorDisplay
-// [ ] RadioButton
-// [ ] ProgressBar
-// [ ] Combo / Dropdown
-// [ ] TreeNode
-// [ ] Tabs
-// [ ] TextInput (multiline)
-// [ ] ColorPicker
-// [ ] Table
-// [ ] Docking
-// [ ] MenuBar
-//
-// --- Global ---
-//
-// [ ] BeginDisabled / EndDisabled
-//
-// --- Per-widget flags ---
-//
-// Window:
-//   [x] NoResize
-//   [x] NoMove
-//   [x] NoCollapse
-//   [x] NoScrollBar
-//   [x] NoBackground
-//   [x] NoTitleBar
-//   [x] AlwaysAutoResize
-//   [x] NoBringToFrontOnFocus
-//
-// Slider:
-//   [ ] NoLabel
-//   [ ] Logarithmic
-//   [ ] Vertical
-//
-// Drag:
-//   [ ] NoLabel
-//
-// Text:
-//   [ ] Bullet
-//
-// TextInput:
-//   [ ] ReadOnly
-//   [ ] Password (mask characters)
-//   [ ] EnterReturnsTrue (confirm on enter only)
-//   [ ] Hint (placeholder text)
-//
-// Combo:
-//   [ ] NoPreview (hide current selection)
-//   [ ] HeightSmall / HeightLarge (popup size)
-//
-// TreeNode:
-//   [ ] DefaultOpen
-//   [ ] Leaf (no arrow, not expandable)
-//   [ ] Bullet (bullet instead of arrow)
-//
-// Tabs:
-//   [ ] Reorderable
-//   [ ] NoCloseButton
-//
-// Table:
-//   [ ] Sortable
-//   [ ] Resizable
-//   [ ] NoBorders
-//   [ ] RowBackground (alternating row colors)
-//
-// ColorPicker:
-//   [ ] NoAlpha
-//   [ ] NoLabel
-//   [ ] NoInputs (hide text input fields)
-//
-// ============================================================
-
 namespace Onyx
 {
 enum OverlayResizeEdge : u8
@@ -318,7 +236,9 @@ struct UserInterfaceSpecs
     LayoutConfig Config{};
 };
 
-// TODO(Isma): Implement bitset with pressed keys for control etc
+// TODO(Isma): Implement bitset with pressed keys for control etc. as well for mouse
+// TODO(Isma): Have a function, eventKeyPressed/Released(), eventMousePressed() that takes a key/mouse enum and checks
+// if it was pressed
 class UserInterface
 {
     TKIT_NON_COPYABLE(UserInterface)
@@ -335,33 +255,21 @@ class UserInterface
     bool CheckBox(TKit::StringView label, bool *enable);
 
     bool InputText(TKit::StringView label, char *buf, u32 size);
-    template <TKit::Numeric T> bool InputNumeric(const TKit::StringView label, T *val)
+    template <TKit::Numeric T> bool InputNumeric(const TKit::StringView label, T *value)
     {
-        constexpr u32 bsize = 128;
-        char buf[bsize];
-        if constexpr (TKit::Float<T>)
-            std::snprintf(buf, bsize, "%f", *val);
-        else
-            std::snprintf(buf, bsize, "%lld", u64(*val));
+        Layout &ly = m_Current->Layout;
+        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                   .Sizing = {grow(300.f), fit()},
+                                                   .ChildGap = Config.ChildGap});
+        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                         .Sizing = {snorm(0.6f), fit()},
+                                                         .ChildGap = Config.ChildGap});
 
-        if (InputText(label, buf, bsize))
-        {
-            char *end;
-            if constexpr (TKit::Float<T>)
-            {
-                const f64 v = std::strtod(buf, &end);
-                if (end != buf)
-                    *val = T(v);
-            }
-            else
-            {
-                const u64 v = u64(std::strtoll(buf, &end, 10));
-                if (end != buf)
-                    *val = T(v);
-            }
-            return true;
-        }
-        return false;
+        const bool updated = inputNumericBox(value);
+        ly.EndPanel();
+        ly.Text(label, getTextParams());
+        ly.EndPanel();
+        return updated;
     }
 
     void Separator(const f32 width = 4.f)
@@ -459,84 +367,7 @@ class UserInterface
         {
             T &val = value[i];
             ly.PushId(&val);
-
-            const LayoutElement *elm = ly.QueryElement("Slider box");
-            const Color *col = &m_Colors[OverlayColor_SliderIdle];
-            bool locallyPressed = false;
-            if (elm)
-            {
-                const DragFocusInfo info = getDragFocusInfo(elm);
-
-                if (info.Pressed)
-                    col = &m_Colors[OverlayColor_SliderPressed];
-                else if (info.Hovered)
-                    col = &m_Colors[OverlayColor_SliderHovered];
-                locallyPressed = info.Pressed;
-                pressed |= info.Pressed;
-            }
-
-            const f32 length = elm ? elm->Size[0] : 0.f;
-            const f32 w = 0.5f * Config.WidgetSize;
-            const f32 h = Config.WidgetSize;
-
-            const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
-
-            f32 offset = 0.f;
-            const f32 normalized = Math::Map(f32(val), f32(mn), f32(mx), -1.f, 1.f);
-            if (locallyPressed)
-            {
-                const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
-                offset = Math::Clamp(relPos, -maxOffset, maxOffset);
-                val = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
-                if constexpr (Integer<T>)
-                    // snapping
-                    offset = normalized * maxOffset;
-            }
-            else if (elm)
-            {
-                val = Math::Clamp(val, T(mn), T(mx));
-                offset = normalized * maxOffset;
-            }
-
-            // heres how this works. outer slider is the first visible bit. then, 2 children
-            // come
-
-            ly.BeginPanel("Slider box", LayoutPanelParameters{.FillColor = *col,
-                                                              .Alignment = {Alignment_Left, Alignment_Center},
-                                                              .Sizing = {grow(), fit()},
-                                                              .Padding = Config.WidgetPadding});
-
-            // the next 2 children will serve as slots for the slider button and the text. this is required bc text
-            // length cannot interfere with slider button positioning in layout calculation
-            //
-            // we actually need both containers to overlap. but bc of layout calculation, slider slot will be placed
-            // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
-            // so, we offset text slot by 1 parent to align it correctly
-
-            ly.BeginPanel("Slider slot",
-                          LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}});
-
-            ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
-                                                            .Sizing = sabs({w, h}),
-                                                            .SelfOffset = oabs({offset, 0.f})});
-
-            ly.EndPanel();
-            ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
-                                                             .Sizing = {snorm(1.f), fit()},
-                                                             .SelfOffset = onorm({-1.f, 0.f})});
-
-            const TKit::StackString text = [&] {
-                // TODO(Isma): Pass formatting as a parameter
-                if constexpr (Float<T>)
-                    return TKit::StackString::Format("{:.3f}", val);
-                else
-                    return TKit::StackString::Format("{}", val);
-            }();
-
-            ly.Text(text, getTextParams(OverlayColor_SliderText));
-
-            ly.EndPanel();
-            ly.EndPanel();
+            pressed |= horizontalSliderBox(&val, mn, mx);
             ly.PopId();
         }
         ly.EndPanel();
@@ -548,10 +379,9 @@ class UserInterface
     // TODO(Isma): Implement flags
     // TODO(Isma): Implement array of drags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0),
-                        const u32 count = 1)
+    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
+                        const U mx = T(0), const u32 count = 1)
     {
-        const bool hasLimits = mn < mx;
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
@@ -565,50 +395,10 @@ class UserInterface
         {
             T &val = value[i];
             ly.PushId(&val);
-
-            const LayoutElement *elm = ly.QueryElement("Drag box");
-            const Color *col = &m_Colors[OverlayColor_DragIdle];
-            bool locallyPressed = false;
-            if (elm)
-            {
-                const DragFocusInfo info = getDragFocusInfo(elm);
-
-                if (info.Pressed)
-                    col = &m_Colors[OverlayColor_DragPressed];
-                else if (info.Hovered)
-                    col = &m_Colors[OverlayColor_DragHovered];
-                locallyPressed = info.Pressed;
-                pressed |= info.Pressed;
-            }
-
-            if (locallyPressed)
-            {
-                const f32 md = m_MouseDelta[0];
-                const T nval = val + T(speed * md);
-                if ((md > 0.f && nval > val) || (md < 0.f && nval < val))
-                    val = nval;
-            }
-            if (hasLimits)
-                val = Math::Clamp(val, T(mn), T(mx));
-
-            ly.BeginPanel("Drag box", LayoutPanelParameters{.FillColor = *col,
-                                                            .Alignment = Alignment_Center,
-                                                            .Sizing = {grow(), fit()},
-                                                            .Padding = Config.WidgetPadding});
-
-            const TKit::StackString text = [&] {
-                // TODO(Isma): Pass formatting as a parameter
-                if constexpr (Float<T>)
-                    return TKit::StackString::Format("{:.3f}", val);
-                else
-                    return TKit::StackString::Format("{}", val);
-            }();
-
-            ly.Text(text, getTextParams(OverlayColor_DragText));
-
-            ly.EndPanel();
+            pressed |= horizontalDragBox(&val, speed, mn, mx);
             ly.PopId();
         }
+
         ly.EndPanel();
         ly.Text(label, getTextParams(OverlayColor_DragText));
         ly.EndPanel();
@@ -620,6 +410,193 @@ class UserInterface
     LayoutConfig Config;
 
   private:
+    template <TKit::Numeric T, std::convertible_to<T> U> bool horizontalSliderBox(T *value, const U mn, const U mx)
+    {
+        Layout &ly = m_Current->Layout;
+        const LayoutElement *elm = ly.QueryElement("Slider box");
+
+        const Color *col = &m_Colors[OverlayColor_SliderIdle];
+        DragFocusInfo info{};
+        if (elm)
+        {
+            info = getDragFocusInfo(elm);
+
+            if (info.Pressed)
+                col = &m_Colors[OverlayColor_SliderPressed];
+            else if (info.Hovered)
+                col = &m_Colors[OverlayColor_SliderHovered];
+            info.Pressed = info.Pressed;
+        }
+
+        const LayoutElement *ibox = ly.QueryElement("Input box");
+        const bool inputTriggered = info.Hovered && m_OverflowClicks == 1;
+        const bool inputPersisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
+
+        if (inputTriggered || inputPersisted)
+        {
+            if (ibox)
+            {
+                m_FocusedInputter = ibox->Id;
+                m_LastFocusedInputter = ibox->Id;
+            }
+            return inputNumericBox(value);
+        }
+
+        const f32 length = elm ? elm->Size[0] : 0.f;
+        const f32 w = 0.5f * Config.WidgetSize;
+
+        const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
+
+        f32 offset = 0.f;
+        const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
+        if (info.Pressed)
+        {
+            const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            offset = Math::Clamp(relPos, -maxOffset, maxOffset);
+            *value = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
+            if constexpr (Integer<T>)
+                // snapping
+                offset = normalized * maxOffset;
+        }
+        else if (elm)
+        {
+            *value = Math::Clamp(*value, T(mn), T(mx));
+            offset = normalized * maxOffset;
+        }
+
+        // heres how this works. outer slider is the first visible bit. then, 2 children
+        // come
+
+        ly.BeginPanel("Slider box", LayoutPanelParameters{.FillColor = *col,
+                                                          .Alignment = {Alignment_Left, Alignment_Center},
+                                                          .Sizing = {grow(), fit()},
+                                                          .Padding = Config.WidgetPadding});
+
+        // the next 2 children will serve as slots for the slider button and the text. this is required bc text
+        // length cannot interfere with slider button positioning in layout calculation
+        //
+        // we actually need both containers to overlap. but bc of layout calculation, slider slot will be placed
+        // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
+        // so, we offset text slot by 1 parent to align it correctly
+
+        ly.BeginPanel("Slider slot",
+                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
+
+        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
+                                                        .Sizing = {sabs(w), grow()},
+                                                        .SelfOffset = oabs({offset, 0.f})});
+
+        ly.EndPanel();
+        ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                         .Sizing = {snorm(1.f), fit()},
+                                                         .SelfOffset = onorm({-1.f, 0.f})});
+
+        const TKit::StackString text = [&] {
+            // TODO(Isma): Pass formatting as a parameter
+            if constexpr (Float<T>)
+                return TKit::StackString::Format("{:.3f}", *value);
+            else
+                return TKit::StackString::Format("{}", *value);
+        }();
+
+        ly.Text(text, getTextParams(OverlayColor_SliderText));
+
+        ly.EndPanel();
+        ly.EndPanel();
+        return info.Pressed;
+    }
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx)
+    {
+        Layout &ly = m_Current->Layout;
+        const bool hasLimits = mn < mx;
+
+        const LayoutElement *elm = ly.QueryElement("Drag box");
+        const Color *col = &m_Colors[OverlayColor_DragIdle];
+        DragFocusInfo info{};
+        if (elm)
+        {
+            info = getDragFocusInfo(elm);
+
+            if (info.Pressed)
+                col = &m_Colors[OverlayColor_DragPressed];
+            else if (info.Hovered)
+                col = &m_Colors[OverlayColor_DragHovered];
+        }
+
+        const LayoutElement *ibox = ly.QueryElement("Input box");
+        const bool inputTriggered = info.Hovered && m_OverflowClicks == 1;
+        const bool inputPersisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
+
+        if (inputTriggered || inputPersisted)
+        {
+            if (ibox)
+            {
+                m_FocusedInputter = ibox->Id;
+                m_LastFocusedInputter = ibox->Id;
+            }
+            return inputNumericBox(value);
+        }
+
+        if (info.Pressed)
+        {
+            const f32 md = m_MouseDelta[0];
+            const T nval = *value + T(speed * md);
+            if ((md > 0.f && nval > *value) || (md < 0.f && nval < *value))
+                *value = nval;
+        }
+        if (hasLimits)
+            *value = Math::Clamp(*value, T(mn), T(mx));
+
+        ly.BeginPanel("Drag box", LayoutPanelParameters{.FillColor = *col,
+                                                        .Alignment = Alignment_Center,
+                                                        .Sizing = {grow(), fit()},
+                                                        .Padding = Config.WidgetPadding});
+
+        const TKit::StackString text = [&] {
+            // TODO(Isma): Pass formatting as a parameter
+            if constexpr (Float<T>)
+                return TKit::StackString::Format("{:.3f}", *value);
+            else
+                return TKit::StackString::Format("{}", *value);
+        }();
+
+        ly.Text(text, getTextParams(OverlayColor_DragText));
+
+        ly.EndPanel();
+        return info.Pressed;
+    }
+
+    bool inputTextBox(char *buf, u32 size);
+    template <TKit::Numeric T> bool inputNumericBox(T *value)
+    {
+        constexpr u32 bsize = 128;
+        char buf[bsize];
+        if constexpr (TKit::Float<T>)
+            std::snprintf(buf, bsize, "%f", *value);
+        else
+            std::snprintf(buf, bsize, "%lld", u64(*value));
+
+        if (inputTextBox(buf, bsize))
+        {
+            char *end;
+            if constexpr (TKit::Float<T>)
+            {
+                const f64 v = std::strtod(buf, &end);
+                if (end != buf)
+                    *value = T(v);
+            }
+            else
+            {
+                const u64 v = u64(std::strtoll(buf, &end, 10));
+                if (end != buf)
+                    *value = T(v);
+            }
+            return true;
+        }
+        return false;
+    }
+
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
     bool collapseButton();
     template <typename F> void iterateReverseWindows(F func);
