@@ -415,7 +415,7 @@ class UserInterface
     // TODO(Isma): Implement flags
     // TODO(Isma): Implement array of sliders
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx)
+    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const u32 count = 1)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = m_Current->Layout;
@@ -423,81 +423,94 @@ class UserInterface
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
 
-        const LayoutElement *elm = ly.QueryElement("Outer slider");
-        const Color *col = &m_Colors[OverlayColor_SliderIdle];
         bool pressed = false;
-        if (elm)
+        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                         .Sizing = {snorm(0.6f), fit()},
+                                                         .ChildGap = Config.ChildGap});
+        for (u32 i = 0; i < count; ++i)
         {
-            const DragFocusInfo info = getDragFocusInfo(elm);
+            T &val = value[i];
+            ly.PushId(&val);
 
-            if (info.Pressed)
-                col = &m_Colors[OverlayColor_SliderPressed];
-            else if (info.Hovered)
-                col = &m_Colors[OverlayColor_SliderHovered];
-            pressed = info.Pressed;
-        }
+            const LayoutElement *elm = ly.QueryElement("Outer slider");
+            const Color *col = &m_Colors[OverlayColor_SliderIdle];
+            bool locallyPressed = false;
+            if (elm)
+            {
+                const DragFocusInfo info = getDragFocusInfo(elm);
 
-        const f32 length = elm ? elm->Size[0] : 0.f;
-        const f32 w = 0.5f * Config.WidgetSize;
-        const f32 h = Config.WidgetSize;
+                if (info.Pressed)
+                    col = &m_Colors[OverlayColor_SliderPressed];
+                else if (info.Hovered)
+                    col = &m_Colors[OverlayColor_SliderHovered];
+                locallyPressed = info.Pressed;
+                pressed |= info.Pressed;
+            }
 
-        const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
+            const f32 length = elm ? elm->Size[0] : 0.f;
+            const f32 w = 0.5f * Config.WidgetSize;
+            const f32 h = Config.WidgetSize;
 
-        f32 offset = 0.f;
-        const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
-        if (pressed)
-        {
-            const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
-            offset = Math::Clamp(relPos, -maxOffset, maxOffset);
-            *value = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
-            if constexpr (Integer<T>)
-                // snapping
+            const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
+
+            f32 offset = 0.f;
+            const f32 normalized = Math::Map(f32(val), f32(mn), f32(mx), -1.f, 1.f);
+            if (locallyPressed)
+            {
+                const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+                offset = Math::Clamp(relPos, -maxOffset, maxOffset);
+                val = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
+                if constexpr (Integer<T>)
+                    // snapping
+                    offset = normalized * maxOffset;
+            }
+            else if (elm)
+            {
+                val = Math::Clamp(val, T(mn), T(mx));
                 offset = normalized * maxOffset;
+            }
+
+            // heres how this works. outer slider is the first visible bit. then, 2 children
+            // come
+
+            ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
+                                                                .Alignment = {Alignment_Left, Alignment_Center},
+                                                                .Sizing = {grow(), fit()},
+                                                                .Padding = Config.WidgetPadding});
+
+            // the next 2 children will serve as slots for the slider button and the text. this is required bc text
+            // length cannot interfere with slider button positioning in layout calculation
+            //
+            // we actually need both containers to overlap. but bc of layout calculation, slider slot will be placed
+            // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
+            // so, we offset text slot by 1 parent to align it correctly
+
+            ly.BeginPanel("Slider slot",
+                          LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}});
+
+            ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
+                                                            .Sizing = sabs({w, h}),
+                                                            .SelfOffset = oabs({offset, 0.f})});
+
+            ly.EndPanel();
+            ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                             .Sizing = {snorm(1.f), fit()},
+                                                             .SelfOffset = onorm({-1.f, 0.f})});
+
+            const TKit::StackString text = [&] {
+                // TODO(Isma): Pass formatting as a parameter
+                if constexpr (Float<T>)
+                    return TKit::StackString::Format("{:.3f}", val);
+                else
+                    return TKit::StackString::Format("{}", val);
+            }();
+
+            ly.Text(text, getTextParams(OverlayColor_SliderText));
+
+            ly.EndPanel();
+            ly.EndPanel();
+            ly.PopId();
         }
-        else if (elm)
-        {
-            *value = Math::Clamp(*value, T(mn), T(mx));
-            offset = normalized * maxOffset;
-        }
-
-        // heres how this works. outer slider is the first visible bit. then, 2 children
-        // come
-
-        ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
-                                                            .Alignment = {Alignment_Left, Alignment_Center},
-                                                            .Sizing = {snorm(0.6f), fit()},
-                                                            .Padding = Config.WidgetPadding});
-
-        // the next 2 children will serve as slots for the slider button and the text. this is required bc text length
-        // cannot interfere with slider button positioning in layout calculation
-        //
-        // we actually need both containers to overlap. but bc of layout calculation, slider slot will be placed
-        // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider). so, we
-        // offset text slot by 1 parent to align it correctly
-
-        ly.BeginPanel("Slider slot",
-                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}});
-
-        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
-                                                        .Sizing = sabs({w, h}),
-                                                        .SelfOffset = oabs({offset, 0.f})});
-
-        ly.EndPanel();
-        ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
-                                                         .Sizing = {snorm(1.f), fit()},
-                                                         .SelfOffset = onorm({-1.f, 0.f})});
-
-        const TKit::StackString text = [&] {
-            // TODO(Isma): Pass formatting as a parameter
-            if constexpr (Float<T>)
-                return TKit::StackString::Format("{:.3f}", *value);
-            else
-                return TKit::StackString::Format("{}", *value);
-        }();
-
-        ly.Text(text, getTextParams(OverlayColor_SliderText));
-
-        ly.EndPanel();
         ly.EndPanel();
         ly.Text(label, getTextParams(OverlayColor_SliderText));
         ly.EndPanel();
@@ -507,7 +520,8 @@ class UserInterface
     // TODO(Isma): Implement flags
     // TODO(Isma): Implement array of drags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
+    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0),
+                        const u32 count = 1)
     {
         const bool hasLimits = mn < mx;
         Layout &ly = m_Current->Layout;
@@ -515,45 +529,58 @@ class UserInterface
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
 
-        const LayoutElement *elm = ly.QueryElement("Outer drag");
-        const Color *col = &m_Colors[OverlayColor_DragIdle];
+        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                         .Sizing = {snorm(0.6f), fit()},
+                                                         .ChildGap = Config.ChildGap});
         bool pressed = false;
-        if (elm)
+        for (u32 i = 0; i < count; ++i)
         {
-            const DragFocusInfo info = getDragFocusInfo(elm);
+            T &val = value[i];
+            ly.PushId(&val);
 
-            if (info.Pressed)
-                col = &m_Colors[OverlayColor_DragPressed];
-            else if (info.Hovered)
-                col = &m_Colors[OverlayColor_DragHovered];
-            pressed = info.Pressed;
+            const LayoutElement *elm = ly.QueryElement("Outer drag");
+            const Color *col = &m_Colors[OverlayColor_DragIdle];
+            bool locallyPressed = false;
+            if (elm)
+            {
+                const DragFocusInfo info = getDragFocusInfo(elm);
+
+                if (info.Pressed)
+                    col = &m_Colors[OverlayColor_DragPressed];
+                else if (info.Hovered)
+                    col = &m_Colors[OverlayColor_DragHovered];
+                locallyPressed = info.Pressed;
+                pressed |= info.Pressed;
+            }
+
+            if (locallyPressed)
+            {
+                const f32 md = m_MouseDelta[0];
+                const T nval = val + T(speed * md);
+                if ((md > 0.f && nval > val) || (md < 0.f && nval < val))
+                    val = nval;
+            }
+            if (hasLimits)
+                val = Math::Clamp(val, T(mn), T(mx));
+
+            ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
+                                                              .Alignment = Alignment_Center,
+                                                              .Sizing = {grow(), fit()},
+                                                              .Padding = Config.WidgetPadding});
+
+            const TKit::StackString text = [&] {
+                // TODO(Isma): Pass formatting as a parameter
+                if constexpr (Float<T>)
+                    return TKit::StackString::Format("{:.3f}", val);
+                else
+                    return TKit::StackString::Format("{}", val);
+            }();
+
+            ly.Text(text, getTextParams(OverlayColor_DragText));
+
+            ly.EndPanel();
+            ly.PopId();
         }
-
-        if (pressed)
-        {
-            const f32 md = m_MouseDelta[0];
-            const T nval = *value + T(speed * md);
-            if ((md > 0.f && nval > *value) || (md < 0.f && nval < *value))
-                *value = nval;
-        }
-        if (hasLimits)
-            *value = Math::Clamp(*value, T(mn), T(mx));
-
-        ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
-                                                          .Alignment = Alignment_Center,
-                                                          .Sizing = {snorm(0.6f), fit()},
-                                                          .Padding = Config.WidgetPadding});
-
-        const TKit::StackString text = [&] {
-            // TODO(Isma): Pass formatting as a parameter
-            if constexpr (Float<T>)
-                return TKit::StackString::Format("{:.3f}", *value);
-            else
-                return TKit::StackString::Format("{}", *value);
-        }();
-
-        ly.Text(text, getTextParams(OverlayColor_DragText));
-
         ly.EndPanel();
         ly.Text(label, getTextParams(OverlayColor_DragText));
         ly.EndPanel();

@@ -56,14 +56,14 @@ int main()
         if (sliders)
         {
             ui.HorizontalSeparator("Here are some sliders!");
-            static f32 fval = 4;
-            ui.HorizontalSlider("My slider float", &fval, 0.f, 10.f);
+            static f32 fval[2] = {4, 7};
+            ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, 2);
 
             static u32 uval = 7;
             ui.HorizontalSlider("My slider uint", &uval, 3, 28);
 
-            static u32 uval2 = 7;
-            ui.HorizontalDrag("My drag uint", &uval2, 1);
+            static u32 uval2[3] = {7, 2, 5};
+            ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, 3);
         }
 
         ui.EndWindow();

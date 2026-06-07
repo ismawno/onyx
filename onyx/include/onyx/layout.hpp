@@ -448,6 +448,13 @@ class Layout
     {
         PushId(TKit::Hash(id));
     }
+
+    template <typename T>
+        requires(!std::same_as<T, char>)
+    void PushId(const T *id)
+    {
+        PushId(TKit::Hash(id));
+    }
     void PopId()
     {
         m_IdStack.Pop();
