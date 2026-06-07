@@ -189,6 +189,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKIT_NON_COPYABLE(IRenderContext)
 
   public:
+    // TODO(Isma): Maybe add here an amount of dynamic vertex/index buffer arrays to be allocated so that the context
+    // can use those and still be independent
     IRenderContext();
     ~IRenderContext();
 
