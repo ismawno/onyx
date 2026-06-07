@@ -252,6 +252,8 @@ static Geometry getGeometry(const ResourceType rtype)
     }
 }
 
+// NOTE(Isma): For vertex geometry it is important that *creating new vertex/index arrays* triggers this function
+// through a FlushAllContexts. meaning creating them requires a Sync() call.
 template <Dimension D> void IRenderContext<D>::resizeInstanceData()
 {
     ForEachResourceGroup<D>([this](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
