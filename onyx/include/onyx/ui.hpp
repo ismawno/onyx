@@ -263,6 +263,8 @@ struct UserInterfaceSpecs
 // TODO(Isma): Implement bitset with pressed keys for control etc. as well for mouse
 // TODO(Isma): Have a function, eventKeyPressed/Released(), eventMousePressed() that takes a key/mouse enum and checks
 // if it was pressed
+// TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
+// TODO(Isma): Implement arrow cursor movement with keyboard
 class UserInterface
 {
     TKIT_NON_COPYABLE(UserInterface)
