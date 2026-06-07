@@ -122,7 +122,7 @@ void UserInterface::drawWindowScrollBar()
         const LayoutElement *scrollBar = ly.QueryElement("Scroll bar");
         if (scrollBar)
         {
-            const DragInputInfo iinfo = getDragInputInfo(scrollBar);
+            const DragFocusInfo iinfo = getDragFocusInfo(scrollBar);
 
             if (iinfo.Pressed)
             {
@@ -284,7 +284,7 @@ void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 
 bool UserInterface::collapseButton()
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo(ly.QueryElement("Collapse button"));
+    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement("Collapse button"));
 
     const Color *col = &Color_Transparent;
     if (info.Pressed)
@@ -300,37 +300,43 @@ bool UserInterface::collapseButton()
     return info.Clicked;
 }
 
-ClickInputInfo UserInterface::getClickInputInfo(const LayoutElement *elm)
+ClickFocusInfo UserInterface::getClickFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
-        return ClickInputInfo{};
+        return ClickFocusInfo{};
 
     const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
 
     const bool canHover = canFocus && m_PressedDragger == NullLayoutId &&
                           (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
-    const bool clicked = hovered && m_Current->CheckFlags(OverlayWindowFlag_MouseReleased);
-    const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
+
+    const bool clicked =
+        hovered && m_LastPressedClicker == elm->Id && m_Current->CheckFlags(OverlayWindowFlag_MouseReleased);
+    const bool pressed = hovered && (m_LastPressedClicker == NullLayoutId || m_LastPressedClicker == elm->Id) &&
+                         m_Window->IsMousePressed(Mouse_Button1);
 
     if (pressed)
+    {
         m_PressedClicker = elm->Id;
+        m_LastPressedClicker = elm->Id;
+    }
     if (hovered)
         m_HoveredClicker = elm->Id;
 
-    ClickInputInfo info;
+    ClickFocusInfo info;
     info.Clicked = clicked;
     info.Pressed = pressed;
     info.Hovered = hovered;
     return info;
 }
 
-DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm)
+DragFocusInfo UserInterface::getDragFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
-        return DragInputInfo{};
+        return DragFocusInfo{};
 
-    DragInputInfo info;
+    DragFocusInfo info;
     if (m_PressedDragger == elm->Id)
     {
         info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
@@ -354,39 +360,45 @@ DragInputInfo UserInterface::getDragInputInfo(const LayoutElement *elm)
     return info;
 }
 
-bool UserInterface::isInputBoxFocused(const LayoutElement *elm)
+InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
-        return false;
+        return InputFocusInfo{};
 
     const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
     const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
-    const bool hovered = canHover && elm->IsHovered(m_MousePos);
 
-    const bool pressing = m_Window->IsMousePressed(Mouse_Button1);
+    const bool hovered = canHover && elm->IsHovered(m_MousePos);
+    const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
+    const bool clicked = m_Current->CheckFlags(OverlayWindowFlag_MousePressed);
+
+    const bool interacting = hovered && pressed;
+    const bool clicking = hovered && clicked;
 
     if (hovered)
         m_Current->Flags |= OverlayWindowFlag_InputHovered;
 
-    if (hovered && pressing)
-        m_Current->TextHighlightSize += m_MouseDelta[0];
+    InputFocusInfo info;
+    info.EnteredFocus = interacting && m_LastFocusedInputter != elm->Id;
+    info.Focused = clicking || m_FocusedInputter == elm->Id;
 
-    if (m_FocusedInputter == elm->Id)
-        return true;
-
-    if (hovered && pressing)
+    if (interacting)
     {
-        m_FocusedInputter = elm->Id;
-        m_Current->TextCursorPos = m_MousePos[0];
-        return true;
+        m_Current->TextHighlightSize += m_MouseDelta[0];
+        if (clicking)
+        {
+            m_FocusedInputter = elm->Id;
+            m_LastFocusedInputter = elm->Id;
+            m_Current->TextCursorPos = m_MousePos[0];
+        }
     }
-    return false;
+    return info;
 }
 
 bool UserInterface::Button(const TKit::StringView label)
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo(ly.QueryElement(label));
+    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
     if (info.Pressed)
@@ -405,7 +417,7 @@ bool UserInterface::Button(const TKit::StringView label)
 bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 {
     Layout &ly = m_Current->Layout;
-    const ClickInputInfo info = getClickInputInfo(ly.QueryElement(label));
+    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
     if (info.Pressed)
@@ -453,7 +465,7 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
     str.Insert(str.end(), buf, buf + bufSize);
 
     const LayoutElement *outer = ly.QueryElement("Outer input");
-    const bool focused = isInputBoxFocused(outer);
+    const InputFocusInfo info = getInputFocusInfo(outer);
     // this is the actual input box. color selection is a bit random
     ly.BeginPanel("Outer input", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundCollapsed],
                                                        .Alignment = {Alignment_Left, Alignment_Center},
@@ -465,7 +477,7 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
     bool written = false;
     // if we are not focused, we pretty much just print the text and thats it (focused just means the cursor is active
     // and awaiting input)
-    if (focused)
+    if (info.Focused)
     {
         const FontData &fdata = getFontData();
         const f32 outerPos = outer ? (outer->Position[0] + Config.WidgetPadding) : 0.f;
@@ -476,7 +488,13 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
         // a double click)
         //
         // in general, advances are clamped to char borders, but are in pixel units as well
-        if (m_OverflowClicks == 1)
+        // pretty straightforward, just grab all the text
+        if (m_OverflowClicks == 2 || info.EnteredFocus)
+        {
+            m_Current->TextCursorPos = outerPos;
+            m_Current->TextHighlightSize = fs * fdata.ComputeTextWidth(str);
+        }
+        else if (m_OverflowClicks == 1)
         {
             f32 textAdvance = 0.f;
             u32 idx = 0;
@@ -517,12 +535,6 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
             // must remain consisten
             m_Current->TextCursorPos = startAdvance + outerPos;
             m_Current->TextHighlightSize = endAdvance - startAdvance;
-        }
-        // pretty straightforward, just grab all the text
-        else if (m_OverflowClicks == 2)
-        {
-            m_Current->TextCursorPos = outerPos;
-            m_Current->TextHighlightSize = fs * fdata.ComputeTextWidth(str);
         }
 
         // now it is time to, given the cursor and the text highlight size, to draw the former if there is not
@@ -693,8 +705,14 @@ void UserInterface::processWindows()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
+    if (m_FocusedInputter == NullLayoutId)
+        m_LastFocusedInputter = NullLayoutId;
+    if (m_PressedClicker == NullLayoutId)
+        m_LastPressedClicker = NullLayoutId;
+
+    const bool pressingWidget = m_PressedClicker != NullLayoutId || m_PressedDragger != NullLayoutId;
     // if nothing is grabbed, we check mouse cursors here
-    if (!m_Grabbed)
+    if (!m_Grabbed && !pressingWidget)
     {
         const bool hoveringWidget = m_HoveredClicker != NullLayoutId || m_HoveredDragger != NullLayoutId;
         MouseCursor cursor = MouseCursor_Default;
@@ -774,6 +792,8 @@ void UserInterface::processWindows()
             wflags |= OverlayWindowFlag_MouseReleased;
             if (m_ClickClock.Restart().AsMilliseconds() <= Config.ClickMilliseconds)
                 ++m_OverflowClicks;
+            m_PressedClicker = NullLayoutId;
+            m_PressedDragger = NullLayoutId;
         }
         else if (ev.Type == Event_Scrolled)
             scroll = Config.ScrollSensitivity * ev.ScrollOffset[1];
@@ -795,7 +815,6 @@ void UserInterface::processWindows()
     u32 idx = m_OverlayWindows.GetSize();
     // go through the windows to 1. assign the mouse events to the uppermost hovered window and 2. assign such window as
     // grabbed if user pressed the mouse
-    const bool pressingWidget = m_PressedClicker != NullLayoutId || m_PressedDragger != NullLayoutId;
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
         const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, Config.BorderHoverPadding);
@@ -805,8 +824,9 @@ void UserInterface::processWindows()
         if (pressed)
             win.TextHighlightSize = 0.f;
 
-        win.AddFlags((wflags & OverlayWindowFlag_MouseReleased) | (wflags & OverlayWindowFlag_DeleteChar));
+        win.Flags |= wflags;
         win.RemoveFlags(OverlayWindowFlag_InputHovered);
+
         win.TextInput = textInput;
         if (winHovered)
         {
@@ -820,7 +840,6 @@ void UserInterface::processWindows()
             const bool noFocus = win.Flags & OverlayWindowFlag_NoBringToFocus;
             if (!pressingWidget && !inputHovered)
             {
-                win.Flags |= wflags;
                 win.Resize.Position = win.Position;
                 win.Resize.Size = win.Size;
                 m_Grabbed = noFocus ? &win : &m_OverlayWindows.GetBack();
@@ -835,11 +854,7 @@ void UserInterface::processWindows()
 
     // now just handle grabbing, which is straightforward
     if (!m_Window->IsMousePressed(Mouse_Button1))
-    {
         m_Grabbed = nullptr;
-        m_PressedClicker = NullLayoutId;
-        m_PressedDragger = NullLayoutId;
-    }
     else if (m_Grabbed)
     {
         m_Grabbed->Resize.InteractionColor = &m_Colors[OverlayColor_WindowBorderPressed];

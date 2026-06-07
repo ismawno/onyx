@@ -274,17 +274,23 @@ struct OverlayColorRegistry
     }
 };
 
-struct ClickInputInfo
+struct ClickFocusInfo
 {
     bool Clicked = false;
     bool Pressed = false;
     bool Hovered = false;
 };
 
-struct DragInputInfo
+struct DragFocusInfo
 {
     bool Pressed = false;
     bool Hovered = false;
+};
+
+struct InputFocusInfo
+{
+    bool Focused = false;
+    bool EnteredFocus = false;
 };
 
 struct LayoutConfig
@@ -312,8 +318,7 @@ struct UserInterfaceSpecs
     LayoutConfig Config{};
 };
 
-// TODO(Isma): Tidy up things. create aliases for common sizing modes. parametrize hardcodes into config (child gap and
-// all as well)
+// TODO(Isma): Implement bitset with pressed keys for control etc
 class UserInterface
 {
     TKIT_NON_COPYABLE(UserInterface)
@@ -408,6 +413,7 @@ class UserInterface
     }
 
     // TODO(Isma): Implement flags
+    // TODO(Isma): Implement array of sliders
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx)
     {
@@ -422,7 +428,7 @@ class UserInterface
         bool pressed = false;
         if (elm)
         {
-            const DragInputInfo info = getDragInputInfo(elm);
+            const DragFocusInfo info = getDragFocusInfo(elm);
 
             if (info.Pressed)
                 col = &m_Colors[OverlayColor_SliderPressed];
@@ -499,6 +505,7 @@ class UserInterface
     }
 
     // TODO(Isma): Implement flags
+    // TODO(Isma): Implement array of drags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, U mn = T(0), U mx = T(0))
     {
@@ -513,7 +520,7 @@ class UserInterface
         bool pressed = false;
         if (elm)
         {
-            const DragInputInfo info = getDragInputInfo(elm);
+            const DragFocusInfo info = getDragFocusInfo(elm);
 
             if (info.Pressed)
                 col = &m_Colors[OverlayColor_DragPressed];
@@ -568,9 +575,9 @@ class UserInterface
     void drawWindowBorders();
     void drawWindowScrollBar();
 
-    ClickInputInfo getClickInputInfo(const LayoutElement *elm);
-    DragInputInfo getDragInputInfo(const LayoutElement *elm);
-    bool isInputBoxFocused(const LayoutElement *elm);
+    ClickFocusInfo getClickFocusInfo(const LayoutElement *elm);
+    DragFocusInfo getDragFocusInfo(const LayoutElement *elm);
+    InputFocusInfo getInputFocusInfo(const LayoutElement *elm);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
@@ -653,9 +660,11 @@ class UserInterface
     usz m_HoveredDragger = NullLayoutId;
 
     usz m_PressedClicker = NullLayoutId;
+    usz m_LastPressedClicker = NullLayoutId;
     usz m_PressedDragger = NullLayoutId;
 
     usz m_FocusedInputter = NullLayoutId;
+    usz m_LastFocusedInputter = NullLayoutId;
 
     u32 m_OverflowClicks = 0;
 
