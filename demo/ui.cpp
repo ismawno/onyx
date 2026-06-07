@@ -17,64 +17,66 @@ int main()
     while (Onyx::Running())
     {
         static Onyx::OverlayWindowFlags flags = 0;
-        if (ui.BeginWindow("Window settings", flags))
+        static bool enableSettings = false;
+        if (ui.BeginWindow("User interface demo", flags))
         {
-            ui.CheckBoxFlags("No resize", &flags, Onyx::OverlayWindowFlag_NoResize);
-            ui.CheckBoxFlags("No move", &flags, Onyx::OverlayWindowFlag_NoMove);
-            ui.CheckBoxFlags("No collapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
-            ui.CheckBoxFlags("No scroll bar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
-            ui.CheckBoxFlags("No background", &flags, Onyx::OverlayWindowFlag_NoBackground);
-            ui.CheckBoxFlags("No header bar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
-            ui.CheckBoxFlags("No bring to focus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-            ui.CheckBoxFlags("Always auto resize", &flags, Onyx::OverlayWindowFlag_AlwaysAutoResize);
-        }
-        ui.EndWindow();
+            ui.HorizontalSeparator("General");
+            const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
+            ui.Text("Delta time: {:.2f} ms", ftime);
+            ui.CheckBox("Open widow settings", &enableSettings);
 
-        ui.BeginWindow("Test", flags);
-        const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
-        ui.Text("Delta time: {:.2f} ms", ftime);
+            static bool helloText = false;
+            if (ui.Button("This is a button"))
+                helloText = !helloText;
 
-        ui.Button("Wow!");
-        ui.Button("Yes!");
-        ui.Button("No!");
-        if (ui.Button("A!"))
-            TKit::PrintLine("Hello! ive been pressed");
+            if (helloText)
+                ui.Text("Hi!");
 
-        static char buf1[32] = "Some long wooords tooo test";
-        ui.InputText("Text 1", buf1, 32);
-        static char buf2[32] = "Some wooords test... again!";
-        ui.InputText("Text 2", buf2, 32);
-
-        static u32 val = 4;
-        ui.InputNumeric("Some number", &val);
-
-        static bool sliders = false;
-        static bool anotherWindow = false;
-        ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
-        ui.CheckBox("Extra window", &anotherWindow);
-        ui.Separator();
-        ui.CheckBox("Enable sliders", &sliders);
-        ui.Pop();
-
-        if (sliders)
-        {
-            ui.HorizontalSeparator("Here are some sliders!");
+            ui.HorizontalSeparator("Sliders/Drags");
             static f32 fval[2] = {4, 7};
-            ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, 2);
+            ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
 
-            static u32 uval = 7;
-            ui.HorizontalSlider("My slider uint", &uval, 3, 28);
+            static i32 ival = 7;
+            ui.HorizontalSlider("My slider int", &ival, -3, 28);
 
             static u32 uval2[3] = {7, 2, 5};
-            ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, 3);
-        }
+            ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
 
+            ui.HorizontalSeparator("Inputs");
+
+            static Onyx::OverlayInputFlags iflags = 0;
+            ui.CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
+            ui.CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags, Onyx::OverlayInputFlag_EnterCommitsBuffer);
+            ui.CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
+            ui.CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
+            ui.CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags, Onyx::OverlayInputFlag_NoHorizontalScroll);
+            ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
+
+            static char buf1[32] = "This is some nice text";
+            ui.InputText("Text 1", buf1, 32, iflags);
+
+            static i32 iival = 4;
+            ui.InputNumeric("Some integer", &iival, "{}", iflags);
+
+            static f32 ifval = 8.f;
+            ui.InputNumeric("Some float", &ifval, "{:.3f}", iflags);
+        }
         ui.EndWindow();
 
-        if (anotherWindow)
+        if (enableSettings)
         {
-            ui.BeginWindow("Im another window!", flags);
-            ui.Text("Happy to be here!");
+            if (ui.BeginWindow("Window settings", flags))
+            {
+                ui.CheckBoxFlags("OverlayWindowFlag_NoResize", &flags, Onyx::OverlayWindowFlag_NoResize);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoMove", &flags, Onyx::OverlayWindowFlag_NoMove);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoCollapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoScrollBar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoBackground", &flags, Onyx::OverlayWindowFlag_NoBackground);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+                ui.CheckBoxFlags("OverlayWindowFlag_AlwaysAutoResize", &flags,
+                                 Onyx::OverlayWindowFlag_AlwaysAutoResize);
+            }
             ui.EndWindow();
         }
 

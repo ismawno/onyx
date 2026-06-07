@@ -282,17 +282,15 @@ void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 
     ly.EndPanel();
 }
 
-bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideHighlightAll)
+bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFlags flags,
+                                 const bool overrideEnterFocus)
 {
     TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
     Layout &ly = m_Current->Layout;
-    const u32 bufSize = u32(std::strlen(buf));
-    TKIT_ASSERT(bufSize < size, "[ONYX][UI] The input character length ({}) exceeds buffer size ({})", bufSize, size);
+    const u32 strSize = u32(std::strlen(buf));
+    TKIT_ASSERT(strSize < size, "[ONYX][UI] The input character length ({}) exceeds buffer size ({})", strSize, size);
 
     // lets just first store the buffer in a string for easy insertion
-    TKit::StackString str;
-    str.Reserve(size);
-    str.Insert(str.end(), buf, buf + bufSize);
 
     const LayoutElement *ibox = ly.QueryElement("Input box");
     const InputFocusInfo info = getInputFocusInfo(ibox);
@@ -302,26 +300,52 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideH
                                                      .Sizing = {grow(), fit()},
                                                      .Padding = Config.WidgetPadding});
 
-    ly.Text(str, getTextParams());
-
     bool updated = false;
     // if we are not focused, we pretty much just print the text and thats it (focused just means the cursor is active
     // and awaiting input)
-    if (info.Focused)
-    {
-        const FontData &fdata = getFontData();
-        const f32 outerPos = ibox ? (ibox->Position[0] + Config.WidgetPadding) : 0.f;
+    const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * Config.WidgetPadding) : 0.f;
 
-        f32 relCursorPos = m_Current->TextCursorPos - outerPos;
-        const f32 fs = Config.FontSize;
+    const FontData &fdata = getFontData();
+    const f32 fs = Config.FontSize;
+
+    if (!info.Focused)
+    {
+        const bool elide = flags & OverlayInputFlag_ElideLeft;
+        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
+
+        LayoutTextParameters tparams = getTextParams();
+        tparams.Offset[0] = oabs(textOffset);
+        ly.Text(buf, tparams);
+    }
+    else
+    {
+        TKit::String &str = m_InputWidgetBuffer;
+        const bool enteredFocus = info.EnteredFocus || overrideEnterFocus;
+        if (enteredFocus)
+        {
+            str.Clear();
+            str.Insert(str.end(), buf, buf + strSize);
+        }
+
+        const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
+        if (escapeClears && m_EventKeys[Key_Escape])
+        {
+            str.Clear();
+            updated = true;
+        }
+        const f32 boxPos = ibox ? (ibox->Position[0] + Config.WidgetPadding) : 0.f;
+
+        f32 relCursorPos = m_Current->TextCursorPos - boxPos;
         // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
         // a double click)
         //
         // in general, advances are clamped to char borders, but are in pixel units as well
         // pretty straightforward, just grab all the text
-        if (overrideHighlightAll || m_OverflowClicks == 2 || info.EnteredFocus)
+
+        const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
+        if (m_OverflowClicks == 2 || (enteredFocus && autoSelectAll))
         {
-            m_Current->TextCursorPos = outerPos;
+            m_Current->TextCursorPos = boxPos;
             m_Current->TextHighlightSize = fs * fdata.ComputeTextWidth(str);
         }
         else if (m_OverflowClicks == 1)
@@ -363,7 +387,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideH
 
             // and then update the global positions/sizes. this is important bc all input is derived from these, so they
             // must remain consisten
-            m_Current->TextCursorPos = startAdvance + outerPos;
+            m_Current->TextCursorPos = startAdvance + boxPos;
             m_Current->TextHighlightSize = endAdvance - startAdvance;
         }
 
@@ -421,13 +445,20 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideH
             return true;
         });
 
+        const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
+        const f32 textOffset = noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - Config.CursorWidth);
+
+        LayoutTextParameters tparams = getTextParams();
+        tparams.Offset[0] = oabs(textOffset);
+        ly.Text(str, tparams);
+
         const f32 hAdvance = hendAdvance - hstartAdvance;
         // bc of layout solving, cursor is gonna be offsetted by the text. we have to work out how much to "bring it
         // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by -textWidth.
         // same goes for highlight
 
         // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
-        const f32 offset = cursorAdvance - textWidth + 0.1f;
+        const f32 offset = cursorAdvance - textWidth + textOffset + 0.1f;
 
         // if there is any highlight, cursor is discarded
         const bool hasCursor = hAdvance == 0.f;
@@ -450,7 +481,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideH
 
         // we just then see how many spots are left and how many spots the user wants to write to. we take the min of
         // them
-        const u32 spotsLeft = size - 1 - bufSize;
+        const u32 spotsLeft = size - 1 - strSize;
         const u32 spots = Math::Min(m_Current->TextInput.GetSize(), spotsLeft);
 
         // we take a range to remove characters by cursor or by highlight
@@ -496,16 +527,31 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideH
         for (u32 i = 0; i < spots; ++i)
             str.Insert(str.begin() + cursorEnd, m_Current->TextInput[i]);
 
-        // copy the new string into the buffer and we are done :)
-        for (u32 i = 0; i < str.GetSize(); ++i)
-            buf[i] = str[i];
-
-        buf[str.GetSize()] = '\0';
         if (spots != 0)
             m_Current->TextCursorPos += fs * fdata.ComputeTextWidth(m_Current->TextInput);
+
+        const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
+        if (enterCommits)
+            updated = m_Window->IsKeyPressed(Key_Enter);
+        if (updated)
+        {
+            // copy the new string into the buffer and we are done :)
+            for (u32 i = 0; i < str.GetSize(); ++i)
+                buf[i] = str[i];
+
+            buf[str.GetSize()] = '\0';
+        }
+
+        if (!enterCommits)
+        {
+            const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
+            if (enterTrue)
+                updated = m_Window->IsKeyPressed(Key_Enter);
+        }
     }
 
     ly.EndPanel();
+
     return updated;
 }
 
@@ -701,7 +747,7 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     return info.Clicked;
 }
 
-bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
+bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size, const OverlayInputFlags flags)
 {
     Layout &ly = m_Current->Layout;
     ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -712,7 +758,7 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
                                                      .Sizing = {snorm(0.6f), fit()},
                                                      .ChildGap = Config.ChildGap});
 
-    const bool updated = inputTextBox(buf, size);
+    const bool updated = inputTextBox(buf, size, flags);
     ly.EndPanel();
     ly.Text(label, getTextParams());
     ly.EndPanel();

@@ -5,6 +5,10 @@
 #include "onyx/window.hpp"
 #include "tkit/container/bitset.hpp"
 
+#ifndef ONYX_INPUT_NUMERIC_BUFFER_SIZE
+#    define ONYX_INPUT_NUMERIC_BUFFER_SIZE 128
+#endif
+
 namespace Onyx
 {
 enum OverlayResizeEdge : u8
@@ -29,6 +33,17 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_NoBackground = 1U << 13,
     OverlayWindowFlag_NoBringToFocus = 1U << 14,
     OverlayWindowFlag_AlwaysAutoResize = 1U << 15,
+};
+
+using OverlayInputFlags = u8;
+enum OverlayInputFlagBit : OverlayInputFlags
+{
+    OverlayInputFlag_EnterReturnsTrue = 1 << 0,
+    OverlayInputFlag_EnterCommitsBuffer = 1 << 1,
+    OverlayInputFlag_EscapeClearsAll = 1 << 2,
+    OverlayInputFlag_AutoSelectAll = 1 << 3,
+    OverlayInputFlag_NoHorizontalScroll = 1 << 4,
+    OverlayInputFlag_ElideLeft = 1 << 5,
 };
 
 struct OverlayResizeInfo
@@ -263,8 +278,9 @@ class UserInterface
     bool Button(TKit::StringView label);
     bool CheckBox(TKit::StringView label, bool *enable);
 
-    bool InputText(TKit::StringView label, char *buf, u32 size);
-    template <TKit::Numeric T> bool InputNumeric(const TKit::StringView label, T *value)
+    bool InputText(TKit::StringView label, char *buf, u32 size, OverlayInputFlags flags = 0);
+    template <TKit::Numeric T>
+    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const OverlayInputFlags flags = 0)
     {
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -274,7 +290,7 @@ class UserInterface
                                                          .Sizing = {snorm(0.6f), fit()},
                                                          .ChildGap = Config.ChildGap});
 
-        const bool updated = inputNumericBox(value);
+        const bool updated = inputNumericBox(value, format, flags);
         ly.EndPanel();
         ly.Text(label, getTextParams());
         ly.EndPanel();
@@ -360,7 +376,8 @@ class UserInterface
     // TODO(Isma): Implement flags
     // TODO(Isma): Implement array of sliders
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const u32 count = 1)
+    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
+                          const u32 count = 1)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = m_Current->Layout;
@@ -376,7 +393,7 @@ class UserInterface
         {
             T &val = value[i];
             ly.PushId(&val);
-            pressed |= horizontalSliderBox(&val, mn, mx);
+            pressed |= horizontalSliderBox(&val, mn, mx, format);
             ly.PopId();
         }
         ly.EndPanel();
@@ -389,7 +406,7 @@ class UserInterface
     // TODO(Isma): Implement array of drags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
-                        const U mx = T(0), const u32 count = 1)
+                        const U mx = T(0), const char *format = nullptr, const u32 count = 1)
     {
         Layout &ly = m_Current->Layout;
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -404,7 +421,7 @@ class UserInterface
         {
             T &val = value[i];
             ly.PushId(&val);
-            pressed |= horizontalDragBox(&val, speed, mn, mx);
+            pressed |= horizontalDragBox(&val, speed, mn, mx, format);
             ly.PopId();
         }
 
@@ -423,10 +440,12 @@ class UserInterface
     {
         return flags & m_EventFlags;
     }
-    template <TKit::Numeric T, std::convertible_to<T> U> bool horizontalSliderBox(T *value, const U mn, const U mx)
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
         Layout &ly = m_Current->Layout;
         const LayoutElement *elm = ly.QueryElement("Slider box");
+        format = getFormat<T>(format);
 
         const Color *col = &m_Colors[OverlayColor_SliderIdle];
         DragFocusInfo info{};
@@ -443,7 +462,7 @@ class UserInterface
 
         const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered);
         if (cinfo.MustConvert)
-            return inputNumericBox(value, cinfo.MustOverrideHighlight);
+            return inputNumericBox(value, nullptr, OverlayInputFlag_AutoSelectAll, cinfo.MustOverrideHighlight);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
         const f32 w = 0.5f * Config.WidgetSize;
@@ -494,14 +513,7 @@ class UserInterface
                                                          .Sizing = {snorm(1.f), fit()},
                                                          .SelfOffset = onorm({-1.f, 0.f})});
 
-        const TKit::StackString text = [&] {
-            // TODO(Isma): Pass formatting as a parameter
-            if constexpr (Float<T>)
-                return TKit::StackString::Format("{:.3f}", *value);
-            else
-                return TKit::StackString::Format("{}", *value);
-        }();
-
+        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(text, getTextParams(OverlayColor_SliderText));
 
         ly.EndPanel();
@@ -509,10 +521,11 @@ class UserInterface
         return info.Pressed;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx)
+    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
     {
         Layout &ly = m_Current->Layout;
         const bool hasLimits = mn < mx;
+        format = getFormat<T>(format);
 
         const LayoutElement *elm = ly.QueryElement("Drag box");
         const Color *col = &m_Colors[OverlayColor_DragIdle];
@@ -529,7 +542,7 @@ class UserInterface
 
         const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered, true);
         if (cinfo.MustConvert)
-            return inputNumericBox(value, cinfo.MustOverrideHighlight);
+            return inputNumericBox(value, nullptr, OverlayInputFlag_AutoSelectAll, cinfo.MustOverrideHighlight);
 
         if (info.Pressed)
         {
@@ -546,31 +559,25 @@ class UserInterface
                                                         .Sizing = {grow(), fit()},
                                                         .Padding = Config.WidgetPadding});
 
-        const TKit::StackString text = [&] {
-            // TODO(Isma): Pass formatting as a parameter
-            if constexpr (Float<T>)
-                return TKit::StackString::Format("{:.3f}", *value);
-            else
-                return TKit::StackString::Format("{}", *value);
-        }();
-
+        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(text, getTextParams(OverlayColor_DragText));
 
         ly.EndPanel();
         return info.Pressed;
     }
 
-    bool inputTextBox(char *buf, u32 size, bool overrideHighlightAll = false);
-    template <TKit::Numeric T> bool inputNumericBox(T *value, const bool overrideHighlightAll = false)
+    bool inputTextBox(char *buf, u32 size, OverlayInputFlags flags, bool overrideEnterFocus = false);
+    template <TKit::Numeric T>
+    bool inputNumericBox(T *value, const char *format, const OverlayInputFlags flags,
+                         const bool overrideEnterFocus = false)
     {
-        constexpr u32 bsize = 128;
-        char buf[bsize];
-        if constexpr (TKit::Float<T>)
-            std::snprintf(buf, bsize, "%f", *value);
-        else
-            std::snprintf(buf, bsize, "%lld", u64(*value));
+        constexpr u32 bsize = ONYX_INPUT_NUMERIC_BUFFER_SIZE;
 
-        if (inputTextBox(buf, bsize, overrideHighlightAll))
+        format = getFormat<T>(format);
+        TKit::StaticString<bsize> str = TKit::StaticString<bsize>::Format(TKit::RuntimeFormatString(format), *value);
+        char *buf = str.CString();
+
+        if (inputTextBox(buf, bsize, flags, overrideEnterFocus))
         {
             char *end;
             if constexpr (TKit::Float<T>)
@@ -588,6 +595,21 @@ class UserInterface
             return true;
         }
         return false;
+    }
+
+    template <TKit::Numeric T> const char *getFormat(const char *format)
+    {
+        if constexpr (TKit::Float<T>)
+        {
+            if (!format)
+                format = "{:.3f}";
+        }
+        else
+        {
+            if (!format)
+                format = "{}";
+        }
+        return format;
     }
 
     InputConvertInfo getInputConvertInfo(bool hovered, bool allowDoubleClick = false);
@@ -700,6 +722,7 @@ class UserInterface
     u32 m_OverflowClicks = 0;
 
     TKit::StaticBitSet<Key_Count> m_EventKeys{Key_Count};
+    TKit::String m_InputWidgetBuffer{};
 
     TKit::Clock m_ClickClock{};
 
