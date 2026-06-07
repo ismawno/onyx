@@ -373,8 +373,7 @@ class UserInterface
         m_Current->Layout.Text(txt, getTextParams(OverlayColor_Text));
     }
 
-    // TODO(Isma): Implement flags
-    // TODO(Isma): Implement array of sliders
+    // TODO(Isma): Implement format rounding
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
                           const u32 count = 1)
@@ -402,8 +401,6 @@ class UserInterface
         return pressed;
     }
 
-    // TODO(Isma): Implement flags
-    // TODO(Isma): Implement array of drags
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
                         const U mx = T(0), const char *format = nullptr, const u32 count = 1)
