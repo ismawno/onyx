@@ -11,15 +11,17 @@ enum OverlayResizeFlagBit : OverlayResizeFlags
     OverlayResizeFlag_Bottom = 1U << 2,
     OverlayResizeFlag_Top = 1U << 3,
 };
+enum OverlayEventFlagBit : OverlayEventFlags
+{
+    OverlayEventFlag_MousePressed = 1U << 0,
+    OverlayEventFlag_MouseReleased = 1U << 1,
+};
 enum OverlayWindowInternalFlagBit : OverlayWindowFlags
 {
     OverlayWindowFlag_Collapsed = 1U << 0,
-    OverlayWindowFlag_MousePressed = 1U << 1,
-    OverlayWindowFlag_MouseReleased = 1U << 2,
-    OverlayWindowFlag_Hovered = 1U << 3,
-    OverlayWindowFlag_InputHovered = 1U << 4,
-    OverlayWindowFlag_DeleteChar = 1U << 5,
-    OverlayWindowFlagClear = (1U << 6) - 1U
+    OverlayWindowFlag_Hovered = 1U << 1,
+    OverlayWindowFlag_InputHovered = 1U << 2,
+    OverlayWindowFlagClear = (1U << 3) - 1U
 };
 
 UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
@@ -280,7 +282,7 @@ void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 
     ly.EndPanel();
 }
 
-bool UserInterface::inputTextBox(char *buf, const u32 size)
+bool UserInterface::inputTextBox(char *buf, const u32 size, const bool overrideHighlightAll)
 {
     TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
     Layout &ly = m_Current->Layout;
@@ -292,8 +294,8 @@ bool UserInterface::inputTextBox(char *buf, const u32 size)
     str.Reserve(size);
     str.Insert(str.end(), buf, buf + bufSize);
 
-    const LayoutElement *outer = ly.QueryElement("Input box");
-    const InputFocusInfo info = getInputFocusInfo(outer);
+    const LayoutElement *ibox = ly.QueryElement("Input box");
+    const InputFocusInfo info = getInputFocusInfo(ibox);
     // this is the actual input box. color selection is a bit random
     ly.BeginPanel("Input box", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundCollapsed],
                                                      .Alignment = {Alignment_Left, Alignment_Center},
@@ -308,7 +310,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size)
     if (info.Focused)
     {
         const FontData &fdata = getFontData();
-        const f32 outerPos = outer ? (outer->Position[0] + Config.WidgetPadding) : 0.f;
+        const f32 outerPos = ibox ? (ibox->Position[0] + Config.WidgetPadding) : 0.f;
 
         f32 relCursorPos = m_Current->TextCursorPos - outerPos;
         const f32 fs = Config.FontSize;
@@ -317,7 +319,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size)
         //
         // in general, advances are clamped to char borders, but are in pixel units as well
         // pretty straightforward, just grab all the text
-        if (m_OverflowClicks == 2 || info.EnteredFocus)
+        if (overrideHighlightAll || m_OverflowClicks == 2 || info.EnteredFocus)
         {
             m_Current->TextCursorPos = outerPos;
             m_Current->TextHighlightSize = fs * fdata.ComputeTextWidth(str);
@@ -457,7 +459,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size)
 
         // and just apply it. for highlight, we want to remove even if user just tried to write
         if (toRemoveBegin != toRemoveEnd && !str.IsEmpty() &&
-            (m_Current->CheckFlags(OverlayWindowFlag_DeleteChar) || (spots != 0 && !hasCursor)))
+            (m_EventKeys[Key_Backspace] || (spots != 0 && !hasCursor)))
         {
             updated = true;
             f32 toRemoveWidth = 0.f;
@@ -507,6 +509,31 @@ bool UserInterface::inputTextBox(char *buf, const u32 size)
     return updated;
 }
 
+InputConvertInfo UserInterface::getInputConvertInfo(const bool hovered, const bool allowDoubleClick)
+{
+    InputConvertInfo info{};
+
+    const LayoutElement *ibox = m_Current->Layout.QueryElement("Input box");
+    const bool ctrl = m_Window->IsKeyPressed(Config.BoxInputTrigger);
+    const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
+
+    const bool triggered = hovered && (dclick || (ctrl && checkFlags(OverlayEventFlag_MousePressed)));
+    const bool persisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
+
+    info.MustConvert = triggered || persisted;
+    info.MustOverrideHighlight = ibox && ibox->IsHovered(m_MousePos) && m_DelayedFocusedInputter != ibox->Id;
+
+    if (info.MustConvert)
+    {
+        if (ibox)
+        {
+            m_FocusedInputter = ibox->Id;
+            m_DelayedFocusedInputter = ibox->Id; // so that focus highlight all is not triggered
+        }
+    }
+    return info;
+}
+
 // TODO(Isma): Too much repetition between this and Button()
 bool UserInterface::collapseButton()
 {
@@ -538,15 +565,14 @@ ClickFocusInfo UserInterface::getClickFocusInfo(const LayoutElement *elm)
                           (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
 
-    const bool clicked =
-        hovered && m_LastPressedClicker == elm->Id && m_Current->CheckFlags(OverlayWindowFlag_MouseReleased);
-    const bool pressed = hovered && (m_LastPressedClicker == NullLayoutId || m_LastPressedClicker == elm->Id) &&
+    const bool clicked = hovered && m_DelayedPressedClicker == elm->Id && checkFlags(OverlayEventFlag_MouseReleased);
+    const bool pressed = hovered && (m_DelayedPressedClicker == NullLayoutId || m_DelayedPressedClicker == elm->Id) &&
                          m_Window->IsMousePressed(Mouse_Button1);
 
     if (pressed)
     {
         m_PressedClicker = elm->Id;
-        m_LastPressedClicker = elm->Id;
+        m_DelayedPressedClicker = elm->Id;
     }
     if (hovered)
         m_HoveredClicker = elm->Id;
@@ -597,7 +623,7 @@ InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
 
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
     const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
-    const bool clicked = m_Current->CheckFlags(OverlayWindowFlag_MousePressed);
+    const bool clicked = checkFlags(OverlayEventFlag_MousePressed);
 
     const bool interacting = hovered && pressed;
     const bool clicking = hovered && clicked;
@@ -606,7 +632,7 @@ InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
         m_Current->Flags |= OverlayWindowFlag_InputHovered;
 
     InputFocusInfo info;
-    info.EnteredFocus = interacting && m_LastFocusedInputter != elm->Id;
+    info.EnteredFocus = interacting && m_DelayedFocusedInputter != elm->Id;
     info.Focused = clicking || m_FocusedInputter == elm->Id;
 
     if (interacting)
@@ -615,7 +641,7 @@ InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
         if (clicking)
         {
             m_FocusedInputter = elm->Id;
-            m_LastFocusedInputter = elm->Id;
+            m_DelayedFocusedInputter = elm->Id;
             m_Current->TextCursorPos = m_MousePos[0];
         }
     }
@@ -716,11 +742,14 @@ void UserInterface::processWindows()
     const f32v2 mpos = getMousePos();
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
+    m_EventFlags = 0;
+
+    m_EventKeys.ClearAll();
 
     if (m_FocusedInputter == NullLayoutId)
-        m_LastFocusedInputter = NullLayoutId;
+        m_DelayedFocusedInputter = NullLayoutId;
     if (m_PressedClicker == NullLayoutId)
-        m_LastPressedClicker = NullLayoutId;
+        m_DelayedPressedClicker = NullLayoutId;
 
     const bool pressingWidget = m_PressedClicker != NullLayoutId || m_PressedDragger != NullLayoutId;
     // if nothing is grabbed, we check mouse cursors here
@@ -778,13 +807,12 @@ void UserInterface::processWindows()
         m_Window->SetMouseCursor(cursor);
     }
 
-    // remove some state flags and check whether the window is collapsed
+    // remove some state and check whether the window is collapsed
     for (OverlayWindow &win : m_OverlayWindows)
     {
         const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
         win.HeaderIcon = collapsed ? m_CollapsedHeaderIcon : m_ExpandedHeaderIcon;
-        win.RemoveFlags(OverlayWindowFlag_MousePressed | OverlayWindowFlag_MouseReleased | OverlayWindowFlag_Hovered |
-                        OverlayWindowFlag_DeleteChar);
+        win.RemoveFlags(OverlayWindowFlag_Hovered);
         win.TextInput.Clear();
     };
 
@@ -796,12 +824,12 @@ void UserInterface::processWindows()
     {
         if (ev.Type == Event_MousePressed)
         {
-            wflags |= OverlayWindowFlag_MousePressed;
+            m_EventFlags |= OverlayEventFlag_MousePressed;
             m_FocusedInputter = NullLayoutId;
         }
         else if (ev.Type == Event_MouseReleased)
         {
-            wflags |= OverlayWindowFlag_MouseReleased;
+            m_EventFlags |= OverlayEventFlag_MouseReleased;
             if (m_ClickClock.Restart().AsMilliseconds() <= Config.ClickMilliseconds)
                 ++m_OverflowClicks;
             m_PressedClicker = NullLayoutId;
@@ -815,8 +843,8 @@ void UserInterface::processWindows()
             const u32 count = EncodeUTF8(buf, ev.Character);
             textInput.Insert(textInput.end(), buf, buf + count);
         }
-        else if ((ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat) && ev.Key == Key_Backspace)
-            wflags |= OverlayWindowFlag_DeleteChar;
+        else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
+            m_EventKeys.Set(ev.Key);
     }
 
     if (m_ClickClock.GetElapsed().AsMilliseconds() > Config.ClickMilliseconds)
@@ -827,11 +855,11 @@ void UserInterface::processWindows()
     u32 idx = m_OverlayWindows.GetSize();
     // go through the windows to 1. assign the mouse events to the uppermost hovered window and 2. assign such window as
     // grabbed if user pressed the mouse
+    const bool pressed = m_EventFlags & OverlayEventFlag_MousePressed;
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
         const bool winHovered = canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, Config.BorderHoverPadding);
         const bool inputHovered = win.CheckFlags(OverlayWindowFlag_InputHovered);
-        const bool pressed = wflags & OverlayWindowFlag_MousePressed;
 
         if (pressed)
             win.TextHighlightSize = 0.f;

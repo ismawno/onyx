@@ -3,6 +3,7 @@
 #include "onyx/layout.hpp"
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
+#include "tkit/container/bitset.hpp"
 
 namespace Onyx
 {
@@ -15,6 +16,7 @@ enum OverlayResizeEdge : u8
     OverlayResizeEdge_Count
 };
 using OverlayResizeFlags = u8;
+using OverlayEventFlags = u8;
 using OverlayWindowFlags = u16;
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
@@ -211,6 +213,12 @@ struct InputFocusInfo
     bool EnteredFocus = false;
 };
 
+struct InputConvertInfo
+{
+    bool MustConvert = false;
+    bool MustOverrideHighlight = false;
+};
+
 struct LayoutConfig
 {
     f32 FontSize = 14.f;
@@ -227,6 +235,7 @@ struct LayoutConfig
     f32 WidgetPadding = 6.f;
     f32 ClickMilliseconds = 200.f;
     f32 CursorWidth = 2.f;
+    Key BoxInputTrigger = Key_LeftControl;
 };
 
 struct UserInterfaceSpecs
@@ -410,6 +419,10 @@ class UserInterface
     LayoutConfig Config;
 
   private:
+    bool checkFlags(const OverlayWindowFlags flags) const
+    {
+        return flags & m_EventFlags;
+    }
     template <TKit::Numeric T, std::convertible_to<T> U> bool horizontalSliderBox(T *value, const U mn, const U mx)
     {
         Layout &ly = m_Current->Layout;
@@ -428,19 +441,9 @@ class UserInterface
             info.Pressed = info.Pressed;
         }
 
-        const LayoutElement *ibox = ly.QueryElement("Input box");
-        const bool inputTriggered = info.Hovered && m_OverflowClicks == 1;
-        const bool inputPersisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
-
-        if (inputTriggered || inputPersisted)
-        {
-            if (ibox)
-            {
-                m_FocusedInputter = ibox->Id;
-                m_LastFocusedInputter = ibox->Id;
-            }
-            return inputNumericBox(value);
-        }
+        const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered);
+        if (cinfo.MustConvert)
+            return inputNumericBox(value, cinfo.MustOverrideHighlight);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
         const f32 w = 0.5f * Config.WidgetSize;
@@ -449,7 +452,7 @@ class UserInterface
 
         f32 offset = 0.f;
         const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
-        if (info.Pressed)
+        if (info.Pressed && !m_Window->IsKeyPressed(Config.BoxInputTrigger))
         {
             const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
@@ -524,19 +527,9 @@ class UserInterface
                 col = &m_Colors[OverlayColor_DragHovered];
         }
 
-        const LayoutElement *ibox = ly.QueryElement("Input box");
-        const bool inputTriggered = info.Hovered && m_OverflowClicks == 1;
-        const bool inputPersisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
-
-        if (inputTriggered || inputPersisted)
-        {
-            if (ibox)
-            {
-                m_FocusedInputter = ibox->Id;
-                m_LastFocusedInputter = ibox->Id;
-            }
-            return inputNumericBox(value);
-        }
+        const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered, true);
+        if (cinfo.MustConvert)
+            return inputNumericBox(value, cinfo.MustOverrideHighlight);
 
         if (info.Pressed)
         {
@@ -567,8 +560,8 @@ class UserInterface
         return info.Pressed;
     }
 
-    bool inputTextBox(char *buf, u32 size);
-    template <TKit::Numeric T> bool inputNumericBox(T *value)
+    bool inputTextBox(char *buf, u32 size, bool overrideHighlightAll = false);
+    template <TKit::Numeric T> bool inputNumericBox(T *value, const bool overrideHighlightAll = false)
     {
         constexpr u32 bsize = 128;
         char buf[bsize];
@@ -577,7 +570,7 @@ class UserInterface
         else
             std::snprintf(buf, bsize, "%lld", u64(*value));
 
-        if (inputTextBox(buf, bsize))
+        if (inputTextBox(buf, bsize, overrideHighlightAll))
         {
             char *end;
             if constexpr (TKit::Float<T>)
@@ -596,6 +589,8 @@ class UserInterface
         }
         return false;
     }
+
+    InputConvertInfo getInputConvertInfo(bool hovered, bool allowDoubleClick = false);
 
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
     bool collapseButton();
@@ -688,17 +683,23 @@ class UserInterface
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;
 
+    OverlayEventFlags m_EventFlags = 0;
+
     usz m_HoveredClicker = NullLayoutId;
     usz m_HoveredDragger = NullLayoutId;
 
     usz m_PressedClicker = NullLayoutId;
-    usz m_LastPressedClicker = NullLayoutId;
+    usz m_DelayedPressedClicker = NullLayoutId;
     usz m_PressedDragger = NullLayoutId;
 
     usz m_FocusedInputter = NullLayoutId;
-    usz m_LastFocusedInputter = NullLayoutId;
+    usz m_DelayedFocusedInputter = NullLayoutId;
 
+    // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
+    // a double click)
     u32 m_OverflowClicks = 0;
+
+    TKit::StaticBitSet<Key_Count> m_EventKeys{Key_Count};
 
     TKit::Clock m_ClickClock{};
 
