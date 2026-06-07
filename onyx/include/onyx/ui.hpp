@@ -335,6 +335,34 @@ class UserInterface
     bool CheckBox(TKit::StringView label, bool *enable);
 
     bool InputText(TKit::StringView label, char *buf, u32 size);
+    template <TKit::Numeric T> bool InputNumeric(const TKit::StringView label, T *val)
+    {
+        constexpr u32 bsize = 128;
+        char buf[bsize];
+        if constexpr (TKit::Float<T>)
+            std::snprintf(buf, bsize, "%f", *val);
+        else
+            std::snprintf(buf, bsize, "%lld", u64(*val));
+
+        if (InputText(label, buf, bsize))
+        {
+            char *end;
+            if constexpr (TKit::Float<T>)
+            {
+                const f64 v = std::strtod(buf, &end);
+                if (end != buf)
+                    *val = T(v);
+            }
+            else
+            {
+                const u64 v = u64(std::strtoll(buf, &end, 10));
+                if (end != buf)
+                    *val = T(v);
+            }
+            return true;
+        }
+        return false;
+    }
 
     void Separator(const f32 width = 4.f)
     {
@@ -432,7 +460,7 @@ class UserInterface
             T &val = value[i];
             ly.PushId(&val);
 
-            const LayoutElement *elm = ly.QueryElement("Outer slider");
+            const LayoutElement *elm = ly.QueryElement("Slider box");
             const Color *col = &m_Colors[OverlayColor_SliderIdle];
             bool locallyPressed = false;
             if (elm)
@@ -473,10 +501,10 @@ class UserInterface
             // heres how this works. outer slider is the first visible bit. then, 2 children
             // come
 
-            ly.BeginPanel("Outer slider", LayoutPanelParameters{.FillColor = *col,
-                                                                .Alignment = {Alignment_Left, Alignment_Center},
-                                                                .Sizing = {grow(), fit()},
-                                                                .Padding = Config.WidgetPadding});
+            ly.BeginPanel("Slider box", LayoutPanelParameters{.FillColor = *col,
+                                                              .Alignment = {Alignment_Left, Alignment_Center},
+                                                              .Sizing = {grow(), fit()},
+                                                              .Padding = Config.WidgetPadding});
 
             // the next 2 children will serve as slots for the slider button and the text. this is required bc text
             // length cannot interfere with slider button positioning in layout calculation
@@ -538,7 +566,7 @@ class UserInterface
             T &val = value[i];
             ly.PushId(&val);
 
-            const LayoutElement *elm = ly.QueryElement("Outer drag");
+            const LayoutElement *elm = ly.QueryElement("Drag box");
             const Color *col = &m_Colors[OverlayColor_DragIdle];
             bool locallyPressed = false;
             if (elm)
@@ -563,10 +591,10 @@ class UserInterface
             if (hasLimits)
                 val = Math::Clamp(val, T(mn), T(mx));
 
-            ly.BeginPanel("Outer drag", LayoutPanelParameters{.FillColor = *col,
-                                                              .Alignment = Alignment_Center,
-                                                              .Sizing = {grow(), fit()},
-                                                              .Padding = Config.WidgetPadding});
+            ly.BeginPanel("Drag box", LayoutPanelParameters{.FillColor = *col,
+                                                            .Alignment = Alignment_Center,
+                                                            .Sizing = {grow(), fit()},
+                                                            .Padding = Config.WidgetPadding});
 
             const TKit::StackString text = [&] {
                 // TODO(Isma): Pass formatting as a parameter

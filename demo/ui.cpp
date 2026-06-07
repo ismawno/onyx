@@ -45,6 +45,9 @@ int main()
         static char buf2[32] = "Some wooords test... again!";
         ui.InputText("Text 2", buf2, 32);
 
+        static u32 val = 4;
+        ui.InputNumeric("Some number", &val);
+
         static bool sliders = false;
         static bool anotherWindow = false;
         ui.PushDirection(Onyx::LayoutDirection_LeftToRight);

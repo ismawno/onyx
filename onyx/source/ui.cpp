@@ -464,13 +464,13 @@ bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size)
     str.Reserve(size);
     str.Insert(str.end(), buf, buf + bufSize);
 
-    const LayoutElement *outer = ly.QueryElement("Outer input");
+    const LayoutElement *outer = ly.QueryElement("Input box");
     const InputFocusInfo info = getInputFocusInfo(outer);
     // this is the actual input box. color selection is a bit random
-    ly.BeginPanel("Outer input", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundCollapsed],
-                                                       .Alignment = {Alignment_Left, Alignment_Center},
-                                                       .Sizing = {snorm(0.6f), fit()},
-                                                       .Padding = Config.WidgetPadding});
+    ly.BeginPanel("Input box", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundCollapsed],
+                                                     .Alignment = {Alignment_Left, Alignment_Center},
+                                                     .Sizing = {snorm(0.6f), fit()},
+                                                     .Padding = Config.WidgetPadding});
 
     ly.Text(str, getTextParams());
 
