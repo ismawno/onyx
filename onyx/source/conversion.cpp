@@ -241,6 +241,8 @@ const char *ToString(const Geometry geo)
         return "Geometry_Parametric";
     case Geometry_Glyph:
         return "Geometry_Glyph";
+    case Geometry_Dynamic:
+        return "Geometry_Dynamic";
     default:
         return "Unknown";
     }
@@ -336,6 +338,8 @@ const char *ToString(const ResourceType rtype)
         return "Resource_ParametricMesh";
     case Resource_GlyphMesh:
         return "Resource_GlyphMesh";
+    case Resource_DynamicMesh:
+        return "Resource_DynamicMesh";
     case Resource_Material:
         return "Resource_Material";
     case Resource_Font:

@@ -12,10 +12,7 @@ struct DescriptorData
 {
     VKit::DescriptorPool Pool{};
     TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
-    VKit::DescriptorSetLayout RayMarchLayout{};
-    VKit::DescriptorSetLayout BlendLayout{};
-    VKit::DescriptorSetLayout PostProcessLayout{};
-    VKit::DescriptorSetLayout CompositorLayout{};
+    TKit::FixedArray<VKit::DescriptorSetLayout, StandalonePass_Count> StandaloneLayouts{};
 };
 
 static TKit::Storage<DescriptorData> s_DescriptorData{};
@@ -131,7 +128,7 @@ static void createDescriptorData(const Specs &specs)
                                    .AddBinding2(buffer, vertex)      // bounds3
                                    .Build());
 
-    s_DescriptorData->RayMarchLayout =
+    s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
                                    .AddBinding2(storageImage, compute, ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE,
                                                 pbound | bindUnused) // occlusion maps
@@ -139,14 +136,15 @@ static void createDescriptorData(const Specs &specs)
                                                 pbound | bindUnused) // shadow maps
                                    .Build());
 
-    s_DescriptorData->BlendLayout = ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                                               .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
-                                                                            pbound | bindUnused) // transparent
-                                                               .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
-                                                                            pbound | bindUnused) // revealage
-                                                               .Build());
+    s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] =
+        ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
+                                   .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
+                                                pbound | bindUnused) // transparent
+                                   .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
+                                                pbound | bindUnused) // revealage
+                                   .Build());
 
-    s_DescriptorData->PostProcessLayout =
+    s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
                                    .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
                                                 pbound | bindUnused) // color attachments
@@ -156,7 +154,7 @@ static void createDescriptorData(const Specs &specs)
                                                 pbound | bindUnused) // stencil attachments
                                    .Build());
 
-    s_DescriptorData->CompositorLayout =
+    s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
                                    .AddBinding2(combined, fragment, ONYX_MAX_ATTACHMENTS,
                                                 pbound | bindUnused) // color attachments
@@ -177,10 +175,14 @@ static void createDescriptorData(const Specs &specs)
             }
             ++i;
         }
-        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->RayMarchLayout.SetName("onyx-ray-march-descriptor-set-layout"));
-        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->BlendLayout.SetName("onyx-blend-descriptor-set-layout"));
-        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->PostProcessLayout.SetName("onyx-post-process-descriptor-set-layout"));
-        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
+        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch].SetName(
+            "onyx-ray-march-descriptor-set-layout"));
+        ONYX_CHECK_VKIT_RESULT(
+            s_DescriptorData->StandaloneLayouts[StandalonePass_Blend].SetName("onyx-blend-descriptor-set-layout"));
+        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess].SetName(
+            "onyx-post-process-descriptor-set-layout"));
+        ONYX_CHECK_VKIT_RESULT(s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor].SetName(
+            "onyx-compositor-descriptor-set-layout"));
     }
 }
 
@@ -197,10 +199,8 @@ void Terminate()
         for (auto &renders : dims)
             renders.Destroy();
 
-    s_DescriptorData->RayMarchLayout.Destroy();
-    s_DescriptorData->BlendLayout.Destroy();
-    s_DescriptorData->PostProcessLayout.Destroy();
-    s_DescriptorData->CompositorLayout.Destroy();
+    for (auto &layout : s_DescriptorData->StandaloneLayouts)
+        layout.Destroy();
     s_DescriptorData.Destruct();
 }
 
@@ -213,21 +213,9 @@ template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(cons
 {
     return s_DescriptorData->Layouts[D - 2][pass];
 }
-const VKit::DescriptorSetLayout &GetRayMarchDescriptorLayout()
+const VKit::DescriptorSetLayout &GetDescriptorLayout(const StandalonePass pass)
 {
-    return s_DescriptorData->RayMarchLayout;
-}
-const VKit::DescriptorSetLayout &GetBlendDescriptorLayout()
-{
-    return s_DescriptorData->BlendLayout;
-}
-const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout()
-{
-    return s_DescriptorData->PostProcessLayout;
-}
-const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout()
-{
-    return s_DescriptorData->CompositorLayout;
+    return s_DescriptorData->StandaloneLayouts[pass];
 }
 
 template <Dimension D>

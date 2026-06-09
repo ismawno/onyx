@@ -11,10 +11,7 @@ void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
 template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
-const VKit::DescriptorSetLayout &GetRayMarchDescriptorLayout();
-const VKit::DescriptorSetLayout &GetBlendDescriptorLayout();
-const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout();
-const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout();
+const VKit::DescriptorSetLayout &GetDescriptorLayout(StandalonePass pass);
 
 template <Dimension D>
 void BindBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,

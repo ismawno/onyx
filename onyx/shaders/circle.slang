@@ -44,12 +44,14 @@ struct FadeData
 struct CircleInstanceData2D
 {
     InstanceData2D Data;
+    u32 Alignment;
     ArcData Arc;
     FadeData Fade;
 }
 struct CircleInstanceData3D
 {
     InstanceData3D Data;
+    u32 Alignment;
     ArcData Arc;
     FadeData Fade;
 }

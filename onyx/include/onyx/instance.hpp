@@ -79,6 +79,7 @@ enum Geometry : u8
     Geometry_Static,
     Geometry_Parametric,
     Geometry_Glyph,
+    Geometry_Dynamic,
     Geometry_Count,
 };
 
@@ -133,7 +134,7 @@ const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
 template <typename T>
-using MeshInstanceGrouping = TKit::FixedArray<TKit::FixedArray<T, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshCount>;
+using MeshInstanceGrouping = TKit::FixedArray<TKit::FixedArray<T, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshPoolCount>;
 
 template <typename T>
 using InstanceDataGrouping = TKit::FixedArray<TKit::FixedArray<T, RenderMode_Count>, BlendPass_Count>;

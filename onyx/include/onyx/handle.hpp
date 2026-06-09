@@ -99,6 +99,7 @@ enum ResourceType : u8
     Resource_StaticMesh,
     Resource_ParametricMesh,
     Resource_GlyphMesh,
+    Resource_DynamicMesh,
     Resource_Font,
     Resource_Material,
     Resource_Buffer,
@@ -109,10 +110,13 @@ enum ResourceType : u8
     Resource_Count,
 
     // not ideal to have them here but idc too much
-    Resource_MeshCount = Resource_Font,
+    Resource_MeshPoolCount = Resource_DynamicMesh,
     Resource_PoolCount = Resource_Material,
     Resource_None = Resource_Count
 };
+
+static_assert(Resource_Count <= ONYX_MAX_RESOURCE_TYPES,
+              "[ONYX][RESOURCES] The resource type count exceeds maximum resource types");
 
 const char *ToString(ResourceType rtype);
 

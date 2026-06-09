@@ -4,14 +4,18 @@
 #    define ONYX_USES_MATERIAL
 #endif
 
-#if !defined(ONYX_GEOMETRY_CIRCLE) && !defined(ONYX_GEOMETRY_GLYPH)
-#   define ONYX_USES_BOUNDS
+#if !defined(ONYX_GEOMETRY_CIRCLE) && !defined(ONYX_GEOMETRY_GLYPH) && !defined(ONYX_GEOMETRY_DYNAMIC)
+#    define ONYX_USES_BOUNDS
 #endif
 
 #if defined(ONYX_DIMENSION_2D) || defined(ONYX_GEOMETRY_CIRCLE)
 #    define ONYX_VEC4(v2) f32v4((v2), 0.0, 1.0)
 #else
 #    define ONYX_VEC4(v3) f32v4((v3), 1.0)
+#endif
+
+#if defined(ONYX_GEOMETRY_DYNAMIC) && !defined(ONYX_PASS_SHADOW)
+#    define ONYX_USES_VERTEX_COLOR
 #endif
 
 #ifdef ONYX_DIMENSION_2D
@@ -53,6 +57,10 @@
 #        include "glyph.slang"
 #        define Instances GlyphInstances2D
 #        define GeometryInstanceData GlyphInstanceData2D
+#    elif defined(ONYX_GEOMETRY_DYNAMIC)
+#        include "dynamic.slang"
+#        define Instances DynamicInstances2D
+#        define GeometryInstanceData DynamicInstanceData2D
 #    endif
 
 #else
@@ -84,6 +92,10 @@
 #        include "glyph.slang"
 #        define Instances GlyphInstances3D
 #        define GeometryInstanceData GlyphInstanceData3D
+#    elif defined(ONYX_GEOMETRY_DYNAMIC)
+#        include "dynamic.slang"
+#        define Instances DynamicInstances3D
+#        define GeometryInstanceData DynamicInstanceData3D
 #    endif
 
 #endif
@@ -109,7 +121,10 @@ struct VertexInput
 #        ifdef ONYX_PASS_SHADED
     f32v4 Tangent : TANGENT;
 #        endif
+#    endif
 
+#    ifdef ONYX_USES_VERTEX_COLOR
+    u32 Color : COLOR0;
 #    endif
 
 #    ifdef ONYX_GEOMETRY_PARAMETRIC
@@ -150,8 +165,13 @@ struct FragInput
     nointerpolation u32v2 ShapeInfo;
 #endif
 
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+#ifdef ONYX_USES_VERTEX_COLOR
     [[vk::location(6)]]
+    f32v4 VertexColor;
+#endif
+
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    [[vk::location(7)]]
     f32m3 TBN;
 #endif
 
@@ -219,19 +239,23 @@ FragInput mainVS(
     const u32 instanceIndex = instanceId + baseInstance;
 
     const GeometryInstanceData gdata = g_Instances[instanceIndex];
+#ifdef ONYX_GEOMETRY_DYNAMIC
+    const InstanceData data = gdata;
+#else
     const InstanceData data = gdata.Data;
+#endif
 
     const f32m4 transform = ConstructTransform(data.Transform);
 
 #ifdef ONYX_GEOMETRY_CIRCLE
 
     const u32 vertexIndex = vertexId + baseVertex;
-    const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
+    const f32v2 alignment = ComputeCircleAlignment(gdata.Alignment);
     const f32v2 localPos = g_Positions[vertexIndex];
 
 #else
-#    ifndef ONYX_GEOMETRY_GLYPH
-    const f32v alignment = ComputeAlignment(data.Alignment, gdata.BoundsHandle, g_Bounds);
+#    ifdef ONYX_USES_BOUNDS
+    const f32v alignment = ComputeAlignment(gdata.Alignment, gdata.BoundsHandle, g_Bounds);
 #    else
 
     // NOTE(Isma): Maybe avoid this zero sub?
@@ -302,6 +326,10 @@ FragInput mainVS(
     finput.ShapeInfo = u32v2(params.Shape, input.Region);
 #endif
 
+#ifdef ONYX_USES_VERTEX_COLOR
+    finput.VertexColor = unpackUnorm4x8ToFloat(input.Color);
+#endif
+
     finput.WorldPosition = ONYX_VEC(worldPos);
     finput.InstanceIndex = instanceIndex;
 
@@ -367,7 +395,11 @@ SamplerComparisonState g_ShadowCompareSampler;
 ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 {
     const GeometryInstanceData gdata = g_Instances[input.InstanceIndex];
+#ifdef ONYX_GEOMETRY_DYNAMIC
+    const InstanceData data = gdata;
+#else
     const InstanceData data = gdata.Data;
+#endif
 
     const WorldRect rect = data.Rect;
     if (!CheckWorldClip(input.WorldPosition, rect))
@@ -380,7 +412,11 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 
 #endif
 #ifndef ONYX_PASS_SHADOW
+#    ifdef ONYX_USES_VERTEX_COLOR
+    const f32v4 fill = unpackUnorm4x8ToFloat(data.FillColor) * input.VertexColor;
+#    else
     const f32v4 fill = unpackUnorm4x8ToFloat(data.FillColor);
+#    endif
     const f32v4 outline = unpackUnorm4x8ToFloat(data.OutlineColor);
     const f32 outlineWidth = data.OutlineWidth;
 #endif

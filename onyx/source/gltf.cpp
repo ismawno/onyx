@@ -62,7 +62,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             if (primToMeshIndex.Contains(posAccessorIdx))
                 continue;
 
-            StatMeshData<D> meshData{};
+            StaticMeshData<D> meshData{};
 
             u32 posStride = TKIT_U32_MAX;
             u32 normStride = TKIT_U32_MAX;
@@ -111,7 +111,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const u32 vertexCount = u32(posAccessor.count);
             for (u32 i = 0; i < vertexCount; ++i)
             {
-                StatVertex<D> vertex{};
+                StaticVertex<D> vertex{};
                 for (u32 j = 0; j < D; ++j)
                     vertex.Position[j] = positions[posStride * i + j];
                 if constexpr (D == D3)

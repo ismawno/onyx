@@ -18,7 +18,7 @@ struct GltfHandles
 
 template <Dimension D> struct GltfData
 {
-    TKit::TierArray<StatMeshData<D>> StaticMeshes{};
+    TKit::TierArray<StaticMeshData<D>> StaticMeshes{};
 
     // here texture handles inside materials refer to the Images attribute in GltfData, not to any real Resource
     // handle!! AddGltfResouces modifies this material data so that it actually points to real textures (thats why it is

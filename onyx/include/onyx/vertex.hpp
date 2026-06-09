@@ -4,8 +4,6 @@
 #include "onyx/dimension.hpp"
 #include "onyx/handle.hpp"
 #include "onyx/instance.hpp"
-#include "tkit/reflection/reflect.hpp"
-#include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
 #include "tkit/math/hash.hpp"
 
@@ -14,9 +12,44 @@
 namespace Onyx
 {
 using Index = ONYX_INDEX_TYPE;
-template <Dimension D> struct StatVertex;
 
-template <> struct StatVertex<D2>
+template <Dimension D> struct DynamicVertex;
+template <> struct DynamicVertex<D2>
+{
+    static constexpr Geometry Geo = Geometry_Dynamic;
+    static constexpr ResourceType Resource = Resource_DynamicMesh;
+    static constexpr Dimension Dim = D2;
+
+    f32v2 Position;
+    f32v2 TexCoord;
+    u32 Color;
+
+    friend bool operator==(const DynamicVertex<D2> &left, const DynamicVertex<D2> &right)
+    {
+        return left.Position == right.Position && left.TexCoord == right.TexCoord && left.Color == right.Color;
+    }
+};
+template <> struct DynamicVertex<D3>
+{
+    static constexpr Geometry Geo = Geometry_Dynamic;
+    static constexpr ResourceType Resource = Resource_DynamicMesh;
+    static constexpr Dimension Dim = D3;
+
+    f32v3 Position;
+    f32v2 TexCoord;
+    f32v3 Normal;
+    f32v4 Tangent;
+    u32 Color;
+
+    friend bool operator==(const DynamicVertex<D3> &left, const DynamicVertex<D3> &right)
+    {
+        return left.Position == right.Position && left.TexCoord == right.TexCoord && left.Normal == right.Normal &&
+               left.Tangent == right.Tangent && left.Color == right.Color;
+    }
+};
+
+template <Dimension D> struct StaticVertex;
+template <> struct StaticVertex<D2>
 {
     static constexpr Geometry Geo = Geometry_Static;
     static constexpr ResourceType Resource = Resource_StaticMesh;
@@ -25,13 +58,13 @@ template <> struct StatVertex<D2>
     f32v2 Position;
     f32v2 TexCoord;
 
-    friend bool operator==(const StatVertex<D2> &left, const StatVertex<D2> &right)
+    friend bool operator==(const StaticVertex<D2> &left, const StaticVertex<D2> &right)
     {
         return left.Position == right.Position && left.TexCoord == right.TexCoord;
     }
 };
 
-template <> struct StatVertex<D3>
+template <> struct StaticVertex<D3>
 {
     static constexpr Geometry Geo = Geometry_Static;
     static constexpr ResourceType Resource = Resource_StaticMesh;
@@ -42,7 +75,7 @@ template <> struct StatVertex<D3>
     f32v3 Normal;
     f32v4 Tangent;
 
-    friend bool operator==(const StatVertex<D3> &left, const StatVertex<D3> &right)
+    friend bool operator==(const StaticVertex<D3> &left, const StaticVertex<D3> &right)
     {
         return left.Position == right.Position && left.TexCoord == right.TexCoord && left.Normal == right.Normal &&
                left.Tangent == right.Tangent;
@@ -68,8 +101,8 @@ enum CapsuleRegion : ParametricRegionFlags
     CapsuleRegion_Body = 1U << 0,
 };
 
-template <Dimension D> struct ParaVertex;
-template <> struct ParaVertex<D2>
+template <Dimension D> struct ParametricVertex;
+template <> struct ParametricVertex<D2>
 {
     static constexpr Geometry Geo = Geometry_Parametric;
     static constexpr ResourceType Resource = Resource_ParametricMesh;
@@ -80,7 +113,7 @@ template <> struct ParaVertex<D2>
     ParametricRegionFlags Region;
 };
 
-template <> struct ParaVertex<D3>
+template <> struct ParametricVertex<D3>
 {
     static constexpr Geometry Geo = Geometry_Parametric;
     static constexpr ResourceType Resource = Resource_ParametricMesh;
@@ -105,17 +138,17 @@ struct GlyphVertex
 
 } // namespace Onyx
 
-template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>
+template <> struct std::hash<Onyx::StaticVertex<Onyx::D2>>
 {
-    std::size_t operator()(const Onyx::StatVertex<Onyx::D2> &vertex) const
+    std::size_t operator()(const Onyx::StaticVertex<Onyx::D2> &vertex) const
     {
         return TKit::Hash(vertex.Position, vertex.TexCoord);
     }
 };
 
-template <> struct std::hash<Onyx::StatVertex<Onyx::D3>>
+template <> struct std::hash<Onyx::StaticVertex<Onyx::D3>>
 {
-    std::size_t operator()(const Onyx::StatVertex<Onyx::D3> &vertex) const
+    std::size_t operator()(const Onyx::StaticVertex<Onyx::D3> &vertex) const
     {
         return TKit::Hash(vertex.Position, vertex.TexCoord, vertex.Normal, vertex.Tangent);
     }

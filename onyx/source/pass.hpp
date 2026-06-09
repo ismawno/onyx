@@ -20,4 +20,13 @@ enum RenderPass : u8
     RenderPass_Count
 };
 
+enum StandalonePass : u8
+{
+    StandalonePass_RayMarch,
+    StandalonePass_Blend,
+    StandalonePass_PostProcess,
+    StandalonePass_Compositor,
+    StandalonePass_Count,
+};
+
 } // namespace Onyx

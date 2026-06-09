@@ -9,10 +9,12 @@ typedef StructuredBuffer<StaticInstanceData3D, Std430DataLayout> StaticInstances
 struct StaticInstanceData2D
 {
     InstanceData2D Data;
+    u32 Alignment;
     u32 BoundsHandle;
 }
 struct StaticInstanceData3D
 {
     InstanceData3D Data;
+    u32 Alignment;
     u32 BoundsHandle;
 }

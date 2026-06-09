@@ -36,7 +36,6 @@ struct InstanceData2D
     WorldRect2D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
     u32 DepthCounter;
@@ -48,7 +47,6 @@ struct InstanceData3D
     WorldRect3D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
 }

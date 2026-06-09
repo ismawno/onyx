@@ -42,6 +42,7 @@ struct Specs
     u32 MaxTextures = 1024;
     u32 MaxMaterials = 256;
     u32 MaxBounds = 1024;
+    u32 MaxDynamicMeshes = 1024;
 };
 } // namespace Resources
 namespace Descriptors

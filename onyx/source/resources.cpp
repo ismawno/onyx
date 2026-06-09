@@ -54,32 +54,20 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_NeedsSync = 1U << 0,
 };
 
-// NOTE(Isma): Messy. too many specializations, specially for the back culled bool
+// NOTE(Isma): Messy. too many specializations
 template <typename Vertex> struct MeshDataInfo
 {
     MeshDataLayout Layout;
     Resource Bounds;
+    MeshDataFlags Flags;
 };
 
-template <> struct MeshDataInfo<StatVertex<D3>>
-{
-    MeshDataLayout Layout;
-    Resource Bounds;
-    bool BackCulled;
-};
-
-template <Dimension D> struct MeshDataInfo<ParaVertex<D>>
+template <Dimension D> struct MeshDataInfo<ParametricVertex<D>>
 {
     MeshDataLayout Layout;
     Resource Bounds;
     ParametricShape Shape;
-};
-template <> struct MeshDataInfo<ParaVertex<D3>>
-{
-    MeshDataLayout Layout;
-    Resource Bounds;
-    ParametricShape Shape;
-    bool BackCulled;
+    MeshDataFlags Flags;
 };
 
 template <> struct MeshDataInfo<GlyphVertex>
@@ -117,13 +105,13 @@ template <> struct MeshPoolData<GlyphVertex>
     StatusFlags Flags = 0;
 };
 
-template <Dimension D> using StatMeshResourceData = MeshResourceData<StatVertex<D>>;
-template <Dimension D> using StatMeshPoolData = MeshPoolData<StatVertex<D>>;
-template <Dimension D> using StatMeshDataInfo = MeshDataInfo<StatVertex<D>>;
+template <Dimension D> using StaticMeshResourceData = MeshResourceData<StaticVertex<D>>;
+template <Dimension D> using StaticMeshPoolData = MeshPoolData<StaticVertex<D>>;
+template <Dimension D> using StaticMeshDataInfo = MeshDataInfo<StaticVertex<D>>;
 
-template <Dimension D> using ParaMeshResourceData = MeshResourceData<ParaVertex<D>>;
-template <Dimension D> using ParaMeshPoolData = MeshPoolData<ParaVertex<D>>;
-template <Dimension D> using ParaMeshDataInfo = MeshDataInfo<ParaVertex<D>>;
+template <Dimension D> using ParametricMeshResourceData = MeshResourceData<ParametricVertex<D>>;
+template <Dimension D> using ParametricMeshPoolData = MeshPoolData<ParametricVertex<D>>;
+template <Dimension D> using ParametricMeshDataInfo = MeshDataInfo<ParametricVertex<D>>;
 
 using FontResourceData = MeshResourceData<GlyphVertex>;
 using FontPoolData = MeshPoolData<GlyphVertex>;
@@ -163,8 +151,9 @@ struct Texture
 
 template <Dimension D> struct ResourceData
 {
-    StatMeshResourceData<D> StaticMeshes{};
-    ParaMeshResourceData<D> ParametricMeshes{};
+    StaticMeshResourceData<D> StaticMeshes{};
+    TKit::ArenaHive<DynamicMeshData<D>> DynamicMeshes{};
+    ParametricMeshResourceData<D> ParametricMeshes{};
     MaterialResourceData<D> Materials{};
     BoundsResourceData<D> BoundingBoxes{};
 };
@@ -240,6 +229,9 @@ void Initialize(const Specs &specs)
     s_Samplers->Resources.Reserve(specs.MaxSamplers);
     s_Images->Resources.Reserve(specs.MaxImages);
     s_Textures->Reserve(specs.MaxTextures);
+
+    s_ResourceData2->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
+    s_ResourceData3->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
 
     initializeMaterials<D2>(specs.MaxMaterials);
     initializeMaterials<D3>(specs.MaxMaterials);
@@ -642,15 +634,15 @@ static Resource createHiveResource(const ResourceType rtype, const T &data, Hive
 
 template <typename T> static void updateHiveResource(const Resource handle, const T &data, HiveResourceData<T> &hive)
 {
-    const u32 aid = GetResourceId(handle);
-    hive.Elements[aid] = data;
+    const u32 rid = GetResourceId(handle);
+    hive.Elements[rid] = data;
     hive.Flags = StatusFlag_NeedsSync;
 }
 
 template <typename T> static void destroyHiveResource(const Resource handle, HiveResourceData<T> &hive)
 {
-    const u32 aid = GetResourceId(handle);
-    hive.Elements.Remove(aid);
+    const u32 rid = GetResourceId(handle);
+    hive.Elements.Remove(rid);
 }
 
 template <Dimension D> static u32 createBounds(const BoundsData<D> &data)
@@ -691,8 +683,7 @@ static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &me
     minfo.Layout.IndexStart = icount;
     minfo.Layout.IndexCount = data.Indices.GetSize();
     minfo.Bounds = createBounds(CreateBoundsData(data));
-    if constexpr (Vertex::Dim == D3)
-        minfo.BackCulled = data.BackCulled;
+    minfo.Flags = data.Flags;
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
         minfo.Shape = data.Shape;
@@ -803,11 +794,36 @@ const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &op
     return def;
 }
 
-template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const StatMeshData<D> &data)
+template <Dimension D> DynamicMeshInfo<D> RegisterDynamicMesh()
+{
+    TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
+    const u32 mid = meshes.Insert();
+
+    DynamicMeshInfo<D> info;
+    info.Data = &meshes[mid];
+    info.Handle = CreateResourceHandle(Resource_DynamicMesh, mid);
+    return info;
+}
+
+template <Dimension D> DynamicMeshData<D> *GetDynamicMeshData(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
+    const u32 mid = GetResourceId(handle);
+    return &getData<D>().DynamicMeshes[mid];
+}
+
+template <Dimension D> void DestroyDynamicMesh(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
+    const u32 mid = GetResourceId(handle);
+    getData<D>().DynamicMeshes.Remove(mid);
+}
+
+template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const StaticMeshData<D> &data)
 {
     return createMesh(pool, getData<D>().StaticMeshes, data);
 }
-template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const ParaMeshData<D> &data)
+template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const ParametricMeshData<D> &data)
 {
     return createMesh(pool, getData<D>().ParametricMeshes, data);
 }
@@ -823,11 +839,11 @@ template <Dimension D> void UpdateMaterial(const Resource handle, const Material
     updateHiveResource(handle, data, getData<D>().Materials);
 }
 
-template <Dimension D> void UpdateMesh(const Resource handle, const StatMeshData<D> &data)
+template <Dimension D> void UpdateMesh(const Resource handle, const StaticMeshData<D> &data)
 {
     return updateMesh(handle, getData<D>().StaticMeshes, data);
 }
-template <Dimension D> void UpdateMesh(const Resource handle, const ParaMeshData<D> &data)
+template <Dimension D> void UpdateMesh(const Resource handle, const ParametricMeshData<D> &data)
 {
     return updateMesh(handle, getData<D>().ParametricMeshes, data);
 }
@@ -1027,7 +1043,7 @@ template <Dimension D> GltfHandles RegisterGltfResources(const ResourcePool mesh
     handles.Samplers.Reserve(data.Samplers.GetSize());
     handles.Textures.Reserve(data.Images.GetSize());
 
-    for (const StatMeshData<D> &smesh : data.StaticMeshes)
+    for (const StaticMeshData<D> &smesh : data.StaticMeshes)
         handles.StaticMeshes.Append(RegisterMesh(meshPool, smesh));
 
     for (const SamplerData &sdata : data.Samplers)
@@ -1089,11 +1105,11 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Resource ha
     return data;
 }
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(const Resource handle)
+template <Dimension D> StaticMeshData<D> GetStaticMeshData(const Resource handle)
 {
     return getMeshData(handle, getData<D>().StaticMeshes);
 }
-template <Dimension D> ParaMeshData<D> GetParametricMeshData(const Resource handle)
+template <Dimension D> ParametricMeshData<D> GetParametricMeshData(const Resource handle)
 {
     return getMeshData(handle, getData<D>().ParametricMeshes);
 }
@@ -1104,15 +1120,13 @@ template <Dimension D> ParametricShape GetParametricShape(const Resource handle)
     const u32 pid = GetResourcePoolId(handle);
     const u32 mid = GetResourceId(handle);
 
-    ParaMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
+    ParametricMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
     return mpool.Meshes[mid].Shape;
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
-
     const u32 mid = GetResourceId(handle);
-
     return getData<D>().Materials.Elements[mid];
 }
 
@@ -1361,6 +1375,11 @@ template <Dimension D> u32 GetResourceCount(const ResourcePool pool)
     }
 }
 
+template <Dimension D> u32 GetDynamicMeshCount()
+{
+    return getData<D>().DynamicMeshes.GetSize();
+}
+
 MeshBuffers GetFontBuffers(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
@@ -1392,12 +1411,15 @@ bool IsBackCulled(const Resource handle)
     if (rtype == Resource_GlyphMesh)
         return false;
 
-    const u32 pid = GetResourcePoolId(handle);
     const u32 rid = GetResourceId(handle);
-    if (rtype == Resource_StaticMesh)
-        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].BackCulled;
+    if (rtype == Resource_DynamicMesh)
+        return s_ResourceData3->DynamicMeshes[rid].Flags & MeshDataFlag_BackCulled;
 
-    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].BackCulled;
+    const u32 pid = GetResourcePoolId(handle);
+    if (rtype == Resource_StaticMesh)
+        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
+
+    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
 }
 
 template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)
@@ -1435,34 +1457,36 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
     if (itype >= Resource_Count || (itype != rtype && rtype != Resource_None))
         return false;
 
-    const u32 aid = GetResourceId(handle);
+    const u32 rid = GetResourceId(handle);
     const u32 pid = GetResourcePoolId(handle);
     switch (itype)
     {
     case Resource_StaticMesh:
         return IsResourcePoolValid<D>(handle, Resource_StaticMesh) &&
-               aid < getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
+               rid < getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
     case Resource_ParametricMesh:
         return IsResourcePoolValid<D>(handle, Resource_ParametricMesh) &&
-               aid < getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
+               rid < getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
+    case Resource_DynamicMesh:
+        return IsResourcePoolNull(handle) && getData<D>().DynamicMeshes.Contains(rid);
     case Resource_Material:
-        return IsResourcePoolNull(handle) && getData<D>().Materials.Elements.Contains(aid);
+        return IsResourcePoolNull(handle) && getData<D>().Materials.Elements.Contains(rid);
     case Resource_Font:
-        return IsResourcePoolValid<D>(handle, Resource_Font) && aid < s_FontData->Pools[pid].Meshes.GetSize();
+        return IsResourcePoolValid<D>(handle, Resource_Font) && rid < s_FontData->Pools[pid].Meshes.GetSize();
     case Resource_GlyphMesh:
         return IsResourcePoolValid<D>(handle, Resource_GlyphMesh) &&
-               aid < s_FontData->Pools[pid].Vertices.GetSize() / 4 &&
-               aid < s_FontData->Pools[pid].Indices.GetSize() / 6;
+               rid < s_FontData->Pools[pid].Vertices.GetSize() / 4 &&
+               rid < s_FontData->Pools[pid].Indices.GetSize() / 6;
     case Resource_Sampler:
-        return IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(aid);
+        return IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(rid);
     case Resource_Texture:
-        return IsResourcePoolNull(handle) && s_Textures->Contains(aid);
+        return IsResourcePoolNull(handle) && s_Textures->Contains(rid);
     case Resource_Bounds:
-        return IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(aid);
+        return IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
     case Resource_Buffer:
-        return IsResourcePoolNull(handle) && s_Buffers->Resources.Contains(aid);
+        return IsResourcePoolNull(handle) && s_Buffers->Resources.Contains(rid);
     case Resource_Image:
-        return IsResourcePoolNull(handle) && s_Images->Resources.Contains(aid);
+        return IsResourcePoolNull(handle) && s_Images->Resources.Contains(rid);
     default:
         return false;
     }
@@ -1644,17 +1668,29 @@ template void DestroyMaterial<D3>(Resource handle);
 template void UpdateMaterial(Resource mesh, const MaterialData<D2> &data);
 template void UpdateMaterial(Resource mesh, const MaterialData<D3> &data);
 
-template Resource RegisterMesh(ResourcePool pool, const StatMeshData<D2> &data);
-template Resource RegisterMesh(ResourcePool pool, const StatMeshData<D3> &data);
+template DynamicMeshInfo<D2> RegisterDynamicMesh();
+template DynamicMeshInfo<D3> RegisterDynamicMesh();
 
-template void UpdateMesh(Resource handle, const StatMeshData<D2> &data);
-template void UpdateMesh(Resource handle, const StatMeshData<D3> &data);
+template DynamicMeshData<D2> *GetDynamicMeshData(Resource mesh);
+template DynamicMeshData<D3> *GetDynamicMeshData(Resource mesh);
 
-template Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D2> &data);
-template Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D3> &data);
+template u32 GetDynamicMeshCount<D2>();
+template u32 GetDynamicMeshCount<D3>();
 
-template void UpdateMesh(Resource handle, const ParaMeshData<D2> &data);
-template void UpdateMesh(Resource handle, const ParaMeshData<D3> &data);
+template void DestroyDynamicMesh<D2>(Resource mesh);
+template void DestroyDynamicMesh<D3>(Resource mesh);
+
+template Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D2> &data);
+template Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D3> &data);
+
+template void UpdateMesh(Resource handle, const StaticMeshData<D2> &data);
+template void UpdateMesh(Resource handle, const StaticMeshData<D3> &data);
+
+template Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D2> &data);
+template Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D3> &data);
+
+template void UpdateMesh(Resource handle, const ParametricMeshData<D2> &data);
+template void UpdateMesh(Resource handle, const ParametricMeshData<D3> &data);
 
 template ResourcePool CreateResourcePool<D2>(ResourceType rtype);
 template ResourcePool CreateResourcePool<D3>(ResourceType rtype);
@@ -1662,11 +1698,11 @@ template ResourcePool CreateResourcePool<D3>(ResourceType rtype);
 template void DestroyResourcePool<D2>(ResourcePool pool);
 template void DestroyResourcePool<D3>(ResourcePool pool);
 
-template StatMeshData<D2> GetStaticMeshData(Resource handle);
-template StatMeshData<D3> GetStaticMeshData(Resource handle);
+template StaticMeshData<D2> GetStaticMeshData(Resource handle);
+template StaticMeshData<D3> GetStaticMeshData(Resource handle);
 
-template ParaMeshData<D2> GetParametricMeshData(Resource handle);
-template ParaMeshData<D3> GetParametricMeshData(Resource handle);
+template ParametricMeshData<D2> GetParametricMeshData(Resource handle);
+template ParametricMeshData<D3> GetParametricMeshData(Resource handle);
 
 template ParametricShape GetParametricShape<D2>(Resource handle);
 template ParametricShape GetParametricShape<D3>(Resource handle);

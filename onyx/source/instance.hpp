@@ -51,7 +51,6 @@ template <Dimension D> struct InstanceData
     WorldRect<D> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
 };
@@ -61,21 +60,24 @@ template <> struct InstanceData<D2>
     WorldRect<D2> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
     u32 DepthCounter;
 };
 
+template <Dimension D> using DynamicInstanceData = InstanceData<D>;
+
 template <Dimension D> struct StaticInstanceData
 {
     InstanceData<D> Data;
+    u32 Alignment;
     u32 BoundsHandle;
 };
 
 template <Dimension D> struct CircleInstanceData
 {
     InstanceData<D> Data;
+    u32 Alignment;
     ArcData Arc;
     FadeData Fade;
 };
@@ -83,6 +85,7 @@ template <Dimension D> struct CircleInstanceData
 template <Dimension D> struct ParametricInstanceData
 {
     InstanceData<D> Data;
+    u32 Alignment;
     u32 BoundsHandle;
     InstanceParameters Parameters;
     ParametricShape Shape;
@@ -91,7 +94,6 @@ template <Dimension D> struct ParametricInstanceData
 template <Dimension D> struct GlyphInstanceData
 {
     InstanceData<D> Data;
-    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
     f32 UnitRange;
@@ -109,6 +111,9 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
         return sizeof(ParametricInstanceData<D>);
     case Geometry_Glyph:
         return sizeof(GlyphInstanceData<D>);
+    case Geometry_Dynamic:
+        return sizeof(DynamicInstanceData<D>);
+
     default:
         TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
         return 0;
@@ -320,6 +325,7 @@ struct InstanceResourceGroup
 struct InstanceDataArrays
 {
     InstanceDataBuffer Circles{};
+    InstanceResourceGroup DynamicMeshes{};
     MeshInstanceGrouping<InstanceResourceGroup> Meshes{};
 };
 
@@ -327,13 +333,19 @@ template <Dimension D, typename F> void ForEachResourceGroup(F &&func)
 {
     for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
         for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
-            for (u32 mtype = 0; mtype < Resource_MeshCount; ++mtype)
+            for (u32 mtype = 0; mtype < Resource_MeshPoolCount; ++mtype)
             {
                 const ResourceType rtype = ResourceType(mtype);
                 const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
                 for (const u32 pid : poolIds)
                     func(bpass, rmode, mtype, pid);
             }
+}
+template <Dimension D, typename F> void ForEachDynamicMeshResourceGroup(F &&func)
+{
+    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
+        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
+            func(bpass, rmode);
 }
 
 } // namespace Onyx

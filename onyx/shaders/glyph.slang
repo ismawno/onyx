@@ -8,7 +8,6 @@ typedef StructuredBuffer<GlyphInstanceData3D, Std430DataLayout> GlyphInstances3D
 struct GlyphInstanceData2D
 {
     InstanceData2D Data;
-    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
     f32 UnitRange;
@@ -16,7 +15,6 @@ struct GlyphInstanceData2D
 struct GlyphInstanceData3D
 {
     InstanceData3D Data;
-    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
     f32 UnitRange;

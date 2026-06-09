@@ -75,7 +75,7 @@ if compile:
     cpath.mkdir(parents=True, exist_ok=True)
 
 dims = ["2D", "3D"]
-geos = ["circle", "static", "parametric", "glyph"]
+geos = ["circle", "static", "parametric", "glyph", "dynamic"]
 passes = ["flat", "shaded", "shadow"]
 
 fshaders = ["blend", "compositor", "post-process"]

@@ -54,25 +54,25 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
 
-template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const u32 maxVertices)
+template <Dimension D> Result<StaticMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const u32 maxVertices)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, path))
-        return Result<StatMeshData<D>>::Error(Error_FileNotFound,
-                                              TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
+        return Result<StaticMeshData<D>>::Error(
+            Error_FileNotFound, TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][MESH] {}", warn);
     if (!err.empty())
-        return Result<StatMeshData<D>>::Error(Error_LoadFailed,
-                                              TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err));
+        return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
+                                                TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err));
     if (shapes.empty())
-        return Result<StatMeshData<D>>::Error(Error_LoadFailed,
-                                              "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
+        return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
+                                                "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
 
-    TKit::StackHashMap<StatVertex<D>, Index> uniqueVertices{maxVertices};
-    StatMeshData<D> data;
+    TKit::StackHashMap<StaticVertex<D>, Index> uniqueVertices{maxVertices};
+    StaticMeshData<D> data;
 
     const u32 vcount = u32(attrib.vertices.size());
 
@@ -81,7 +81,7 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
     for (const auto &shape : shapes)
         for (const auto &index : shape.mesh.indices)
         {
-            StatVertex<D> vertex{};
+            StaticVertex<D> vertex{};
             for (Index i = 0; i < D; ++i)
                 vertex.Position[i] = attrib.vertices[3 * index.vertex_index + i];
             if constexpr (D == D3)
@@ -99,15 +99,15 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
 }
 #endif
 
-template <Dimension D> StatMeshData<D> CreateTriangleMeshData(const f32v2 &left, const f32v2 &right, const f32v2 &top)
+template <Dimension D> StaticMeshData<D> CreateTriangleMeshData(const f32v2 &left, const f32v2 &right, const f32v2 &top)
 {
-    StatMeshData<D> data{};
+    StaticMeshData<D> data{};
     const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{pos, f32v2{u, v}});
+            data.Vertices.Append(StaticVertex<D2>{pos, f32v2{u, v}});
         else
             data.Vertices.Append(
-                StatVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
+                StaticVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
@@ -123,15 +123,15 @@ template <Dimension D> StatMeshData<D> CreateTriangleMeshData(const f32v2 &left,
 }
 
 template <Dimension D>
-StatMeshData<D> CreateQuadMeshData(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr)
+StaticMeshData<D> CreateQuadMeshData(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr)
 {
-    StatMeshData<D> data{};
+    StaticMeshData<D> data{};
     const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{pos, f32v2{u, v}});
+            data.Vertices.Append(StaticVertex<D2>{pos, f32v2{u, v}});
         else
             data.Vertices.Append(
-                StatVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
+                StaticVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
@@ -152,17 +152,17 @@ StatMeshData<D> CreateQuadMeshData(const f32v2 &bl, const f32v2 &br, const f32v2
 }
 
 template <Dimension D, bool Inverted = false, bool Counter = true>
-static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vertexOffset = f32v<D>{0.f},
-                                            const u32 indexOffset = 0, const f32v3 &normal = f32v3{0.f, 0.f, 1.f},
-                                            const f32v4 &tangent = f32v4{1.f, 0.f, 0.f, 1.f})
+static StaticMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vertexOffset = f32v<D>{0.f},
+                                              const u32 indexOffset = 0, const f32v3 &normal = f32v3{0.f, 0.f, 1.f},
+                                              const f32v4 &tangent = f32v4{1.f, 0.f, 0.f, 1.f})
 {
     TKIT_ASSERT(sides >= 3, "[ONYX][MESH] A regular polygon requires at least 3 sides");
-    StatMeshData<D> data{};
+    StaticMeshData<D> data{};
     const auto addVertex = [&](const f32v<D> &vertex, const f32v2 &uv) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{vertex + vertexOffset, uv});
+            data.Vertices.Append(StaticVertex<D2>{vertex + vertexOffset, uv});
         else
-            data.Vertices.Append(StatVertex<D3>{vertex + vertexOffset, uv, normal, tangent});
+            data.Vertices.Append(StaticVertex<D3>{vertex + vertexOffset, uv, normal, tangent});
     };
     const auto addIndex = [&data, indexOffset](const u32 index) { data.Indices.Append(Index(index + indexOffset)); };
 
@@ -198,22 +198,22 @@ static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vert
     VALIDATE_MESH_DATA(data, indexOffset);
     return data;
 }
-template <Dimension D> StatMeshData<D> CreateRegularPolygonMeshData(const u32 sides)
+template <Dimension D> StaticMeshData<D> CreateRegularPolygonMeshData(const u32 sides)
 {
     return createRegularPolygon<D>(sides);
 }
 
-template <Dimension D> StatMeshData<D> CreatePolygonMeshData(const TKit::Span<const f32v2> vertices)
+template <Dimension D> StaticMeshData<D> CreatePolygonMeshData(const TKit::Span<const f32v2> vertices)
 {
     TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] A polygon must have at least 3 vertices");
-    StatMeshData<D> data{};
+    StaticMeshData<D> data{};
 
     const auto addVertex = [&data](const f32v2 &vertex, const f32v2 &uv) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{vertex, uv});
+            data.Vertices.Append(StaticVertex<D2>{vertex, uv});
         else
             data.Vertices.Append(
-                StatVertex<D3>{f32v3{vertex, 0.f}, uv, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
+                StaticVertex<D3>{f32v3{vertex, 0.f}, uv, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
@@ -243,13 +243,13 @@ template <Dimension D> StatMeshData<D> CreatePolygonMeshData(const TKit::Span<co
     return data;
 }
 
-static StatMeshData<D3> createBoxMeshData(const u32 offset = 0, const f32 push = 0.5f)
+static StaticMeshData<D3> createBoxMeshData(const u32 offset = 0, const f32 push = 0.5f)
 {
-    StatMeshData<D3> data{};
-    data.BackCulled = true;
+    StaticMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2,
                                    const f32 u, const f32 v, const f32v4 &tangent) {
-        data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, f32v3{n0, n1, n2}, tangent});
+        data.Vertices.Append(StaticVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, f32v3{n0, n1, n2}, tangent});
     };
     const auto addQuad = [&data, offset](const Index a, const Index b, const Index c, const Index d) {
         data.Indices.Append(a + offset);
@@ -307,19 +307,19 @@ static StatMeshData<D3> createBoxMeshData(const u32 offset = 0, const f32 push =
     return data;
 }
 
-StatMeshData<D3> CreateBoxMeshData()
+StaticMeshData<D3> CreateBoxMeshData()
 {
     return createBoxMeshData();
 }
-StatMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
+StaticMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
-    StatMeshData<D3> data{};
-    data.BackCulled = true;
+    StaticMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                    const f32v4 &tangent) {
         const f32v3 vertex = f32v3{x, y, z};
-        data.Vertices.Append(StatVertex<D3>{vertex, f32v2{u, v}, Math::Normalize(vertex), tangent});
+        data.Vertices.Append(StaticVertex<D3>{vertex, f32v2{u, v}, Math::Normalize(vertex), tangent});
     };
     const auto addIndex = [&data, sectors, rings](const u32 ring, const u32 sector) {
         u32 idx;
@@ -385,16 +385,16 @@ StatMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
     VALIDATE_MESH_DATA(data);
     return data;
 }
-StatMeshData<D3> CreateCylinderMeshData(const u32 sides)
+StaticMeshData<D3> CreateCylinderMeshData(const u32 sides)
 {
-    const StatMeshData<D3> left = createRegularPolygon<D3, true, true>(
+    const StaticMeshData<D3> left = createRegularPolygon<D3, true, true>(
         sides, f32v3{0.f, -0.5f, 0.f}, 0, f32v3{0.f, -1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
-    const StatMeshData<D3> right = createRegularPolygon<D3, true, false>(
+    const StaticMeshData<D3> right = createRegularPolygon<D3, true, false>(
         sides, f32v3{0.f, 0.5f, 0.f}, left.Vertices.GetSize(), f32v3{0.f, 1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
-    StatMeshData<D3> data{};
-    data.BackCulled = true;
+    StaticMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     data.Indices.Insert(data.Indices.end(), left.Indices.begin(), left.Indices.end());
     data.Indices.Insert(data.Indices.end(), right.Indices.begin(), right.Indices.end());
 
@@ -403,7 +403,7 @@ StatMeshData<D3> CreateCylinderMeshData(const u32 sides)
 
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                    const f32v4 &tangent) {
-        data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}), tangent});
+        data.Vertices.Append(StaticVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}), tangent});
     };
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
     const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
@@ -439,17 +439,17 @@ StatMeshData<D3> CreateCylinderMeshData(const u32 sides)
     return data;
 }
 
-template <Dimension D> ParaMeshData<D> CreateStadiumMeshData()
+template <Dimension D> ParametricMeshData<D> CreateStadiumMeshData()
 {
-    ParaMeshData<D> data{};
+    ParametricMeshData<D> data{};
     data.Shape = ParametricShape_Stadium;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
                                    const ParametricRegionFlags region = 0) {
         if constexpr (D == D2)
-            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
+            data.Vertices.Append(ParametricVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
         else
-            data.Vertices.Append(
-                ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
+            data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f},
+                                                      f32v4{1.f, 0.f, 0.f, 1.f}, region});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
     constexpr u32 edge = StadiumRegion_Edge;
@@ -483,17 +483,17 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMeshData()
     return data;
 }
 
-template <Dimension D> ParaMeshData<D> CreateRoundedRectMeshData()
+template <Dimension D> ParametricMeshData<D> CreateRoundedRectMeshData()
 {
-    ParaMeshData<D> data{};
+    ParametricMeshData<D> data{};
     data.Shape = ParametricShape_RoundedRect;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
                                    const ParametricRegionFlags region = 0) {
         if constexpr (D == D2)
-            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
+            data.Vertices.Append(ParametricVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
         else
-            data.Vertices.Append(
-                ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
+            data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f},
+                                                      f32v4{1.f, 0.f, 0.f, 1.f}, region});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
@@ -560,17 +560,17 @@ template <Dimension D> ParaMeshData<D> CreateRoundedRectMeshData()
     return data;
 }
 
-ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
+ParametricMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
-    ParaMeshData<D3> data{};
-    data.BackCulled = true;
+    ParametricMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     data.Shape = ParametricShape_Capsule;
 
     const auto addCylinderVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                            const f32v4 &tangent) {
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}), tangent,
-                                            CapsuleRegion_Body});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}),
+                                                  tangent, CapsuleRegion_Body});
     };
     u32 coffset = 0;
     const auto addSphereVertex = [&data, &coffset](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
@@ -580,7 +580,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
             normal[1] += 0.5f;
         else
             normal[1] -= 0.5f;
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
         ++coffset;
     };
 
@@ -834,11 +834,11 @@ static f32v4 getFaceTangent(const u32 p_axis) noexcept
     }
 }
 
-ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
+ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 {
     rings += 2;
-    ParaMeshData<D3> data{};
-    data.BackCulled = true;
+    ParametricMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     data.Shape = ParametricShape_RoundedBox;
 
     const auto addCylinderVertex02 = [&data](const f32 x, const f32 y, const f32 z, const u32 face) {
@@ -853,7 +853,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             normal[2] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
         const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
     const auto addCylinderVertex12 = [&data](const f32 x, const f32 y, const f32 z, const u32 face) {
@@ -868,7 +868,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             normal[2] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
         const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
     const auto addCylinderVertex01 = [&data](const f32 x, const f32 y, const f32 z, const u32 face) {
@@ -883,7 +883,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             normal[1] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
         const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
     const auto addSphereVertex = [&data](const f32 x, const f32 y, const f32 z, const u32 face) {
@@ -895,7 +895,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
                 normal[i] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
         const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
+        data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
     const u32 quartSectors = sectors / 4;
@@ -1452,11 +1452,11 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
     addEdge01(1.f, -1.f);
     addEdge01(-1.f, -1.f);
 
-    const StatMeshData<D3> cdata = createBoxMeshData(offset, 1.f);
-    for (const StatVertex<D3> &vx : cdata.Vertices)
+    const StaticMeshData<D3> cdata = createBoxMeshData(offset, 1.f);
+    for (const StaticVertex<D3> &vx : cdata.Vertices)
     {
         const f32v2 uv = computeRoundedBoxTexCoord(vx.Position, vx.Normal);
-        data.Vertices.Append(ParaVertex<D3>{vx.Position, uv, vx.Normal, vx.Tangent, 0});
+        data.Vertices.Append(ParametricVertex<D3>{vx.Position, uv, vx.Normal, vx.Tangent, 0});
     }
     data.Indices.Insert(data.Indices.end(), cdata.Indices.begin(), cdata.Indices.end());
 
@@ -1464,10 +1464,10 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
     return data;
 }
 
-ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
+ParametricMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
 {
-    ParaMeshData<D3> data{};
-    data.BackCulled = true;
+    ParametricMeshData<D3> data{};
+    data.Flags = MeshDataFlag_BackCulled;
     data.Shape = ParametricShape_Torus;
 
     // Major radius: center of tube to center of torus
@@ -1504,7 +1504,7 @@ ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
             // Tangent: direction of increasing U (along major circle)
             const f32v4 tangent = f32v4{-st, 0.f, ct, 1.f};
 
-            data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, normal, tangent, 0});
+            data.Vertices.Append(ParametricVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, normal, tangent, 0});
         }
     }
 
@@ -1529,26 +1529,154 @@ ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
     VALIDATE_MESH_DATA(data);
     return data;
 }
-template StatMeshData<D2> CreateTriangleMeshData<D2>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
-template StatMeshData<D3> CreateTriangleMeshData<D3>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
 
-template StatMeshData<D2> CreateQuadMeshData<D2>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
-template StatMeshData<D3> CreateQuadMeshData<D3>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+template <Dimension D>
+DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const DynamicVertex<D>> vertices,
+                                         const TKit::Span<const Index> indices, const MeshDataFlags flags)
+{
+    TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] At least 3 vertices are required to build a dynamic mesh");
+    DynamicMeshData<D> data{};
+    data.Flags = flags;
+    for (const DynamicVertex<D> &v : vertices)
+        data.Vertices.Append(v);
+    for (const Index idx : indices)
+        data.Indices.Append(idx);
 
-template StatMeshData<D2> CreateRegularPolygonMeshData<D2>(u32);
-template StatMeshData<D3> CreateRegularPolygonMeshData<D3>(u32);
+    return data;
+}
 
-template StatMeshData<D2> CreatePolygonMeshData<D2>(TKit::Span<const f32v2>);
-template StatMeshData<D3> CreatePolygonMeshData<D3>(TKit::Span<const f32v2>);
+static TKit::StackArray<Index> createIndices(const u32 vcount, const Topology topology)
+{
+    TKit::StackArray<Index> indices{};
+    indices.Reserve(vcount);
+    if (topology == Topology_TriangleList)
+        for (u32 i = 0; i < vcount; ++i)
+            indices.Append(i);
+    else if (topology == Topology_TriangleStrip)
+        for (u32 i = 0; i < vcount - 2; ++i)
+            if (i % 2 == 0)
+            {
+                indices.Append(i);
+                indices.Append(i + 1);
+                indices.Append(i + 2);
+            }
+            else
+            {
+                indices.Append(i + 1);
+                indices.Append(i);
+                indices.Append(i + 2);
+            }
+    else
+        for (u32 i = 1; i < vcount - 1; ++i)
+        {
+            indices.Append(0);
+            indices.Append(i);
+            indices.Append(i + 1);
+        }
+    return indices;
+}
 
-template ParaMeshData<D2> CreateStadiumMeshData<D2>();
-template ParaMeshData<D3> CreateStadiumMeshData<D3>();
+template <Dimension D>
+DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const DynamicVertex<D>> vertices, const Topology topology,
+                                         const MeshDataFlags flags)
+{
+    TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] At least 3 vertices are required to build a dynamic mesh");
+    const u32 vcount = vertices.GetSize();
+    const TKit::StackArray<Index> indices = createIndices(vcount, topology);
+    return CreateDynamicMeshData<D>(vertices, indices, flags);
+}
 
-template ParaMeshData<D2> CreateRoundedRectMeshData<D2>();
-template ParaMeshData<D3> CreateRoundedRectMeshData<D3>();
+template <Dimension D>
+DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const f32v<D>> vertices,
+                                         const TKit::Span<const Index> indices, const Color &color,
+                                         const MeshDataFlags flags)
+{
+    TKit::StackArray<DynamicVertex<D>> vs{};
+    vs.Reserve(vertices.GetSize());
+
+    for (const f32v<D> &pos : vertices)
+    {
+        DynamicVertex<D> &vx = vs.Append();
+        vx.Position = pos;
+        vx.TexCoord = pos + 0.5f; // assuming shape centered around origin and of size 1
+        vx.Color = color.ToLinear().Pack();
+        if constexpr (D == D3)
+            vx.Tangent = f32v4{1.f, 0.f, 0.f, 1.f};
+    }
+    if constexpr (D == D3)
+    {
+        for (u32 i = 0; i < indices.GetSize(); i += 3)
+        {
+            DynamicVertex<D3> &vx1 = vs[i];
+            DynamicVertex<D3> &vx2 = vs[i + 1];
+            DynamicVertex<D3> &vx3 = vs[i + 2];
+
+            const f32v3 edge1 = vx2.Position - vx1.Position;
+            const f32v3 edge2 = vx3.Position - vx1.Position;
+            const f32v3 normal = Math::Normalize(Math::Cross(edge1, edge2));
+
+            vx1.Normal += normal;
+            vx2.Normal += normal;
+            vx3.Normal += normal;
+        }
+        for (DynamicVertex<D3> &vx : vs)
+            vx.Normal = Math::Normalize(vx.Normal);
+    }
+    return CreateDynamicMeshData<D>(vs, indices, flags);
+}
+
+template <Dimension D>
+DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const f32v<D>> vertices, const Topology topology,
+                                         const Color &color, const MeshDataFlags flags)
+{
+    const u32 vcount = vertices.GetSize();
+    const TKit::StackArray<Index> indices = createIndices(vcount, topology);
+    return CreateDynamicMeshData<D>(vertices, indices, color, flags);
+}
+
+template DynamicMeshData<D2> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D2>> vertices,
+                                                   TKit::Span<const Index> indices, MeshDataFlags flags);
+
+template DynamicMeshData<D3> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D3>> vertices,
+                                                   TKit::Span<const Index> indices, MeshDataFlags flags);
+
+template DynamicMeshData<D2> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D2>> vertices, Topology topology,
+                                                   MeshDataFlags flags);
+template DynamicMeshData<D3> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D3>> vertices, Topology topology,
+                                                   MeshDataFlags flags);
+
+template DynamicMeshData<D2> CreateDynamicMeshData<D2>(TKit::Span<const f32v<D2>> vertices,
+                                                       TKit::Span<const Index> indices, const Color &color,
+                                                       MeshDataFlags flags);
+template DynamicMeshData<D3> CreateDynamicMeshData<D3>(TKit::Span<const f32v<D3>> vertices,
+                                                       TKit::Span<const Index> indices, const Color &color,
+                                                       MeshDataFlags flags);
+
+template DynamicMeshData<D2> CreateDynamicMeshData<D2>(TKit::Span<const f32v<D2>> vertices, Topology topology,
+                                                       const Color &color, MeshDataFlags flags);
+template DynamicMeshData<D3> CreateDynamicMeshData<D3>(TKit::Span<const f32v<D3>> vertices, Topology topology,
+                                                       const Color &color, MeshDataFlags flags);
+
+template StaticMeshData<D2> CreateTriangleMeshData<D2>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
+template StaticMeshData<D3> CreateTriangleMeshData<D3>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
+
+template StaticMeshData<D2> CreateQuadMeshData<D2>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+template StaticMeshData<D3> CreateQuadMeshData<D3>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+
+template StaticMeshData<D2> CreateRegularPolygonMeshData<D2>(u32);
+template StaticMeshData<D3> CreateRegularPolygonMeshData<D3>(u32);
+
+template StaticMeshData<D2> CreatePolygonMeshData<D2>(TKit::Span<const f32v2>);
+template StaticMeshData<D3> CreatePolygonMeshData<D3>(TKit::Span<const f32v2>);
+
+template ParametricMeshData<D2> CreateStadiumMeshData<D2>();
+template ParametricMeshData<D3> CreateStadiumMeshData<D3>();
+
+template ParametricMeshData<D2> CreateRoundedRectMeshData<D2>();
+template ParametricMeshData<D3> CreateRoundedRectMeshData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path, u32 maxVertices);
-template Result<StatMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path, u32 maxVertices);
+template Result<StaticMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path, u32 maxVertices);
+template Result<StaticMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path, u32 maxVertices);
 #endif
 } // namespace Onyx

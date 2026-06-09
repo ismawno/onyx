@@ -90,12 +90,12 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 {
     m_ViewBit = allocateViewBit();
 
-    m_BlendSet =
-        ONYX_CHECK_VKIT_RESULT(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetBlendDescriptorLayout()));
+    m_BlendSet = ONYX_CHECK_VKIT_RESULT(
+        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Blend)));
     m_PostProcessSet = ONYX_CHECK_VKIT_RESULT(
-        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
-    m_CompositorSet =
-        ONYX_CHECK_VKIT_RESULT(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
+        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)));
+    m_CompositorSet = ONYX_CHECK_VKIT_RESULT(
+        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Compositor)));
     if (IsDebugUtilsEnabled())
     {
         const auto &device = GetDevice();
@@ -146,9 +146,9 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
                 mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
     }
 
-    VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetBlendDescriptorLayout()};
-    VKit::DescriptorSet::Writer pp{GetDevice(), &Descriptors::GetPostProcessDescriptorLayout()};
-    VKit::DescriptorSet::Writer compositor{GetDevice(), &Descriptors::GetCompositorDescriptorLayout()};
+    VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Blend)};
+    VKit::DescriptorSet::Writer pp{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)};
+    VKit::DescriptorSet::Writer compositor{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Compositor)};
 
     TKit::StackArray<VkDescriptorImageInfo> infos{};
     infos.Reserve(imageCount * 6);

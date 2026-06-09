@@ -12,10 +12,7 @@ void Initialize();
 void Terminate();
 
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(RenderPass pass);
-const VKit::PipelineLayout &GetRayMarchPipelineLayout();
-const VKit::PipelineLayout &GetBlendPipelineLayout();
-const VKit::PipelineLayout &GetPostProcessPipelineLayout();
-const VKit::PipelineLayout &GetCompositorPipelineLayout();
+const VKit::PipelineLayout &GetPipelineLayout(StandalonePass pass);
 
 // TODO(Isma): Make this public?
 void ReloadShaders();

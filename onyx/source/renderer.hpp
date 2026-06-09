@@ -2,8 +2,8 @@
 
 #include "onyx/core.hpp"
 #include "onyx/window.hpp"
+#include "onyx/instance.hpp"
 #include "execution.hpp"
-#include "instance.hpp"
 #include "pass.hpp"
 #include "vkit/execution/queue.hpp"
 #include "vkit/resource/sampler.hpp"
@@ -52,7 +52,7 @@ void Terminate();
 
 VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
 
-template <Dimension D> RenderContext<D> *CreateContext();
+template <Dimension D> RenderContext<D> *CreateContext(u32 immediateDynamicMeshCapacity);
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
 void ReloadPipelines();
@@ -87,6 +87,7 @@ RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *
 void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
 void Coalesce(u32 maxRanges = 512);
 
+// TODO(Isma): This right now is unused and inaccessible. Do something about this
 #ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void DisplayMemoryLayout();
 #endif

@@ -32,7 +32,7 @@ void SetTargetDeltaTime(Window *win, TKit::Timespan target);
 bool CanRenderImGui(Window *window);
 #endif
 
-template <Dimension D> RenderContext<D> *CreateRenderContext();
+template <Dimension D> RenderContext<D> *CreateRenderContext(u32 immediateDynamicMeshCapacity = 0);
 template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx);
 
 bool Running();

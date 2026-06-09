@@ -15,10 +15,13 @@ enum SyncFlagBit : SyncFlags
 {
     SyncFlag_StaticMeshes = 1U << 0,
     SyncFlag_ParametricMeshes = 1U << 1,
-    SyncFlag_Materials = 1U << 2,
-    SyncFlag_Fonts = 1U << 3,
-    SyncFlag_Samplers = 1U << 4,
-    SyncFlag_Images = 1U << 5,
+    // doesnt actually upload anything to the gpu, but it is needed so that sync triggers a reflush of all contexts and
+    // instance data arrays have enough space to index into the new dynamic mesh slot
+    SyncFlag_DynamicMeshes = 1U << 2,
+    SyncFlag_Materials = 1U << 3,
+    SyncFlag_Fonts = 1U << 4,
+    SyncFlag_Samplers = 1U << 5,
+    SyncFlag_Images = 1U << 6,
     SyncFlag_All = TKIT_U8_MAX,
 };
 
@@ -115,25 +118,25 @@ struct DefaultResourcesOptions
     FontLoadOptions FontOpts{.CharSet = {CharSets[CharSet_ASCII], CharSets[CharSet_GeometricShapes]}};
 #endif
 
-    StatMeshData<D2> TriangleData2 = CreateTriangleMeshData<D2>();
-    StatMeshData<D3> TriangleData3 = CreateTriangleMeshData<D3>();
+    StaticMeshData<D2> TriangleData2 = CreateTriangleMeshData<D2>();
+    StaticMeshData<D3> TriangleData3 = CreateTriangleMeshData<D3>();
 
-    StatMeshData<D2> QuadData2 = CreateQuadMeshData<D2>();
-    StatMeshData<D3> QuadData3 = CreateQuadMeshData<D3>();
+    StaticMeshData<D2> QuadData2 = CreateQuadMeshData<D2>();
+    StaticMeshData<D3> QuadData3 = CreateQuadMeshData<D3>();
 
-    StatMeshData<D3> BoxData = CreateBoxMeshData();
-    StatMeshData<D3> SphereData = CreateSphereMeshData();
-    StatMeshData<D3> CylinderData = CreateCylinderMeshData();
+    StaticMeshData<D3> BoxData = CreateBoxMeshData();
+    StaticMeshData<D3> SphereData = CreateSphereMeshData();
+    StaticMeshData<D3> CylinderData = CreateCylinderMeshData();
 
-    ParaMeshData<D2> StadiumData2 = CreateStadiumMeshData<D2>();
-    ParaMeshData<D3> StadiumData3 = CreateStadiumMeshData<D3>();
+    ParametricMeshData<D2> StadiumData2 = CreateStadiumMeshData<D2>();
+    ParametricMeshData<D3> StadiumData3 = CreateStadiumMeshData<D3>();
 
-    ParaMeshData<D2> RoundedRectData2 = CreateRoundedRectMeshData<D2>();
-    ParaMeshData<D3> RoundedRectData3 = CreateRoundedRectMeshData<D3>();
+    ParametricMeshData<D2> RoundedRectData2 = CreateRoundedRectMeshData<D2>();
+    ParametricMeshData<D3> RoundedRectData3 = CreateRoundedRectMeshData<D3>();
 
-    ParaMeshData<D3> CapsuleData = CreateCapsuleMeshData();
-    ParaMeshData<D3> RoundedBoxData = CreateRoundedBoxMeshData();
-    ParaMeshData<D3> TorusData = CreateTorusMeshData();
+    ParametricMeshData<D3> CapsuleData = CreateCapsuleMeshData();
+    ParametricMeshData<D3> RoundedBoxData = CreateRoundedBoxMeshData();
+    ParametricMeshData<D3> TorusData = CreateTorusMeshData();
 };
 } // namespace Onyx
 
@@ -159,15 +162,19 @@ void DestroyTexture(Resource texture);
 const DefaultResources &GetDefaultResources();
 const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts = {});
 
-template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StatMeshData<D> &data);
-template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D> &data);
+template <Dimension D> DynamicMeshInfo<D> RegisterDynamicMesh();
+template <Dimension D> DynamicMeshData<D> *GetDynamicMeshData(Resource mesh);
+template <Dimension D> void DestroyDynamicMesh(Resource mesh);
+
+template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D> &data);
+template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
 template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data = {});
 
 Resource RegisterFont(ResourcePool pool, const FontData &data);
 template <Dimension D> GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D> &data);
 
-template <Dimension D> void UpdateMesh(Resource mesh, const StatMeshData<D> &data);
-template <Dimension D> void UpdateMesh(Resource mesh, const ParaMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Resource mesh, const StaticMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Resource mesh, const ParametricMeshData<D> &data);
 template <Dimension D> void UpdateMaterial(Resource material, const MaterialData<D> &data);
 
 template <Dimension D> ResourcePool CreateResourcePool(ResourceType rtype);
@@ -181,8 +188,8 @@ void ReleaseFontPool(ResourcePool pool);
 
 template <Dimension D> void DestroyMaterial(Resource material);
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(Resource mesh);
-template <Dimension D> ParaMeshData<D> GetParametricMeshData(Resource mesh);
+template <Dimension D> StaticMeshData<D> GetStaticMeshData(Resource mesh);
+template <Dimension D> ParametricMeshData<D> GetParametricMeshData(Resource mesh);
 template <Dimension D> ParametricShape GetParametricShape(Resource mesh);
 
 template <Dimension D> const MaterialData<D> &GetMaterialData(Resource material);
@@ -199,6 +206,7 @@ const GlyphData &GetGlyphData(Resource glyph);
 template <Dimension D> u32 GetDistinctBatchDrawCount();
 
 template <Dimension D> u32 GetResourceCount(ResourcePool pool);
+template <Dimension D> u32 GetDynamicMeshCount();
 
 template <Dimension D> MeshDataLayout GetMeshLayout(Resource mesh);
 template <Dimension D> Resource GetMeshBounds(Resource mesh);

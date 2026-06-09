@@ -201,9 +201,9 @@ bool CanRenderImGui(Window *window)
 }
 #endif
 
-template <Dimension D> RenderContext<D> *CreateRenderContext()
+template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediateDynamicMeshCapacity)
 {
-    return Renderer::CreateContext<D>();
+    return Renderer::CreateContext<D>(immediateDynamicMeshCapacity);
 }
 template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx)
 {
@@ -395,7 +395,7 @@ void Render(const RenderInfo &info)
     s_Data->DeltaTime = s_Data->Clock.Restart();
 }
 
-template RenderContext<D2> *CreateRenderContext();
-template RenderContext<D3> *CreateRenderContext();
+template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
+template RenderContext<D3> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
 
 } // namespace Onyx
