@@ -17,6 +17,8 @@ struct Material2D
 {
     u32 ColorFactor;
     u32 Occluder;
+    f32 TexOffset[2];
+    f32 TexScale[2];
     u32 Sampler;
     u32 Texture;
 }
@@ -34,9 +36,10 @@ enum TextureSlot : u8
 
 struct Material3D
 {
-    f32 EmissiveFactorX;
-    f32 EmissiveFactorY;
-    f32 EmissiveFactorZ;
+    f32 EmissiveFactor[3];
+
+    f32 TexOffset[2];
+    f32 TexScale[2];
 
     u32 AlbedoFactor;
     f32 MetallicFactor;
@@ -900,7 +903,22 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
     return min(f32v3(1.0), ambient + Lo + info.Emissive);
 }
 
-f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const u32 matId, const f32v2 worldPos, const f32v2 uv, const ResourceTable2D resources, const f32 alpha)
+f32v2 ComputeTexCoord(const f32v2 uv0, const f32 offset[2], const f32 scale[2])
+{
+    const f32v2 uvOffset = f32v2(offset[0], offset[1]);
+    const f32v2 uvScale = f32v2(scale[0], scale[1]);
+    return uvOffset + uv0 * uvScale;
+}
+
+f32v2 ComputeTexCoord(const f32v2 uv0, const f32 offset0[2], const f32 scale0[2], const u32 offset1, const u32 scale1)
+{
+    const f32v2 uvOffset = unpackHalf2x16ToFloat(offset1);
+    const f32v2 uvScale = unpackHalf2x16ToFloat(scale1);
+
+    return ComputeTexCoord(uvOffset + uv0 * uvScale, offset0, scale0);
+}
+
+f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const u32 matId, const f32v2 worldPos, const f32v2 uv0, const ResourceTable2D resources, const f32 alpha, const u32 uvOffset, const u32 uvScale)
 {
     if (matId == NullResource)
         return f32v4(fragColor.rgb, fragColor.a * alpha);
@@ -911,6 +929,8 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const
     const u32 sampId = GetResourceId(mat.Sampler);
     const u32 texId = GetResourceId(mat.Texture);
 
+    const f32v2 uv = ComputeTexCoord(uv0, mat.TexOffset, mat.TexScale, uvOffset, uvScale);
+
     if (sampId == NullResource || texId == NullResource)
         return fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 
@@ -918,7 +938,7 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const
     return tex * fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 }
 
-f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const u32 matId, const f32v3 worldPos, const f32v2 uv, const ResourceTable3D resources, const f32 alpha, const f32m3 TBN, const bool isFrontFacing)
+f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const u32 matId, const f32v3 worldPos, const f32v2 uv0, const ResourceTable3D resources, const f32 alpha, const f32m3 TBN, const bool isFrontFacing, const u32 uvOffset, const u32 uvScale)
 {
     if (matId == NullResource)
         return f32v4(fragColor.rgb, fragColor.a * alpha);
@@ -940,10 +960,12 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const
     MaterialInfo3D info;
     info.Albedo = unpackUnorm4x8ToFloat(mat.AlbedoFactor);
     info.WorldPosition = worldPos;
-    info.Emissive = f32v3(mat.EmissiveFactorX, mat.EmissiveFactorY, mat.EmissiveFactorZ);
+    info.Emissive = f32v3(mat.EmissiveFactor[0], mat.EmissiveFactor[1], mat.EmissiveFactor[2]);
     info.Roughness = mat.RoughnessFactor;
     info.Metallic = mat.MetallicFactor;
     info.Occlusion = 1.0;
+
+    const f32v2 uv = ComputeTexCoord(uv0, mat.TexOffset, mat.TexScale, uvOffset, uvScale);
 
     // Albedo
     if (albedoSamp != NullResource && albedoTex != NullResource)

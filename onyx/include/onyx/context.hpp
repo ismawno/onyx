@@ -173,6 +173,10 @@ template <Dimension D> struct ContextState
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
+
+    f32v2 TexOffset{0.f};
+    f32v2 TexScale{1.f};
+
     Resource Material = NullHandle;
     Resource Sampler = NullHandle;
     Resource Texture = NullHandle;
@@ -327,6 +331,16 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Texture(const Resource tex)
     {
         m_Current->Texture = tex;
+    }
+    void Texture(const Resource tex, const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
+    {
+        m_Current->Texture = tex;
+        TextureCoordinates(offset, scale);
+    }
+    void TextureCoordinates(const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
+    {
+        m_Current->TexOffset = offset;
+        m_Current->TexScale = scale;
     }
 
     void StaticMesh(const Resource mesh)

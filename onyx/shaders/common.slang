@@ -37,6 +37,8 @@ struct InstanceData2D
     u32 FillColor;
     u32 OutlineColor;
     u32 MatOrTexId;
+    u32 TexOffset;
+    u32 TexScale;
     f32 OutlineWidth;
     u32 DepthCounter;
 }
@@ -48,6 +50,8 @@ struct InstanceData3D
     u32 FillColor;
     u32 OutlineColor;
     u32 MatOrTexId;
+    u32 TexOffset;
+    u32 TexScale;
     f32 OutlineWidth;
 }
 
@@ -195,13 +199,22 @@ f32v3 ComputeAlignment(const u32 alignment, const u32 id, const Bounds3D bounds)
     return f32v3(al0 == u32(Alignment_None) ? 0.f : data.Data[al0 * 3], al1 == u32(Alignment_None) ? 0.f : data.Data[al1 * 3 + 1], al2 == u32(Alignment_None) ? 0.f : data.Data[al2 * 3 + 2]);
 }
 
-f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 id, const f32v4 fill, const f32v2 uv)
+
+f32v2 ComputeTexCoord(const f32v2 uv0, const u32 offset, const u32 scale)
+{
+    const f32v2 uvOffset = unpackHalf2x16ToFloat(offset);
+    const f32v2 uvScale = unpackHalf2x16ToFloat(scale);
+    return uvOffset + uv0 * uvScale;
+}
+
+f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 id, const f32v4 fill, const f32v2 uv0, const u32 offset, const u32 scale)
 {
     const u32 sampId = (id >> ONYX_FLAT_SAMPLER_BITS) & ONYX_FLAT_SAMPLER_MASK;
     const u32 texId = id & ONYX_FLAT_TEXTURE_MASK;
     if (sampId == ONYX_NULL_FLAT_SAMPLER || texId == ONYX_NULL_FLAT_TEXTURE)
         return fill;
 
+    const f32v2 uv = ComputeTexCoord(uv0, offset, scale);
     const SamplerState samp = samplers[sampId];
     const Texture2D tex = textures[texId];
 

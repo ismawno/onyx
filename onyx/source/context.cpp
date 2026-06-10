@@ -190,6 +190,57 @@ template <Dimension D> void checkMaterial(const Resource material)
 }
 #endif
 
+u16 F32ToF16(const f32 f)
+{
+    u32 bits;
+    std::memcpy(&bits, &f, 4);
+
+    i32 s = (bits >> 16) & 0x8000;
+    i32 e = ((bits >> 23) & 0xFF) - 112; // 127 - 15 = 112
+    i32 m = bits & 0x007FFFFF;
+
+    if (e <= 0)
+    {
+        if (e < -10)
+            return u16(s);
+
+        m = (m | 0x00800000) >> (1 - e);
+        if (m & 0x00001000)
+            m += 0x00002000;
+
+        return u16(s | (m >> 13));
+    }
+
+    if (e == 143) // 0xFF - 112
+    {
+        if (m == 0)
+            return u16(s | 0x7C00);
+
+        m >>= 13;
+        return u16(s | 0x7C00 | m | (m == 0));
+    }
+
+    if (m & 0x00001000)
+    {
+        m += 0x00002000;
+        if (m & 0x00800000)
+        {
+            m = 0;
+            e += 1;
+        }
+    }
+
+    if (e > 30)
+        return u16(s | 0x7C00);
+
+    return u16(s | (e << 10) | (m >> 13));
+}
+
+u32 PackHalf2x16(const f32v2 &x)
+{
+    return u32(F32ToF16(x[0])) | (u32(F32ToF16(x[1])) << 16);
+}
+
 template <Dimension D> u32 packAlignment(const vec<Alignment, D> alg)
 {
     if constexpr (D == D2)
@@ -219,6 +270,8 @@ static InstanceData<D> createInstanceData(const ContextState<D> *state, const f3
     instanceData.Transform = CreateTransformData<D>(transform);
     instanceData.Rect = state->Rect;
     instanceData.MatOrTexId = flat ? packSamplerTex(state) : Resources::GetResourceId(state->Material);
+    instanceData.TexOffset = PackHalf2x16(state->TexOffset);
+    instanceData.TexScale = PackHalf2x16(state->TexScale);
     instanceData.FillColor = state->FillColor.ToLinear().Pack();
     instanceData.OutlineColor = state->OutlineColor.ToLinear().Pack();
     instanceData.OutlineWidth = state->OutlineWidth;

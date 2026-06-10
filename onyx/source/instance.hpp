@@ -52,6 +52,8 @@ template <Dimension D> struct InstanceData
     u32 FillColor;
     u32 OutlineColor;
     u32 MatOrTexId;
+    u32 TexOffset;
+    u32 TexScale;
     f32 OutlineWidth;
 };
 template <> struct InstanceData<D2>
@@ -61,6 +63,8 @@ template <> struct InstanceData<D2>
     u32 FillColor;
     u32 OutlineColor;
     u32 MatOrTexId;
+    u32 TexOffset;
+    u32 TexScale;
     f32 OutlineWidth;
     u32 DepthCounter;
 };

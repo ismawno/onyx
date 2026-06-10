@@ -464,13 +464,13 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     resources.DirectionalMaps = g_DirectionalMaps;
     resources.SpotMaps = g_SpotMaps;
 
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing, data.TexOffset, data.TexScale);
     return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, data.TexOffset, data.TexScale);
     return out;
 
 #    endif
@@ -494,9 +494,9 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #    endif
 #else
 #    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, f32v4(fill.rgb, alpha), input.TexCoord);
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, f32v4(fill.rgb, alpha), input.TexCoord, data.TexOffset, data.TexScale);
 #    else
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, fill, input.TexCoord);
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale);
 #    endif
     return out;
 #endif
