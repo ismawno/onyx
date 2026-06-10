@@ -460,6 +460,16 @@ class Layout
         m_IdStack.Pop();
     }
 
+    const LayoutSpecs &GetSpecs() const
+    {
+        return m_Specs;
+    }
+    void SetSpecs(const LayoutSpecs &specs)
+    {
+        m_Specs = specs;
+        applySpecDefaults();
+    }
+
   private:
     usz beginPanel(usz label, const LayoutPanelParameters &params);
     void endPanel();
@@ -468,6 +478,8 @@ class Layout
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();
+
+    void applySpecDefaults();
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_ElementStack{};

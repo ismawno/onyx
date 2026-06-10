@@ -14,17 +14,7 @@ static LayoutAxis getAxis(const LayoutDirection dir)
 
 Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
 {
-    const DefaultResources &def = Resources::GetDefaultResources();
-    const auto assign = [&](Resource &res, const Resource specific, const Resource fallback) {
-        if (specific == NullHandle)
-            res = fallback;
-        else
-            res = specific;
-    };
-    assign(m_Specs.Font, spc.Font, def.Font);
-    assign(m_Specs.RectangleMesh, spc.RectangleMesh, def.Quad2);
-    assign(m_Specs.RoundedRectangleMesh, spc.RoundedRectangleMesh, def.RoundedRect2);
-
+    applySpecDefaults();
     m_IdStack.Append(ONYX_LAYOUT_START_ID);
 }
 usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
@@ -762,5 +752,16 @@ void Layout::Compile()
     m_Breadth.Clear();
     m_ReversedBreadth.Clear();
     m_AutoLabel = 0;
+}
+void Layout::applySpecDefaults()
+{
+    const DefaultResources &def = Resources::GetDefaultResources();
+    const auto assign = [&](Resource &res, const Resource fallback) {
+        if (res == NullHandle)
+            res = fallback;
+    };
+    assign(m_Specs.Font, def.Font);
+    assign(m_Specs.RectangleMesh, def.Quad2);
+    assign(m_Specs.RoundedRectangleMesh, def.RoundedRect2);
 }
 } // namespace Onyx

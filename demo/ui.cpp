@@ -23,6 +23,13 @@ int main()
             ui.HorizontalSeparator("General");
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
             ui.Text("Delta time: {:.2f} ms", ftime);
+            if (ui.BeginItemTooltip())
+            {
+                ui.Text("Im a tooltip!");
+                ui.Text("And this is the time that passes between frames");
+                ui.EndTooltip();
+            }
+
             ui.CheckBox("Open widow settings", &enableSettings);
 
             static bool helloText = false;

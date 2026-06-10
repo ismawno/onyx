@@ -12,6 +12,11 @@ int main()
     {
         if (Onyx::CanRenderImGui(win))
             ImGui::ShowDemoWindow();
+        ImGui::Begin("Im a test window");
+        ImGui::Text("Some text");
+        ImGui::SetItemTooltip("Hey!");
+        ImGui::BeginTooltip();
+        ImGui::End();
         Onyx::Render();
     }
     Onyx::Terminate();

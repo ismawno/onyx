@@ -71,6 +71,17 @@ struct ScrollBarInfo
     }
 };
 
+struct OverlayTooltip
+{
+    OverlayTooltip(const LayoutSpecs &spc) : Layout(spc)
+    {
+    }
+    Layout Layout;
+    f32v2 Position{0.f};
+    bool Drawn = false;
+    bool Active = false;
+};
+
 struct OverlayWindow
 {
     OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
@@ -237,12 +248,15 @@ struct InputConvertInfo
 struct LayoutConfig
 {
     f32 FontSize = 14.f;
+    f32 TooltipOffset = 12.f;
+    f32 TooltipPadding = 4.f;
     f32 WindowPadding = 8.f;
     f32 WindowBorderWidth = 4.f;
     f32 ChildGap = 8.f;
     f32 HeaderPadding = 4.f;
     f32 ScrollBarWidth = 8.f;
     f32 BorderHoverPadding = 8.f;
+    f32 ContentAreaPadding = 4.f;
     f32 ScrollSensitivity = 16.f;
     f32 WidgetSize = 24.f;
     f32 WindowSpawnDelta = 32.f;
@@ -291,17 +305,38 @@ class UserInterface
     }
     bool CheckBox(TKit::StringView label, bool *enable);
 
+    void BeginTooltip();
+    void EndTooltip();
+    template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        BeginTooltip();
+        Text(str, std::forward<Args>(args)...);
+        EndTooltip();
+    }
+
+    bool BeginItemTooltip();
+    template <typename... Args> bool SetItemTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        if (!BeginItemTooltip())
+            return false;
+
+        Text(str, std::forward<Args>(args)...);
+        EndTooltip();
+        return true;
+    }
+
     bool InputText(TKit::StringView label, char *buf, u32 size, OverlayInputFlags flags = 0);
     template <TKit::Numeric T>
     bool InputNumeric(const TKit::StringView label, T *value, const char *format, const OverlayInputFlags flags = 0)
     {
-        Layout &ly = m_Current->Layout;
+        Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
-        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                         .Sizing = {snorm(0.6f), fit()},
-                                                         .ChildGap = Config.ChildGap});
+        m_TooltipWidgetId =
+            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                             .Sizing = {snorm(0.6f), fit()},
+                                                             .ChildGap = Config.ChildGap});
 
         const bool updated = inputNumericBox(value, format, flags);
         ly.EndPanel();
@@ -312,7 +347,7 @@ class UserInterface
 
     void Separator(const f32 width = 4.f)
     {
-        const LayoutElement &elm = m_Current->Layout.GetCurrentElement();
+        const LayoutElement &elm = getCurrentLayout().GetCurrentElement();
         if (elm.Direction == LayoutDirection_LeftToRight || elm.Direction == LayoutDirection_RightToLeft)
             VerticalLine(width);
         else
@@ -321,23 +356,24 @@ class UserInterface
     void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
     void HorizontalLine(const f32 width = 4.f)
     {
-        m_Current->Layout.Panel(LayoutPanelParameters{
+        getCurrentLayout().Panel(LayoutPanelParameters{
             .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {grow(), sabs(width)}});
     }
     void VerticalLine(const f32 width = 4.f)
     {
-        m_Current->Layout.Panel(LayoutPanelParameters{
+        getCurrentLayout().Panel(LayoutPanelParameters{
             .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {sabs(width), grow()}});
     }
 
     Layout *BeginPanel(const LayoutPanelParameters &params = {})
     {
-        m_Current->Layout.BeginPanel(params);
-        return &m_Current->Layout;
+        Layout &ly = getCurrentLayout();
+        ly.BeginPanel(params);
+        return &ly;
     }
     void EndPanel()
     {
-        m_Current->Layout.EndPanel();
+        getCurrentLayout().EndPanel();
     }
 
     void PushDirection(const LayoutDirection dir)
@@ -383,7 +419,13 @@ class UserInterface
     template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
     {
         const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        m_Current->Layout.Text(txt, getTextParams(OverlayColor_Text));
+        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
+        Layout &ly = getCurrentLayout();
+        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+        if constexpr (sizeof...(Args) != 0)
+            m_TooltipWidgetId = ly.Text(++m_TextId, txt, params);
+        else
+            m_TooltipWidgetId = ly.Text(txt, params);
     }
 
     // TODO(Isma): Implement format rounding
@@ -392,15 +434,16 @@ class UserInterface
                           const u32 count = 1)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
-        Layout &ly = m_Current->Layout;
+        Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
 
         bool pressed = false;
-        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                         .Sizing = {snorm(0.6f), fit()},
-                                                         .ChildGap = Config.ChildGap});
+        m_TooltipWidgetId =
+            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                             .Sizing = {snorm(0.6f), fit()},
+                                                             .ChildGap = Config.ChildGap});
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
@@ -418,14 +461,15 @@ class UserInterface
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
                         const U mx = T(0), const char *format = nullptr, const u32 count = 1)
     {
-        Layout &ly = m_Current->Layout;
+        Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
 
-        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                         .Sizing = {snorm(0.6f), fit()},
-                                                         .ChildGap = Config.ChildGap});
+        m_TooltipWidgetId =
+            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                             .Sizing = {snorm(0.6f), fit()},
+                                                             .ChildGap = Config.ChildGap});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -453,7 +497,7 @@ class UserInterface
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
-        Layout &ly = m_Current->Layout;
+        Layout &ly = getCurrentLayout();
         const LayoutElement *elm = ly.QueryElement("Slider box");
         format = getFormat<T>(format);
 
@@ -533,7 +577,7 @@ class UserInterface
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
     {
-        Layout &ly = m_Current->Layout;
+        Layout &ly = getCurrentLayout();
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
@@ -620,6 +664,11 @@ class UserInterface
                 format = "{}";
         }
         return format;
+    }
+
+    Layout &getCurrentLayout()
+    {
+        return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
     }
 
     InputConvertInfo getInputConvertInfo(bool hovered, bool allowDoubleClick = false);
@@ -727,6 +776,9 @@ class UserInterface
     usz m_FocusedInputter = NullLayoutId;
     usz m_DelayedFocusedInputter = NullLayoutId;
 
+    usz m_TooltipWidgetId = NullLayoutId;
+    usz m_TextId = 0;
+
     // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
     // a double click)
     u32 m_OverflowClicks = 0;
@@ -739,5 +791,6 @@ class UserInterface
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};
     TKit::TierArray<usz> m_WindowIds{};
+    OverlayTooltip m_Tooltip;
 };
 } // namespace Onyx

@@ -25,8 +25,11 @@ enum OverlayWindowInternalFlagBit : OverlayWindowFlags
 };
 
 UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
-    : Config(specs.Config), m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors)
+    : Config(specs.Config), m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors), m_Tooltip(specs.Layout)
 {
+    TKIT_ASSERT(specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
+                "[ONYX][UI] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
+
     m_Camera.Mode = CameraMode_Viewport;
     m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
     m_View->ClearColor.rgba[3] = 0.f;
@@ -37,7 +40,7 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
 
 void UserInterface::drawWindowBorders()
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const Color &interaction = *m_Current->Resize.InteractionColor;
     const Color &idle = m_Colors[OverlayColor_WindowBorderIdle];
 
@@ -108,7 +111,7 @@ void UserInterface::drawWindowBorders()
 
 void UserInterface::drawWindowScrollBar()
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const LayoutElement *contentArea = ly.QueryElement("Content area");
     if (!contentArea)
         return;
@@ -174,7 +177,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     m_Current->Flags &= OverlayWindowFlagClear;
     m_Current->Flags |= flags;
 
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
 
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noHeader && m_Current->HeaderIcon == m_CollapsedHeaderIcon;
@@ -209,6 +212,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                 .Padding = Config.WindowPadding,
                                                 .ChildGap = Config.ChildGap});
 
+    m_TooltipWidgetId = m_Current->Id;
     drawWindowBorders();
     if (!noHeader)
     {
@@ -252,7 +256,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                         .Alignment = topLeft,
                                                         .Sizing = autoResize ? fit() : grow(),
                                                         .ChildOffset = oabs({0.f, -m_Current->ScrollBar.ElementOffset}),
-                                                        .Padding = 4.f,
+                                                        .Padding = Config.ContentAreaPadding,
                                                         .ChildGap = Config.ChildGap});
     return !collapsed;
 }
@@ -268,7 +272,7 @@ void UserInterface::EndWindow()
 
 void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     ly.BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
                                         .Alignment = {Alignment_Left, Alignment_Center},
                                         .Sizing = {grow(), fit()},
@@ -286,7 +290,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFl
                                  const bool overrideEnterFocus)
 {
     TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const u32 strSize = u32(std::strlen(buf));
     TKIT_ASSERT(strSize < size, "[ONYX][UI] The input character length ({}) exceeds buffer size ({})", strSize, size);
 
@@ -559,7 +563,8 @@ InputConvertInfo UserInterface::getInputConvertInfo(const bool hovered, const bo
 {
     InputConvertInfo info{};
 
-    const LayoutElement *ibox = m_Current->Layout.QueryElement("Input box");
+    Layout &ly = getCurrentLayout();
+    const LayoutElement *ibox = ly.QueryElement("Input box");
     const bool ctrl = m_Window->IsKeyPressed(Config.BoxInputTrigger);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
@@ -583,7 +588,7 @@ InputConvertInfo UserInterface::getInputConvertInfo(const bool hovered, const bo
 // TODO(Isma): Too much repetition between this and Button()
 bool UserInterface::collapseButton()
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement("Collapse button"));
 
     const Color *col = &Color_Transparent;
@@ -696,7 +701,7 @@ InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
 
 bool UserInterface::Button(const TKit::StringView label)
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_ButtonIdle];
@@ -705,8 +710,9 @@ bool UserInterface::Button(const TKit::StringView label)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
-    ly.BeginPanel(label, LayoutPanelParameters{
-                             .FillColor = *col, .Alignment = Alignment_Center, .Sizing = fit(), .Padding = 8.f});
+    m_TooltipWidgetId = ly.BeginPanel(
+        label,
+        LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = fit(), .Padding = 8.f});
 
     ly.Text(label, getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
@@ -715,7 +721,7 @@ bool UserInterface::Button(const TKit::StringView label)
 
 bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
@@ -724,9 +730,9 @@ bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_CheckBoxHovered];
 
-    ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                               .Sizing = fit(),
-                                               .ChildGap = Config.ChildGap});
+    m_TooltipWidgetId = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                   .Sizing = fit(),
+                                                                   .ChildGap = Config.ChildGap});
 
     ly.BeginPanel("Outer radio", LayoutPanelParameters{.FillColor = *col,
                                                        .Alignment = Alignment_Center,
@@ -746,9 +752,10 @@ bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
     return info.Clicked;
 }
 
+// NOTE(Isma): Much repetition with radio button here
 bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
 
     const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
@@ -760,9 +767,9 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     if (info.Clicked)
         *enable = !*enable;
 
-    ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                               .Sizing = fit(),
-                                               .ChildGap = Config.ChildGap});
+    m_TooltipWidgetId = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                   .Sizing = fit(),
+                                                                   .ChildGap = Config.ChildGap});
 
     ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = Alignment_Center,
@@ -780,16 +787,71 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     return info.Clicked;
 }
 
+void UserInterface::BeginTooltip()
+{
+    TKIT_ASSERT(m_Current, "[ONYX][UI] Cannot begin a tooltip outside of a window");
+    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][UI] Cannot begin a tooltip inside of a tooltip");
+    m_Tooltip.Active = true;
+    m_Tooltip.Drawn = true;
+
+    f32v2 offset = f32v2{Config.TooltipOffset, -2.f * Config.TooltipOffset};
+    vec2<Alignment> alg{Alignment_Left, Alignment_Top};
+
+    if (m_MousePos[0] + offset[0] > 0.f)
+    {
+        alg[0] = Alignment_Right;
+        offset[0] = -offset[0];
+    }
+    if (m_MousePos[1] + offset[1] < 0.f)
+    {
+        alg[1] = Alignment_Bottom;
+        offset[1] = -0.5f * offset[1];
+    }
+    m_Tooltip.Layout.SetSpecs({.RootAlignment = alg});
+
+    m_Tooltip.Layout.BeginPanel(LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBorderIdle],
+                                                      .Sizing = fit(),
+                                                      .SelfOffset = oabs(m_MousePos + offset),
+                                                      .Padding = Config.TooltipPadding});
+
+    m_Tooltip.Layout.BeginPanel(LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_WindowBackgroundExpanded],
+                                                      .Direction = LayoutDirection_TopToBottom,
+                                                      .Alignment = {Alignment_Left, Alignment_Top},
+                                                      .Sizing = fit(),
+                                                      .Padding = Config.ContentAreaPadding,
+                                                      .ChildGap = Config.ChildGap});
+}
+
+bool UserInterface::BeginItemTooltip()
+{
+    if (!m_Current->CheckFlags(OverlayWindowFlag_Hovered) ||
+        !m_Current->Layout.IsHovered(m_TooltipWidgetId, m_MousePos))
+        return false;
+
+    BeginTooltip();
+    return true;
+}
+
+void UserInterface::EndTooltip()
+{
+    TKIT_ASSERT(m_Tooltip.Active, "[ONYX][UI] Cannot end a tooltip that has not started");
+    m_Tooltip.Active = false;
+    m_Tooltip.Layout.EndPanel();
+    m_Tooltip.Layout.EndPanel();
+    m_Tooltip.Layout.Compile();
+}
+
 bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size, const OverlayInputFlags flags)
 {
-    Layout &ly = m_Current->Layout;
+    Layout &ly = getCurrentLayout();
     ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                .Sizing = {grow(300.f), fit()},
                                                .ChildGap = Config.ChildGap});
 
-    ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                     .Sizing = {snorm(0.6f), fit()},
-                                                     .ChildGap = Config.ChildGap});
+    m_TooltipWidgetId =
+        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                         .Sizing = {snorm(0.6f), fit()},
+                                                         .ChildGap = Config.ChildGap});
 
     const bool updated = inputTextBox(buf, size, flags);
     ly.EndPanel();
@@ -807,6 +869,14 @@ void UserInterface::Draw()
         win.Layout.Compile();
         m_Context->Layout(win.Layout);
     }
+    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][UI] Found a tooltip that has not been finished");
+    if (m_Tooltip.Drawn)
+    {
+        // tooltip must be compiled everytime it is used
+        m_Context->Layout(m_Tooltip.Layout);
+        m_Tooltip.Drawn = false;
+    }
+    m_TextId = 0;
 }
 
 template <typename F> void UserInterface::iterateReverseWindows(const F func)
