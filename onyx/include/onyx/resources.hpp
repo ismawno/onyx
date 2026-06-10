@@ -36,7 +36,7 @@ struct DefaultResources
     ResourcePool FontPool = NullHandle;
 
     Resource Font = NullHandle;
-    Resource FontSampler = NullHandle;
+    Resource Sampler = NullHandle;
 
     Resource Triangle2 = NullHandle;
     Resource Triangle3 = NullHandle;
@@ -113,7 +113,7 @@ struct DefaultResourcesOptions
     ResourcePool FontPool = NullHandle;
     Resource DefaultFont = NullHandle; // If null, will load default font if enabled
 
-    SamplerData FontSamplerData{};
+    SamplerData SamplerData{};
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
     FontLoadOptions FontOpts{.CharSet = {CharSets[CharSet_ASCII], CharSets[CharSet_GeometricShapes]}};
 #endif

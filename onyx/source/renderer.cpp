@@ -2955,6 +2955,8 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                 for (u32 j = 0; j < Geometry_Count; ++j)
                 {
                     const Geometry geo = Geometry(j);
+                    // filtering by _Shaded saves us from a lot of computation (obviously) but most importantly avoids
+                    // misinterpretation of the MatOrTexId field in the instance data with flat render modes
                     collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
                 }
 

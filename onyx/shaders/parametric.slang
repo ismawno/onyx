@@ -49,14 +49,14 @@ struct ParametricInstanceData2D
 {
     InstanceData2D Data;
     u32 Alignment;
-    u32 BoundsHandle;
+    u32 BoundsId;
     InstanceParameters Parameters;
 }
 struct ParametricInstanceData3D
 {
     InstanceData3D Data;
     u32 Alignment;
-    u32 BoundsHandle;
+    u32 BoundsId;
     InstanceParameters Parameters;
 }
 

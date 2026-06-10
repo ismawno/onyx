@@ -1,7 +1,8 @@
 #include "qol.slang"
 
+// 2D shadows uses materials to check if they are an occluder or not
 #if defined(ONYX_PASS_SHADED) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_2D))
-#    define ONYX_USES_MATERIAL
+#    define ONYX_USES_MATERIALS
 #endif
 
 #if !defined(ONYX_GEOMETRY_CIRCLE) && !defined(ONYX_GEOMETRY_GLYPH) && !defined(ONYX_GEOMETRY_DYNAMIC)
@@ -24,7 +25,7 @@
 #    define ONYX_VEC(v4) (v4).xyz
 #endif
 
-#ifdef ONYX_USES_MATERIAL
+#ifdef ONYX_USES_MATERIALS
 #    include "material.slang"
 #endif
 
@@ -109,7 +110,7 @@ struct VertexInput
     f32v2 AtlasCoords : TEXCOORD0;
 #    endif
 
-#    ifdef ONYX_PASS_SHADED
+#    ifndef ONYX_PASS_SHADOW
     f32v2 TexCoord : TEXCOORD0;
 #    endif
 
@@ -144,7 +145,7 @@ struct FragInput
     f32v LocalPosition;
 #endif
 
-#ifdef ONYX_PASS_SHADED
+#ifndef ONYX_PASS_SHADOW
     [[vk::location(1)]]
     f32v2 TexCoord;
 #endif
@@ -255,7 +256,7 @@ FragInput mainVS(
 
 #else
 #    ifdef ONYX_USES_BOUNDS
-    const f32v alignment = ComputeAlignment(gdata.Alignment, gdata.BoundsHandle, g_Bounds);
+    const f32v alignment = ComputeAlignment(gdata.Alignment, gdata.BoundsId, g_Bounds);
 #    else
 
     // NOTE(Isma): Maybe avoid this zero sub?
@@ -306,7 +307,7 @@ FragInput mainVS(
     finput.TBN = f32m3(T, B, N);
 #endif
 
-#ifdef ONYX_PASS_SHADED
+#ifndef ONYX_PASS_SHADOW
 #    ifdef ONYX_GEOMETRY_CIRCLE
     finput.TexCoord = g_TexCoord[vertexIndex];
 #    else
@@ -342,7 +343,7 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING_POINT)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-#ifdef ONYX_USES_MATERIAL
+#ifdef ONYX_USES_MATERIALS
 [[vk::binding(ONYX_MATERIALS_BINDING_POINT)]]
 MaterialBuffer g_Materials;
 #endif
@@ -421,9 +422,8 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     const f32 outlineWidth = data.OutlineWidth;
 #endif
 
-#ifdef ONYX_USES_MATERIAL
-    const u32 mid = GetResourceId(data.MatHandle);
-#endif
+    // in the shadow case this could conflict with flat render passes (as mtid would be the sampler/tex id). however, shadow invocations are filtered by shaded passes so we are fine
+    const u32 mtid = data.MatOrTexId;
 
 #ifdef ONYX_GEOMETRY_CIRCLE
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, gdata.Arc.Hollowness);
@@ -434,9 +434,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     #endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)
-    const u32 samplerId = GetResourceId(gdata.SamplerHandle);
-    const u32 atlasId = GetResourceId(gdata.AtlasHandle);
-    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, samplerId, atlasId, gdata.UnitRange, input.AtlasCoords);
+    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, gdata.SamplerId, gdata.AtlasId, gdata.UnitRange, input.AtlasCoords);
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 
@@ -466,13 +464,13 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     resources.DirectionalMaps = g_DirectionalMaps;
     resources.SpotMaps = g_SpotMaps;
 
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
     return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mid, input.WorldPosition, input.TexCoord, resources, alpha);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha);
     return out;
 
 #    endif
@@ -481,7 +479,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 
 #    ifdef ONYX_DIMENSION_2D
 
-    if (mid == NullResource || g_Materials[mid].Occluder == 0)
+    if (mtid == NullResource || g_Materials[mtid].Occluder == 0)
         discard;
 
     return 1.f;
@@ -496,9 +494,9 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #    endif
 #else
 #    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
-    out.Fill = f32v4(fill.rgb, alpha);
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, f32v4(fill.rgb, alpha), input.TexCoord);
 #    else
-    out.Fill = fill;
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, fill, input.TexCoord);
 #    endif
     return out;
 #endif

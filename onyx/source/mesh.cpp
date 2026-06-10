@@ -111,9 +111,9 @@ template <Dimension D> StaticMeshData<D> CreateTriangleMeshData(const f32v2 &lef
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(top, 0.5f, 1.f);
-    addVertex(left, 0.f, 0.f);
-    addVertex(right, 1.f, 0.f);
+    addVertex(top, 0.5f, 0.f);
+    addVertex(left, 0.f, 1.f);
+    addVertex(right, 1.f, 1.f);
 
     addIndex(0);
     addIndex(1);

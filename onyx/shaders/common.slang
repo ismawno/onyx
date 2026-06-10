@@ -36,7 +36,7 @@ struct InstanceData2D
     WorldRect2D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatHandle;
+    u32 MatOrTexId;
     f32 OutlineWidth;
     u32 DepthCounter;
 }
@@ -47,7 +47,7 @@ struct InstanceData3D
     WorldRect3D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatHandle;
+    u32 MatOrTexId;
     f32 OutlineWidth;
 }
 
@@ -176,34 +176,35 @@ f32m3 ComputeNormalMatrix(const f32m3 matrix)
 typedef StructuredBuffer<BoundsData2D, Std430DataLayout> Bounds2D;
 typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
 
-f32v2 GetCenter(const u32 handle, const Bounds2D bounds)
+f32v2 ComputeAlignment(const u32 alignment, const u32 id, const Bounds2D bounds)
 {
-    const BoundsData2D data = bounds[GetResourceId(handle)];
-    return f32v2(data.Data[2], data.Data[3]);
-}
-
-f32v2 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds2D bounds)
-{
-    const BoundsData2D data = bounds[GetResourceId(handle)];
+    const BoundsData2D data = bounds[id];
 
     const u32 al0 = alignment & 0xFF;
     const u32 al1 = (alignment >> 8) & 0xFF;
     return f32v2(al0 == u32(Alignment_None) ? 0.f : data.Data[al0 * 2], al1 == u32(Alignment_None) ? 0.f : data.Data[al1 * 2 + 1]);
 }
 
-f32v3 GetCenter(const u32 handle, const Bounds3D bounds)
+f32v3 ComputeAlignment(const u32 alignment, const u32 id, const Bounds3D bounds)
 {
-    const BoundsData3D data = bounds[GetResourceId(handle)];
-    return f32v3(data.Data[3], data.Data[4], data.Data[5]);
-}
-
-f32v3 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds3D bounds)
-{
-    const BoundsData3D data = bounds[GetResourceId(handle)];
+    const BoundsData3D data = bounds[id];
 
     const u32 al0 = alignment & 0xFF;
     const u32 al1 = (alignment >> 8) & 0xFF;
     const u32 al2 = (alignment >> 16) & 0xFF;
     return f32v3(al0 == u32(Alignment_None) ? 0.f : data.Data[al0 * 3], al1 == u32(Alignment_None) ? 0.f : data.Data[al1 * 3 + 1], al2 == u32(Alignment_None) ? 0.f : data.Data[al2 * 3 + 2]);
+}
+
+f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 id, const f32v4 fill, const f32v2 uv)
+{
+    const u32 sampId = (id >> ONYX_FLAT_SAMPLER_BITS) & ONYX_FLAT_SAMPLER_MASK;
+    const u32 texId = id & ONYX_FLAT_TEXTURE_MASK;
+    if (sampId == ONYX_NULL_FLAT_SAMPLER || texId == ONYX_NULL_FLAT_TEXTURE)
+        return fill;
+
+    const SamplerState samp = samplers[sampId];
+    const Texture2D tex = textures[texId];
+
+    return fill * tex.Sample(samp, uv);
 }
 

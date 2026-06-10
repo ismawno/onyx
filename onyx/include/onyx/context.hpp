@@ -174,8 +174,9 @@ template <Dimension D> struct ContextState
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
     Resource Material = NullHandle;
+    Resource Sampler = NullHandle;
+    Resource Texture = NullHandle;
     Resource Font = NullHandle;
-    Resource FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
     RenderModeFlags RenderFlags = RenderModeFlag_Flat;
     BlendPass Blend = BlendPass_Opaque;
@@ -319,9 +320,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         m_Current->Font = font;
     }
-    void FontSampler(const Resource sampler)
+    void Sampler(const Resource sampler)
     {
-        m_Current->FontSampler = sampler;
+        m_Current->Sampler = sampler;
+    }
+    void Texture(const Resource tex)
+    {
+        m_Current->Texture = tex;
     }
 
     void StaticMesh(const Resource mesh)

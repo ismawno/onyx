@@ -763,7 +763,7 @@ const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &op
             def.Font = RegisterFont(def.FontPool, *fres);
     }
 #endif
-    def.FontSampler = CreateSampler(opts.FontSamplerData);
+    def.Sampler = CreateSampler(opts.SamplerData);
 
     def.Triangle2 = RegisterMesh(def.StaticPool2, opts.TriangleData2);
     def.Triangle3 = RegisterMesh(def.StaticPool3, opts.TriangleData3);

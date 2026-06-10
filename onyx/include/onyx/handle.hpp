@@ -170,7 +170,7 @@ inline Resource CreateResourceHandle(const ResourceType rtype, const u32 resourc
 {
     TKIT_ASSERT(rtype < Resource_Count,
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
-    TKIT_ASSERT(resourceId <= ONYX_MAX_RESOURCES,
+    TKIT_ASSERT(resourceId <= ONYX_MAX_RESOURCE_IDS,
                 "[ONYX][RESOURCES] Cannot create a resource handle with a resource id ({:#010x}) "
                 "that exceeds the maximum bits allocated "
                 "for it, as it would break the handle",

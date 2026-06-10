@@ -490,15 +490,14 @@ VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Ble
         if constexpr (D == D2)
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StaticVertex<D2>, Position));
-            if (pass == PipelinePass_Shaded)
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StaticVertex<D2>, TexCoord));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StaticVertex<D2>, TexCoord));
         }
         else
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StaticVertex<D3>, Position));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StaticVertex<D3>, TexCoord));
             if (pass == PipelinePass_Shaded)
             {
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StaticVertex<D3>, TexCoord));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StaticVertex<D3>, Normal));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(StaticVertex<D3>, Tangent));
             }
@@ -510,16 +509,15 @@ VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Ble
         if constexpr (D == D2)
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParametricVertex<D2>, Position));
-            if (pass == PipelinePass_Shaded)
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParametricVertex<D2>, TexCoord));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParametricVertex<D2>, TexCoord));
             builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParametricVertex<D2>, Region));
         }
         else
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParametricVertex<D3>, Position));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParametricVertex<D3>, TexCoord));
             if (pass == PipelinePass_Shaded)
             {
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParametricVertex<D3>, TexCoord));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParametricVertex<D3>, Normal));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT,
                                                 offsetof(ParametricVertex<D3>, Tangent));
@@ -535,8 +533,7 @@ VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Ble
         builder.AddBindingDescription<GlyphVertex>();
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
-        if (pass == PipelinePass_Shaded)
-            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
 
         return ONYX_CHECK_VKIT_RESULT(builder.Bake().Build());
 
@@ -545,16 +542,15 @@ VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Ble
         if constexpr (D == D2)
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(DynamicVertex<D2>, Position));
-            if (pass == PipelinePass_Shaded)
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(DynamicVertex<D2>, TexCoord));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(DynamicVertex<D2>, TexCoord));
             builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(DynamicVertex<D2>, Color));
         }
         else
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(DynamicVertex<D3>, Position));
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(DynamicVertex<D3>, TexCoord));
             if (pass == PipelinePass_Shaded)
             {
-                builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(DynamicVertex<D3>, TexCoord));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(DynamicVertex<D3>, Normal));
                 builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(DynamicVertex<D3>, Tangent));
             }

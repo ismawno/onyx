@@ -28,7 +28,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
     m_DefaultResources = Resources::GetDefaultResources();
 
     m_Current->Font = m_DefaultResources.Font;
-    m_Current->FontSampler = m_DefaultResources.FontSampler;
+    m_Current->Sampler = m_DefaultResources.Sampler;
 
     m_ImmediateDynamicMeshes.Reserve(immediateDynamicMeshCapacity);
 
@@ -68,7 +68,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
     m_DefaultResources = Resources::GetDefaultResources();
 
     m_Current->Font = m_DefaultResources.Font;
-    m_Current->FontSampler = m_DefaultResources.FontSampler;
+    m_Current->Sampler = m_DefaultResources.Sampler;
 
     NoClip();
     for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -111,6 +111,61 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, rtype, dim);
 
 #ifdef TKIT_ENABLE_ASSERTS
+template <Dimension D>
+void checkSampler(const Resource sampler, const Resource material = NullHandle,
+                  const TextureSlot slot = TextureSlot_Count)
+{
+    if (material == NullHandle)
+    {
+        TKIT_ASSERT(Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+                    "[ONYX][CONTEXT] The sampler handle {:#010x} is invalid and is not "
+                    "an explicit null sampler",
+                    sampler);
+    }
+    else if (D == D3 && slot != TextureSlot_Count)
+    {
+        TKIT_ASSERT(Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+                    "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
+                    "slot '{}' is "
+                    "invalid and is not an explicit null sampler",
+                    sampler, material, ToString(slot));
+    }
+    else
+    {
+        TKIT_ASSERT(
+            Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
+            "an explicit null sampler",
+            sampler, material);
+    }
+}
+template <Dimension D>
+void checkTexture(const Resource tex, const Resource material = NullHandle, const TextureSlot slot = TextureSlot_Count)
+{
+    if (material == NullHandle)
+    {
+        TKIT_ASSERT(Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+                    "[ONYX][CONTEXT] The texture handle {:#010x} is invalid and is not "
+                    "an explicit null texture",
+                    tex);
+    }
+    else if (D == D3 && slot != TextureSlot_Count)
+    {
+        TKIT_ASSERT(Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+                    "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
+                    "slot '{}' is "
+                    "invalid and is not an explicit null texture",
+                    tex, material, ToString(slot));
+    }
+    else
+    {
+        TKIT_ASSERT(
+            Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
+            "an explicit null texture",
+            tex, material);
+    }
+}
 template <Dimension D> void checkMaterial(const Resource material)
 {
     TKIT_ASSERT(Resources::IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
@@ -121,38 +176,15 @@ template <Dimension D> void checkMaterial(const Resource material)
         const MaterialData<D> &data = Resources::GetMaterialData<D>(material);
         if constexpr (D == D2)
         {
-            TKIT_ASSERT(
-                Resources::IsResourceNull(data.Sampler) ||
-                    Resources::IsResourceValid<D>(data.Sampler, Resource_Sampler),
-                "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
-                "an explicit null sampler",
-                data.Sampler, material);
-            TKIT_ASSERT(
-                Resources::IsResourceNull(data.Texture) ||
-                    Resources::IsResourceValid<D>(data.Texture, Resource_Texture),
-                "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
-                "an explicit null texture",
-                data.Texture, material);
+            checkSampler<D>(data.Sampler, material);
+            checkTexture<D>(data.Texture, material);
         }
         else
             for (u32 i = 0; i < TextureSlot_Count; ++i)
             {
                 const TextureSlot slot = TextureSlot(i);
-                const Resource sampler = data.Samplers[i];
-                const Resource texture = data.Textures[i];
-
-                TKIT_ASSERT(Resources::IsResourceNull(sampler) ||
-                                Resources::IsResourceValid<D>(sampler, Resource_Sampler),
-                            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
-                            "slot '{}' is "
-                            "invalid and is not an explicit null sampler",
-                            sampler, material, ToString(slot));
-                TKIT_ASSERT(Resources::IsResourceNull(texture) ||
-                                Resources::IsResourceValid<D>(texture, Resource_Texture),
-                            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
-                            "slot '{}' is "
-                            "invalid and is not an explicit null texture",
-                            texture, material, ToString(slot));
+                checkSampler<D>(data.Samplers[i], material, slot);
+                checkTexture<D>(data.Textures[i], material, slot);
             }
     }
 }
@@ -166,17 +198,27 @@ template <Dimension D> u32 packAlignment(const vec<Alignment, D> alg)
         return u32(alg[2]) << 16 | u32(alg[1]) << 8 | u32(alg[0]);
 }
 
+template <Dimension D> static u32 packSamplerTex(const ContextState<D> *state)
+{
+    const u32 sid = Resources::GetResourceId(state->Sampler);
+    const u32 tid = Resources::GetResourceId(state->Texture);
+    return (sid << ONYX_FLAT_SAMPLER_BITS) | tid;
+}
+
 template <Dimension D>
 static InstanceData<D> createInstanceData(const ContextState<D> *state, const f32m<D> &transform,
                                           const u32 depthCounter)
 {
 #ifdef TKIT_ENABLE_ASSERTS
     checkMaterial<D>(state->Material);
+    checkSampler<D>(state->Sampler);
+    checkTexture<D>(state->Texture);
 #endif
+    const bool flat = state->RenderFlags & RenderModeFlag_Flat;
     InstanceData<D> instanceData;
     instanceData.Transform = CreateTransformData<D>(transform);
     instanceData.Rect = state->Rect;
-    instanceData.MatHandle = state->Material;
+    instanceData.MatOrTexId = flat ? packSamplerTex(state) : Resources::GetResourceId(state->Material);
     instanceData.FillColor = state->FillColor.ToLinear().Pack();
     instanceData.OutlineColor = state->OutlineColor.ToLinear().Pack();
     instanceData.OutlineWidth = state->OutlineWidth;
@@ -193,7 +235,7 @@ static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> *sta
     StaticInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state->Alignment);
-    instanceData.BoundsHandle = bounds;
+    instanceData.BoundsId = Resources::GetResourceId(bounds);
     return instanceData;
 }
 
@@ -231,7 +273,7 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
     ParametricInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state->Alignment);
-    instanceData.BoundsHandle = bounds;
+    instanceData.BoundsId = Resources::GetResourceId(bounds);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
     return instanceData;
@@ -243,8 +285,8 @@ static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> *state
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.AtlasHandle = Resources::GetFontAtlas(state->Font);
-    instanceData.SamplerHandle = state->FontSampler;
+    instanceData.AtlasId = Resources::GetResourceId(Resources::GetFontAtlas(state->Font));
+    instanceData.SamplerId = Resources::GetResourceId(state->Sampler);
     instanceData.UnitRange = unitRange;
     return instanceData;
 }
@@ -475,13 +517,12 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     if (!m_Current->RenderFlags || text.IsEmpty())
         return;
 
-    TKIT_ASSERT(
-        m_Current->FontSampler != NullHandle,
-        "[ONYX][CONTEXT] To draw text, a valid font sampler must be provided first with the FontSampler() method");
+    TKIT_ASSERT(m_Current->Sampler != NullHandle,
+                "[ONYX][CONTEXT] To draw text, a valid sampler must be provided first with the Font() method");
 
     CHECK_HANDLE(m_Current->Font, Resource_Font, D);
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->FontSampler);
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->FontSampler, Resource_Sampler, D);
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->Sampler);
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->Sampler, Resource_Sampler, D);
 
     ++m_DepthCounter;
     const Alignment alg0 = m_Current->Alignment[0] == Alignment_None ? Alignment_Left : m_Current->Alignment[0];

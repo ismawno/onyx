@@ -51,7 +51,7 @@ template <Dimension D> struct InstanceData
     WorldRect<D> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatHandle;
+    u32 MatOrTexId;
     f32 OutlineWidth;
 };
 template <> struct InstanceData<D2>
@@ -60,7 +60,7 @@ template <> struct InstanceData<D2>
     WorldRect<D2> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatHandle;
+    u32 MatOrTexId;
     f32 OutlineWidth;
     u32 DepthCounter;
 };
@@ -71,7 +71,7 @@ template <Dimension D> struct StaticInstanceData
 {
     InstanceData<D> Data;
     u32 Alignment;
-    u32 BoundsHandle;
+    u32 BoundsId;
 };
 
 template <Dimension D> struct CircleInstanceData
@@ -86,7 +86,7 @@ template <Dimension D> struct ParametricInstanceData
 {
     InstanceData<D> Data;
     u32 Alignment;
-    u32 BoundsHandle;
+    u32 BoundsId;
     InstanceParameters Parameters;
     ParametricShape Shape;
 };
@@ -94,8 +94,8 @@ template <Dimension D> struct ParametricInstanceData
 template <Dimension D> struct GlyphInstanceData
 {
     InstanceData<D> Data;
-    u32 SamplerHandle;
-    u32 AtlasHandle;
+    u32 SamplerId;
+    u32 AtlasId;
     f32 UnitRange;
 };
 
