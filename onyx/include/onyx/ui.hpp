@@ -278,6 +278,17 @@ class UserInterface
 
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label);
+    bool RadioButton(TKit::StringView label, bool active);
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool RadioButton(const TKit::StringView label, T *value, const U reference)
+    {
+        if (RadioButton(label, *value == T(reference)))
+        {
+            *value = T(reference);
+            return true;
+        }
+        return false;
+    }
     bool CheckBox(TKit::StringView label, bool *enable);
 
     bool InputText(TKit::StringView label, char *buf, u32 size, OverlayInputFlags flags = 0);

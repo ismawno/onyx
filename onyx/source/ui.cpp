@@ -713,6 +713,39 @@ bool UserInterface::Button(const TKit::StringView label)
     return info.Clicked;
 }
 
+bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
+{
+    Layout &ly = m_Current->Layout;
+    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
+
+    const Color *col = &m_Colors[OverlayColor_CheckBoxIdle];
+    if (info.Pressed)
+        col = &m_Colors[OverlayColor_CheckBoxPressed];
+    else if (info.Hovered)
+        col = &m_Colors[OverlayColor_CheckBoxHovered];
+
+    ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                               .Sizing = fit(),
+                                               .ChildGap = Config.ChildGap});
+
+    ly.BeginPanel("Outer radio", LayoutPanelParameters{.FillColor = *col,
+                                                       .Alignment = Alignment_Center,
+                                                       .Sizing = sabs(Config.WidgetSize),
+                                                       .Shape = LayoutShape::Circle(),
+                                                       .Padding = 6.f});
+
+    ly.Panel("Inner radio",
+             LayoutPanelParameters{.FillColor = active ? m_Colors[OverlayColor_CheckBoxInner] : Color_Transparent,
+                                   .Sizing = grow(),
+                                   .Shape = LayoutShape::Circle()});
+    ly.EndPanel();
+
+    ly.Text(label, getTextParams(OverlayColor_CheckBoxText));
+
+    ly.EndPanel();
+    return info.Clicked;
+}
+
 bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
 {
     Layout &ly = m_Current->Layout;

@@ -32,6 +32,12 @@ int main()
             if (helloText)
                 ui.Text("Hi!");
 
+            ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
+            static u32 radio = 0;
+            ui.RadioButton("Im enabled!", &radio, 0);
+            ui.RadioButton("Im not :(", &radio, 1);
+            ui.Pop();
+
             ui.HorizontalSeparator("Sliders/Drags");
             static f32 fval[2] = {4, 7};
             ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
