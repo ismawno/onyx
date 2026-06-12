@@ -478,33 +478,20 @@ bool Window::AcquireNextImage(const Timeout timeout)
 
     const u32 idx = (m_SyncIndex + 1) % m_SyncData.GetSize();
     const WindowSyncData *sync = m_SyncData[idx];
-
-    if (sync->Tracker.InFlight())
-    {
-        const VkSemaphore sm = sync->Tracker.Queue->GetTimelineSempahore();
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &sm;
-        waitInfo.pValues = &sync->Tracker.InFlightValue;
-
-        const VkResult result = table->WaitSemaphoresKHR(device, &waitInfo, timeout);
-        if (result == VK_NOT_READY || result == VK_TIMEOUT)
-            return false;
-
-        ONYX_CHECK_VKIT_RESULT(result);
-    }
     const VkResult result = table->AcquireNextImageKHR(device, *m_SwapChain, timeout, sync->ImageAvailableSemaphore,
                                                        VK_NULL_HANDLE, &m_ImageIndex);
 
     if (result != VK_NOT_READY && result != VK_TIMEOUT)
     {
         m_SyncIndex = idx;
-        for (RenderView<D2> *rv : m_RenderViews2)
-            rv->acquireImage(m_ImageIndex);
-        for (RenderView<D3> *rv : m_RenderViews3)
-            rv->acquireImage(m_ImageIndex);
-        return handlePresentOrAcquireResult(result);
+        if (handlePresentOrAcquireResult(result))
+        {
+            for (RenderView<D2> *rv : m_RenderViews2)
+                rv->findAvailableFramebuffer();
+            for (RenderView<D3> *rv : m_RenderViews3)
+                rv->findAvailableFramebuffer();
+            return true;
+        }
     }
     return false;
 }
@@ -753,8 +740,6 @@ template <Dimension D> RenderView<D> *Window::CreateRenderView(Camera<D> *camera
     views.Append(rv);
 
     rv->Layer = m_LayerAssign.ToTop();
-    rv->createFramebuffers(m_SwapChain->GetImageCount());
-    rv->acquireImage(m_ImageIndex);
     return rv;
 }
 
@@ -778,9 +763,9 @@ void Window::updateRenderViews()
     const u32v2 extent = u32v2{e.width, e.height};
 
     for (RenderView<D2> *rv : m_RenderViews2)
-        rv->update(extent, m_SwapChain->GetImageCount());
+        rv->update(extent);
     for (RenderView<D3> *rv : m_RenderViews3)
-        rv->update(extent, m_SwapChain->GetImageCount());
+        rv->update(extent);
 }
 
 static i32 toGlfw(const Key key)

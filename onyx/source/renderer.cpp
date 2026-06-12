@@ -1210,7 +1210,7 @@ static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &b
     const VkDeviceSize size = buffer.GetInfo().Size;
     const u32 icount = 2 * u32(Math::Max(requiredMem, size) / instanceSize);
 
-    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable range with {:L} bytes of memory. A new buffer "
+    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find an available range with {:L} bytes of memory. A new buffer "
                    "will be created with more memory (from {:L} to {:L} bytes)",
                    requiredMem, size, icount * instanceSize);
     return icount;
@@ -3342,7 +3342,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
             const VkDescriptorSet set = rv->GetBlendSet();
             VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 
-            const u32 idx = rv->GetImageIndex();
+            const u32 idx = rv->GetAttachmentIndex();
             TKIT_ASSERT(idx < ONYX_MAX_ATTACHMENTS,
                         "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})", idx,
                         ONYX_MAX_ATTACHMENTS);
@@ -3366,7 +3366,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
             VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 
             PostProcessPushConstantData pdata;
-            pdata.AttachmentIndex = rv->GetImageIndex();
+            pdata.AttachmentIndex = rv->GetAttachmentIndex();
 
             TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
                         "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
@@ -3415,7 +3415,7 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
         const VkRect2D scissor = AsVulkanScissor(sc);
 
         const VkViewport viewport = AsVulkanViewport(vp);
-        const u32 idx = rv->GetImageIndex();
+        const u32 idx = rv->GetAttachmentIndex();
 
         table->CmdSetViewport(cmd, 0, 1, &viewport);
         table->CmdSetScissor(cmd, 0, 1, &scissor);

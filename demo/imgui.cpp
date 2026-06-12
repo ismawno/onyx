@@ -11,12 +11,13 @@ int main()
     while (Onyx::Running())
     {
         if (Onyx::CanRenderImGui(win))
+        {
             ImGui::ShowDemoWindow();
-        ImGui::Begin("Im a test window");
-        ImGui::Text("Some text");
-        ImGui::SetItemTooltip("Hey!");
-        ImGui::BeginTooltip();
-        ImGui::End();
+            ImGui::Begin("Im a test window");
+            ImGui::Text("Some text %f", Onyx::GetDeltaTime(win).AsMilliseconds());
+            ImGui::SetItemTooltip("Hey!");
+            ImGui::End();
+        }
         Onyx::Render();
     }
     Onyx::Terminate();

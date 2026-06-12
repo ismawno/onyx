@@ -107,6 +107,7 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 
     SetNormalizedViewport(Viewport{});
     SetNormalizedScissor(Scissor{});
+    findAvailableFramebuffer();
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
@@ -118,114 +119,94 @@ template <Dimension D> RenderView<D>::~RenderView()
     deallocateViewBit(m_ViewBit);
 }
 
-// pass overview
-//
-// input colors -> linearize -> math -> store srgb (format needs srgb) (to color img if pp enabled, if not, this is
-// already pp)
-//
-// input textures -> linearized bc of srgb -> stored as srgb (to color img if pp enabled, if not, this is
-// already pp)
-//
-// pp takes color as srgb -> linearizes by sample -> stores again in srgb to post process image
-//
-// compositor loads raw srgb -> stores to unorm, no srgb conversion. color is already srgb so fine
-// nice!
-template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCount)
+template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
 {
+    for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
+        if (!m_FrameBuffers[i]->Tracker.InUse())
+        {
+            m_AttachmentIndex = i;
+            return;
+        }
+
+    m_AttachmentIndex = m_FrameBuffers.GetSize();
+    TKIT_LOG_DEBUG("[ONYX][VIEW] Failed to find an available frame buffer. Increasing frame buffer pool to {} for "
+                   "this particular view",
+                   m_AttachmentIndex + 1);
+
     TKit::TierAllocator *tier = GetTier();
     const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
     TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
-    for (u32 i = 0; i < imageCount; ++i)
-    {
-        FrameBuffer *fb = m_FrameBuffers.Append(tier->Create<FrameBuffer>());
-        for (u32 att = 0; att < Attachment_Count; ++att)
-            fb->Attachments[att] =
-                mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
-    }
+
+    FrameBuffer *fb = m_FrameBuffers.Append(tier->Create<FrameBuffer>());
+    for (u32 att = 0; att < Attachment_Count; ++att)
+        fb->Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
 
     VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Blend)};
     VKit::DescriptorSet::Writer pp{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)};
     VKit::DescriptorSet::Writer compositor{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Compositor)};
 
-    TKit::StackArray<VkDescriptorImageInfo> infos{};
-    infos.Reserve(imageCount * 6);
-    for (u32 i = 0; i < imageCount; ++i)
+    TKit::StaticArray<VkDescriptorImageInfo, 6> infos{};
+    if (transparency)
     {
-        const FrameBuffer *fb = m_FrameBuffers[i];
-        if (transparency)
-        {
-            VkDescriptorImageInfo &transparent = infos.Append();
-            transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
-            transparent.sampler = Renderer::GetNearSampler();
+        VkDescriptorImageInfo &transparent = infos.Append();
+        transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
+        transparent.sampler = Renderer::GetNearSampler();
 
-            VkDescriptorImageInfo &revealage = infos.Append();
-            revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
-            revealage.sampler = Renderer::GetNearSampler();
+        VkDescriptorImageInfo &revealage = infos.Append();
+        revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
+        revealage.sampler = Renderer::GetNearSampler();
 
-            blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, i);
-            blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
-        }
-
-        if (pprocess)
-        {
-            VkDescriptorImageInfo &color = infos.Append();
-            color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
-            color.sampler = Renderer::GetNearSampler();
-
-            pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
-            VkDescriptorImageInfo &outline = infos.Append();
-            outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            outline.imageView = fb->Attachments[Attachment_Outline].GetView();
-            outline.sampler = Renderer::GetNearSampler();
-
-            VkDescriptorImageInfo &stencil = infos.Append();
-            stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
-            stencil.sampler = VK_NULL_HANDLE;
-
-            pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
-            pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
-        }
-
-        VkDescriptorImageInfo &comp = infos.Append();
-        comp.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        comp.imageView = fb->Attachments[Attachment_Final].GetView(1);
-        comp.sampler = Renderer::GetNearSampler();
-
-        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp, i);
+        blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, m_AttachmentIndex);
+        blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, m_AttachmentIndex);
     }
+
+    if (pprocess)
+    {
+        VkDescriptorImageInfo &color = infos.Append();
+        color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
+        color.sampler = Renderer::GetNearSampler();
+
+        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, m_AttachmentIndex);
+        VkDescriptorImageInfo &outline = infos.Append();
+        outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        outline.imageView = fb->Attachments[Attachment_Outline].GetView();
+        outline.sampler = Renderer::GetNearSampler();
+
+        VkDescriptorImageInfo &stencil = infos.Append();
+        stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
+        stencil.sampler = VK_NULL_HANDLE;
+
+        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, m_AttachmentIndex);
+        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, m_AttachmentIndex);
+    }
+
+    VkDescriptorImageInfo &comp = infos.Append();
+    comp.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    comp.imageView = fb->Attachments[Attachment_Final].GetView(1);
+    comp.sampler = Renderer::GetNearSampler();
+
+    compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp, m_AttachmentIndex);
     if (transparency)
         blend.Overwrite(m_BlendSet);
     if (pprocess)
         pp.Overwrite(m_PostProcessSet);
     compositor.Overwrite(m_CompositorSet);
     if (IsDebugUtilsEnabled())
-        nameFramebuffers();
-}
-template <Dimension D> void RenderView<D>::recreateFrameBuffers(const u32 imageCount)
-{
-    destroyFrameBuffers();
-    createFramebuffers(imageCount);
-}
-template <Dimension D> void RenderView<D>::nameFramebuffers()
-{
-    for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
     {
         TKit::FixedArray<TKit::StackString, Attachment_Count> names{};
-        names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", i);
-        names[Attachment_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", i);
-        names[Attachment_Intermediate] = TKit::StackString::Format("onyx-intermediate-att-{}", i);
-        names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", i);
-        names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", i);
-        names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", i);
-
-        FrameBuffer *fb = m_FrameBuffers[i];
+        names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", m_AttachmentIndex);
+        names[Attachment_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", m_AttachmentIndex);
+        names[Attachment_Intermediate] = TKit::StackString::Format("onyx-intermediate-att-{}", m_AttachmentIndex);
+        names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", m_AttachmentIndex);
+        names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", m_AttachmentIndex);
+        names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", m_AttachmentIndex);
         for (u32 j = 0; j < m_FrameBuffers.GetSize(); ++j)
             if (fb->Attachments[j])
             {
@@ -333,7 +314,7 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
 
 template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker)
 {
-    m_FrameBuffers[m_ImageIndex]->Tracker = tracker;
+    m_FrameBuffers[m_AttachmentIndex]->Tracker = tracker;
 }
 
 static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkRenderingAttachmentInfoKHR> &colors,
@@ -373,11 +354,29 @@ static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkR
     table->CmdBeginRenderingKHR(cmd, &renderInfo);
 }
 
+// a bit of a pass overview
+//
+// shadow passes are done directly in the renderer so they are not contemplated here
+//
+// first pass is the opaque pass. renders opaque geometry to either the intermediate attachment or the final attachment
+// (latter if post processing is disabled. we skip one pass this way). this pass takes srgb textures -> linearizes ->
+// does math with linear colors -> stores as srgb
+//
+// if transparency is enabled, transparent pass is executed. same deal as the opaque pass in terms of colorspace. the
+// blend pass merges both opaque and transparent directly into the opaque's target (either intermediate attchm or final)
+//
+// if post processing is enabled, the pass is executed with intermediate as input and final as output
+//
+// the final image format is a bit special because it supports both: unorm and srgb. throughout all this pipeline, the
+// format (view) used is srgb however, for the final window composite pass that merges all views, the format that is
+// used for the final image is unorm. this is because the surface format is unorm (this is required for good imgui
+// support)
+
 template <Dimension D> void RenderView<D>::BeginOpaquePass(const VkCommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
     TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
@@ -444,7 +443,7 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer c
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
@@ -487,7 +486,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const VkCommandB
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginTransparentPass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
     TKit::FixedArray<VkRenderingAttachmentInfoKHR, 3> atts{};
 
     VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
@@ -549,7 +548,7 @@ template <Dimension D> void RenderView<D>::EndTransparentPass(const VkCommandBuf
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
     VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
@@ -574,7 +573,7 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const VkCommandBuffer 
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginBlendPass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
 
@@ -597,7 +596,7 @@ template <Dimension D> void RenderView<D>::EndBlendPass(const VkCommandBuffer cm
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
 
@@ -637,7 +636,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::BeginPostProcess");
 
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 
@@ -661,7 +660,7 @@ template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer 
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndPostProcess");
     const auto table = GetDeviceTable();
-    FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
+    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 

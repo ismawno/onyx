@@ -155,7 +155,7 @@ template <Dimension D> class RenderView
         if ((flags & fbFlags) != (f & fbFlags))
         {
             drainWork();
-            recreateFrameBuffers(m_FrameBuffers.GetSize());
+            recreateFrameBuffers();
         }
     }
     void AddFlags(const RenderViewFlags flags)
@@ -211,7 +211,7 @@ template <Dimension D> class RenderView
         if (!(m_Flags & RenderViewFlag_DynamicViewport))
         {
             drainWork();
-            recreateFrameBuffers(m_FrameBuffers.GetSize());
+            recreateFrameBuffers();
         }
     }
     void SetAbsoluteViewport(const Viewport &vp)
@@ -226,7 +226,7 @@ template <Dimension D> class RenderView
         if (!(m_Flags & RenderViewFlag_DynamicViewport))
         {
             drainWork();
-            recreateFrameBuffers(m_FrameBuffers.GetSize());
+            recreateFrameBuffers();
         }
     }
     void SetNormalizedViewportPosition(const f32v2 &pos)
@@ -316,9 +316,9 @@ template <Dimension D> class RenderView
         return m_CompositorSet;
     }
 
-    u32 GetImageIndex() const
+    u32 GetAttachmentIndex() const
     {
-        return m_ImageIndex;
+        return m_AttachmentIndex;
     }
 
     void ZoomScroll(const f32v<D> &screenPos, f32 step);
@@ -344,9 +344,13 @@ template <Dimension D> class RenderView
     u64 Layer = 0;
 
   private:
-    void createFramebuffers(u32 imageCount);
-    void recreateFrameBuffers(u32 imageCount);
-    void nameFramebuffers();
+    void findAvailableFramebuffer();
+    void destroyFrameBuffers();
+    void recreateFrameBuffers()
+    {
+        destroyFrameBuffers();
+        findAvailableFramebuffer();
+    }
     void drainWork();
 
     Viewport asNormalizedViewport() const
@@ -379,17 +383,11 @@ template <Dimension D> class RenderView
         return {pos, ext};
     }
 
-    void update(const u32v2 &parentExtent, const u32 imageCount)
+    void update(const u32v2 &parentExtent)
     {
         m_ParentExtent = parentExtent;
         if (m_Flags & (RenderViewFlag_DynamicViewport | RenderViewFlag_NormalizedViewportCoordinates))
-            recreateFrameBuffers(imageCount);
-    }
-
-    void destroyFrameBuffers();
-    void acquireImage(const u32 index)
-    {
-        m_ImageIndex = index;
+            recreateFrameBuffers();
     }
 
     Camera<D> *m_Camera;
@@ -406,7 +404,7 @@ template <Dimension D> class RenderView
     Onyx_DescriptorSet m_BlendSet;
     Onyx_DescriptorSet m_PostProcessSet;
     Onyx_DescriptorSet m_CompositorSet;
-    u32 m_ImageIndex = TKIT_U32_MAX;
+    u32 m_AttachmentIndex = TKIT_U32_MAX;
     RenderViewFlags m_Flags = 0;
 
     friend class Window;
