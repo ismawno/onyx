@@ -3446,7 +3446,7 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     Execution::Tracker tracker;
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
-    window->MarkPresentationImageInUse(tracker);
+    window->MarkImageSemaphoreInUse(tracker);
     window->BeginRendering(cmd);
 
     s_CompositorPipeline.Bind(cmd);

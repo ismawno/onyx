@@ -449,7 +449,7 @@ u32 Window::GetSwapChainImageCount() const
 
 void Window::Present()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
+    TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::Present");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -650,7 +650,7 @@ VkSemaphore Window::GetRenderFinishedSemaphore() const
     return m_SyncData[m_ImageIndex]->RenderFinishedSemaphore;
 }
 
-void Window::MarkPresentationImageInUse(const Execution::Tracker &tracker)
+void Window::MarkImageSemaphoreInUse(const Execution::Tracker &tracker)
 {
     m_SyncData[m_SyncIndex]->Tracker = tracker;
 }

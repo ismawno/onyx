@@ -103,7 +103,7 @@ class Window
 
     static Window *FromHandle(Onyx_WindowHandle *window);
 
-    void MarkPresentationImageInUse(const Execution::Tracker &tracker);
+    void MarkImageSemaphoreInUse(const Execution::Tracker &tracker);
 
     void BeginRendering(Onyx_CommandBuffer commandBuffer);
     void EndRendering(Onyx_CommandBuffer commandBuffer);
