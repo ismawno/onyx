@@ -232,8 +232,8 @@ void Transfer(const TransferInfo &info)
     if (info.CoalescePeriod != 0 && transferCount++ % info.CoalescePeriod)
         Renderer::Coalesce();
 
-    VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
-    CommandPool *tpool = Execution::FindSuitableCommandPool(VKit::Queue_Transfer);
+    VKit::Queue *tqueue = Execution::GetQueue(VKit::Queue_Transfer);
+    CommandPool *tpool = Execution::FindAvailableCommandPool(VKit::Queue_Transfer);
 
     const VkCommandBuffer cmd = Execution::Allocate(tpool);
 
@@ -284,8 +284,8 @@ void Render(const RenderInfo &info)
 
     if (!acqWindows.IsEmpty())
     {
-        VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
-        CommandPool *gpool = Execution::FindSuitableCommandPool(VKit::Queue_Graphics);
+        VKit::Queue *gqueue = Execution::GetQueue(VKit::Queue_Graphics);
+        CommandPool *gpool = Execution::FindAvailableCommandPool(VKit::Queue_Graphics);
 
 #ifdef ONYX_ENABLE_IMGUI
         TKit::StaticArray<u32, ONYX_MAX_VIEWS> platformWindowIndices{};

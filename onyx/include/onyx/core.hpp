@@ -181,10 +181,6 @@ struct Specs
     const char *DeviceFaultCrashDump = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
 
-    u32 GraphicsQueueCount = 1;
-    u32 TransferQueueCount = 1;
-    u32 PresentQueueCount = 1;
-
     TKit::FixedArray<Allocation, TKit::MaxThreads> Allocators{};
     Execution::Specs *ExecutionSpecs = nullptr;
     Resources::Specs *ResourceSpecs = nullptr;

@@ -477,7 +477,7 @@ Resource CreateImage(const ImageData &data)
 
     ImageInfo &img = getImage(handle);
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
-    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+    const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
 
     const VkDeviceSize size = img.Image.ComputeSize();
     TKIT_ASSERT(
@@ -1525,7 +1525,7 @@ template <typename T> static bool uploadFromHost(VKit::DeviceBuffer &buffer, con
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Uploading buffer of {:L} bytes to device", data.GetBytes());
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
-    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+    const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
 
     const bool grow = GrowBufferIfNeeded<T>(buffer, data.GetSize());
 

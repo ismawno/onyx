@@ -45,29 +45,14 @@ static TKit::Storage<VKit::PhysicalDevice> s_Physical{};
 static TKit::Storage<VKit::LogicalDevice> s_Device{};
 static TKit::Storage<VKit::DeletionQueue> s_DeletionQueue{};
 
-static TKit::FixedArray<u32, VKit::Queue_Count> s_QueueRequests;
-
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 static const char *s_DumpPath;
 
 #define PUSH_DELETER(code) s_DeletionQueue->Push([=] { code; })
 #define SUBMIT_DELETION(object) s_DeletionQueue->SubmitForDeletion(object)
 
-static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRequests, const InitializationFlags flags)
+static void createDevice(const InitializationFlags flags)
 {
-#if defined(TKIT_ENABLE_ASSERTS) || defined(TKIT_ENABLE_WARNING_LOGS)
-    for (u32 i = 0; i < VKit::Queue_Count; ++i)
-    {
-        TKIT_LOG_WARNING_IF(queueRequests[i] > 1,
-                            "[ONYX][CORE] Requesting more than one queue per type can expose instabilities in poorly "
-                            "supported platforms, specially when using multiple windows");
-        TKIT_ASSERT(i == VKit::Queue_Compute || queueRequests[i] != 0,
-                    "[ONYX][CORE] The queue request count for all queues must be at least 1 except for compute queues, "
-                    "which are not directly used by this framework");
-    }
-#endif
-
-    s_QueueRequests = queueRequests;
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Vulkit");
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -206,16 +191,13 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
     TKIT_ASSERT(s_Physical->EnableFeatures(features),
                 "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
 
-    *s_Device =
-        ONYX_CHECK_VKIT_RESULT(VKit::LogicalDevice::Builder(s_Instance.Get(), s_Physical.Get())
-                                   .RequireQueue(VKit::Queue_Graphics)
-                                   .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
-                                   .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
-                                   .RequestQueue(VKit::Queue_Compute, s_QueueRequests[VKit::Queue_Compute])
-                                   .RequestQueue(VKit::Queue_Graphics, s_QueueRequests[VKit::Queue_Graphics] - 1)
-                                   .Build()
+    *s_Device = ONYX_CHECK_VKIT_RESULT(VKit::LogicalDevice::Builder(s_Instance.Get(), s_Physical.Get())
+                                           .RequireQueue(VKit::Queue_Graphics)
+                                           .RequireQueue(VKit::Queue_Present)
+                                           .RequireQueue(VKit::Queue_Transfer)
+                                           .Build()
 
-        );
+    );
 
     SUBMIT_DELETION(*s_Device);
     if (IsDebugUtilsEnabled())
@@ -615,14 +597,7 @@ void Initialize(const Specs &specs)
     Platform::Initialize(specs.PlatformSpecs ? *specs.PlatformSpecs : Platform::Specs{});
 
     createInstance(specs.Flags);
-
-    TKit::FixedArray<u32, VKit::Queue_Count> queueRequests{};
-    queueRequests[VKit::Queue_Graphics] = specs.GraphicsQueueCount;
-    queueRequests[VKit::Queue_Transfer] = specs.TransferQueueCount;
-    queueRequests[VKit::Queue_Present] = specs.PresentQueueCount;
-    queueRequests[VKit::Queue_Compute] = 0;
-
-    createDevice(queueRequests, specs.Flags);
+    createDevice(specs.Flags);
     createVulkanAllocator();
 
     PUSH_DELETER(Platform::DestroyWindows());

@@ -1444,7 +1444,7 @@ static ResourceType getResourceType(const Geometry geo)
     }
 }
 
-static u32 findSuitableOcclusionMap()
+static u32 findAvailableOcclusionMap()
 {
     ShadowData<D2> &sdata = s_RendererData2->Shadows;
     const u32 size = sdata.OcclusionMaps.GetSize();
@@ -1494,7 +1494,7 @@ template <Dimension D> u32 computeShadowMapPoolIndex(const LightType ltype, cons
 }
 
 template <Dimension D>
-static Range findSuitableTextureMapRange(const LightType light, const VkFormat format, const u32 count)
+static Range findAvailableTextureMapRange(const LightType light, const VkFormat format, const u32 count)
 {
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     const u32 resolution = sdata.ShadowResolutions[light];
@@ -1988,7 +1988,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
             if (light.Flags & LightFlag_CastShadows)
             {
-                const Range range = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, count);
+                const Range range = findAvailableTextureMapRange<D>(ltype, sdata.ShadowFormat, count);
                 // this is a small hack: shadow maps wont ever be used by the transfer queue, but this way we prevent
                 // lights from taking the same shadow map this run
                 for (u32 j = 0; j < range.Count; ++j)
@@ -2464,9 +2464,9 @@ void ApplyAcquireBarriers(const VkCommandBuffer cmd)
 }
 
 template <typename T>
-ONYX_NO_DISCARD static VKit::DeviceBuffer *findSuitableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers,
-                                                                  const u32 drawCount, const VKit::Queue *graphics,
-                                                                  const u64 inFlightValue)
+ONYX_NO_DISCARD static VKit::DeviceBuffer *findAvailableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers,
+                                                                   const u32 drawCount, const VKit::Queue *graphics,
+                                                                   const u64 inFlightValue)
 {
     for (DrawBuffer &db : buffers)
         if (!db.Tracker.InUse())
@@ -2490,16 +2490,16 @@ ONYX_NO_DISCARD static VKit::DeviceBuffer *findSuitableDrawBuffer(TKit::TierArra
     return &db.Buffer;
 }
 
-static VKit::DeviceBuffer *findSuitableDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
-                                                  const u64 inFlightValue)
+static VKit::DeviceBuffer *findAvailableDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
+                                                   const u64 inFlightValue)
 {
-    return findSuitableDrawBuffer<VkDrawIndirectCommand>(*s_DrawBuffers, drawCount, graphics, inFlightValue);
+    return findAvailableDrawBuffer<VkDrawIndirectCommand>(*s_DrawBuffers, drawCount, graphics, inFlightValue);
 }
-static VKit::DeviceBuffer *findSuitableIndexedDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
-                                                         const u64 inFlightValue)
+static VKit::DeviceBuffer *findAvailableIndexedDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
+                                                          const u64 inFlightValue)
 {
-    return findSuitableDrawBuffer<VkDrawIndexedIndirectCommand>(*s_IndexedDrawBuffers, drawCount, graphics,
-                                                                inFlightValue);
+    return findAvailableDrawBuffer<VkDrawIndexedIndirectCommand>(*s_IndexedDrawBuffers, drawCount, graphics,
+                                                                 inFlightValue);
 }
 
 template <Dimension D> static void bindMeshBuffers(const ResourcePool pool, const VkCommandBuffer command)
@@ -2773,7 +2773,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
     if (drawCount != 0)
     {
         setupState<D>(cmd, rpass, Geometry_Circle, playout, pipelines[Geometry_Circle]);
-        VKit::DeviceBuffer *dbuffer = findSuitableDrawBuffer(drawCount, graphics, inFlightValue);
+        VKit::DeviceBuffer *dbuffer = findAvailableDrawBuffer(drawCount, graphics, inFlightValue);
 
         dbuffer->Write(circleCmds.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
         ONYX_CHECK_VKIT_RESULT(dbuffer->Flush());
@@ -2800,7 +2800,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         TKIT_ASSERT((D == D3 && geo != Geometry_Glyph) || size2 == 0,
                     "[ONYX][RENDERER] No back culling draw commands must be submitted for flat geometry");
 
-        VKit::DeviceBuffer *dbuffer = findSuitableIndexedDrawBuffer(drawCount, graphics, inFlightValue);
+        VKit::DeviceBuffer *dbuffer = findAvailableIndexedDrawBuffer(drawCount, graphics, inFlightValue);
 
         if (D == D2 || size1 != 0)
             dbuffer->Write(cmds1.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size1});
@@ -2994,7 +2994,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 
                 if constexpr (D == D2)
                 {
-                    const u32 ocindex = findSuitableOcclusionMap();
+                    const u32 ocindex = findAvailableOcclusionMap();
                     TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
                     ocmap.Tracker.MarkInUse(graphics, inFlightValue);
 

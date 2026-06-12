@@ -42,18 +42,20 @@ struct Tracker
 
 void UpdateCompletedQueueTimelines();
 
-VKit::Queue *FindSuitableQueue(VKit::QueueType type);
+VKit::Queue *GetQueue(VKit::QueueType type);
+u32 GetFamilyIndex(VKit::QueueType type);
 
-CommandPool *FindSuitableCommandPool(u32 family);
-CommandPool *FindSuitableCommandPool(VKit::QueueType type);
+CommandPool *FindAvailableCommandPool(u32 family);
+inline CommandPool *FindAvailableCommandPool(const VKit::QueueType type)
+{
+    return FindAvailableCommandPool(GetFamilyIndex(type));
+}
 
 VkCommandBuffer Allocate(CommandPool *pool);
 void MarkInUse(CommandPool *pool, const VKit::Queue *queue, u64 inFlightValue);
 
 void BeginCommandBuffer(VkCommandBuffer commandBuffer);
 void EndCommandBuffer(VkCommandBuffer commandBuffer);
-
-u32 GetFamilyIndex(VKit::QueueType type);
 
 bool IsSeparateTransferMode();
 

@@ -337,7 +337,7 @@ Window::Window(const WindowSpecs &specs)
         pos = u32v2{x, y};
     }
     m_PresentMode = specs.PresentMode;
-    m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
+    m_Present = Execution::GetQueue(VKit::Queue_Present);
 
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
 

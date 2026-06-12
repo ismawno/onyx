@@ -48,7 +48,7 @@ static void createTransientCommandPools()
     }
 }
 
-CommandPool *FindSuitableCommandPool(const u32 family)
+CommandPool *FindAvailableCommandPool(const u32 family)
 {
     for (CommandPool &pool : *s_CommandPools)
         if (pool.Family == family && !pool.Tracker.InUse())
@@ -69,10 +69,6 @@ CommandPool *FindSuitableCommandPool(const u32 family)
         ONYX_CHECK_VKIT_RESULT(pool.Pool.SetName(name.CString()));
     }
     return &pool;
-}
-CommandPool *FindSuitableCommandPool(const VKit::QueueType type)
-{
-    return FindSuitableCommandPool(GetFamilyIndex(type));
 }
 
 VkCommandBuffer Allocate(CommandPool *pool)
@@ -169,22 +165,9 @@ void UpdateCompletedQueueTimelines()
     }
 }
 
-VKit::Queue *FindSuitableQueue(const VKit::QueueType type)
+VKit::Queue *GetQueue(const VKit::QueueType type)
 {
-    const auto &queues = GetDevice().GetInfo().QueuesPerType[type];
-    u64 pending = TKIT_U64_MAX;
-    VKit::Queue *queue = nullptr;
-    for (VKit::Queue *q : queues)
-    {
-        const u64 p = q->GetPendingTimeline();
-        if (p < pending)
-        {
-            pending = p;
-            queue = q;
-        }
-    }
-    TKIT_ASSERT(queue, "[ONYX] Queue is null. Some pending submissions returned u64 max. This is bad...");
-    return queue;
+    return GetDevice().GetInfo().QueuesPerType[type].GetFront();
 }
 
 bool IsSeparateTransferMode()

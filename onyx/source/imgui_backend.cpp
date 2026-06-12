@@ -1448,7 +1448,7 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
                                          .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
 
-        const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+        const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
         ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
 
         uploadBuffer.Destroy();
