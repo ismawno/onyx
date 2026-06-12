@@ -51,6 +51,12 @@ struct TransferRange
     VkDeviceSize Size = 0;
 };
 
+// note that graphics ranges, even tho purely gpu resources (not accessed/written by cpu directly) still have gpu usage
+// trackers. originally i thought this was needed (dumb, i know) and then i realized i dont need trackers for gpu only
+// resources as the sync is already laid out with gpu barriers and semaphores, so i was about to remove them. but ive
+// decided to keep them only bc they serve as a good heuristic when tryin to choose resources. if i choose resources not
+// in use by the gpu, i may minimize waits on the gpu/semaphore barriers. and because marking these resources as used
+// pretty much costs nothing, ive decided to keep them at least for now
 struct GraphicsRange
 {
     Execution::Tracker TransferTracker{};

@@ -478,6 +478,24 @@ bool Window::AcquireNextImage(const Timeout timeout)
 
     const u32 idx = (m_SyncIndex + 1) % m_SyncData.GetSize();
     const WindowSyncData *sync = m_SyncData[idx];
+
+    // NOTE(Isma): Moving this up here (before acquire). Is this correct or over-sync on my part?
+    if (sync->Tracker.InFlight())
+    {
+        const VkSemaphore sm = sync->Tracker.Queue->GetTimelineSempahore();
+        VkSemaphoreWaitInfoKHR waitInfo{};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &sm;
+        waitInfo.pValues = &sync->Tracker.InFlightValue;
+
+        const VkResult result = table->WaitSemaphoresKHR(device, &waitInfo, timeout);
+        if (result == VK_NOT_READY || result == VK_TIMEOUT)
+            return false;
+
+        ONYX_CHECK_VKIT_RESULT(result);
+    }
+
     const VkResult result = table->AcquireNextImageKHR(device, *m_SwapChain, timeout, sync->ImageAvailableSemaphore,
                                                        VK_NULL_HANDLE, &m_ImageIndex);
 
