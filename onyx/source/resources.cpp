@@ -1601,8 +1601,8 @@ void UpdateTextureIdOffsetBuffer(const VkCommandBuffer cmd)
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
     barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
     barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_CLEAR_BIT_KHR;
+    barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
     barrier.buffer = s_Textures->OffsetBuffer;
     barrier.offset = 0;
     barrier.size = sparse.GetBytes();
