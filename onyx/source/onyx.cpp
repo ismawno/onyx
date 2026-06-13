@@ -313,7 +313,7 @@ void Render(const RenderInfo &info)
 
     // cant do it in the same loop because the texture handle offset buffer must be fully updated
 
-    if (!acqWindows.IsEmpty() || s_Data->RenderTextures.IsEmpty())
+    if (!acqWindows.IsEmpty() || !s_Data->RenderTextures.IsEmpty())
     {
         for (RenderTexture *rtex : s_Data->RenderTextures)
             rtex->FindAvailableImages();
