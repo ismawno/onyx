@@ -131,7 +131,8 @@ void Layout::endPanel()
                 "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
     const u32 c = m_ElementStack.GetBack();
-    m_ReversedBreadth.Append(c);
+    if (m_Elements[c].NonFloatChildCount != 0)
+        m_ReversedBreadth.Append(c);
 
     m_ElementStack.Pop();
     PopId();
