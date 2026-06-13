@@ -1594,10 +1594,10 @@ static void renderer_CreateDeviceObjects()
     s_RendererData->Sampler =
         ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(device).SetLodRange(-1000.f, 1000.f).Build());
 
-    s_RendererData->DescriptorSetLayout =
-        ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                                   .Build());
+    s_RendererData->DescriptorSetLayout = ONYX_CHECK_VKIT_RESULT(
+        VKit::DescriptorSetLayout::Builder(device)
+            .AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .Build());
 
     s_RendererData->PipelineLayout =
         ONYX_CHECK_VKIT_RESULT(VKit::PipelineLayout::Builder(device)

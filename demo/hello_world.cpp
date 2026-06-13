@@ -19,13 +19,19 @@ int main()
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
 
+    const Onyx::ImageData idata =
+        ONYX_CHECK_RESULT(Onyx::LoadImageDataFromFile("/home/ismawno/screenshot.png", Onyx::ImageComponent_RGBA));
+    const Onyx::Resource img = Onyx::Resources::CreateImage(idata);
+    const Onyx::Resource tex = Onyx::Resources::CreateTexture(img);
+
     f32 time = 0.f;
     while (Onyx::Running())
     {
         time += Onyx::GetDeltaTime(win).AsSeconds();
         ctx->Flush();
         ctx->Rotate(time);
-        ctx->Triangle();
+        ctx->Scale(4.f);
+        ctx->Image(tex);
 
         Onyx::Transfer();
         Onyx::Render();

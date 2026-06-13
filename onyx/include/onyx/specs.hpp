@@ -36,10 +36,7 @@ namespace Resources
 struct Specs
 {
     u32 MaxBuffers = 1024;
-    u32 MaxSamplers = 8;
-    u32 MaxStandaloneSamplers = 8;
     u32 MaxImages = 512;
-    u32 MaxTextures = 1024;
     u32 MaxMaterials = 256;
     u32 MaxBounds = 1024;
     u32 MaxDynamicMeshes = 1024;

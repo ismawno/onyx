@@ -2246,7 +2246,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             {
                 const TKit::TierArray<Resource> &resources = dynMeshRegistry[bpass][rmode].ResourceIds;
                 for (const u32 rid : resources)
-                    findInstanceRanges(rmode, bpass, geo, Resources::CreateResourceHandle(Resource_DynamicMesh, rid),
+                    findInstanceRanges(rmode, bpass, geo, CreateResourceHandle(Resource_DynamicMesh, rid),
                                        [rmode, bpass, rid](const RenderContext<D> *ctx) -> const auto & {
                                            return ctx->GetInstanceData()[bpass][rmode]->DynamicMeshes.Instances[rid];
                                        });
@@ -2262,7 +2262,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                     const TKit::TierArray<Resource> &resources = meshRegistry[bpass][rmode][rtype][pid].ResourceIds;
                     for (const u32 rid : resources)
                         findInstanceRanges(
-                            rmode, bpass, geo, Resources::CreateResourceHandle(rtype, rid, pid),
+                            rmode, bpass, geo, CreateResourceHandle(rtype, rid, pid),
                             [rtype, rmode, bpass, pid, rid](const RenderContext<D> *ctx) -> const auto & {
                                 return ctx->GetInstanceData()[bpass][rmode]->Meshes[rtype][pid].Instances[rid];
                             });
@@ -2839,7 +2839,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         for (const ResourcePool pid : poolIds)
             if (hasCommands(meshCmds[rtype][pid]))
             {
-                bindMeshBuffers<D>(Resources::CreateResourcePoolHandle(rtype, pid), cmd);
+                bindMeshBuffers<D>(CreateResourcePoolHandle(rtype, pid), cmd);
                 drawCulledMeshes(geo, meshCmds[rtype][pid]);
             }
     };
@@ -2946,7 +2946,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 #endif
                         ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
-                        const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
+                        const u32 pid = GetResourcePoolId(grange.MeshHandle);
                         PerCullPerCmd &cmds = rtype == Resource_DynamicMesh ? dynMeshCmds : meshCmds[rtype][pid];
                         const VkDrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
                                                                      ? createDynamicMeshCommand<D>(grange, fi, ic)
@@ -2962,7 +2962,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                 {
                     const Geometry geo = Geometry(j);
                     // filtering by _Shaded saves us from a lot of computation (obviously) but most importantly avoids
-                    // misinterpretation of the MatOrTexId field in the instance data with flat render modes
+                    // misinterpretation of the MatOrSamplerTex field in the instance data with flat render modes
                     collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
                 }
 
@@ -3160,7 +3160,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 #endif
             ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
-            const u32 pid = Resources::GetResourcePoolId(grange.MeshHandle);
+            const u32 pid = GetResourcePoolId(grange.MeshHandle);
 
             CullMode cull;
             if constexpr (D == D2)

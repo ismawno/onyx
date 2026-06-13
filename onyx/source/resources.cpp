@@ -140,13 +140,27 @@ template <typename T> struct ArenaResourceData
 };
 
 using BufferResourceData = ArenaResourceData<VKit::DeviceBuffer>;
-using SamplerResourceData = ArenaResourceData<VKit::Sampler>;
 using ImageResourceData = ArenaResourceData<ImageInfo>;
 
 struct Texture
 {
     Resource Image;
     VkImageView View;
+    u32 OffsetId;
+};
+
+struct SamplerResourceData
+{
+    TKit::StaticHive<VKit::Sampler, ONYX_MAX_SAMPLERS> Resources{};
+    TKit::StaticArray<Resource, ONYX_MAX_SAMPLERS> ToDestroy{};
+};
+
+struct TextureResourceData
+{
+    TKit::StaticHive<Texture, ONYX_MAX_TEXTURES> Resources{};
+    TKit::StaticHive<u32, ONYX_MAX_TEXTURE_OFFSET_IDS> Offsets{};
+    VKit::DeviceBuffer OffsetBuffer{};
+    u32 DefaultOffsetId;
 };
 
 template <Dimension D> struct ResourceData
@@ -163,7 +177,7 @@ static TKit::Storage<ResourceData<D3>> s_ResourceData3{};
 static TKit::Storage<BufferResourceData> s_Buffers{};
 static TKit::Storage<SamplerResourceData> s_Samplers{};
 static TKit::Storage<ImageResourceData> s_Images{};
-static TKit::Storage<TKit::ArenaHive<Texture>> s_Textures{};
+static TKit::Storage<TextureResourceData> s_Textures{};
 static TKit::Storage<FontResourceData> s_FontData{};
 static DefaultResources s_DefaultResources{};
 
@@ -175,7 +189,7 @@ template <Dimension D> static ResourceData<D> &getData()
         return *s_ResourceData3;
 }
 
-template <Dimension D> static void updateMaterialDescriptorSet()
+template <Dimension D> static void updateMaterialsDescriptorSet()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
 
@@ -195,16 +209,18 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     Renderer::BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, binfo, RenderPass_Shadow);
 }
 
+// NOTE(Isma): Because we create the underlying buffer to the capacity, in theory no resizes will be triggered for both
+// materials and bounds. however, when adding a new resource, the check is done still because the codepath is the same
 template <typename T> static void initializeHiveResources(const u32 capacity, HiveResourceData<T> &hive)
 {
     hive.Elements.Reserve(capacity);
-    hive.Buffer = Onyx::CreateBuffer<T>(Buffer_DeviceStorage);
+    hive.Buffer = Onyx::CreateBuffer<T>(Buffer_DeviceStorage, capacity);
 }
 
 template <Dimension D> static void initializeMaterials(const u32 capacity)
 {
     initializeHiveResources(capacity, getData<D>().Materials);
-    updateMaterialDescriptorSet<D>();
+    updateMaterialsDescriptorSet<D>();
 }
 
 template <Dimension D> static void initializeBounds(const u32 capacity)
@@ -213,6 +229,19 @@ template <Dimension D> static void initializeBounds(const u32 capacity)
     updateBoundsDescriptorSet<D>();
 }
 
+static void updateTextureOffsetsDescriptorSet()
+{
+    const VkDescriptorBufferInfo info = s_Textures->OffsetBuffer.CreateDescriptorInfo();
+    Renderer::BindBuffer<D2>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer::BindBuffer<D2>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
+    Renderer::BindBuffer<D3>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer::BindBuffer<D3>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
+}
+
+// TODO(Isma): If there is a max bounds and material... why allow resizes on its buffer. Remove the resize path,
+// allocate enough memory from the beginning. Remove the flags from the descriptor, the update after bind thing. Update
+// only ONCE the descriptors here, in initialize
+// TODO(Isma): Update descriptors for texture id offset buffer
 void Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][RESOURCES] Initializing");
@@ -226,9 +255,18 @@ void Initialize(const Specs &specs)
 
     s_DefaultResources = {};
     s_Buffers->Resources.Reserve(specs.MaxBuffers);
-    s_Samplers->Resources.Reserve(specs.MaxSamplers);
     s_Images->Resources.Reserve(specs.MaxImages);
-    s_Textures->Reserve(specs.MaxTextures);
+
+    // the amount of offsets is capped by ONYX_MAX_TEXTURE_OFFSET_IDS and is only relevant for render textures. only one
+    // of these ids is used for regular textures, meaning there can only be ONYX_MAX_TEXTURE_OFFSET_IDS - 1 render
+    // textures at a time
+    s_Textures->OffsetBuffer =
+        ONYX_CHECK_VKIT_RESULT(VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), Buffer_DeviceStorage)
+                                   .SetSize(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32))
+                                   .Build());
+    updateTextureOffsetsDescriptorSet();
+
+    s_Textures->DefaultOffsetId = s_Textures->Offsets.Insert(0);
 
     s_ResourceData2->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
     s_ResourceData3->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
@@ -280,6 +318,8 @@ void Terminate()
         sampler.Destroy();
     for (ImageInfo &img : s_Images->Resources)
         img.Image.Destroy();
+
+    s_Textures->OffsetBuffer.Destroy();
 
     s_Buffers.Destruct();
     s_Samplers.Destruct();
@@ -356,13 +396,14 @@ static VkSamplerAddressMode asVulkanAddressMode(const SamplerWrap wrap)
     }
 }
 
-static Resource createSampler(TKit::ArenaHive<VKit::Sampler> &samplers, const VKit::Sampler::Builder &builder)
+static Resource createSampler(TKit::StaticHive<VKit::Sampler, ONYX_MAX_SAMPLERS> &samplers,
+                              const VKit::Sampler::Builder &builder)
 {
     const u32 sid = samplers.Insert(ONYX_CHECK_VKIT_RESULT(builder.Build()));
     return CreateResourceHandle(Resource_Sampler, sid);
 }
 
-static Resource createSampler(TKit::ArenaHive<VKit::Sampler> &samplers, const SamplerData &data)
+static Resource createSampler(TKit::StaticHive<VKit::Sampler, ONYX_MAX_SAMPLERS> &samplers, const SamplerData &data)
 {
     return createSampler(samplers, VKit::Sampler::Builder(GetDevice())
                                        .SetMipmapMode(asVulkanMipmapMode(data.Mode))
@@ -546,12 +587,13 @@ void ReleaseImage(const Resource handle)
     s_Images->ToDestroy.Append(handle);
 }
 
-static Resource createTexture(const Resource handle, const VkImageView imageView)
+static Resource createTexture(const Resource handle, const VkImageView imageView, const u32 offsetId)
 {
-    const u32 tid = s_Textures->Insert();
-    Texture &tex = s_Textures->At(tid);
+    const u32 tid = s_Textures->Resources.Insert();
+    Texture &tex = s_Textures->Resources[tid];
     tex.Image = handle;
     tex.View = imageView;
+    tex.OffsetId = offsetId;
 
     VkDescriptorImageInfo info;
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -576,7 +618,7 @@ Resource CreateTexture(const Resource handle, const u32 viewIndex)
     VKit::DeviceImage &img = getImage(handle).Image;
     const VkImageView view =
         viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
-    return createTexture(handle, view);
+    return createTexture(handle, view, s_Textures->DefaultOffsetId);
 }
 
 template <Dimension D> static void removeTextureReferences(const Resource handle)
@@ -607,7 +649,11 @@ static void destroyTexture(const Resource handle)
     removeTextureReferences<D3>(handle);
 
     const u32 tid = GetResourceId(handle);
-    s_Textures->Remove(tid);
+    const Texture &tex = s_Textures->Resources[tid];
+    if (tex.OffsetId != s_Textures->DefaultOffsetId)
+        s_Textures->Offsets.Remove(tex.OffsetId);
+
+    s_Textures->Resources.Remove(tid);
 }
 
 void DestroyTexture(const Resource handle)
@@ -1402,6 +1448,52 @@ MeshBuffers GetGlyphBuffers(const ResourcePool pool)
     return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
 }
 
+u32 CombineSamplerTexIntoId(const Resource shandle, const Resource thandle)
+{
+    const u32 sid = GetResourceId(shandle);
+    const u32 tid = GetResourceId(thandle);
+
+    // nulls without the _ID are unshifted masks. we leave out oid, which is just zero
+    if (sid == NullResource || tid == NullResource)
+        return ONYX_NULL_SAMPLER | ONYX_NULL_TEXTURE;
+
+    const Texture &tex = s_Textures->Resources[tid];
+    const u32 ofid = tex.OffsetId;
+
+    return (sid << ONYX_SAMPLER_ID_SHIFT) | (ofid << ONYX_TEXTURE_OFFSET_ID_SHIFT) | tid;
+}
+
+// NOTE(Isma): This shouldnt quite be here. Command buffer recording is a different concern
+void UpdateTextureIdOffsetBuffer(const VkCommandBuffer cmd)
+{
+    const TKit::StaticHive<u32, ONYX_MAX_TEXTURE_OFFSET_IDS> &offsets = s_Textures->Offsets;
+    TKit::StackArray<u32> sparse{};
+    sparse.Resize(offsets.GetIds().GetSize());
+
+    for (const u32 id : offsets.GetValidIds())
+        sparse[id] = offsets[id];
+
+    const auto table = GetDeviceTable();
+    table->CmdUpdateBuffer(cmd, s_Textures->OffsetBuffer, 0, sparse.GetBytes(), sparse.GetData());
+
+    VkBufferMemoryBarrier2KHR barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+    barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR;
+    barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
+    barrier.buffer = s_Textures->OffsetBuffer;
+    barrier.offset = 0;
+    barrier.size = sparse.GetBytes();
+
+    VkDependencyInfoKHR dep{};
+    dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
+    dep.bufferMemoryBarrierCount = 1;
+    dep.pBufferMemoryBarriers = &barrier;
+
+    table->CmdPipelineBarrier2KHR(cmd, &dep);
+}
+
 bool IsBackCulled(const Resource handle)
 {
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
@@ -1480,7 +1572,7 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
     case Resource_Sampler:
         return IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(rid);
     case Resource_Texture:
-        return IsResourcePoolNull(handle) && s_Textures->Contains(rid);
+        return IsResourcePoolNull(handle) && s_Textures->Resources.Contains(rid);
     case Resource_Bounds:
         return IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
     case Resource_Buffer:
@@ -1557,28 +1649,93 @@ template <typename Vertex> static void uploadMeshes(MeshResourceData<Vertex> &me
             uploadMeshPool(mpool);
 }
 
-template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive)
+template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive, const TKit::ArenaHive<T> &elements)
 {
     if (!(hive.Flags & StatusFlag_NeedsSync))
         return false;
 
     TKit::StackArray<T> sparse{};
-    sparse.Resize(hive.Elements.GetIds().GetSize());
+    sparse.Resize(elements.GetIds().GetSize());
 
-    for (const u32 id : hive.Elements.GetValidIds())
-        sparse[id] = hive.Elements[id];
+    for (const u32 id : elements.GetValidIds())
+        sparse[id] = elements[id];
 
     hive.Flags = 0;
     return uploadFromHost<T>(hive.Buffer, sparse);
 }
+template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive)
+{
+    return uploadHiveResources(hive, hive.Elements);
+}
+
+template <Dimension D> struct MaterialPackedData;
+template <> struct MaterialPackedData<D2>
+{
+    u32 ColorFactor;
+    u32 Occluder;
+    f32v2 TexOffset;
+    f32v2 TexScale;
+    u32 SamplerTex;
+};
+
+template <> struct MaterialPackedData<D3>
+{
+    f32v3 EmissiveFactor;
+    f32v2 TexOffset;
+    f32v2 TexScale;
+    u32 AlbedoFactor;
+    f32 MetallicFactor;
+    f32 RoughnessFactor;
+    f32 OcclusionStrength;
+    f32 NormalScale;
+    TKit::FixedArray<u32, TextureSlot_Count> SamplerTexs;
+};
 
 template <Dimension D> static void uploadMaterials()
 {
     TKIT_LOG_DEBUG_IF(getData<D>().Materials.Flags & StatusFlag_NeedsSync, "[ONYX][RESOURCES] Uploading {}D materials",
                       u8(D));
 
-    if (uploadHiveResources(getData<D>().Materials))
-        updateMaterialDescriptorSet<D>();
+    MaterialResourceData<D> &materials = getData<D>().Materials;
+    if (!(materials.Flags & StatusFlag_NeedsSync))
+        return;
+
+    TKit::StackArray<MaterialPackedData<D>> sparse{};
+    sparse.Resize(materials.Elements.GetIds().GetSize());
+
+    for (const u32 id : materials.Elements.GetValidIds())
+    {
+        const MaterialData<D> &data = materials.Elements[id];
+        MaterialPackedData<D> pdata;
+        if constexpr (D == D2)
+        {
+            pdata.ColorFactor = data.ColorFactor;
+            pdata.Occluder = data.Occluder;
+            pdata.TexOffset = data.TexOffset;
+            pdata.TexScale = data.TexScale;
+            pdata.SamplerTex = CombineSamplerTexIntoId(data.Sampler, data.Texture);
+        }
+        else
+        {
+            pdata.EmissiveFactor = data.EmissiveFactor;
+            pdata.TexOffset = data.TexOffset;
+            pdata.TexScale = data.TexScale;
+            pdata.AlbedoFactor = data.AlbedoFactor;
+            pdata.MetallicFactor = data.MetallicFactor;
+            pdata.RoughnessFactor = data.RoughnessFactor;
+            pdata.OcclusionStrength = data.OcclusionStrength;
+            pdata.NormalScale = data.NormalScale;
+            for (u32 i = 0; i < TextureSlot_Count; ++i)
+                pdata.SamplerTexs[i] = CombineSamplerTexIntoId(data.Samplers[i], data.Textures[i]);
+        }
+
+        sparse[id] = pdata;
+    }
+
+    materials.Flags = 0;
+    // NOTE(Isma): A resize here should not trigger
+    if (uploadFromHost<MaterialPackedData<D>>(materials.Buffer, sparse))
+        updateMaterialsDescriptorSet<D>();
 }
 
 template <Dimension D> static void uploadBounds()
@@ -1586,7 +1743,18 @@ template <Dimension D> static void uploadBounds()
     TKIT_LOG_DEBUG_IF(getData<D>().BoundingBoxes.Flags & StatusFlag_NeedsSync, "[ONYX][RESOURCES] Uploading {}D bounds",
                       u8(D));
 
-    if (uploadHiveResources(getData<D>().BoundingBoxes))
+    BoundsResourceData<D> &bounds = getData<D>().BoundingBoxes;
+    if (!(bounds.Flags & StatusFlag_NeedsSync))
+        return;
+
+    TKit::StackArray<BoundsData<D>> sparse{};
+    sparse.Resize(bounds.Elements.GetIds().GetSize());
+
+    for (const u32 id : bounds.Elements.GetValidIds())
+        sparse[id] = bounds.Elements[id];
+
+    bounds.Flags = 0;
+    if (uploadFromHost<BoundsData<D>>(bounds.Buffer, sparse))
         updateBoundsDescriptorSet<D>();
 }
 

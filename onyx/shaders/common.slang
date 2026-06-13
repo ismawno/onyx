@@ -36,7 +36,7 @@ struct InstanceData2D
     WorldRect2D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatOrTexId;
+    u32 MatOrSamplerTex;
     u32 TexOffset;
     u32 TexScale;
     f32 OutlineWidth;
@@ -49,7 +49,7 @@ struct InstanceData3D
     WorldRect3D Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatOrTexId;
+    u32 MatOrSamplerTex;
     u32 TexOffset;
     u32 TexScale;
     f32 OutlineWidth;
@@ -62,6 +62,17 @@ struct BoundsData2D
 struct BoundsData3D
 {
     f32 Data[9];
+}
+
+struct SamplerTexId
+{
+    u32 Sampler;
+    u32 Texture;
+
+    bool IsNull()
+    {
+        return Sampler == ONYX_NULL_SAMPLER_ID || Texture == ONYX_NULL_TEXTURE_ID;
+    }
 }
 
 [UnscopedEnum]
@@ -122,11 +133,6 @@ bool CheckWorldClip(const f32v3 worldPos, const WorldRect3D rect)
     return d0 > 0.f && d0 < e0 && d1 > 0.f && d1 < e1 && d2 > 0.f && d2 < e2;
 }
 
-u32 GetResourceId(const u32 handle)
-{
-    return handle & ONYX_RESOURCE_ID_MASK;
-}
-
 f32 ComputeDepth(const u32 depthCounter)
 {
     return max(0.f, 1.f - f32(depthCounter) / f32(1U << 24));
@@ -179,6 +185,7 @@ f32m3 ComputeNormalMatrix(const f32m3 matrix)
 
 typedef StructuredBuffer<BoundsData2D, Std430DataLayout> Bounds2D;
 typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
+typedef StructuredBuffer<u32, Std430DataLayout> TextureOffsets;
 
 f32v2 ComputeAlignment(const u32 alignment, const u32 id, const Bounds2D bounds)
 {
@@ -207,16 +214,33 @@ f32v2 ComputeTexCoord(const f32v2 uv0, const u32 offset, const u32 scale)
     return uvOffset + uv0 * uvScale;
 }
 
-f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 id, const f32v4 fill, const f32v2 uv0, const u32 offset, const u32 scale)
+SamplerTexId GetSamplerTexId(const u32 id)
 {
-    const u32 sampId = (id >> ONYX_FLAT_SAMPLER_BITS) & ONYX_FLAT_SAMPLER_MASK;
-    const u32 texId = id & ONYX_FLAT_TEXTURE_MASK;
-    if (sampId == ONYX_NULL_FLAT_SAMPLER || texId == ONYX_NULL_FLAT_TEXTURE)
+    const u32 sid = (id & ONYX_SAMPLER_ID_MASK) >> ONYX_SAMPLER_ID_SHIFT;
+    const u32 tid = id & ONYX_TEXTURE_ID_MASK;
+    return SamplerTexId(sid, tid);
+}
+
+SamplerTexId GetSamplerTexId(const TextureOffsets offsets, const u32 id)
+{
+    SamplerTexId combined = GetSamplerTexId(id);
+    if (combined.IsNull())
+        return combined;
+
+    const u32 oid = (id & ONYX_TEXTURE_OFFSET_ID_MASK) >> ONYX_TEXTURE_OFFSET_ID_SHIFT;
+    combined.Texture += offsets[oid];
+    return combined;
+}
+
+f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const TextureOffsets offsets, const u32 id, const f32v4 fill, const f32v2 uv0, const u32 offset, const u32 scale)
+{
+    const SamplerTexId stid = GetSamplerTexId(offsets, id);
+    if (stid.IsNull())
         return fill;
 
     const f32v2 uv = ComputeTexCoord(uv0, offset, scale);
-    const SamplerState samp = samplers[sampId];
-    const Texture2D tex = textures[texId];
+    const SamplerState samp = samplers[stid.Sampler];
+    const Texture2D tex = textures[stid.Texture];
 
     return fill * tex.Sample(samp, uv);
 }

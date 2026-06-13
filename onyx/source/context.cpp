@@ -2,6 +2,7 @@
 #include "onyx/context.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
+#include "resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -117,14 +118,14 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
 {
     if (material == NullHandle)
     {
-        TKIT_ASSERT(Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ASSERT(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} is invalid and is not "
                     "an explicit null sampler",
                     sampler);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ASSERT(Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ASSERT(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null sampler",
@@ -133,7 +134,7 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     else
     {
         TKIT_ASSERT(
-            Resources::IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+            IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
             "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null sampler",
             sampler, material);
@@ -144,14 +145,14 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
 {
     if (material == NullHandle)
     {
-        TKIT_ASSERT(Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ASSERT(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} is invalid and is not "
                     "an explicit null texture",
                     tex);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ASSERT(Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ASSERT(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null texture",
@@ -160,7 +161,7 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     else
     {
         TKIT_ASSERT(
-            Resources::IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+            IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
             "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null texture",
             tex, material);
@@ -168,10 +169,10 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
 }
 template <Dimension D> void checkMaterial(const Resource material)
 {
-    TKIT_ASSERT(Resources::IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
+    TKIT_ASSERT(IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
                 "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
                 material);
-    if (!Resources::IsResourceNull(material))
+    if (!IsResourceNull(material))
     {
         const MaterialData<D> &data = Resources::GetMaterialData<D>(material);
         if constexpr (D == D2)
@@ -249,13 +250,6 @@ template <Dimension D> u32 packAlignment(const vec<Alignment, D> alg)
         return u32(alg[2]) << 16 | u32(alg[1]) << 8 | u32(alg[0]);
 }
 
-template <Dimension D> static u32 packSamplerTex(const ContextState<D> *state)
-{
-    const u32 sid = Resources::GetResourceId(state->Sampler);
-    const u32 tid = Resources::GetResourceId(state->Texture);
-    return (sid << ONYX_FLAT_SAMPLER_BITS) | tid;
-}
-
 template <Dimension D>
 static InstanceData<D> createInstanceData(const ContextState<D> *state, const f32m<D> &transform,
                                           const u32 depthCounter)
@@ -269,7 +263,8 @@ static InstanceData<D> createInstanceData(const ContextState<D> *state, const f3
     InstanceData<D> instanceData;
     instanceData.Transform = CreateTransformData<D>(transform);
     instanceData.Rect = state->Rect;
-    instanceData.MatOrTexId = flat ? packSamplerTex(state) : Resources::GetResourceId(state->Material);
+    instanceData.MatOrSamplerTex =
+        flat ? Resources::CombineSamplerTexIntoId(state->Sampler, state->Texture) : GetResourceId(state->Material);
     instanceData.TexOffset = PackHalf2x16(state->TexOffset);
     instanceData.TexScale = PackHalf2x16(state->TexScale);
     instanceData.FillColor = state->FillColor.ToLinear().Pack();
@@ -288,7 +283,7 @@ static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> *sta
     StaticInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state->Alignment);
-    instanceData.BoundsId = Resources::GetResourceId(bounds);
+    instanceData.BoundsId = GetResourceId(bounds);
     return instanceData;
 }
 
@@ -326,7 +321,7 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
     ParametricInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state->Alignment);
-    instanceData.BoundsId = Resources::GetResourceId(bounds);
+    instanceData.BoundsId = GetResourceId(bounds);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
     return instanceData;
@@ -338,8 +333,8 @@ static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> *state
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.AtlasId = Resources::GetResourceId(Resources::GetFontAtlas(state->Font));
-    instanceData.SamplerId = Resources::GetResourceId(state->Sampler);
+    instanceData.SamplerAtlasId =
+        Resources::CombineSamplerTexIntoId(state->Sampler, Resources::GetFontAtlas(state->Font));
     instanceData.UnitRange = unitRange;
     return instanceData;
 }
@@ -393,7 +388,7 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
         const ResourceType rtype = ResourceType(mtype);
 
         const u32 count = group.Instances.GetSize();
-        const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(rtype, pid));
+        const u32 ncount = Resources::GetResourceCount<D>(CreateResourcePoolHandle(rtype, pid));
         resize(rtype, group, count, ncount);
     });
 
@@ -500,8 +495,8 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
         return;
     CHECK_HANDLE(mesh, Resource_StaticMesh, D);
 
-    const u32 pid = Resources::GetResourcePoolId(mesh);
-    const u32 mid = Resources::GetResourceId(mesh);
+    const u32 pid = GetResourcePoolId(mesh);
+    const u32 mid = GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
         createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
@@ -519,7 +514,7 @@ template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mes
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(mesh);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(mesh, Resource_DynamicMesh, D);
 
-    const u32 mid = Resources::GetResourceId(mesh);
+    const u32 mid = GetResourceId(mesh);
     const DynamicInstanceData<D> idata = createInstanceData(m_Current, transform, ++m_DepthCounter);
 
     InstanceResourceGroup &group =
@@ -535,8 +530,8 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
         return;
     CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
 
-    const u32 pid = Resources::GetResourcePoolId(mesh);
-    const u32 mid = Resources::GetResourceId(mesh);
+    const u32 pid = GetResourcePoolId(mesh);
+    const u32 mid = GetResourceId(mesh);
 
     const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
 
@@ -683,8 +678,8 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
 template <Dimension D>
 void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, const f32m<D> &transform)
 {
-    const u32 pid = Resources::GetResourcePoolId(glyph);
-    const u32 gid = Resources::GetResourceId(glyph);
+    const u32 pid = GetResourcePoolId(glyph);
+    const u32 gid = GetResourceId(glyph);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
     InstanceResourceGroup &group =
@@ -695,6 +690,12 @@ void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, 
 }
 template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph, const f32m<D> &transform)
 {
+    TKIT_ASSERT(m_Current->Sampler != NullHandle,
+                "[ONYX][CONTEXT] To draw text, a valid sampler must be provided first with the Font() method");
+
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->Sampler);
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->Sampler, Resource_Sampler, D);
+
     ++m_DepthCounter;
     const Resource font = Resources::GetFont(glyph);
     const FontData &fdata = Resources::GetFontData(font);

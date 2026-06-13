@@ -328,6 +328,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         m_Current->Sampler = sampler;
     }
+
     void Texture(const Resource tex)
     {
         m_Current->Texture = tex;
@@ -341,6 +342,40 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         m_Current->TexOffset = offset;
         m_Current->TexScale = scale;
+    }
+
+    void Image(const Resource tex)
+    {
+        const Resource oldTex = m_Current->Texture;
+        Texture(tex);
+        Quad();
+        Texture(oldTex);
+    }
+    void Image(const Resource tex, const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
+    {
+        const Resource oldTex = m_Current->Texture;
+        const f32v2 oldOffset = m_Current->TexOffset;
+        const f32v2 oldScale = m_Current->TexScale;
+        Texture(tex, offset, scale);
+        Quad();
+        Texture(oldTex, oldOffset, oldScale);
+    }
+    void Image(const Resource tex, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        const Resource oldTex = m_Current->Texture;
+        Texture(tex);
+        Quad(transform, mode);
+        Texture(oldTex);
+    }
+    void Image(const Resource tex, const f32m<D> &transform, const f32v2 &offset, const f32v2 &scale = f32v2{1.f},
+               const TransformMode mode = Transform_Extrinsic)
+    {
+        const Resource oldTex = m_Current->Texture;
+        const f32v2 oldOffset = m_Current->TexOffset;
+        const f32v2 oldScale = m_Current->TexScale;
+        Texture(tex, offset, scale);
+        Quad(transform, mode);
+        Texture(oldTex, oldOffset, oldScale);
     }
 
     void StaticMesh(const Resource mesh)

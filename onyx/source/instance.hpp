@@ -51,7 +51,7 @@ template <Dimension D> struct InstanceData
     WorldRect<D> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatOrTexId;
+    u32 MatOrSamplerTex;
     u32 TexOffset;
     u32 TexScale;
     f32 OutlineWidth;
@@ -62,7 +62,7 @@ template <> struct InstanceData<D2>
     WorldRect<D2> Rect;
     u32 FillColor;
     u32 OutlineColor;
-    u32 MatOrTexId;
+    u32 MatOrSamplerTex;
     u32 TexOffset;
     u32 TexScale;
     f32 OutlineWidth;
@@ -98,8 +98,7 @@ template <Dimension D> struct ParametricInstanceData
 template <Dimension D> struct GlyphInstanceData
 {
     InstanceData<D> Data;
-    u32 SamplerId;
-    u32 AtlasId;
+    u32 SamplerAtlasId;
     f32 UnitRange;
 };
 

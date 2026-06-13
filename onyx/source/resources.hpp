@@ -20,4 +20,7 @@ MeshBuffers GetGlyphBuffers(ResourcePool pool);
 
 bool IsBackCulled(const Resource handle);
 
+u32 CombineSamplerTexIntoId(const Resource sampler, const Resource texture);
+void UpdateTextureIdOffsetBuffer(VkCommandBuffer cmd);
+
 } // namespace Onyx::Resources

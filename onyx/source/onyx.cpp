@@ -2,6 +2,7 @@
 #include "onyx/onyx.hpp"
 #include "platform.hpp"
 #include "renderer.hpp"
+#include "resources.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "imgui_backend.hpp"
 #    include <imgui.h>
@@ -295,13 +296,20 @@ void Render(const RenderInfo &info)
 
         TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
         Renderer::PrepareRender();
+
+        bool once = true;
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowData *wdata = acwin.Window;
             const VkCommandBuffer cmd = Execution::Allocate(gpool);
 
             Execution::BeginCommandBuffer(cmd);
-            Renderer::ApplyAcquireBarriers(cmd);
+            if (once)
+            {
+                Resources::UpdateTextureIdOffsetBuffer(cmd);
+                Renderer::ApplyAcquireBarriers(cmd);
+                once = false;
+            }
 
             RenderFlags flags = 0;
 #ifdef ONYX_ENABLE_IMGUI

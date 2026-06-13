@@ -9,23 +9,23 @@
 #ifdef TKIT_ENABLE_ASSERTS
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl)                                                            \
         TKIT_ASSERT(                                                                                                   \
-            Onyx::Resources::GetResourceTypeAsInteger(hndl) < Onyx::Resource_Count,                                    \
+            Onyx::GetResourceTypeAsInteger(hndl) < Onyx::Resource_Count,                                               \
             "[ONYX][RESOURCES] The handle {:#010x} does not match any known resource types ({}), which likely "        \
             "means it is a "                                                                                           \
             "broken handle",                                                                                           \
-            hndl, Onyx::Resources::GetResourceTypeAsInteger(hndl))
+            hndl, Onyx::GetResourceTypeAsInteger(hndl))
 
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(hndl)                                                       \
         ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl);                                                               \
-        TKIT_ASSERT(Onyx::Resources::GetResourceTypeAsInteger(hndl) < Onyx::Resource_PoolCount,                        \
+        TKIT_ASSERT(Onyx::GetResourceTypeAsInteger(hndl) < Onyx::Resource_PoolCount,                                   \
                     "[ONYX][RESOURCES] The handle {:#010x} is a '{}' handle, which does not have any resource pool "   \
                     "associated",                                                                                      \
-                    hndl, Onyx::ToString(Onyx::Resources::GetResourceType(hndl)))
+                    hndl, Onyx::ToString(Onyx::GetResourceType(hndl)))
 
 #    define __ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype)                                                         \
-        TKIT_ASSERT(Onyx::Resources::GetResourceType(hndl) == rtype,                                                   \
+        TKIT_ASSERT(Onyx::GetResourceType(hndl) == rtype,                                                              \
                     "[ONYX][RESOURCES] The handle {:#010x} is not a '{}' handle, but rather a '{}' handle", hndl,      \
-                    Onyx::ToString(rtype), Onyx::ToString(Onyx::Resources::GetResourceType(hndl)))
+                    Onyx::ToString(rtype), Onyx::ToString(Onyx::GetResourceType(hndl)))
 
 #    define ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype)                                                           \
         ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl);                                                               \
@@ -36,15 +36,14 @@
         __ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype)
 
 #    define ONYX_CHECK_RESOURCE_IS_NOT_NULL(hndl)                                                                      \
-        TKIT_ASSERT(!Onyx::Resources::IsResourceNull(hndl),                                                            \
-                    "[ONYX][RESOURCES] The handle {:#010x} has a null resource id", hndl)
+        TKIT_ASSERT(!Onyx::IsResourceNull(hndl), "[ONYX][RESOURCES] The handle {:#010x} has a null resource id", hndl)
 
 #    define ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(hndl)                                                                 \
-        TKIT_ASSERT(!Onyx::Resources::IsResourcePoolNull(hndl),                                                        \
+        TKIT_ASSERT(!Onyx::IsResourcePoolNull(hndl),                                                                   \
                     "[ONYX][RESOURCES] The handle {:#010x} has a null resource pool id", hndl)
 
 #    define ONYX_CHECK_RESOURCE_POOL_ID_IS_NOT_NULL(hndl)                                                              \
-        TKIT_ASSERT(!Onyx::Resources::IsResourcePoolIdNull(hndl),                                                      \
+        TKIT_ASSERT(!Onyx::IsResourcePoolIdNull(hndl),                                                                 \
                     "[ONYX][RESOURCES] The handle {:#010x} has a null resource pool id", hndl)
 
 #    define ONYX_CHECK_RESOURCE_IS_VALID(hndl, rtype)                                                                  \
@@ -89,10 +88,10 @@ using Handle = u32;
 constexpr Handle NullHandle = TKit::Limits<Handle>::Max();
 
 using Resource = Handle;
-constexpr Resource NullResource = ONYX_RESOURCE_ID_MASK;
+constexpr Resource NullResource = ONYX_NULL_RESOURCE;
 
 using ResourcePool = Handle;
-constexpr ResourcePool NullResourcePool = ONYX_RESOURCE_POOL_ID_MASK;
+constexpr ResourcePool NullResourcePool = ONYX_NULL_RESOURCE_POOL;
 
 enum ResourceType : u8
 {
@@ -120,10 +119,6 @@ static_assert(Resource_Count <= ONYX_MAX_RESOURCE_TYPES,
 
 const char *ToString(ResourceType rtype);
 
-} // namespace Onyx
-
-namespace Onyx::Resources
-{
 // handles are re-used, so at some point generation tracking will be needed
 
 inline u32 GetResourceTypeAsInteger(const Handle handle)
@@ -197,4 +192,4 @@ inline ResourcePool CreateResourcePoolHandle(const ResourceType rtype, const u32
     return (u32(rtype) << ONYX_RESOURCE_TYPE_SHIFT) | (poolId << ONYX_RESOURCE_POOL_SHIFT) | NullResource;
 }
 
-} // namespace Onyx::Resources
+} // namespace Onyx

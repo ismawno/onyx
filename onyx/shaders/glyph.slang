@@ -8,15 +8,13 @@ typedef StructuredBuffer<GlyphInstanceData3D, Std430DataLayout> GlyphInstances3D
 struct GlyphInstanceData2D
 {
     InstanceData2D Data;
-    u32 SamplerId;
-    u32 AtlasId;
+    u32 SamplerAtlasId;
     f32 UnitRange;
 }
 struct GlyphInstanceData3D
 {
     InstanceData3D Data;
-    u32 SamplerId;
-    u32 AtlasId;
+    u32 SamplerAtlasId;
     f32 UnitRange;
 }
 
@@ -24,12 +22,12 @@ struct GlyphInstanceData3D
 f32 ComputeMTSDFCoverage(
     const SamplerState samplers[ONYX_MAX_SAMPLERS],
     const Texture2D textures[ONYX_MAX_TEXTURES],
-    const u32 samplerId,
-    const u32 atlasId,
+    const u32 samplerAtlasId,
     const f32 unitRange,
     const f32v2 uv)
 {
-    const f32v4 mtsdf = textures[atlasId].Sample(samplers[samplerId], uv);
+    const SamplerTexId stid = GetSamplerTexId(samplerAtlasId);
+    const f32v4 mtsdf = textures[stid.Texture].Sample(samplers[stid.Sampler], uv);
 
     // MSDF: median of RGB — sharp at high resolution
     const f32 median = max(min(mtsdf.r, mtsdf.g), min(max(mtsdf.r, mtsdf.g), mtsdf.b));

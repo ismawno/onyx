@@ -19,10 +19,10 @@ struct PushConstants
 PushConstants g_Push;
 
 [[vk::binding(ONYX_OCCLUSION_MAP_BINDING_POINT)]]
-RWTexture2D<f32> g_OcclusionMaps[ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE];
+RWTexture2D<f32> g_OcclusionMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
 
 [[vk::binding(ONYX_RAY_MARCH_MAP_BINDING_POINT)]]
-RWTexture1D<f32> g_ShadowMaps[ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE];
+RWTexture1D<f32> g_ShadowMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
 
 [shader("compute")]
 [numthreads(64, 1, 1)]

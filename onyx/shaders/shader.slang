@@ -343,6 +343,11 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING_POINT)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
+#ifndef ONYX_SHADOW_PASS
+[[vk::binding(ONYX_TEXTURE_OFFSETS_BINDING_POINT)]]
+TextureOffsets g_TextureOffsets;
+#endif
+
 #ifdef ONYX_USES_MATERIALS
 [[vk::binding(ONYX_MATERIALS_BINDING_POINT)]]
 MaterialBuffer g_Materials;
@@ -369,11 +374,10 @@ Texture2DArray<f32> g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 [[vk::binding(ONYX_SPOT_MAPS_BINDING_POINT)]]
 Texture2D<f32> g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
 
-
 #    else
 
 [[vk::binding(ONYX_SHADOW_MAPS_BINDING_POINT)]]
-Texture1D<f32> g_ShadowMaps[ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE];
+Texture1D<f32> g_ShadowMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
 
 #    endif
 
@@ -423,7 +427,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #endif
 
     // in the shadow case this could conflict with flat render passes (as mtid would be the sampler/tex id). however, shadow invocations are filtered by shaded passes so we are fine
-    const u32 mtid = data.MatOrTexId;
+    const u32 mtid = data.MatOrSamplerTex;
 
 #ifdef ONYX_GEOMETRY_CIRCLE
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, gdata.Arc.Hollowness);
@@ -434,7 +438,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     #endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)
-    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, gdata.SamplerId, gdata.AtlasId, gdata.UnitRange, input.AtlasCoords);
+    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, gdata.SamplerAtlasId, gdata.UnitRange, input.AtlasCoords);
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 
@@ -452,6 +456,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     resources.Materials = g_Materials;
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
+    resources.TextureOffsets = g_TextureOffsets;
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
     resources.ShadowSampler = g_ShadowSampler;
@@ -494,9 +499,9 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #    endif
 #else
 #    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, f32v4(fill.rgb, alpha), input.TexCoord, data.TexOffset, data.TexScale);
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, f32v4(fill.rgb, alpha), input.TexCoord, data.TexOffset, data.TexScale);
 #    else
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale);
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale);
 #    endif
     return out;
 #endif
