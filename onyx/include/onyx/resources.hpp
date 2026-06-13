@@ -18,10 +18,12 @@ enum SyncFlagBit : SyncFlags
     // doesnt actually upload anything to the gpu, but it is needed so that sync triggers a reflush of all contexts and
     // instance data arrays have enough space to index into the new dynamic mesh slot
     SyncFlag_DynamicMeshes = 1U << 2,
+    //
     SyncFlag_Materials = 1U << 3,
     SyncFlag_Fonts = 1U << 4,
     SyncFlag_Samplers = 1U << 5,
     SyncFlag_Images = 1U << 6,
+    SyncFlag_Textures = 1U << 7,
     SyncFlag_All = TKIT_U8_MAX,
 };
 
@@ -142,22 +144,31 @@ struct DefaultResourcesOptions
 
 namespace Onyx::Resources
 {
-// NOTE(Isma): No way to create/use buffers in onyx yet
-
+// NOTE(Isma): No way to create/use buffers in onyx yet through this api
 void DestroyBuffer(Resource buffer);
 void ReleaseBuffer(Resource buffer);
 
 Resource CreateSampler(const SamplerData &data = {});
+
+// requires a call to Sync() for materials in case any of them referenced the sampler
 void DestroySampler(Resource sampler);
+//
+void UpdateSampler(Resource sampler, const SamplerData &data);
 void ReleaseSampler(Resource sampler);
 
 Resource CreateImage(const ImageData &data);
 void DestroyImage(Resource image);
+void UpdateImage(Resource image, const ImageData &data);
 void ReleaseImage(Resource image);
 
 // TODO(Isma): Add options for the texture: mips, array layers, etc
+// if view is u32 max, a new view is created from the image
 Resource CreateTexture(Resource image, u32 viewIndex = TKIT_U32_MAX);
+
+// requires a call to Sync() for materials in case any of them referenced the texture
 void DestroyTexture(Resource texture);
+void UpdateTexture(Resource texture, Resource image, u32 viewIndex = TKIT_U32_MAX);
+void ReleaseTexture(Resource texture);
 
 const DefaultResources &GetDefaultResources();
 const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts = {});
@@ -170,6 +181,8 @@ template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StaticMesh
 template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
 template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data = {});
 
+// no way to update fonts bc they are amalgamated withing their pool. would require the new font to be the exact same
+// size as the old one, which is not pragmatic at all
 Resource RegisterFont(ResourcePool pool, const FontData &data);
 template <Dimension D> GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D> &data);
 

@@ -7,7 +7,6 @@
 #include "buffer.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "vkit/resource/sampler.hpp"
-#include "vkit/resource/device_image.hpp"
 #include "vkit/resource/device_buffer.hpp"
 #include "tkit/container/hive.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -158,7 +157,8 @@ struct SamplerResourceData
 struct TextureResourceData
 {
     TKit::StaticHive<Texture, ONYX_MAX_TEXTURES> Resources{};
-    TKit::StaticHive<u32, ONYX_MAX_TEXTURE_OFFSET_IDS> Offsets{};
+    TKit::StaticHive<i32, ONYX_MAX_TEXTURE_OFFSET_IDS> Offsets{};
+    TKit::StaticArray<Resource, ONYX_MAX_TEXTURES> ToDestroy{};
     VKit::DeviceBuffer OffsetBuffer{};
     u32 DefaultOffsetId;
 };
@@ -396,22 +396,16 @@ static VkSamplerAddressMode asVulkanAddressMode(const SamplerWrap wrap)
     }
 }
 
-static Resource createSampler(TKit::StaticHive<VKit::Sampler, ONYX_MAX_SAMPLERS> &samplers,
-                              const VKit::Sampler::Builder &builder)
+static VKit::Sampler createSampler(const SamplerData &data)
 {
-    const u32 sid = samplers.Insert(ONYX_CHECK_VKIT_RESULT(builder.Build()));
-    return CreateResourceHandle(Resource_Sampler, sid);
-}
-
-static Resource createSampler(TKit::StaticHive<VKit::Sampler, ONYX_MAX_SAMPLERS> &samplers, const SamplerData &data)
-{
-    return createSampler(samplers, VKit::Sampler::Builder(GetDevice())
-                                       .SetMipmapMode(asVulkanMipmapMode(data.Mode))
-                                       .SetMinFilter(asVulkanFilter(data.MinFilter))
-                                       .SetMagFilter(asVulkanFilter(data.MagFilter))
-                                       .SetAddressModeU(asVulkanAddressMode(data.WrapU))
-                                       .SetAddressModeV(asVulkanAddressMode(data.WrapV))
-                                       .SetAddressModeW(asVulkanAddressMode(data.WrapW)));
+    return ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
+                                      .SetMipmapMode(asVulkanMipmapMode(data.Mode))
+                                      .SetMinFilter(asVulkanFilter(data.MinFilter))
+                                      .SetMagFilter(asVulkanFilter(data.MagFilter))
+                                      .SetAddressModeU(asVulkanAddressMode(data.WrapU))
+                                      .SetAddressModeV(asVulkanAddressMode(data.WrapV))
+                                      .SetAddressModeW(asVulkanAddressMode(data.WrapW))
+                                      .Build());
 }
 
 static VKit::Sampler &getSampler(const Resource handle)
@@ -443,15 +437,10 @@ static void bindSampler(const Resource handle)
     Renderer::BindImage<D3>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);
 }
 
-Resource CreateSampler(const VKit::Sampler::Builder &builder)
-{
-    const Resource handle = createSampler(s_Samplers->Resources, builder);
-    bindSampler(handle);
-    return handle;
-}
 Resource CreateSampler(const SamplerData &data)
 {
-    const Resource handle = createSampler(s_Samplers->Resources, data);
+    const u32 sid = s_Samplers->Resources.Insert(createSampler(data));
+    const Resource handle = CreateResourceHandle(Resource_Sampler, sid);
     bindSampler(handle);
     return handle;
 }
@@ -473,6 +462,23 @@ template <Dimension D> static void removeSamplerReferences(const Resource handle
         else
             for (Resource &h : mat.Samplers)
                 materials.Flags |= updateRef(h);
+}
+
+void UpdateSampler(const Resource handle, const SamplerData &data)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
+
+    const u32 sid = GetResourceId(handle);
+    s_Samplers->Resources[sid].Destroy();
+    s_Samplers->Resources[sid] = ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
+                                                            .SetMipmapMode(asVulkanMipmapMode(data.Mode))
+                                                            .SetMinFilter(asVulkanFilter(data.MinFilter))
+                                                            .SetMagFilter(asVulkanFilter(data.MagFilter))
+                                                            .SetAddressModeU(asVulkanAddressMode(data.WrapU))
+                                                            .SetAddressModeV(asVulkanAddressMode(data.WrapV))
+                                                            .SetAddressModeW(asVulkanAddressMode(data.WrapW))
+                                                            .Build());
+    bindSampler(handle);
 }
 
 void DestroySampler(const Resource handle)
@@ -502,25 +508,20 @@ static ImageInfo &getImage(const Resource handle)
     return s_Images->Resources[iid];
 }
 
-Resource CreateImage(const VKit::DeviceImage::Builder &builder)
-{
-    const u32 iid = s_Images->Resources.Insert();
-    ImageInfo &img = s_Images->Resources[iid];
-    img.Image = ONYX_CHECK_VKIT_RESULT(builder.Build());
-    return CreateResourceHandle(Resource_Image, iid);
-}
-Resource CreateImage(const ImageData &data)
+static VKit::DeviceImage createImage(const ImageData &data)
 {
     const VkFormat fmt = AsVulkanFormat(data.Format);
-    const Resource handle = CreateImage(VKit::DeviceImage::Builder(
-        GetDevice(), GetVulkanAllocator(), VkExtent2D{data.Width, data.Height}, fmt,
-        VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination));
 
-    ImageInfo &img = getImage(handle);
+    VKit::DeviceImage img = ONYX_CHECK_VKIT_RESULT(
+        VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(), VkExtent2D{data.Width, data.Height}, fmt,
+                                   VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
+                                       VKit::DeviceImageFlag_Destination)
+            .Build());
+
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
 
-    const VkDeviceSize size = img.Image.ComputeSize();
+    const VkDeviceSize size = img.ComputeSize();
     TKIT_ASSERT(
         size == data.ComputeSize(),
         "[ONYX][RESOURCES] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes", size,
@@ -534,17 +535,14 @@ Resource CreateImage(const ImageData &data)
 
     if (IsDebugUtilsEnabled())
     {
-        const TKit::StackString name = TKit::StackString::Format("onyx-resources-image-{:#010x}", handle);
-        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.CString()));
-        ONYX_CHECK_VKIT_RESULT(uploadBuffer.SetName(
-            TKit::StackString::Format("onyx-resources-texture-upload-buffer-{:#010x}", handle).CString()));
+        ONYX_CHECK_VKIT_RESULT(uploadBuffer.SetName("onyx-resources-texture-upload-buffer"));
     }
 
     uploadBuffer.Write(data.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
     ONYX_CHECK_VKIT_RESULT(uploadBuffer.Flush());
 
     const VkCommandBuffer cmd = ONYX_CHECK_VKIT_RESULT(pool.BeginSingleTimeCommands());
-    img.Image.TransitionLayout2(
+    img.TransitionLayout2(
         cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
@@ -556,14 +554,31 @@ Resource CreateImage(const ImageData &data)
     copy.imageExtent.height = data.Height;
     copy.imageExtent.depth = 1;
 
-    img.Image.CopyFromBuffer2(cmd, uploadBuffer, copy);
+    img.CopyFromBuffer2(cmd, uploadBuffer, copy);
 
-    img.Image.TransitionLayout2(
+    img.TransitionLayout2(
         cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
     ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
     uploadBuffer.Destroy();
+
+    return img;
+}
+
+Resource CreateImage(const ImageData &data)
+{
+    const u32 iid = s_Images->Resources.Insert();
+    ImageInfo &img = s_Images->Resources[iid];
+    const Resource handle = CreateResourceHandle(Resource_Image, iid);
+
+    img.Image = createImage(data);
+
+    if (IsDebugUtilsEnabled())
+    {
+        const TKit::StackString name = TKit::StackString::Format("onyx-resources-image-{:#010x}", handle);
+        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.CString()));
+    }
     return handle;
 }
 
@@ -581,20 +596,26 @@ void DestroyImage(const Resource handle)
     s_Images->Resources.Remove(iid);
 }
 
+void UpdateImage(const Resource handle, const ImageData &data)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+
+    ImageInfo &img = getImage(handle);
+    for (const Resource tex : img.Textures)
+        DestroyTexture(tex);
+
+    img.Image.Destroy();
+    img.Image = createImage(data);
+}
+
 void ReleaseImage(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
     s_Images->ToDestroy.Append(handle);
 }
 
-static Resource createTexture(const Resource handle, const VkImageView imageView, const u32 offsetId)
+static void bindTexture(const VkImageView imageView, const u32 tid)
 {
-    const u32 tid = s_Textures->Resources.Insert();
-    Texture &tex = s_Textures->Resources[tid];
-    tex.Image = handle;
-    tex.View = imageView;
-    tex.OffsetId = offsetId;
-
     VkDescriptorImageInfo info;
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     info.imageView = imageView;
@@ -606,11 +627,25 @@ static Resource createTexture(const Resource handle, const VkImageView imageView
     Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
     Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
     Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
+}
 
-    const Resource thandle = CreateResourceHandle(Resource_Texture, tid);
-    ImageInfo &img = getImage(handle);
-    img.Textures.Append(thandle);
-    return thandle;
+static Resource createTexture(const VkImageView imageView, const u32 offsetId, const Resource image = NullHandle)
+{
+    const u32 tid = s_Textures->Resources.Insert();
+    Texture &tex = s_Textures->Resources[tid];
+    tex.Image = image;
+    tex.View = imageView;
+    tex.OffsetId = offsetId;
+
+    bindTexture(imageView, tid);
+
+    const Resource handle = CreateResourceHandle(Resource_Texture, tid);
+    if (image != NullHandle)
+    {
+        ImageInfo &img = getImage(image);
+        img.Textures.Append(handle);
+    }
+    return handle;
 }
 
 Resource CreateTexture(const Resource handle, const u32 viewIndex)
@@ -618,7 +653,32 @@ Resource CreateTexture(const Resource handle, const u32 viewIndex)
     VKit::DeviceImage &img = getImage(handle).Image;
     const VkImageView view =
         viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
-    return createTexture(handle, view, s_Textures->DefaultOffsetId);
+    return createTexture(view, s_Textures->DefaultOffsetId, handle);
+}
+
+Resource CreateMainRenderTexture(const VkImageView view)
+{
+    const u32 ofid = s_Textures->Offsets.Insert(0);
+    return createTexture(view, ofid);
+}
+Resource CreateSecondaryRenderTexture(const VkImageView view)
+{
+    return createTexture(view, s_Textures->DefaultOffsetId);
+}
+void UpdateTextureHandleOffset(const Resource handle, const Resource target)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    CHECK_RESOURCE_HANDLE(target, Resource_Texture);
+
+    const u32 tid = GetResourceId(handle);
+    const u32 targid = GetResourceId(target);
+
+    const Texture &tex = s_Textures->Resources[tid];
+    TKIT_ASSERT(
+        tex.OffsetId != s_Textures->DefaultOffsetId,
+        "[ONYX][RESOURCES] Cannot modify the offset that belongs to the default offset id. It must remain at 0");
+
+    s_Textures->Offsets[tex.OffsetId] = i32(targid) - i32(tid);
 }
 
 template <Dimension D> static void removeTextureReferences(const Resource handle)
@@ -656,19 +716,76 @@ static void destroyTexture(const Resource handle)
     s_Textures->Resources.Remove(tid);
 }
 
-void DestroyTexture(const Resource handle)
-{
 #ifdef TKIT_ENABLE_ASSERTS
+void checkNotTextureAtlas(const Resource handle)
+{
     for (const FontPoolData &fpool : s_FontData->Pools)
         for (const FontDataInfo &finfo : fpool.Meshes)
         {
             TKIT_ASSERT(finfo.AtlasTexture != handle,
                         "[ONYX][RESOURCES] Attempting to destroy texture with handle {:#010x}, which is a font atlas "
-                        "managed by an active font!",
+                        "managed by an active font! It is not possible to directly destroy or manage font atlases "
+                        "through the texture API",
                         handle);
         }
+}
+#endif
+
+void DestroyTexture(const Resource handle)
+{
+#ifdef TKIT_ENABLE_ASSERTS
+    checkNotTextureAtlas(handle);
 #endif
     destroyTexture(handle);
+}
+void ReleaseTexture(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    s_Textures->ToDestroy.Append(handle);
+}
+
+static void updateTexture(const Resource handle, const VkImageView view, const Resource image = NullHandle)
+{
+    const u32 tid = GetResourceId(handle);
+    Texture &tex = s_Textures->Resources[tid];
+    if (tex.Image != NullHandle)
+        for (u32 i = 0; i < s_Images->Resources.GetSize(); ++i)
+        {
+            auto &texs = s_Images->Resources[i].Textures;
+            for (const Resource thandle : texs)
+                if (thandle == handle)
+                {
+                    texs.RemoveUnordered(texs.begin() + i);
+                    break;
+                }
+        }
+
+    tex.Image = image;
+    tex.View = view;
+
+    bindTexture(view, tid);
+
+    if (image != NullHandle)
+    {
+        ImageInfo &img = getImage(image);
+        img.Textures.Append(handle);
+    }
+}
+
+void UpdateTexture(const Resource handle, const Resource image, const u32 viewIndex)
+{
+#ifdef TKIT_ENABLE_ASSERTS
+    checkNotTextureAtlas(handle);
+#endif
+    VKit::DeviceImage &img = getImage(handle).Image;
+    const VkImageView view =
+        viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
+    updateTexture(image, view, handle);
+}
+
+void UpdateRenderTexture(const Resource handle, const VkImageView view)
+{
+    updateTexture(handle, view);
 }
 
 template <typename T>
@@ -1006,14 +1123,18 @@ template <Dimension D> void ReleaseResourcePool(const ResourcePool pool)
 
 void ReleaseFontPool(const ResourcePool pool)
 {
+    CHECK_POOL_HANDLE(pool, Resource_Font);
+
     s_FontData->ToDestroy.Append(pool);
 }
 void DestroyFontPool(const ResourcePool pool)
 {
+    CHECK_POOL_HANDLE(pool, Resource_Font);
+
     const u32 pid = GetResourcePoolId(pool);
     for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
     {
-        ReleaseImage(finfo.AtlasImage);
+        DestroyImage(finfo.AtlasImage);
         TKit::Deallocate(finfo.Data.AtlasData.Data);
     }
     destroyMeshPool(pool, *s_FontData);
@@ -1466,7 +1587,7 @@ u32 CombineSamplerTexIntoId(const Resource shandle, const Resource thandle)
 // NOTE(Isma): This shouldnt quite be here. Command buffer recording is a different concern
 void UpdateTextureIdOffsetBuffer(const VkCommandBuffer cmd)
 {
-    const TKit::StaticHive<u32, ONYX_MAX_TEXTURE_OFFSET_IDS> &offsets = s_Textures->Offsets;
+    const TKit::StaticHive<i32, ONYX_MAX_TEXTURE_OFFSET_IDS> &offsets = s_Textures->Offsets;
     TKit::StackArray<u32> sparse{};
     sparse.Resize(offsets.GetIds().GetSize());
 
@@ -1793,21 +1914,19 @@ void Sync(const SyncFlags flags)
     TKIT_BEGIN_INFO_CLOCK();
     TKIT_ASSERT(flags, "[ONYX][RESOURCES] Sync flags must not be zero");
     DeviceWaitIdle();
-    upload<D2>(flags);
-    upload<D3>(flags);
     if (flags & SyncFlag_Fonts)
     {
         TKIT_LOG_DEBUG_IF(anyMeshUploads(*s_FontData), "[ONYX][RESOURCES] Uploading fonts");
         uploadMeshes(*s_FontData);
     }
 
-    // these here bc D3 may also request D2 bounds to be removed
-    if (flags & (SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes))
+    if (flags & SyncFlag_Textures)
     {
-        uploadBounds<D2>();
-        uploadBounds<D3>();
+        TKIT_LOG_DEBUG_IF(!s_Textures->ToDestroy.IsEmpty(), "[ONYX][RESOURCES] Destroying textures");
+        for (const Resource handle : s_Textures->ToDestroy)
+            DestroyTexture(handle);
+        s_Textures->ToDestroy.Clear();
     }
-
     if (flags & SyncFlag_Images)
     {
         TKIT_LOG_DEBUG_IF(!s_Images->ToDestroy.IsEmpty(), "[ONYX][RESOURCES] Destroying images");
@@ -1821,6 +1940,16 @@ void Sync(const SyncFlags flags)
         for (const Resource handle : s_Samplers->ToDestroy)
             DestroySampler(handle);
         s_Samplers->ToDestroy.Clear();
+    }
+
+    upload<D2>(flags);
+    upload<D3>(flags);
+
+    // these here bc D3 may also request D2 bounds to be removed
+    if (flags & (SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes))
+    {
+        uploadBounds<D2>();
+        uploadBounds<D3>();
     }
 
     Renderer::FlushAllContexts();

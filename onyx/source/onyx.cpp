@@ -46,6 +46,7 @@ struct WindowData
 struct ApiData
 {
     TKit::StaticArray<WindowData, ONYX_MAX_VIEWS> Windows{};
+    TKit::StaticArray<RenderTexture *, ONYX_MAX_VIEWS> RenderTextures{};
 
     TKit::TierArray<RenderContext<D2> *> Contexts2{};
     TKit::TierArray<RenderContext<D3> *> Contexts3{};
@@ -70,6 +71,9 @@ void InitializeApi()
 }
 void TerminateApi()
 {
+    TKit::TierAllocator *tier = GetTier();
+    for (RenderTexture *rtex : s_Data->RenderTextures)
+        tier->Destroy(rtex);
     s_Data.Destruct();
 }
 
@@ -211,6 +215,30 @@ template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx)
     Renderer::DestroyContext<D>(ctx);
 }
 
+RenderTexture *CreateRenderTexture(const u32v2 &dimensions)
+{
+    TKit::TierAllocator *tier = GetTier();
+    RenderTexture *rtex = tier->Create<RenderTexture>(dimensions);
+    return s_Data->RenderTextures.Append(rtex);
+}
+
+void DestroyRenderTexture(RenderTexture *rtex)
+{
+    for (u32 i = 0; i < s_Data->RenderTextures.GetSize(); ++i)
+    {
+        RenderTexture *r = s_Data->RenderTextures[i];
+        if (r == rtex)
+        {
+            TKit::TierAllocator *tier = GetTier();
+            tier->Destroy(r);
+            s_Data->RenderTextures.RemoveUnordered(s_Data->RenderTextures.begin() + i);
+            return;
+        }
+    }
+    TKIT_FATAL("[ONYX] Failed to find render texture to destroy. Ensure the render texture was created with the "
+               "CreateRenderTexture() function");
+}
+
 bool Running()
 {
     // a bit weird to have it here, but it works
@@ -283,10 +311,35 @@ void Render(const RenderInfo &info)
         }
     }
 
-    if (!acqWindows.IsEmpty())
+    // cant do it in the same loop because the texture handle offset buffer must be fully updated
+
+    if (!acqWindows.IsEmpty() || s_Data->RenderTextures.IsEmpty())
     {
+        for (RenderTexture *rtex : s_Data->RenderTextures)
+            rtex->FindAvailableImages();
+
         VKit::Queue *gqueue = Execution::GetQueue(VKit::Queue_Graphics);
         CommandPool *gpool = Execution::FindAvailableCommandPool(VKit::Queue_Graphics);
+
+        TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
+        Renderer::PrepareRender();
+
+        bool once = true;
+        for (RenderTexture *rtex : s_Data->RenderTextures)
+        {
+            const VkCommandBuffer cmd = Execution::Allocate(gpool);
+
+            Execution::BeginCommandBuffer(cmd);
+            if (once)
+            {
+                Resources::UpdateTextureIdOffsetBuffer(cmd);
+                Renderer::ApplyAcquireBarriers(cmd);
+                once = false;
+            }
+            const RenderSubmitInfo rinfo = Renderer::Render(gqueue, cmd, rtex);
+            Execution::EndCommandBuffer(cmd);
+            rinfos.Append(rinfo);
+        }
 
 #ifdef ONYX_ENABLE_IMGUI
         TKit::StaticArray<u32, ONYX_MAX_VIEWS> platformWindowIndices{};
@@ -294,10 +347,6 @@ void Render(const RenderInfo &info)
         const auto multiViewports = [] { return ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable; };
 #endif
 
-        TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
-        Renderer::PrepareRender();
-
-        bool once = true;
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowData *wdata = acwin.Window;
@@ -378,6 +427,7 @@ void Render(const RenderInfo &info)
 #endif
         }
     }
+
     for (u32 i = 0; i < s_Data->Windows.GetSize(); ++i)
         if (s_Data->Windows[i].Window->ShouldClose())
             closeWindow(i);

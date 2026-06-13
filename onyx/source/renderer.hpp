@@ -2,6 +2,7 @@
 
 #include "onyx/core.hpp"
 #include "onyx/window.hpp"
+#include "onyx/render_texture.hpp"
 #include "onyx/instance.hpp"
 #include "execution.hpp"
 #include "pass.hpp"
@@ -74,6 +75,8 @@ template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &
 
 // consider having arrays of semaphores to allow for some flexibility
 
+// NOTE(Isma): Same family index multi queue support was dropped. passing queues around is in theory no longer needed
+// anymore
 TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command, u32 maxLights = 1024,
                             u32 maxReleaseBarriers = 256);
 void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info);
@@ -83,6 +86,7 @@ void PrepareRender();
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
 RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window, RenderFlags flags = 0);
+RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, RenderTexture *rtex);
 
 void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
 void Coalesce(u32 maxRanges = 512);

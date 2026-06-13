@@ -3263,12 +3263,15 @@ static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCo
     submitInfo.Command = command;
     submitInfo.InFlightValue = graphicsFlight;
 
-    VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
-    imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    imgInfo.pNext = nullptr;
-    imgInfo.semaphore = tinfo.ImageAvailableSemaphore;
-    imgInfo.deviceIndex = 0;
-    imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    if (tinfo.ImageAvailableSemaphore)
+    {
+        VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
+        imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+        imgInfo.pNext = nullptr;
+        imgInfo.semaphore = tinfo.ImageAvailableSemaphore;
+        imgInfo.deviceIndex = 0;
+        imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    }
 
     VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores.Append();
     gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
@@ -3278,13 +3281,16 @@ static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCo
     gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
     gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
 
-    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores.Append();
-    rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    rendFinInfo.pNext = nullptr;
-    rendFinInfo.value = 0;
-    rendFinInfo.semaphore = tinfo.RenderFinishedSemaphore;
-    rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-    rendFinInfo.deviceIndex = 0;
+    if (tinfo.RenderFinishedSemaphore)
+    {
+        VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores.Append();
+        rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+        rendFinInfo.pNext = nullptr;
+        rendFinInfo.value = 0;
+        rendFinInfo.semaphore = tinfo.RenderFinishedSemaphore;
+        rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+        rendFinInfo.deviceIndex = 0;
+    }
 
     for (const Execution::Tracker &ttracker : transferTrackers)
     {
@@ -3430,12 +3436,13 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
     }
 }
 
-RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window *window, const RenderFlags flags)
+template <typename Target>
+RenderSubmitInfo render(VKit::Queue *graphics, const VkCommandBuffer cmd, Target *target, const RenderFlags flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
 
     const u64 graphicsFlight = graphics->NextTimelineValue();
-    const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
+    const RenderTargetInfo tinfo = target->CreateRenderTargetInfo();
 
     TKit::StackArray<Execution::Tracker> transferTrackers{};
     transferTrackers.Reserve(s_SyncPointCount);
@@ -3446,8 +3453,13 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     Execution::Tracker tracker;
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
-    window->MarkImageSemaphoreInUse(tracker);
-    window->BeginRendering(cmd);
+
+    if constexpr (std::is_same_v<Target, Window>)
+        target->MarkImageSemaphoreInUse(tracker);
+    else
+        target->MarkCurrentImageInUse(tracker);
+
+    target->BeginRendering(cmd);
 
     s_CompositorPipeline.Bind(cmd);
 
@@ -3456,18 +3468,28 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     renderCompositor(tinfo.Views3, cmd, playout);
 
 #ifdef ONYX_ENABLE_IMGUI
-    if (flags & RenderFlag_ImGui)
-    {
-        ImGui::Render();
-        ImGuiBackend::RenderData(ImGui::GetDrawData(), cmd);
-        ImGuiBackend::UpdatePlatformWindows();
-    }
+    if constexpr (std::is_same_v<Target, Window>)
+        if (flags & RenderFlag_ImGui)
+        {
+            ImGui::Render();
+            ImGuiBackend::RenderData(ImGui::GetDrawData(), cmd);
+            ImGuiBackend::UpdatePlatformWindows();
+        }
 #else
     TKIT_UNUSED(flags);
 #endif
 
-    window->EndRendering(cmd);
+    target->EndRendering(cmd);
     return createRenderSubmitInfo(graphics, cmd, graphicsFlight, tinfo, transferTrackers);
+}
+
+RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window *window, const RenderFlags flags)
+{
+    return render(graphics, cmd, window, flags);
+}
+RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, RenderTexture *rtex)
+{
+    return render(graphics, cmd, rtex, 0);
 }
 
 void SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)

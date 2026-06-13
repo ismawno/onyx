@@ -408,14 +408,6 @@ template <Dimension D> class RenderView
     RenderViewFlags m_Flags = 0;
 
     friend class Window;
+    friend class RenderTarget;
 };
-
-struct RenderTargetInfo
-{
-    TKit::TierArray<RenderView<D2> *> Views2;
-    TKit::TierArray<RenderView<D3> *> Views3;
-    Onyx_Semaphore ImageAvailableSemaphore;
-    Onyx_Semaphore RenderFinishedSemaphore;
-};
-
 } // namespace Onyx

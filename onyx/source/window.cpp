@@ -259,6 +259,12 @@ void Window::destroySyncData()
     m_SyncData.Clear();
 }
 
+u32v2 Window::getExtent() const
+{
+    const VkExtent2D &e = m_SwapChain->GetInfo().Extent;
+    return u32v2{e.width, e.height};
+}
+
 void Window::extractSwapChainImages()
 {
     m_Presentation.Clear();
@@ -365,11 +371,6 @@ Window::~Window()
     m_SwapChain->Destroy();
 
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (RenderView<D2> *rv : m_RenderViews2)
-        tier->Destroy(rv);
-    for (RenderView<D3> *rv : m_RenderViews3)
-        tier->Destroy(rv);
-
     tier->Destroy(m_SwapChain);
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
@@ -504,10 +505,7 @@ bool Window::AcquireNextImage(const Timeout timeout)
         m_SyncIndex = idx;
         if (handlePresentOrAcquireResult(result))
         {
-            for (RenderView<D2> *rv : m_RenderViews2)
-                rv->findAvailableFramebuffer();
-            for (RenderView<D3> *rv : m_RenderViews3)
-                rv->findAvailableFramebuffer();
+            findAvailableFrameBuffers();
             return true;
         }
     }
@@ -550,8 +548,10 @@ void Window::drainWork()
 {
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(m_SyncData.GetSize());
+
     TKit::StackArray<u64> values{};
     values.Reserve(m_SyncData.GetSize());
+
     for (const WindowSyncData *sync : m_SyncData)
         if (sync->Tracker.InFlight())
         {
@@ -681,22 +681,7 @@ void Window::BeginRendering(const VkCommandBuffer cmd)
     renderInfo.colorAttachmentCount = 1;
     renderInfo.pColorAttachments = &present;
 
-    // VkViewport viewport{};
-    // viewport.x = 0.f;
-    // viewport.y = 0.f;
-    // viewport.width = f32(extent.width);
-    // viewport.height = f32(extent.height);
-    // viewport.minDepth = 0.f;
-    // viewport.maxDepth = 1.f;
-    //
-    // VkRect2D scissor{};
-    // scissor.offset = {0, 0};
-    // scissor.extent = extent;
-    //
     const auto table = GetDeviceTable();
-    // table->CmdSetViewport(cmd, 0, 1, &viewport);
-    // table->CmdSetScissor(cmd, 0, 1, &scissor);
-
     table->CmdBeginRenderingKHR(cmd, &renderInfo);
 }
 
@@ -746,44 +731,6 @@ void Window::PushEvent(const Event &event)
 void Window::FlushEvents()
 {
     m_Events.Clear();
-}
-
-template <Dimension D> RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags)
-{
-    TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views = getRenderViews<D>();
-
-    TKit::TierAllocator *tier = TKit::GetTier();
-    const VkExtent2D extent = m_SwapChain->GetInfo().Extent;
-    RenderView<D> *rv = tier->Create<RenderView<D>>(u32v2{extent.width, extent.height}, camera, flags);
-    views.Append(rv);
-
-    rv->Layer = m_LayerAssign.ToTop();
-    return rv;
-}
-
-template <Dimension D> void Window::DestroyRenderView(RenderView<D> *rv)
-{
-    TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views = getRenderViews<D>();
-    for (u32 i = 0; i < views.GetSize(); ++i)
-        if (views[i] == rv)
-        {
-            TKit::TierAllocator *tier = TKit::GetTier();
-            tier->Destroy(rv);
-            views.RemoveUnordered(views.begin() + i);
-            return;
-        }
-    TKIT_FATAL("[ONYX][WINDOW] Render view to destroy not found");
-}
-
-void Window::updateRenderViews()
-{
-    const VkExtent2D &e = m_SwapChain->GetInfo().Extent;
-    const u32v2 extent = u32v2{e.width, e.height};
-
-    for (RenderView<D2> *rv : m_RenderViews2)
-        rv->update(extent);
-    for (RenderView<D3> *rv : m_RenderViews3)
-        rv->update(extent);
 }
 
 static i32 toGlfw(const Key key)
@@ -1584,13 +1531,6 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
     const auto rmat = Onyx::Transform<D>::ComputeRotationMatrix(view.Rotation);
     view.Translation += rmat * translation;
 }
-
-template RenderView<D2> *Window::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags);
-
-template RenderView<D3> *Window::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags);
-
-template void Window::DestroyRenderView<D2>(RenderView<D2> *view);
-template void Window::DestroyRenderView<D3>(RenderView<D3> *view);
 
 template void Window::ControlCamera<D3>(const TKit::Timespan deltaTime, Camera<D3> *camera,
                                         const CameraControls<D3> &controls) const;

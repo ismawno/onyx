@@ -185,7 +185,7 @@ f32m3 ComputeNormalMatrix(const f32m3 matrix)
 
 typedef StructuredBuffer<BoundsData2D, Std430DataLayout> Bounds2D;
 typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
-typedef StructuredBuffer<u32, Std430DataLayout> TextureOffsets;
+typedef StructuredBuffer<i32, Std430DataLayout> TextureOffsets;
 
 f32v2 ComputeAlignment(const u32 alignment, const u32 id, const Bounds2D bounds)
 {
@@ -228,7 +228,9 @@ SamplerTexId GetSamplerTexId(const TextureOffsets offsets, const u32 id)
         return combined;
 
     const u32 oid = (id & ONYX_TEXTURE_OFFSET_ID_MASK) >> ONYX_TEXTURE_OFFSET_ID_SHIFT;
-    combined.Texture += offsets[oid];
+
+    const i32 shifted = i32(combined.Texture) + offsets[oid];
+    combined.Texture = u32(shifted);
     return combined;
 }
 

@@ -7,6 +7,8 @@ set(SOURCES
     source/core.cpp
     source/platform.cpp
     source/context.cpp
+    source/render_target.cpp
+    source/render_texture.cpp
     source/renderer.cpp
     source/view.cpp
     source/execution.cpp

@@ -3,10 +3,9 @@
 #include "onyx/dimension.hpp"
 #include "onyx/input.hpp"
 #include "onyx/color.hpp"
-#include "onyx/view.hpp"
 #include "onyx/core.hpp"
+#include "onyx/render_target.hpp"
 #include "tkit/profiling/clock.hpp"
-#include "tkit/container/static_array.hpp"
 
 ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(SurfaceKHR)
 ONYX_DECLARE_PLATFORM_HANDLES()
@@ -77,26 +76,10 @@ struct WindowSpecs
                         WindowFlag_InstallCallbacks;
 };
 
-struct LayerAssign
-{
-    u64 LayerIncrease = TKIT_U64_MAX / 2;
-    u64 LayerDecrease = TKIT_U64_MAX / 2;
-
-    u64 ToTop()
-    {
-        return LayerIncrease++;
-    }
-    u64 ToBottom()
-    {
-        return --LayerDecrease;
-    }
-};
-
 struct WindowSyncData;
 
-class Window
+class Window final : public RenderTarget
 {
-    TKIT_NON_COPYABLE(Window)
   public:
     Window(const WindowSpecs &specs);
     ~Window();
@@ -202,19 +185,6 @@ class Window
 
     void FlushEvents();
 
-    template <Dimension D> RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0);
-
-    template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
-
-    template <Dimension D> void BringToTop(RenderView<D> *rv)
-    {
-        rv->Layer = m_LayerAssign.ToTop();
-    }
-    template <Dimension D> void BringToBottom(RenderView<D> *rv)
-    {
-        rv->Layer = m_LayerAssign.ToBottom();
-    }
-
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
         const TKit::TierArray<RenderView<D> *> &rvs = getSortedViews<D>();
@@ -227,7 +197,7 @@ class Window
         return nullptr;
     }
 
-    RenderTargetInfo CreateRenderTargetInfo()
+    RenderTargetInfo CreateRenderTargetInfo() override
     {
         RenderTargetInfo info;
         info.Views2 = getSortedViews<D2>();
@@ -266,18 +236,8 @@ class Window
     Onyx_Semaphore GetImageAvailableSemaphore() const;
     Onyx_Semaphore GetRenderFinishedSemaphore() const;
 
-    template <Dimension D> const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &GetRenderViews() const
-    {
-        if constexpr (D == D2)
-            return m_RenderViews2;
-        else
-            return m_RenderViews3;
-    }
-
-    Color ClearColor = Color_Black;
-
   private:
-    void updateRenderViews();
+    u32v2 getExtent() const override;
     void extractSwapChainImages();
 
     void createSwapChain(const u32v2 &windowExtent);
@@ -295,28 +255,9 @@ class Window
 
     u32v2 getNewExtent();
 
-    // TODO(Isma): Implement sort here somehow. rename this to get sorted views
-    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> getSortedViews() const
-    {
-        TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> views = GetRenderViews<D>();
-        std::sort(views.begin(), views.end(),
-                  [](const RenderView<D> *rv1, const RenderView<D> *rv2) { return rv1->Layer < rv2->Layer; });
-        return views;
-    }
-
-    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &getRenderViews()
-    {
-        if constexpr (D == D2)
-            return m_RenderViews2;
-        else
-            return m_RenderViews3;
-    }
-
     Onyx_WindowHandle *m_Window;
 
     TKit::FixedArray<Onyx_CursorHandle *, MouseCursor_Count> m_Cursors{};
-    TKit::StaticArray<RenderView<D2> *, ONYX_MAX_VIEWS> m_RenderViews2{};
-    TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> m_RenderViews3{};
 
     TKit::TierArray<Event> m_Events;
     Onyx_SurfaceKHR m_Surface;
@@ -330,7 +271,6 @@ class Window
 
     VKit::Queue *m_Present;
 
-    LayerAssign m_LayerAssign{};
     u32 m_ImageIndex;
     u32 m_SyncIndex = 0;
     mutable f32v2 m_PrevMousePos{0.f};

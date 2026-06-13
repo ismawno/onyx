@@ -24,7 +24,7 @@ template <Dimension D> struct BoundsData
 using MeshDataFlags = u8;
 enum MeshDataFlagBit : MeshDataFlags
 {
-    MeshDataFlag_BackCulled = 1 << 0, // no effect for 2D
+    MeshDataFlag_BackCulled = 1U << 0, // no effect for 2D
 };
 
 template <typename Vertex> struct MeshData

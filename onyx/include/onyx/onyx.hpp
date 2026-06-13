@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/window.hpp"
+#include "onyx/render_texture.hpp"
 #include "onyx/context.hpp"
 
 namespace Onyx
@@ -34,6 +35,9 @@ bool CanRenderImGui(Window *window);
 
 template <Dimension D> RenderContext<D> *CreateRenderContext(u32 immediateDynamicMeshCapacity = 0);
 template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx);
+
+RenderTexture *CreateRenderTexture(const u32v2 &dimensions);
+void DestroyRenderTexture(RenderTexture *rtex);
 
 bool Running();
 void Quit();

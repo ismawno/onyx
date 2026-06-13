@@ -38,12 +38,12 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
 using OverlayInputFlags = u8;
 enum OverlayInputFlagBit : OverlayInputFlags
 {
-    OverlayInputFlag_EnterReturnsTrue = 1 << 0,
-    OverlayInputFlag_EnterCommitsBuffer = 1 << 1,
-    OverlayInputFlag_EscapeClearsAll = 1 << 2,
-    OverlayInputFlag_AutoSelectAll = 1 << 3,
-    OverlayInputFlag_NoHorizontalScroll = 1 << 4,
-    OverlayInputFlag_ElideLeft = 1 << 5,
+    OverlayInputFlag_EnterReturnsTrue = 1U << 0,
+    OverlayInputFlag_EnterCommitsBuffer = 1U << 1,
+    OverlayInputFlag_EscapeClearsAll = 1U << 2,
+    OverlayInputFlag_AutoSelectAll = 1U << 3,
+    OverlayInputFlag_NoHorizontalScroll = 1U << 4,
+    OverlayInputFlag_ElideLeft = 1U << 5,
 };
 
 struct OverlayResizeInfo

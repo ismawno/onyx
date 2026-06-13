@@ -207,7 +207,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
         names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", m_AttachmentIndex);
         names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", m_AttachmentIndex);
         names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", m_AttachmentIndex);
-        for (u32 j = 0; j < m_FrameBuffers.GetSize(); ++j)
+        for (u32 j = 0; j < Attachment_Count; ++j)
             if (fb->Attachments[j])
             {
                 ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].CString()));
@@ -411,8 +411,6 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const VkCommandBuffer
     outline.loadOp = hasOutlines ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     outline.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
     outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
-
-    // the src stage ternary kind of doesnt care as there will not be transition if new and old layout are the same
 
     outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                               {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
