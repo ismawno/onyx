@@ -12,7 +12,7 @@ int main()
     Onyx::Resources::CreateDefaultResources();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
-    Onyx::UserInterface ui{win};
+    Onyx::Overlay ui{win};
 
     while (Onyx::Running())
     {
@@ -66,13 +66,31 @@ int main()
             ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
 
             static char buf1[32] = "This is some nice text";
-            ui.InputText("Text 1", buf1, 32, iflags);
+            ui.InputText("Text 1", buf1, 32, "Im a little hint", iflags);
 
             static i32 iival = 4;
-            ui.InputNumeric("Some integer", &iival, "{}", iflags);
+            ui.InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
 
             static f32 ifval = 8.f;
-            ui.InputNumeric("Some float", &ifval, "{:.3f}", iflags);
+            ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+
+            ui.HorizontalSeparator("Tooltips");
+
+            ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ui.IsItemHovered())
+                ui.SetTooltip("Im instant!");
+
+            ui.Button("Im a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                ui.SetTooltip("Im a bit delayed!");
+
+            ui.Button("Im a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                ui.SetTooltip("Im delayed!");
+
+            ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
+                ui.SetTooltip("Im stationary!");
         }
         ui.EndWindow();
 

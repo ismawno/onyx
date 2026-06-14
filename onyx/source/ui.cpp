@@ -24,7 +24,7 @@ enum OverlayWindowInternalFlagBit : OverlayWindowFlags
     OverlayWindowFlagClear = (1U << 3) - 1U
 };
 
-UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
+Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
     : Config(specs.Config), m_LayoutSpecs(specs.Layout), m_Window(win), m_Colors(specs.Colors), m_Tooltip(specs.Layout)
 {
     TKIT_ASSERT(specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
@@ -38,7 +38,7 @@ UserInterface::UserInterface(Window *win, const UserInterfaceSpecs &specs)
     m_Context->AddTarget(m_View);
 }
 
-void UserInterface::drawWindowBorders()
+void Overlay::drawWindowBorders()
 {
     Layout &ly = getCurrentLayout();
     const Color &interaction = *m_Current->Resize.InteractionColor;
@@ -109,7 +109,7 @@ void UserInterface::drawWindowBorders()
     }
 }
 
-void UserInterface::drawWindowScrollBar()
+void Overlay::drawWindowScrollBar()
 {
     Layout &ly = getCurrentLayout();
     const LayoutElement *contentArea = ly.QueryElement("Content area");
@@ -167,7 +167,7 @@ void UserInterface::drawWindowScrollBar()
     sinfo.WheelOffset = 0.f;
 }
 
-bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
+bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
 {
     TKIT_ASSERT(!m_Current, "[ONYX][Overlay] Cannot begin a new window when another one is being processed");
 
@@ -212,7 +212,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
                                                 .Padding = Config.WindowPadding,
                                                 .ChildGap = Config.ChildGap});
 
-    m_TooltipWidgetId = m_Current->Id;
+    m_LastWidget = m_Current->Id;
     drawWindowBorders();
     if (!noHeader)
     {
@@ -261,7 +261,7 @@ bool UserInterface::BeginWindow(const TKit::StringView title, const OverlayWindo
     return !collapsed;
 }
 
-void UserInterface::EndWindow()
+void Overlay::EndWindow()
 {
     TKIT_ASSERT(m_Current, "[ONYX][Overlay] Cannot end a window without having started one");
     m_Current->Layout.EndPanel();
@@ -270,7 +270,7 @@ void UserInterface::EndWindow()
     m_Current = nullptr;
 }
 
-void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
+void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
 {
     Layout &ly = getCurrentLayout();
     ly.BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
@@ -286,8 +286,8 @@ void UserInterface::HorizontalSeparator(const TKit::StringView label, const f32 
     ly.EndPanel();
 }
 
-bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFlags flags,
-                                 const bool overrideEnterFocus)
+bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hint, const OverlayInputFlags flags,
+                           const bool overrideEnterFocus)
 {
     TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
     Layout &ly = getCurrentLayout();
@@ -312,14 +312,21 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFl
     const FontData &fdata = getFontData();
     const f32 fs = Config.FontSize;
 
+    LayoutTextParameters tparams = getTextParams();
     if (!info.Focused)
     {
         const bool elide = flags & OverlayInputFlag_ElideLeft;
         const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
+        const bool useHint = strSize == 0 && hint;
 
-        LayoutTextParameters tparams = getTextParams();
         tparams.Offset[0] = oabs(textOffset);
-        ly.Text(buf, tparams);
+        if (useHint)
+        {
+            tparams.FillColor.rgba[3] = Config.BoxInputHintAlpha;
+            ly.Text(hint, tparams);
+        }
+        else
+            ly.Text(buf, tparams);
     }
     else
     {
@@ -452,24 +459,35 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFl
         const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
         const f32 textOffset = noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - Config.CursorWidth);
 
-        LayoutTextParameters tparams = getTextParams();
         tparams.Offset[0] = oabs(textOffset);
-        ly.Text(str, tparams);
+        const bool useHint = str.IsEmpty() && hint;
+        if (useHint)
+        {
+            tparams.FillColor.rgba[3] = Config.BoxInputHintAlpha;
+            ly.Text(str.IsEmpty() && hint ? hint : str, tparams);
+        }
+        else
+            ly.Text(str, tparams);
 
         const f32 hAdvance = hendAdvance - hstartAdvance;
         // bc of layout solving, cursor is gonna be offsetted by the text. we have to work out how much to "bring it
         // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by -textWidth.
         // same goes for highlight
 
-        // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
-        const f32 offset = cursorAdvance - textWidth + textOffset + 0.1f;
+        f32 offset = cursorAdvance - textWidth + textOffset;
+        if (useHint)
+            offset -= fs * fdata.ComputeTextWidth(hint);
+        else
+            // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
+            offset += 0.1f;
 
         // if there is any highlight, cursor is discarded
         const bool hasCursor = hAdvance == 0.f;
         if (hasCursor)
-            ly.Panel("Cursor", LayoutPanelParameters{.FillColor = Color{m_Colors[OverlayColor_Text], 0.6f},
-                                                     .Sizing = {sabs(Config.CursorWidth), grow()},
-                                                     .SelfOffset = oabs({offset, 0.f})});
+            ly.Panel("Cursor",
+                     LayoutPanelParameters{.FillColor = Color{m_Colors[OverlayColor_Text], Config.BoxInputCursorAlpha},
+                                           .Sizing = {sabs(Config.CursorWidth), grow()},
+                                           .SelfOffset = oabs({offset, 0.f})});
         else
         {
             // highlight may be negative, but we just removed that with hstartPos etc. this means that hAdvance is
@@ -559,7 +577,7 @@ bool UserInterface::inputTextBox(char *buf, const u32 size, const OverlayInputFl
     return updated;
 }
 
-InputConvertInfo UserInterface::getInputConvertInfo(const bool hovered, const bool allowDoubleClick)
+InputConvertInfo Overlay::getInputConvertInfo(const bool hovered, const bool allowDoubleClick)
 {
     InputConvertInfo info{};
 
@@ -586,7 +604,7 @@ InputConvertInfo UserInterface::getInputConvertInfo(const bool hovered, const bo
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-bool UserInterface::collapseButton()
+bool Overlay::collapseButton()
 {
     Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement("Collapse button"));
@@ -605,7 +623,7 @@ bool UserInterface::collapseButton()
     return info.Clicked;
 }
 
-ClickFocusInfo UserInterface::getClickFocusInfo(const LayoutElement *elm)
+ClickFocusInfo Overlay::getClickFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
         return ClickFocusInfo{};
@@ -635,7 +653,7 @@ ClickFocusInfo UserInterface::getClickFocusInfo(const LayoutElement *elm)
     return info;
 }
 
-DragFocusInfo UserInterface::getDragFocusInfo(const LayoutElement *elm)
+DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
         return DragFocusInfo{};
@@ -664,7 +682,7 @@ DragFocusInfo UserInterface::getDragFocusInfo(const LayoutElement *elm)
     return info;
 }
 
-InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
+InputFocusInfo Overlay::getInputFocusInfo(const LayoutElement *elm)
 {
     if (!elm)
         return InputFocusInfo{};
@@ -699,7 +717,7 @@ InputFocusInfo UserInterface::getInputFocusInfo(const LayoutElement *elm)
     return info;
 }
 
-bool UserInterface::Button(const TKit::StringView label)
+bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flags)
 {
     Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
@@ -710,16 +728,20 @@ bool UserInterface::Button(const TKit::StringView label)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_ButtonHovered];
 
-    m_TooltipWidgetId = ly.BeginPanel(
+    const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
+
+    const vec2<LayoutSizing> sizing = spanFull ? vec2<LayoutSizing>{grow(), fit()} : vec2<LayoutSizing>{fit()};
+
+    m_LastWidget = ly.BeginPanel(
         label,
-        LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = fit(), .Padding = 8.f});
+        LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = 8.f});
 
     ly.Text(label, getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
     return info.Clicked;
 }
 
-bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
+bool Overlay::RadioButton(const TKit::StringView label, const bool active)
 {
     Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
@@ -730,9 +752,9 @@ bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
     else if (info.Hovered)
         col = &m_Colors[OverlayColor_CheckBoxHovered];
 
-    m_TooltipWidgetId = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                   .Sizing = fit(),
-                                                                   .ChildGap = Config.ChildGap});
+    m_LastWidget = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                              .Sizing = fit(),
+                                                              .ChildGap = Config.ChildGap});
 
     ly.BeginPanel("Outer radio", LayoutPanelParameters{.FillColor = *col,
                                                        .Alignment = Alignment_Center,
@@ -753,7 +775,7 @@ bool UserInterface::RadioButton(const TKit::StringView label, const bool active)
 }
 
 // NOTE(Isma): Much repetition with radio button here
-bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
+bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
 {
     Layout &ly = getCurrentLayout();
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(label));
@@ -767,9 +789,9 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     if (info.Clicked)
         *enable = !*enable;
 
-    m_TooltipWidgetId = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                   .Sizing = fit(),
-                                                                   .ChildGap = Config.ChildGap});
+    m_LastWidget = ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                              .Sizing = fit(),
+                                                              .ChildGap = Config.ChildGap});
 
     ly.BeginPanel("Outer checkbox", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = Alignment_Center,
@@ -787,7 +809,7 @@ bool UserInterface::CheckBox(const TKit::StringView label, bool *enable)
     return info.Clicked;
 }
 
-void UserInterface::BeginTooltip()
+void Overlay::BeginTooltip()
 {
     TKIT_ASSERT(m_Current, "[ONYX][UI] Cannot begin a tooltip outside of a window");
     TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][UI] Cannot begin a tooltip inside of a tooltip");
@@ -822,17 +844,16 @@ void UserInterface::BeginTooltip()
                                                       .ChildGap = Config.ChildGap});
 }
 
-bool UserInterface::BeginItemTooltip()
+bool Overlay::BeginItemTooltip()
 {
-    if (!m_Current->CheckFlags(OverlayWindowFlag_Hovered) ||
-        !m_Current->Layout.IsHovered(m_TooltipWidgetId, m_MousePos))
+    if (!m_Current->CheckFlags(OverlayWindowFlag_Hovered) || !m_Current->Layout.IsHovered(m_LastWidget, m_MousePos))
         return false;
 
     BeginTooltip();
     return true;
 }
 
-void UserInterface::EndTooltip()
+void Overlay::EndTooltip()
 {
     TKIT_ASSERT(m_Tooltip.Active, "[ONYX][UI] Cannot end a tooltip that has not started");
     m_Tooltip.Active = false;
@@ -841,26 +862,68 @@ void UserInterface::EndTooltip()
     m_Tooltip.Layout.Compile();
 }
 
-bool UserInterface::InputText(TKit::StringView label, char *buf, const u32 size, const OverlayInputFlags flags)
+bool Overlay::IsItemHovered(const OverlayHoveredFlags flags)
+{
+    const bool allowBlockWindow = flags & OverlayHoveredFlag_AllowBlockedByWindow;
+    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
+    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
+    const bool stationary = flags & OverlayHoveredFlag_Stationary;
+    TKIT_ASSERT(normalDelay + shortDelay != 2,
+                "[ONYX][UI] Cannot have short delay and normal delay at the same time in tooltip");
+
+    f32 delay = 0.f;
+    if (shortDelay)
+        delay = Config.HoverDelayShort;
+    else if (normalDelay)
+        delay = Config.HoverDelayNormal;
+
+    const Layout &ly = getCurrentLayout();
+
+    const bool candidate = (allowBlockWindow || m_Current->CheckFlags(OverlayWindowFlag_Hovered)) &&
+                           ly.IsHovered(m_LastWidget, m_MousePos);
+    if (candidate)
+    {
+        const f32 statThres = stationary ? Config.HoverStationaryThreshold : TKIT_F32_MAX;
+        if (Math::NormSquared(m_MouseDelta) > statThres)
+        {
+            m_WidgetHoverClock.Restart();
+            return false;
+        }
+
+        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastWidget;
+        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
+        if (m_HoveredWidgetCandidate == NullLayoutId || (noShared && !wasCandidate))
+            m_WidgetHoverClock.Restart();
+
+        m_HoveredWidgetCandidate = m_LastWidget;
+        m_CandidateLayout = &ly;
+
+        const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
+        return seconds >= delay;
+    }
+    return false;
+}
+
+bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
+                        const OverlayInputFlags flags)
 {
     Layout &ly = getCurrentLayout();
     ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                .Sizing = {grow(300.f), fit()},
                                                .ChildGap = Config.ChildGap});
 
-    m_TooltipWidgetId =
-        ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                         .Sizing = {snorm(0.6f), fit()},
-                                                         .ChildGap = Config.ChildGap});
+    m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                    .Sizing = {snorm(0.6f), fit()},
+                                                                    .ChildGap = Config.ChildGap});
 
-    const bool updated = inputTextBox(buf, size, flags);
+    const bool updated = inputTextBox(buf, size, hint, flags);
     ly.EndPanel();
     ly.Text(label, getTextParams());
     ly.EndPanel();
     return updated;
 }
 
-void UserInterface::Draw()
+void Overlay::Draw()
 {
     processWindows();
     m_Context->Flush();
@@ -879,18 +942,20 @@ void UserInterface::Draw()
     m_TextId = 0;
 }
 
-template <typename F> void UserInterface::iterateReverseWindows(const F func)
+template <typename F> void Overlay::iterateReverseWindows(const F func)
 {
     for (u32 i = m_OverlayWindows.GetSize() - 1; i < m_OverlayWindows.GetSize(); --i)
         if (!func(m_OverlayWindows[i]))
             return;
 }
 
-void UserInterface::processWindows()
+void Overlay::processWindows()
 {
     const f32v2 mpos = getMousePos();
+
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
+
     m_EventFlags = 0;
 
     m_EventKeys.ClearAll();
@@ -1088,9 +1153,11 @@ void UserInterface::processWindows()
 
     m_HoveredClicker = NullLayoutId;
     m_HoveredDragger = NullLayoutId;
+    if (m_CandidateLayout && !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
+        m_HoveredWidgetCandidate = NullLayoutId;
 }
 
-void UserInterface::bringWindowToTop(const u32 idx)
+void Overlay::bringWindowToTop(const u32 idx)
 {
     const OverlayWindow target = std::move(m_OverlayWindows[idx]);
     m_OverlayWindows.RemoveOrdered(m_OverlayWindows.begin() + idx);
@@ -1101,7 +1168,7 @@ void UserInterface::bringWindowToTop(const u32 idx)
     m_WindowIds.Append(id);
 }
 
-OverlayWindow *UserInterface::getOrCreateOverlayWindow(const usz id)
+OverlayWindow *Overlay::getOrCreateOverlayWindow(const usz id)
 {
     for (u32 i = 0; i < m_WindowIds.GetSize(); ++i)
         if (id == m_WindowIds[i])
@@ -1115,18 +1182,18 @@ OverlayWindow *UserInterface::getOrCreateOverlayWindow(const usz id)
     return &win;
 }
 
-const FontData &UserInterface::getFontData() const
+const FontData &Overlay::getFontData() const
 {
     const Resource font = m_Context->GetState().Font;
     return Resources::GetFontData(font);
 }
-f32 UserInterface::computeWindowMinSize(const f32 winPadding, const f32 headPadding, const f32 fontSize) const
+f32 Overlay::computeWindowMinSize(const f32 winPadding, const f32 headPadding, const f32 fontSize) const
 {
     const FontData &fdata = getFontData();
     return fontSize * fdata.LineHeight + 2.f * (winPadding + headPadding);
 }
 
-f32v2 UserInterface::getMousePos() const
+f32v2 Overlay::getMousePos() const
 {
     return m_View->ScreenToWorld(m_Window->GetNormalizedMousePosition());
 }

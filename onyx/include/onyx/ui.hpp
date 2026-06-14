@@ -46,6 +46,22 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_ElideLeft = 1U << 5,
 };
 
+using OverlayHoveredFlags = u8;
+enum OverlayHoveredFlagBit : OverlayHoveredFlags
+{
+    OverlayHoveredFlag_ShortDelay = 1U << 0,
+    OverlayHoveredFlag_NormalDelay = 1U << 1,
+    OverlayHoveredFlag_Stationary = 1U << 2,
+    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 3,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 4,
+};
+
+using OverlayButtonFlags = u8;
+enum OverlayButtonFlagBit : OverlayButtonFlags
+{
+    OverlayButtonFlag_SpanFullWidth = 1U << 0,
+};
+
 struct OverlayResizeInfo
 {
     TKit::FixedArray<usz, OverlayResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
@@ -248,22 +264,34 @@ struct InputConvertInfo
 struct LayoutConfig
 {
     f32 FontSize = 14.f;
+    f32 ChildGap = 8.f;
+
     f32 TooltipOffset = 12.f;
     f32 TooltipPadding = 4.f;
+
     f32 WindowPadding = 8.f;
     f32 WindowBorderWidth = 4.f;
-    f32 ChildGap = 8.f;
+    f32 WindowSpawnDelta = 32.f;
     f32 HeaderPadding = 4.f;
-    f32 ScrollBarWidth = 8.f;
     f32 BorderHoverPadding = 8.f;
     f32 ContentAreaPadding = 4.f;
+
+    f32 ScrollBarWidth = 8.f;
     f32 ScrollSensitivity = 16.f;
-    f32 WidgetSize = 24.f;
-    f32 WindowSpawnDelta = 32.f;
     f32 ScrollMargin = 24.f;
+
+    f32 WidgetSize = 24.f;
     f32 WidgetPadding = 6.f;
+
     f32 ClickMilliseconds = 200.f;
     f32 CursorWidth = 2.f;
+
+    f32 HoverDelayShort = 0.15f;
+    f32 HoverDelayNormal = 0.40f;
+    f32 HoverStationaryThreshold = 5.f;
+
+    f32 BoxInputHintAlpha = 0.4f;
+    f32 BoxInputCursorAlpha = 0.6f;
     Key BoxInputTrigger = Key_LeftControl;
 };
 
@@ -279,19 +307,19 @@ struct UserInterfaceSpecs
 // if it was pressed
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
 // TODO(Isma): Implement arrow cursor movement with keyboard
-class UserInterface
+class Overlay
 {
-    TKIT_NON_COPYABLE(UserInterface)
+    TKIT_NON_COPYABLE(Overlay)
 
   public:
-    UserInterface(Window *win, const UserInterfaceSpecs &specs = {});
+    Overlay(Window *win, const UserInterfaceSpecs &specs = {});
 
     // TODO(Isma): Should return id
     bool BeginWindow(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndWindow();
 
     // TODO(Isma): Create unicode overload
-    bool Button(TKit::StringView label);
+    bool Button(TKit::StringView label, OverlayButtonFlags flags = 0);
     bool RadioButton(TKit::StringView label, bool active);
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool RadioButton(const TKit::StringView label, T *value, const U reference)
@@ -325,25 +353,29 @@ class UserInterface
         return true;
     }
 
-    bool InputText(TKit::StringView label, char *buf, u32 size, OverlayInputFlags flags = 0);
+    // TODO(Isma): Implement hint
+    bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
+                   OverlayInputFlags flags = 0);
     template <TKit::Numeric T>
-    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const OverlayInputFlags flags = 0)
+    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const TKit::StringView hint = {},
+                      const OverlayInputFlags flags = 0)
     {
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
-        m_TooltipWidgetId =
-            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                             .Sizing = {snorm(0.6f), fit()},
-                                                             .ChildGap = Config.ChildGap});
+        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                        .Sizing = {snorm(0.6f), fit()},
+                                                                        .ChildGap = Config.ChildGap});
 
-        const bool updated = inputNumericBox(value, format, flags);
+        const bool updated = inputNumericBox(value, format, hint, flags);
         ly.EndPanel();
         ly.Text(label, getTextParams());
         ly.EndPanel();
         return updated;
     }
+
+    bool IsItemHovered(const OverlayHoveredFlags flags = 0);
 
     void Separator(const f32 width = 4.f)
     {
@@ -423,9 +455,9 @@ class UserInterface
         Layout &ly = getCurrentLayout();
         // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
         if constexpr (sizeof...(Args) != 0)
-            m_TooltipWidgetId = ly.Text(++m_TextId, txt, params);
+            m_LastWidget = ly.Text(++m_TextId, txt, params);
         else
-            m_TooltipWidgetId = ly.Text(txt, params);
+            m_LastWidget = ly.Text(txt, params);
     }
 
     // TODO(Isma): Implement format rounding
@@ -440,10 +472,9 @@ class UserInterface
                                                    .ChildGap = Config.ChildGap});
 
         bool pressed = false;
-        m_TooltipWidgetId =
-            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                             .Sizing = {snorm(0.6f), fit()},
-                                                             .ChildGap = Config.ChildGap});
+        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                        .Sizing = {snorm(0.6f), fit()},
+                                                                        .ChildGap = Config.ChildGap});
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
@@ -466,10 +497,9 @@ class UserInterface
                                                    .Sizing = {grow(300.f), fit()},
                                                    .ChildGap = Config.ChildGap});
 
-        m_TooltipWidgetId =
-            ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                             .Sizing = {snorm(0.6f), fit()},
-                                                             .ChildGap = Config.ChildGap});
+        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                        .Sizing = {snorm(0.6f), fit()},
+                                                                        .ChildGap = Config.ChildGap});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -516,7 +546,8 @@ class UserInterface
 
         const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered);
         if (cinfo.MustConvert)
-            return inputNumericBox(value, nullptr, OverlayInputFlag_AutoSelectAll, cinfo.MustOverrideHighlight);
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll,
+                                   cinfo.MustOverrideHighlight);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
         const f32 w = 0.5f * Config.WidgetSize;
@@ -596,7 +627,8 @@ class UserInterface
 
         const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered, true);
         if (cinfo.MustConvert)
-            return inputNumericBox(value, nullptr, OverlayInputFlag_AutoSelectAll, cinfo.MustOverrideHighlight);
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll,
+                                   cinfo.MustOverrideHighlight);
 
         if (info.Pressed)
         {
@@ -620,9 +652,11 @@ class UserInterface
         return info.Pressed;
     }
 
-    bool inputTextBox(char *buf, u32 size, OverlayInputFlags flags, bool overrideEnterFocus = false);
+    bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
+                      bool overrideEnterFocus = false);
+
     template <TKit::Numeric T>
-    bool inputNumericBox(T *value, const char *format, const OverlayInputFlags flags,
+    bool inputNumericBox(T *value, const char *format, const TKit::StringView hint, const OverlayInputFlags flags,
                          const bool overrideEnterFocus = false)
     {
         constexpr u32 bsize = ONYX_INPUT_NUMERIC_BUFFER_SIZE;
@@ -631,7 +665,7 @@ class UserInterface
         TKit::StaticString<bsize> str = TKit::StaticString<bsize>::Format(TKit::RuntimeFormatString(format), *value);
         char *buf = str.CString();
 
-        if (inputTextBox(buf, bsize, flags, overrideEnterFocus))
+        if (inputTextBox(buf, bsize, hint, flags, overrideEnterFocus))
         {
             char *end;
             if constexpr (TKit::Float<T>)
@@ -766,6 +800,7 @@ class UserInterface
 
     OverlayEventFlags m_EventFlags = 0;
 
+    // interaction info
     usz m_HoveredClicker = NullLayoutId;
     usz m_HoveredDragger = NullLayoutId;
 
@@ -775,8 +810,14 @@ class UserInterface
 
     usz m_FocusedInputter = NullLayoutId;
     usz m_DelayedFocusedInputter = NullLayoutId;
+    //
 
-    usz m_TooltipWidgetId = NullLayoutId;
+    usz m_LastWidget = NullLayoutId;
+    usz m_HoveredWidgetCandidate = NullLayoutId;
+    const Layout *m_CandidateLayout = nullptr;
+    TKit::Clock m_WidgetHoverClock{};
+
+    // automatic id for texts
     usz m_TextId = 0;
 
     // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
