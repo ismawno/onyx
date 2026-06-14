@@ -3,6 +3,7 @@
 #include "onyx/dimension.hpp"
 #include "onyx/handle.hpp"
 #include "onyx/pass.hpp"
+#include "onyx/math.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
 // (without any cpu detours)

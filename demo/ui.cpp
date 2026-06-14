@@ -20,8 +20,7 @@ int main()
         static bool enableSettings = false;
         if (ui.BeginWindow("User interface demo", flags))
         {
-            const Onyx::OverlayTreeFlags flags = Onyx::OverlayTreeFlag_DrawLines;
-            if (ui.PushTree("General", flags))
+            if (ui.PushTree("General", Onyx::OverlayTreeFlag_DrawLines))
             {
                 const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
                 ui.Text("Delta time: {:.2f} ms", ftime);
@@ -50,7 +49,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Sliders/Drags", flags))
+            if (ui.PushTree("Sliders/Drags", Onyx::OverlayTreeFlag_DrawLines))
             {
                 static f32 fval[2] = {4, 7};
                 ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
@@ -63,7 +62,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Inputs", flags))
+            if (ui.PushTree("Inputs", Onyx::OverlayTreeFlag_DrawLines))
             {
                 static Onyx::OverlayInputFlags iflags = 0;
                 ui.CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
@@ -86,7 +85,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Tooltips", flags))
+            if (ui.PushTree("Tooltips", Onyx::OverlayTreeFlag_DrawLines))
             {
                 ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered())
@@ -103,6 +102,33 @@ int main()
                 ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
                     ui.SetTooltip("Im stationary!");
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Trees", Onyx::OverlayTreeFlag_DrawLines))
+            {
+                static Onyx::OverlayTreeFlags tflags = 0;
+                ui.CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, Onyx::OverlayTreeFlag_DrawLines);
+                ui.CheckBoxFlags("OverlayTreeFlag_OpenOnArrow", &tflags, Onyx::OverlayTreeFlag_OpenOnArrow);
+                ui.CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
+                ui.CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
+                ui.CheckBoxFlags("OverlayTreeFlag_Framed", &tflags, Onyx::OverlayTreeFlag_Framed);
+                ui.CheckBoxFlags("OverlayTreeFlag_NoIndent", &tflags, Onyx::OverlayTreeFlag_NoIndent);
+
+                if (ui.PushTree("Click me", tflags))
+                {
+                    if (ui.PushTree("Simple example", tflags))
+                    {
+                        ui.Button("Hello");
+                        ui.PopTree();
+                    }
+                    if (ui.PushTree("Im open", tflags | Onyx::OverlayTreeFlag_StartOpen))
+                    {
+                        ui.Text("You can see me");
+                        ui.PopTree();
+                    }
+                    ui.PopTree();
+                }
                 ui.PopTree();
             }
         }

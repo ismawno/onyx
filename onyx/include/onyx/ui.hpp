@@ -66,6 +66,12 @@ using OverlayTreeFlags = u8;
 enum OverlayTreeFlagBit : OverlayTreeFlags
 {
     OverlayTreeFlag_DrawLines = 1U << 0,
+    OverlayTreeFlag_OpenOnArrow = 1U << 1,
+    OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
+    OverlayTreeFlag_SpanLabelWidth = 1U << 3,
+    OverlayTreeFlag_Framed = 1U << 4,
+    OverlayTreeFlag_NoIndent = 1U << 5,
+    OverlayTreeFlag_StartOpen = 1U << 6,
 };
 
 using OverlayWidgetStateFlags = u8;
@@ -148,122 +154,10 @@ struct OverlayWindow
     }
 };
 
-enum OverlayColor : u8
-{
-    OverlayColor_Idle,
-    OverlayColor_Hovered,
-    OverlayColor_Pressed,
-    OverlayColor_Text,
-    OverlayColor_Inner,
-
-    OverlayColor_TreeHovered,
-    OverlayColor_TreePressed,
-
-    OverlayColor_WindowBackgroundExpanded,
-    OverlayColor_WindowBackgroundCollapsed,
-
-    OverlayColor_WindowHeaderBackgroundExpanded,
-    OverlayColor_WindowHeaderBackgroundCollapsed,
-
-    OverlayColor_ScrollBarIdle,
-    OverlayColor_ScrollBarHovered,
-    OverlayColor_Count,
-
-    OverlayColor_ScrollBarPressed = OverlayColor_Inner,
-
-    OverlayColor_TreeText = OverlayColor_Text,
-
-    OverlayColor_WindowHeader = OverlayColor_Text,
-
-    OverlayColor_WindowBorderIdle = OverlayColor_Idle,
-    OverlayColor_WindowBorderHovered = OverlayColor_Hovered,
-    OverlayColor_WindowBorderPressed = OverlayColor_Pressed,
-
-    OverlayColor_ButtonIdle = OverlayColor_Idle,
-    OverlayColor_ButtonHovered = OverlayColor_Hovered,
-    OverlayColor_ButtonPressed = OverlayColor_Pressed,
-    OverlayColor_ButtonText = OverlayColor_Text,
-
-    OverlayColor_CheckBoxIdle = OverlayColor_Idle,
-    OverlayColor_CheckBoxHovered = OverlayColor_Hovered,
-    OverlayColor_CheckBoxPressed = OverlayColor_Pressed,
-    OverlayColor_CheckBoxText = OverlayColor_Text,
-    OverlayColor_CheckBoxInner = OverlayColor_Inner,
-
-    OverlayColor_SliderIdle = OverlayColor_Idle,
-    OverlayColor_SliderHovered = OverlayColor_Hovered,
-    OverlayColor_SliderPressed = OverlayColor_Pressed,
-    OverlayColor_SliderText = OverlayColor_Text,
-    OverlayColor_SliderInner = OverlayColor_Inner,
-
-    OverlayColor_DragIdle = OverlayColor_Idle,
-    OverlayColor_DragHovered = OverlayColor_Hovered,
-    OverlayColor_DragPressed = OverlayColor_Pressed,
-    OverlayColor_DragText = OverlayColor_Text,
-};
-
-struct OverlayColors
-{
-    Color Idle;
-    Color Hovered;
-    Color Pressed;
-    Color Text;
-    Color Inner;
-
-    Color TreeHovered;
-    Color TreePressed;
-
-    Color WindowBackgroundExpanded;
-    Color WindowBackgroundCollapsed;
-
-    Color WindowHeaderBackgroundExpanded;
-    Color WindowHeaderBackgroundCollapsed;
-
-    Color ScrollBarIdle;
-    Color ScrollBarHovered;
-};
-
-struct OverlayColorRegistry
-{
-    OverlayColorRegistry()
-        : Named{
-
-              .Idle = Color::FromHexadecimal("2D3748"),
-              .Hovered = Color::FromHexadecimal("4A5568"),
-              .Pressed = Color::FromHexadecimal("5A6A7E"),
-
-              .Text = Color::FromHexadecimal("E2E8F0"),
-              .Inner = Color::FromHexadecimal("4A8EC2"),
-
-              .TreeHovered = Color::FromHexadecimal("3A4A60"),
-              .TreePressed = Color::FromHexadecimal("4A5568"),
-
-              .WindowBackgroundExpanded = Color::FromHexadecimal("2A3F5F"),
-              .WindowBackgroundCollapsed = Color::FromHexadecimal("1E2D45D9"),
-
-              .WindowHeaderBackgroundExpanded = Color::FromHexadecimal("344E6E"),
-              .WindowHeaderBackgroundCollapsed = Color::FromHexadecimal("2A3F5FD9"),
-
-              .ScrollBarIdle = Color::FromHexadecimal("3A4F6F"),
-              .ScrollBarHovered = Color::FromHexadecimal("5A7A9E"),
-          }
-    {
-    }
-
-    union {
-        Color Flat[OverlayColor_Count];
-        OverlayColors Named;
-    };
-
-    constexpr const Color &operator[](const u32 idx) const
-    {
-        return Flat[idx];
-    }
-};
-
 struct ClickFocusInfo
 {
     bool Clicked = false;
+    bool DoubleClicked = false;
     bool Pressed = false;
     bool Hovered = false;
 };
@@ -286,46 +180,169 @@ struct InputConvertInfo
     bool MustOverrideHighlight = false;
 };
 
-struct LayoutConfig
+enum OverlayPaletteType : u8
 {
-    f32 FontSize = 14.f;
-    f32 ChildGap = 8.f;
+    OverlayPalette_Idle0,
+    OverlayPalette_Idle1,
 
-    f32 TooltipOffset = 12.f;
-    f32 TooltipPadding = 4.f;
+    OverlayPalette_Hovered0,
+    OverlayPalette_Hovered1,
+    OverlayPalette_Hovered2,
 
-    f32 WindowPadding = 8.f;
-    f32 WindowBorderWidth = 4.f;
-    f32 WindowSpawnDelta = 32.f;
-    f32 HeaderPadding = 4.f;
-    f32 HeaderButtonWidth = 20.f;
-    f32 BorderHoverPadding = 8.f;
-    f32 ContentAreaPadding = 4.f;
+    OverlayPalette_Pressed0,
+    OverlayPalette_Pressed1,
 
-    f32 ScrollBarWidth = 8.f;
-    f32 ScrollSensitivity = 16.f;
-    f32 ScrollMargin = 24.f;
+    OverlayPalette_Text0,
 
-    f32 WidgetSize = 24.f;
-    f32 WidgetPadding = 6.f;
+    OverlayPalette_Inner0,
 
-    f32 ClickMilliseconds = 200.f;
-    f32 CursorWidth = 2.f;
+    OverlayPalette_Background0,
+    OverlayPalette_Background1,
+    OverlayPalette_Background2,
+    OverlayPalette_Background3,
 
-    f32 HoverDelayShort = 0.15f;
-    f32 HoverDelayNormal = 0.40f;
-    f32 HoverStationaryThreshold = 5.f;
+    OverlayPalette_Count,
+};
 
-    f32 BoxInputHintAlpha = 0.4f;
-    f32 BoxInputCursorAlpha = 0.6f;
-    Key BoxInputTrigger = Key_LeftControl;
+enum OverlayColor : u8
+{
+    OverlayColor_Text,
+    OverlayColor_Highlight,
+    OverlayColor_Line,
+
+    OverlayColor_WindowBorderIdle,
+    OverlayColor_WindowBorderHovered,
+    OverlayColor_WindowBorderPressed,
+    OverlayColor_WindowHeader,
+
+    OverlayColor_ButtonIdle,
+    OverlayColor_ButtonHovered,
+    OverlayColor_ButtonPressed,
+    OverlayColor_ButtonText,
+
+    OverlayColor_CheckBoxIdle,
+    OverlayColor_CheckBoxHovered,
+    OverlayColor_CheckBoxPressed,
+    OverlayColor_CheckBoxText,
+    OverlayColor_CheckBoxInner,
+
+    OverlayColor_SliderIdle,
+    OverlayColor_SliderHovered,
+    OverlayColor_SliderPressed,
+    OverlayColor_SliderText,
+    OverlayColor_SliderInner,
+
+    OverlayColor_DragIdle,
+    OverlayColor_DragHovered,
+    OverlayColor_DragPressed,
+    OverlayColor_DragText,
+
+    OverlayColor_TreeIdle,
+    OverlayColor_TreeHovered,
+    OverlayColor_TreePressed,
+    OverlayColor_TreeText,
+
+    OverlayColor_WindowBackgroundExpanded,
+    OverlayColor_WindowBackgroundCollapsed,
+
+    OverlayColor_WindowHeaderBackgroundExpanded,
+    OverlayColor_WindowHeaderBackgroundCollapsed,
+
+    OverlayColor_ScrollBarIdle,
+    OverlayColor_ScrollBarHovered,
+    OverlayColor_ScrollBarPressed,
+    OverlayColor_Count,
+};
+
+enum OverlayStyleType : u8
+{
+    OverlayStyle_FontSize,
+    OverlayStyle_ChildGap,
+
+    OverlayStyle_TooltipOffset,
+    OverlayStyle_TooltipPadding,
+
+    OverlayStyle_WindowPadding,
+    OverlayStyle_WindowBorderWidth,
+    OverlayStyle_WindowSpawnDelta,
+
+    OverlayStyle_HeaderPadding,
+    OverlayStyle_HeaderButtonWidth,
+
+    OverlayStyle_BorderHoverPadding,
+    OverlayStyle_ContentAreaPadding,
+
+    OverlayStyle_ScrollBarWidth,
+    OverlayStyle_ScrollSensitivity,
+    OverlayStyle_ScrollMargin,
+
+    OverlayStyle_WidgetSize,
+    OverlayStyle_WidgetPadding,
+
+    OverlayStyle_TreeLineWidth,
+
+    OverlayStyle_ClickMilliseconds,
+    OverlayStyle_CursorWidth,
+
+    OverlayStyle_HoverDelayShort,
+    OverlayStyle_HoverDelayNormal,
+    OverlayStyle_HoverStationaryThreshold,
+
+    OverlayStyle_BoxInputHintAlpha,
+    OverlayStyle_BoxInputCursorAlpha,
+
+    OverlayStyle_Count
+};
+
+using OverlayPalette = TKit::FixedArray<Color, OverlayPalette_Count>;
+using OverlayColors = TKit::FixedArray<Color, OverlayColor_Count>;
+using OverlayStyleVariables = TKit::FixedArray<f32, OverlayStyle_Count>;
+
+OverlayStyleVariables CreateDefaultOverlayVariables();
+OverlayPalette CreateDefaultOverlayPalette();
+
+OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette);
+
+struct ColorBackup
+{
+    Color Old;
+    OverlayColor Index;
+};
+
+struct StyleBackup
+{
+    f32 Old;
+    OverlayStyleType Index;
+};
+
+struct OverlayStyle
+{
+    OverlayStyleVariables Variables = CreateDefaultOverlayVariables();
+    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateDefaultOverlayPalette());
+
+    constexpr f32 operator[](const OverlayStyleType idx) const
+    {
+        return Variables[idx];
+    }
+    constexpr f32 &operator[](const OverlayStyleType idx)
+    {
+        return Variables[idx];
+    }
+
+    constexpr const Color &operator[](const OverlayColor idx) const
+    {
+        return Colors[idx];
+    }
+    constexpr Color &operator[](const OverlayColor idx)
+    {
+        return Colors[idx];
+    }
 };
 
 struct UserInterfaceSpecs
 {
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
-    OverlayColorRegistry Colors{};
-    LayoutConfig Config{};
+    OverlayStyle Style{};
 };
 
 // TODO(Isma): Implement bitset with pressed keys for control etc. as well for mouse
@@ -390,10 +407,10 @@ class Overlay
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = Config.ChildGap});
+                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                                         .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = Config.ChildGap});
+                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         const bool updated = inputNumericBox(value, format, hint, flags);
         ly.EndPanel();
@@ -415,13 +432,13 @@ class Overlay
     void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
     void HorizontalLine(const f32 width = 4.f)
     {
-        getCurrentLayout().Panel(LayoutPanelParameters{
-            .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {grow(), sabs(width)}});
+        getCurrentLayout().Panel(
+            LayoutPanelParameters{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}});
     }
     void VerticalLine(const f32 width = 4.f)
     {
-        getCurrentLayout().Panel(LayoutPanelParameters{
-            .FillColor = m_Colors[OverlayColor_WindowHeaderBackgroundExpanded], .Sizing = {sabs(width), grow()}});
+        getCurrentLayout().Panel(
+            LayoutPanelParameters{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}});
     }
 
     Layout *BeginPanel(const LayoutPanelParameters &params = {})
@@ -455,12 +472,36 @@ class Overlay
         Pop();
     }
 
+    void PushStyleVar(const OverlayStyleType var, const f32 val)
+    {
+        m_StyleStack.Append(m_Style[var], var);
+        m_Style[var] = val;
+    }
+
+    void PopStyleVar()
+    {
+        const StyleBackup &b = m_StyleStack.GetBack();
+        m_Style[b.Index] = b.Old;
+    }
+
+    void PushStyleColor(const OverlayColor color, const Color &col)
+    {
+        m_ColorStack.Append(m_Style[color], color);
+        m_Style[color] = col;
+    }
+
+    void PopStyleColor()
+    {
+        const ColorBackup &b = m_ColorStack.GetBack();
+        m_Style[b.Index] = b.Old;
+    }
+
     void PushDirection(const LayoutDirection dir)
     {
         BeginPanel({.Direction = dir,
                     .Alignment = {Alignment_Left, Alignment_Top},
                     .Sizing = fit(),
-                    .ChildGap = Config.ChildGap});
+                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
     }
     void PushIndent(const f32 indent)
     {
@@ -468,7 +509,7 @@ class Overlay
                     .Alignment = {Alignment_Left, Alignment_Top},
                     .Sizing = fit(),
                     .ChildOffset = oabs({indent, 0.f}),
-                    .ChildGap = Config.ChildGap});
+                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
     }
 
     Layout *GetCurrentLayout()
@@ -512,12 +553,12 @@ class Overlay
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = Config.ChildGap});
+                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         bool pressed = false;
         m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                                         .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = Config.ChildGap});
+                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
@@ -538,11 +579,11 @@ class Overlay
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                    .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = Config.ChildGap});
+                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                                         .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = Config.ChildGap});
+                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -560,8 +601,6 @@ class Overlay
 
     void Draw();
 
-    LayoutConfig Config;
-
   private:
     bool checkFlags(const OverlayWindowFlags flags) const
     {
@@ -574,16 +613,16 @@ class Overlay
         const LayoutElement *elm = ly.QueryElement("Slider box");
         format = getFormat<T>(format);
 
-        const Color *col = &m_Colors[OverlayColor_SliderIdle];
+        const Color *col = &m_Style[OverlayColor_SliderIdle];
         DragFocusInfo info{};
         if (elm)
         {
             info = getDragFocusInfo(elm);
 
             if (info.Pressed)
-                col = &m_Colors[OverlayColor_SliderPressed];
+                col = &m_Style[OverlayColor_SliderPressed];
             else if (info.Hovered)
-                col = &m_Colors[OverlayColor_SliderHovered];
+                col = &m_Style[OverlayColor_SliderHovered];
             info.Pressed = info.Pressed;
         }
 
@@ -593,13 +632,13 @@ class Overlay
                                    cinfo.MustOverrideHighlight);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
-        const f32 w = 0.5f * Config.WidgetSize;
+        const f32 w = 0.5f * m_Style[OverlayStyle_WidgetSize];
 
-        const f32 maxOffset = 0.5f * (length - w) - Config.WidgetPadding;
+        const f32 maxOffset = 0.5f * (length - w) - m_Style[OverlayStyle_WidgetPadding];
 
         f32 offset = 0.f;
         const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
-        if (info.Pressed && !m_Window->IsKeyPressed(Config.BoxInputTrigger))
+        if (info.Pressed && !m_Window->IsKeyPressed(Key_LeftControl))
         {
             const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
@@ -620,7 +659,7 @@ class Overlay
         ly.BeginPanel("Slider box", LayoutPanelParameters{.FillColor = *col,
                                                           .Alignment = {Alignment_Left, Alignment_Center},
                                                           .Sizing = {grow(), fit()},
-                                                          .Padding = Config.WidgetPadding});
+                                                          .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text
         // length cannot interfere with slider button positioning in layout calculation
@@ -632,7 +671,7 @@ class Overlay
         ly.BeginPanel("Slider slot",
                       LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
-        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Colors[OverlayColor_SliderInner],
+        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Style[OverlayColor_SliderInner],
                                                         .Sizing = {sabs(w), grow()},
                                                         .SelfOffset = oabs({offset, 0.f})});
 
@@ -656,16 +695,16 @@ class Overlay
         format = getFormat<T>(format);
 
         const LayoutElement *elm = ly.QueryElement("Drag box");
-        const Color *col = &m_Colors[OverlayColor_DragIdle];
+        const Color *col = &m_Style[OverlayColor_DragIdle];
         DragFocusInfo info{};
         if (elm)
         {
             info = getDragFocusInfo(elm);
 
             if (info.Pressed)
-                col = &m_Colors[OverlayColor_DragPressed];
+                col = &m_Style[OverlayColor_DragPressed];
             else if (info.Hovered)
-                col = &m_Colors[OverlayColor_DragHovered];
+                col = &m_Style[OverlayColor_DragHovered];
         }
 
         const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered, true);
@@ -686,7 +725,7 @@ class Overlay
         ly.BeginPanel("Drag box", LayoutPanelParameters{.FillColor = *col,
                                                         .Alignment = Alignment_Center,
                                                         .Sizing = {grow(), fit()},
-                                                        .Padding = Config.WidgetPadding});
+                                                        .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(text, getTextParams(OverlayColor_DragText));
@@ -760,14 +799,13 @@ class Overlay
     void drawWindowBorders();
     void drawWindowScrollBar();
 
-    OverlayWidgetStateFlags getWidgetState(const usz id)
+    OverlayWidgetStateFlags getWidgetState(const usz id, const OverlayWidgetStateFlags fallback = 0)
     {
-        const auto it = m_WidgetStates.Find(id);
-        return it == m_WidgetStates.end() ? 0 : it->Value;
+        return m_WidgetStates.TryInsert(id, fallback);
     }
-    bool getWidgetState(const usz id, const OverlayWidgetStateFlags flags)
+    bool checkWidgetState(const usz id, const OverlayWidgetStateFlags flags, const OverlayWidgetStateFlags fallback = 0)
     {
-        return getWidgetState(id) & flags;
+        return getWidgetState(id, fallback) & flags;
     }
     void toggleWidgetState(const usz id, const OverlayWidgetStateFlagBit bit)
     {
@@ -789,11 +827,11 @@ class Overlay
 
     LayoutTextParameters getTextParams(const OverlayColor color = OverlayColor_Text) const
     {
-        return {.FillColor = m_Colors[color], .FontSize = Config.FontSize};
+        return {.FillColor = m_Style[color], .FontSize = m_Style[OverlayStyle_FontSize]};
     }
     LayoutUnicodeParameters getUnicodeParams(const OverlayColor color) const
     {
-        return {.FillColor = m_Colors[color], .Size = Config.FontSize};
+        return {.FillColor = m_Style[color], .Size = m_Style[OverlayStyle_FontSize]};
     }
 
     static constexpr LayoutSizing fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
@@ -854,7 +892,9 @@ class Overlay
     f32v2 m_MouseDelta{0.f};
     f32 m_WindowSpawnOffset = 0.f;
 
-    OverlayColorRegistry m_Colors{};
+    OverlayStyle m_Style{};
+    TKit::TierArray<ColorBackup> m_ColorStack{};
+    TKit::TierArray<StyleBackup> m_StyleStack{};
 
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;

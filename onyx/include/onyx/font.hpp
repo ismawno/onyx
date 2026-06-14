@@ -69,102 +69,48 @@ enum FontCharSet : u32
     CharSet_Count
 };
 
-struct CodePointRegistry
+struct CodePoints
 {
-    CodePointRange ASCII;
-    CodePointRange Latin1Supplement;
-    CodePointRange LatinExtendedA;
-    CodePointRange LatinExtendedB;
-    CodePointRange Greek;
-    CodePointRange Cyrillic;
-    CodePointRange Arrows;
-    CodePointRange MathOperators;
-    CodePointRange MiscTechnical;
-    CodePointRange EnclosedAlphanumerics;
-    CodePointRange BoxDrawing;
-    CodePointRange BlockElements;
-    CodePointRange GeometricShapes;
-    CodePointRange MiscSymbols;
-    CodePointRange Dingbats;
-    CodePointRange MiscSymbolsAndArrows;
-    CodePointRange BraillePatterns;
-    CodePointRange ControlPictures;
-    CodePointRange OCR;
-    CodePointRange YijingHexagrams;
-    CodePointRange EnclosedAlphanumSupplement;
-    CodePointRange MiscSymbolsAndPictographs;
-    CodePointRange AlchemicalSymbols;
-    CodePointRange TransportAndMap;
-    CodePointRange GeometricShapesExtended;
-    CodePointRange SupplementalArrowsC;
-    CodePointRange OrnamentalDingbats;
-    CodePointRange ChessSymbols;
-    CodePointRange PlayingCards;
-    CodePointRange DominoTiles;
-    CodePointRange MahjongTiles;
-    CodePointRange TaiXuanJing;
-    CodePointRange AncientSymbols;
-    CodePointRange PhaistosDisc;
-    CodePointRange LegacyComputing;
-    CodePointRange SymbolsPictographsExtA;
+    CodePointRange ASCII{32, 126};
+    CodePointRange Latin1Supplement{160, 255};
+    CodePointRange LatinExtendedA{256, 383};
+    CodePointRange LatinExtendedB{384, 591};
+    CodePointRange Greek{880, 1023};
+    CodePointRange Cyrillic{1024, 1279};
+    CodePointRange Arrows{8592, 8703};
+    CodePointRange MathOperators{8704, 8959};
+    CodePointRange MiscTechnical{8960, 9215};
+    CodePointRange EnclosedAlphanumerics{9312, 9471};
+    CodePointRange BoxDrawing{9472, 9599};
+    CodePointRange BlockElements{9600, 9631};
+    CodePointRange GeometricShapes{9632, 9727};
+    CodePointRange MiscSymbols{9728, 9983};
+    CodePointRange Dingbats{9984, 10175};
+    CodePointRange MiscSymbolsAndArrows{11008, 11263};
+    CodePointRange BraillePatterns{10240, 10495};
+    CodePointRange ControlPictures{9216, 9279};
+    CodePointRange OCR{9280, 9311};
+    CodePointRange YijingHexagrams{19904, 19967};
+    CodePointRange EnclosedAlphanumSupplement{0x1F100, 0x1F1FF};
+    CodePointRange MiscSymbolsAndPictographs{0x1F300, 0x1F5FF};
+    CodePointRange AlchemicalSymbols{0x1F700, 0x1F77F};
+    CodePointRange TransportAndMap{0x1F680, 0x1F6FF};
+    CodePointRange GeometricShapesExtended{0x1F780, 0x1F7FF};
+    CodePointRange SupplementalArrowsC{0x1F800, 0x1F8FF};
+    CodePointRange OrnamentalDingbats{0x1F650, 0x1F67F};
+    CodePointRange ChessSymbols{0x1FA00, 0x1FA6F};
+    CodePointRange PlayingCards{0x1F0A0, 0x1F0FF};
+    CodePointRange DominoTiles{0x1F030, 0x1F09F};
+    CodePointRange MahjongTiles{0x1F000, 0x1F02F};
+    CodePointRange TaiXuanJing{0x1D300, 0x1D35F};
+    CodePointRange AncientSymbols{0x10190, 0x101CF};
+    CodePointRange PhaistosDisc{0x101D0, 0x101FF};
+    CodePointRange LegacyComputing{0x1FB00, 0x1FBFF};
+    CodePointRange SymbolsPictographsExtA{0x1FA70, 0x1FAFF};
 };
 
-struct CharSetRegistry
-{
-    constexpr CharSetRegistry()
-        : Named{
-              .ASCII = {32, 126},
-              .Latin1Supplement = {160, 255},
-              .LatinExtendedA = {256, 383},
-              .LatinExtendedB = {384, 591},
-              .Greek = {880, 1023},
-              .Cyrillic = {1024, 1279},
-              .Arrows = {8592, 8703},
-              .MathOperators = {8704, 8959},
-              .MiscTechnical = {8960, 9215},
-              .EnclosedAlphanumerics = {9312, 9471},
-              .BoxDrawing = {9472, 9599},
-              .BlockElements = {9600, 9631},
-              .GeometricShapes = {9632, 9727},
-              .MiscSymbols = {9728, 9983},
-              .Dingbats = {9984, 10175},
-              .MiscSymbolsAndArrows = {11008, 11263},
-              .BraillePatterns = {10240, 10495},
-              .ControlPictures = {9216, 9279},
-              .OCR = {9280, 9311},
-              .YijingHexagrams = {19904, 19967},
-              .EnclosedAlphanumSupplement = {0x1F100, 0x1F1FF},
-              .MiscSymbolsAndPictographs = {0x1F300, 0x1F5FF},
-              .AlchemicalSymbols = {0x1F700, 0x1F77F},
-              .TransportAndMap = {0x1F680, 0x1F6FF},
-              .GeometricShapesExtended = {0x1F780, 0x1F7FF},
-              .SupplementalArrowsC = {0x1F800, 0x1F8FF},
-              .OrnamentalDingbats = {0x1F650, 0x1F67F},
-              .ChessSymbols = {0x1FA00, 0x1FA6F},
-              .PlayingCards = {0x1F0A0, 0x1F0FF},
-              .DominoTiles = {0x1F030, 0x1F09F},
-              .MahjongTiles = {0x1F000, 0x1F02F},
-              .TaiXuanJing = {0x1D300, 0x1D35F},
-              .AncientSymbols = {0x10190, 0x101CF},
-              .PhaistosDisc = {0x101D0, 0x101FF},
-              .LegacyComputing = {0x1FB00, 0x1FBFF},
-              .SymbolsPictographsExtA = {0x1FA70, 0x1FAFF},
-          }
-    {
-    }
-
-    union {
-        CodePointRange Flat[CharSet_Count];
-        CodePointRegistry Named;
-    };
-
-    constexpr const CodePointRange &operator[](const u32 idx) const
-    {
-        return Flat[idx];
-    }
-};
-
-constexpr CharSetRegistry CharSets{};
+constexpr CodePoints CharSets{};
+constexpr const CodePointRange *CharSetsArray = &CharSets.ASCII;
 
 struct CharSet
 {
@@ -270,7 +216,7 @@ struct FontData
 #ifdef ONYX_ENABLE_FONT_LOAD
 struct FontLoadOptions
 {
-    CharSet CharSet{CharSets[CharSet_ASCII]};
+    CharSet CharSet{CharSets.ASCII};
     f32 Padding = 2.f;
     f32 SDFRange = 4.f;
     f32 FontScale = 1.f;
