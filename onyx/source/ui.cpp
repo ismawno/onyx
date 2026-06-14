@@ -292,7 +292,7 @@ bool Overlay::PushTree(const LayoutId id, const TKit::StringView label, const Ov
 
     const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
 
-    const Color *col = &m_Colors[OverlayColor_TreeIdle];
+    const Color *col = &Color_Transparent;
     if (info.Pressed)
         col = &m_Colors[OverlayColor_TreePressed];
     else if (info.Hovered)

@@ -156,7 +156,6 @@ enum OverlayColor : u8
     OverlayColor_Text,
     OverlayColor_Inner,
 
-    OverlayColor_TreeIdle,
     OverlayColor_TreeHovered,
     OverlayColor_TreePressed,
 
@@ -211,7 +210,6 @@ struct OverlayColors
     Color Text;
     Color Inner;
 
-    Color TreeIdle;
     Color TreeHovered;
     Color TreePressed;
 
@@ -237,7 +235,6 @@ struct OverlayColorRegistry
               .Text = Color::FromHexadecimal("E2E8F0"),
               .Inner = Color::FromHexadecimal("4A8EC2"),
 
-              .TreeIdle = Color_Transparent,
               .TreeHovered = Color::FromHexadecimal("3A4A60"),
               .TreePressed = Color::FromHexadecimal("4A5568"),
 
