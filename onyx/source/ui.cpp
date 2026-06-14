@@ -286,6 +286,71 @@ void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOf
     ly.EndPanel();
 }
 
+bool Overlay::PushTree(const LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
+{
+    Layout &ly = getCurrentLayout();
+
+    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
+
+    const Color *col = &m_Colors[OverlayColor_TreeIdle];
+    if (info.Pressed)
+        col = &m_Colors[OverlayColor_TreePressed];
+    else if (info.Hovered)
+        col = &m_Colors[OverlayColor_TreeHovered];
+
+    const vec2<LayoutSizing> sizing = {grow(), fit()};
+
+    m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
+                                                           .Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = sizing,
+                                                           .Padding = Config.HeaderPadding,
+                                                           .ChildGap = Config.ChildGap});
+
+    const bool opened = getWidgetState(m_LastWidget, OverlayWidgetStateFlag_TreeOpened);
+
+    ly.BeginPanel("Tree collapse", LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                         .Sizing = {sabs(Config.HeaderButtonWidth), fit()}});
+
+    ly.Unicode(opened ? m_ExpandedHeaderIcon : m_CollapsedHeaderIcon, getUnicodeParams(OverlayColor_TreeText));
+
+    ly.EndPanel();
+
+    ly.Text(label, getTextParams(OverlayColor_TreeText));
+    ly.EndPanel();
+
+    if (info.Clicked)
+        toggleWidgetState(m_LastWidget, OverlayWidgetStateFlag_TreeOpened);
+
+    if (!opened)
+        return false;
+
+    const FontData &fdata = getFontData();
+    const f32 fs = Config.FontSize;
+
+    const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(m_ExpandedHeaderIcon)->Advance, Config.HeaderButtonWidth);
+    const f32 treeIndent = iconWidth + 2.f * Config.HeaderPadding;
+
+    const bool lines = flags & OverlayTreeFlag_DrawLines;
+
+    ly.BeginPanel(LayoutPanelParameters{
+        .Direction = LayoutDirection_LeftToRight, .Alignment = {Alignment_Left, Alignment_Top}, .Sizing = sizing});
+
+    ly.BeginPanel(LayoutPanelParameters{
+        .Direction = LayoutDirection_TopToBottom, .Alignment = Alignment_Center, .Sizing = {sabs(treeIndent), grow()}});
+
+    if (lines)
+        VerticalLine();
+
+    ly.EndPanel();
+
+    ly.BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
+                                        .Alignment = {Alignment_Left, Alignment_Top},
+                                        .Sizing = sizing,
+                                        .ChildGap = Config.ChildGap});
+
+    return true;
+}
+
 bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hint, const OverlayInputFlags flags,
                            const bool overrideEnterFocus)
 {
@@ -317,7 +382,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     {
         const bool elide = flags & OverlayInputFlag_ElideLeft;
         const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
-        const bool useHint = strSize == 0 && hint;
+        const bool useHint = strSize == 0 && !hint.IsEmpty();
 
         tparams.Offset[0] = oabs(textOffset);
         if (useHint)
@@ -460,11 +525,11 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         const f32 textOffset = noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - Config.CursorWidth);
 
         tparams.Offset[0] = oabs(textOffset);
-        const bool useHint = str.IsEmpty() && hint;
+        const bool useHint = str.IsEmpty() && !hint.IsEmpty();
         if (useHint)
         {
             tparams.FillColor.rgba[3] = Config.BoxInputHintAlpha;
-            ly.Text(str.IsEmpty() && hint ? hint : str, tparams);
+            ly.Text(useHint ? hint : str, tparams);
         }
         else
             ly.Text(str, tparams);
@@ -615,7 +680,7 @@ bool Overlay::collapseButton()
 
     ly.BeginPanel("Collapse button", LayoutPanelParameters{.FillColor = *col,
                                                            .Alignment = Alignment_Center,
-                                                           .Sizing = {fit(20.f, TKIT_F32_MAX), fit()}});
+                                                           .Sizing = {sabs(Config.HeaderButtonWidth), fit()}});
 
     ly.Unicode(m_Current->HeaderIcon, getUnicodeParams(OverlayColor_WindowHeader));
 

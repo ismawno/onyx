@@ -138,7 +138,7 @@ void Layout::endPanel()
     PopId();
 }
 
-usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextParameters &params)
+usz Layout::Text(const LayoutId label, const TKit::StringView text, const LayoutTextParameters &params)
 {
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
@@ -179,18 +179,19 @@ usz Layout::Text(const usz label, const TKit::StringView text, const LayoutTextP
 
     const f32 fs = params.FontSize;
     current.FontSize = fs;
-    current.Size = fs * fdata.ComputeTextSize(text);
+    current.Size = Math::Max(fs * fdata.ComputeTextSize(text), params.MinSize);
 
     current.MinSize[0] =
         current.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : current.Size[0];
     current.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero
-    // current.MinSize = f32v2{0.f};
+
+    current.MinSize = Math::Max(current.MinSize, params.MinSize);
     current.MaxSize = f32v2{TKIT_F32_MAX};
     return current.Id;
 }
 
 // NOTE(Isma): A bit repetitive here with text
-usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodeParameters &params)
+usz Layout::Unicode(const LayoutId label, const CodePoint code, const LayoutUnicodeParameters &params)
 {
     const u32 c = m_Elements.GetSize();
 
@@ -231,7 +232,7 @@ usz Layout::Unicode(const usz label, const CodePoint code, const LayoutUnicodePa
 
     const f32 fs = params.Size;
     current.FontSize = fs;
-    current.Size = fs * f32v2{gdata.Advance, fdata.LineHeight};
+    current.Size = Math::Max(fs * f32v2{gdata.Advance, fdata.LineHeight}, params.MinSize);
 
     current.MinSize = current.Size;
     current.MaxSize = f32v2{TKIT_F32_MAX};

@@ -268,6 +268,7 @@ struct LayoutDrawInfo
     RenderModeFlags RenderFlags;
 };
 
+// TODO(Isma): Add texture handle as well, next to material. Trigger an assert if both are provided
 struct LayoutPanelParameters
 {
     Color FillColor = Color_Transparent;
@@ -297,6 +298,7 @@ struct LayoutTextParameters
     LayoutTextMode Mode = TextMode_Unbounded;
     f32 FontSize = 1.f;
     f32 OutlineWidth = 0.f;
+    f32v2 MinSize{0.f};
     vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
     Resource Font = NullHandle;
     Resource Material = NullHandle;
@@ -308,6 +310,7 @@ struct LayoutUnicodeParameters
     Color OutlineColor = Color_Transparent;
     f32 Size = 1.f;
     f32 OutlineWidth = 0.f;
+    f32v2 MinSize{0.f};
     vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
     Resource Font = NullHandle;
     Resource Material = NullHandle;
@@ -321,6 +324,35 @@ struct LayoutSpecs
     Resource Font = NullHandle;
 };
 
+struct LayoutId
+{
+    LayoutId() = default;
+    LayoutId(const usz id) : Id(id)
+    {
+    }
+    LayoutId(const char *label) : LayoutId(TKit::StringView{label})
+    {
+    }
+    LayoutId(const TKit::StringView label) : Id(TKit::Hash(label))
+    {
+    }
+    LayoutId(const CodePoint code) : Id(TKit::Hash(code))
+    {
+    }
+    template <typename T>
+        requires(!std::same_as<T, char>)
+    LayoutId(const T *id) : Id(TKit::Hash(id))
+    {
+    }
+
+    operator usz() const
+    {
+        return Id;
+    }
+
+    usz Id;
+};
+
 // TODO(Isma): Have a tkit macro for this ::Max()
 constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
 
@@ -329,15 +361,11 @@ class Layout
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(usz label, const LayoutPanelParameters &params = {})
+    usz BeginPanel(const LayoutId label, const LayoutPanelParameters &params = {})
     {
         const usz id = beginPanel(label, params);
         PushId(label);
         return id;
-    }
-    usz BeginPanel(const TKit::StringView label, const LayoutPanelParameters &params = {})
-    {
-        return BeginPanel(TKit::Hash(label), params);
     }
 
     // here id is not guaranteed to be persisted accross frames, so no point in returning it
@@ -346,15 +374,11 @@ class Layout
         BeginPanel(++m_AutoLabel, params);
     }
 
-    usz Panel(usz label, const LayoutPanelParameters &params = {})
+    usz Panel(const LayoutId label, const LayoutPanelParameters &params = {})
     {
         const usz id = beginPanel(label, params);
         endPanel();
         return id;
-    }
-    usz Panel(const TKit::StringView label, const LayoutPanelParameters &params = {})
-    {
-        return Panel(TKit::Hash(label), params);
     }
     void Panel(const LayoutPanelParameters &params = {})
     {
@@ -367,37 +391,29 @@ class Layout
         endPanel();
     }
 
-    usz Text(usz label, TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(LayoutId label, TKit::StringView text, const LayoutTextParameters &params = {});
     usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        return Text(TKit::Hash(text), text, params);
+        return Text(text, text, params);
     }
 
-    usz Unicode(usz label, CodePoint code, const LayoutUnicodeParameters &params = {});
-    usz Unicode(const usz label, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    usz Unicode(LayoutId label, CodePoint code, const LayoutUnicodeParameters &params = {});
+    usz Unicode(const LayoutId label, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(label, DecodeUTF8(code.GetData()), params);
     }
     usz Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
     {
-        return Unicode(TKit::Hash(code), code, params);
+        return Unicode(code, code, params);
     }
     usz Unicode(const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(DecodeUTF8(code.GetData()), params);
     }
 
-    usz GetNextId(const usz label) const
+    usz GetNextId(const LayoutId label) const
     {
-        return TKit::Hash(m_IdStack.GetBack(), label);
-    }
-    usz GetNextId(const TKit::StringView label) const
-    {
-        return GetNextId(TKit::Hash(label));
-    }
-    usz GetNextId(const CodePoint code) const
-    {
-        return GetNextId(TKit::Hash(code));
+        return TKit::Hash(m_IdStack.GetBack(), label.Id);
     }
 
     const LayoutElement &GetCurrentElement() const
@@ -407,14 +423,10 @@ class Layout
 
     const LayoutElement *QueryElement(usz id) const;
 
-    // These only work if called within the same id stack
-    const LayoutElement *QueryElement(const TKit::StringView label) const
+    // This only works if called within the same id stack
+    const LayoutElement *QueryElement(const LayoutId label) const
     {
-        return QueryElement(GetNextId(TKit::Hash(label)));
-    }
-    const LayoutElement *QueryElement(const CodePoint code) const
-    {
-        return QueryElement(GetNextId(TKit::Hash(code)));
+        return QueryElement(GetNextId(label));
     }
 
     bool IsHovered(const usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const
@@ -423,14 +435,10 @@ class Layout
         return elm ? elm->IsHovered(point, padding) : false;
     }
 
-    // These only work if called within the same id stack
-    bool IsHovered(const TKit::StringView label, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    // This only works if called within the same id stack
+    bool IsHovered(const LayoutId label, const f32v2 &point, const f32v2 &padding = {0.f}) const
     {
-        return IsHovered(GetNextId(TKit::Hash(label)), point, padding);
-    }
-    bool IsHovered(const CodePoint code, const f32v2 &point, const f32v2 &padding = {0.f}) const
-    {
-        return IsHovered(GetNextId(TKit::Hash(code)), point, padding);
+        return IsHovered(GetNextId(label), point, padding);
     }
 
     void Compile();
@@ -440,21 +448,11 @@ class Layout
         return m_DrawInfo;
     }
 
-    void PushId(const usz id)
+    void PushId(const LayoutId label)
     {
-        m_IdStack.Append(GetNextId(id));
-    }
-    void PushId(const TKit::StringView id)
-    {
-        PushId(TKit::Hash(id));
+        m_IdStack.Append(GetNextId(label));
     }
 
-    template <typename T>
-        requires(!std::same_as<T, char>)
-    void PushId(const T *id)
-    {
-        PushId(TKit::Hash(id));
-    }
     void PopId()
     {
         m_IdStack.Pop();

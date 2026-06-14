@@ -73,7 +73,7 @@ Result<Path> OpenSingle(const Options &options)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     TKit::StackArray<nfdnfilteritem_t> filters{};
-    if (options.Filters)
+    if (!options.Filters.IsEmpty())
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)
@@ -102,7 +102,7 @@ Result<Paths> OpenMultiple(const Options &options)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     TKit::StackArray<nfdnfilteritem_t> filters{};
-    if (options.Filters)
+    if (!options.Filters.IsEmpty())
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)

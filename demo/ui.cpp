@@ -20,77 +20,91 @@ int main()
         static bool enableSettings = false;
         if (ui.BeginWindow("User interface demo", flags))
         {
-            ui.HorizontalSeparator("General");
-            const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
-            ui.Text("Delta time: {:.2f} ms", ftime);
-            if (ui.BeginItemTooltip())
+            const Onyx::OverlayTreeFlags flags = Onyx::OverlayTreeFlag_DrawLines;
+            if (ui.PushTree("General", flags))
             {
-                ui.Text("Im a tooltip!");
-                ui.Text("And this is the time that passes between frames");
-                ui.EndTooltip();
+                const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
+                ui.Text("Delta time: {:.2f} ms", ftime);
+                if (ui.BeginItemTooltip())
+                {
+                    ui.Text("Im a tooltip!");
+                    ui.Text("And this is the time that passes between frames");
+                    ui.EndTooltip();
+                }
+
+                ui.CheckBox("Open widow settings", &enableSettings);
+
+                static bool helloText = false;
+                if (ui.Button("This is a button"))
+                    helloText = !helloText;
+
+                if (helloText)
+                    ui.Text("Hi!");
+
+                ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
+                static u32 radio = 0;
+                ui.RadioButton("Im enabled!", &radio, 0);
+                ui.RadioButton("Im not :(", &radio, 1);
+
+                ui.Pop();
+                ui.PopTree();
             }
 
-            ui.CheckBox("Open widow settings", &enableSettings);
+            if (ui.PushTree("Sliders/Drags", flags))
+            {
+                static f32 fval[2] = {4, 7};
+                ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
 
-            static bool helloText = false;
-            if (ui.Button("This is a button"))
-                helloText = !helloText;
+                static i32 ival = 7;
+                ui.HorizontalSlider("My slider int", &ival, -3, 28);
 
-            if (helloText)
-                ui.Text("Hi!");
+                static u32 uval2[3] = {7, 2, 5};
+                ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
+                ui.PopTree();
+            }
 
-            ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
-            static u32 radio = 0;
-            ui.RadioButton("Im enabled!", &radio, 0);
-            ui.RadioButton("Im not :(", &radio, 1);
-            ui.Pop();
+            if (ui.PushTree("Inputs", flags))
+            {
+                static Onyx::OverlayInputFlags iflags = 0;
+                ui.CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
+                ui.CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags,
+                                 Onyx::OverlayInputFlag_EnterCommitsBuffer);
+                ui.CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
+                ui.CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
+                ui.CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags,
+                                 Onyx::OverlayInputFlag_NoHorizontalScroll);
+                ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
 
-            ui.HorizontalSeparator("Sliders/Drags");
-            static f32 fval[2] = {4, 7};
-            ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
+                static char buf1[32] = "This is some nice text";
+                ui.InputText("Text 1", buf1, 32, "Im a little hint", iflags);
 
-            static i32 ival = 7;
-            ui.HorizontalSlider("My slider int", &ival, -3, 28);
+                static i32 iival = 4;
+                ui.InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
 
-            static u32 uval2[3] = {7, 2, 5};
-            ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
+                static f32 ifval = 8.f;
+                ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+                ui.PopTree();
+            }
 
-            ui.HorizontalSeparator("Inputs");
+            if (ui.PushTree("Tooltips", flags))
+            {
+                ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                if (ui.IsItemHovered())
+                    ui.SetTooltip("Im instant!");
 
-            static Onyx::OverlayInputFlags iflags = 0;
-            ui.CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
-            ui.CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags, Onyx::OverlayInputFlag_EnterCommitsBuffer);
-            ui.CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
-            ui.CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
-            ui.CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags, Onyx::OverlayInputFlag_NoHorizontalScroll);
-            ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
+                ui.Button("Im a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                    ui.SetTooltip("Im a bit delayed!");
 
-            static char buf1[32] = "This is some nice text";
-            ui.InputText("Text 1", buf1, 32, "Im a little hint", iflags);
+                ui.Button("Im a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                    ui.SetTooltip("Im delayed!");
 
-            static i32 iival = 4;
-            ui.InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
-
-            static f32 ifval = 8.f;
-            ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
-
-            ui.HorizontalSeparator("Tooltips");
-
-            ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (ui.IsItemHovered())
-                ui.SetTooltip("Im instant!");
-
-            ui.Button("Im a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
-                ui.SetTooltip("Im a bit delayed!");
-
-            ui.Button("Im a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
-                ui.SetTooltip("Im delayed!");
-
-            ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
-                ui.SetTooltip("Im stationary!");
+                ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
+                    ui.SetTooltip("Im stationary!");
+                ui.PopTree();
+            }
         }
         ui.EndWindow();
 

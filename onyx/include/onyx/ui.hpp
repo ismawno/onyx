@@ -62,6 +62,19 @@ enum OverlayButtonFlagBit : OverlayButtonFlags
     OverlayButtonFlag_SpanFullWidth = 1U << 0,
 };
 
+using OverlayTreeFlags = u8;
+enum OverlayTreeFlagBit : OverlayTreeFlags
+{
+    OverlayTreeFlag_DrawLines = 1U << 0,
+};
+
+using OverlayWidgetStateFlags = u8;
+// NOTE(Isma): Could move to .cpp and hide this?
+enum OverlayWidgetStateFlagBit : OverlayWidgetStateFlags
+{
+    OverlayWidgetStateFlag_TreeOpened = 1U << 0,
+};
+
 struct OverlayResizeInfo
 {
     TKit::FixedArray<usz, OverlayResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
@@ -143,6 +156,10 @@ enum OverlayColor : u8
     OverlayColor_Text,
     OverlayColor_Inner,
 
+    OverlayColor_TreeIdle,
+    OverlayColor_TreeHovered,
+    OverlayColor_TreePressed,
+
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
 
@@ -154,6 +171,8 @@ enum OverlayColor : u8
     OverlayColor_Count,
 
     OverlayColor_ScrollBarPressed = OverlayColor_Inner,
+
+    OverlayColor_TreeText = OverlayColor_Text,
 
     OverlayColor_WindowHeader = OverlayColor_Text,
 
@@ -192,6 +211,10 @@ struct OverlayColors
     Color Text;
     Color Inner;
 
+    Color TreeIdle;
+    Color TreeHovered;
+    Color TreePressed;
+
     Color WindowBackgroundExpanded;
     Color WindowBackgroundCollapsed;
 
@@ -210,8 +233,13 @@ struct OverlayColorRegistry
               .Idle = Color::FromHexadecimal("2D3748"),
               .Hovered = Color::FromHexadecimal("4A5568"),
               .Pressed = Color::FromHexadecimal("5A6A7E"),
+
               .Text = Color::FromHexadecimal("E2E8F0"),
               .Inner = Color::FromHexadecimal("4A8EC2"),
+
+              .TreeIdle = Color_Transparent,
+              .TreeHovered = Color::FromHexadecimal("3A4A60"),
+              .TreePressed = Color::FromHexadecimal("4A5568"),
 
               .WindowBackgroundExpanded = Color::FromHexadecimal("2A3F5F"),
               .WindowBackgroundCollapsed = Color::FromHexadecimal("1E2D45D9"),
@@ -273,6 +301,7 @@ struct LayoutConfig
     f32 WindowBorderWidth = 4.f;
     f32 WindowSpawnDelta = 32.f;
     f32 HeaderPadding = 4.f;
+    f32 HeaderButtonWidth = 20.f;
     f32 BorderHoverPadding = 8.f;
     f32 ContentAreaPadding = 4.f;
 
@@ -307,6 +336,7 @@ struct UserInterfaceSpecs
 // if it was pressed
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
 // TODO(Isma): Implement arrow cursor movement with keyboard
+// TODO(Isma): Implement a way to push/pop colors
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -407,6 +437,26 @@ class Overlay
     {
         getCurrentLayout().EndPanel();
     }
+    void Pop()
+    {
+        EndPanel();
+    }
+
+    bool PushTree(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
+    bool PushTree(TKit::StringView label, const OverlayTreeFlags flags = 0)
+    {
+        return PushTree(label, label, flags);
+    }
+    template <typename... Args> bool PushTree(const LayoutId id, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        return PushTree(id, txt);
+    }
+    void PopTree()
+    {
+        Pop();
+        Pop();
+    }
 
     void PushDirection(const LayoutDirection dir)
     {
@@ -422,10 +472,6 @@ class Overlay
                     .Sizing = fit(),
                     .ChildOffset = oabs({indent, 0.f}),
                     .ChildGap = Config.ChildGap});
-    }
-    void Pop()
-    {
-        EndPanel();
     }
 
     Layout *GetCurrentLayout()
@@ -717,6 +763,24 @@ class Overlay
     void drawWindowBorders();
     void drawWindowScrollBar();
 
+    OverlayWidgetStateFlags getWidgetState(const usz id)
+    {
+        const auto it = m_WidgetStates.Find(id);
+        return it == m_WidgetStates.end() ? 0 : it->Value;
+    }
+    bool getWidgetState(const usz id, const OverlayWidgetStateFlags flags)
+    {
+        return getWidgetState(id) & flags;
+    }
+    void toggleWidgetState(const usz id, const OverlayWidgetStateFlagBit bit)
+    {
+        const OverlayWidgetStateFlags flags = getWidgetState(id);
+        if (flags & bit)
+            m_WidgetStates[id] &= ~bit;
+        else
+            m_WidgetStates[id] |= bit;
+    }
+
     ClickFocusInfo getClickFocusInfo(const LayoutElement *elm);
     DragFocusInfo getDragFocusInfo(const LayoutElement *elm);
     InputFocusInfo getInputFocusInfo(const LayoutElement *elm);
@@ -832,6 +896,7 @@ class Overlay
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};
     TKit::TierArray<usz> m_WindowIds{};
+    TKit::TierHashMap<usz, OverlayWidgetStateFlags> m_WidgetStates{};
     OverlayTooltip m_Tooltip;
 };
 } // namespace Onyx
