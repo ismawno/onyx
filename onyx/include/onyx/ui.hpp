@@ -993,14 +993,7 @@ class Overlay
 
     // interaction info
     usz m_HoveredId = NullLayoutId;
-    // usz m_ActiveId = NullLayoutId;
-
-    // usz m_HoveredClicker = NullLayoutId;
-    // usz m_HoveredDragger = NullLayoutId;
-
-    usz m_PressedClicker = NullLayoutId;
-    usz m_DelayedPressedClicker = NullLayoutId;
-    usz m_PressedDragger = NullLayoutId;
+    usz m_ActiveId = NullLayoutId;
 
     usz m_FocusedInputter = NullLayoutId;
     usz m_DelayedFocusedInputter = NullLayoutId;

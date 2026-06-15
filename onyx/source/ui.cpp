@@ -852,18 +852,14 @@ ClickFocusInfo Overlay::getClickFocusInfo(const LayoutElement *elm)
 
     const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
 
-    const bool canHover = canFocus && (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
+    const bool canHover = canFocus && (m_ActiveId == NullLayoutId || m_ActiveId == elm->Id);
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
 
-    const bool clicked = hovered && m_DelayedPressedClicker == elm->Id && checkFlags(OverlayEventFlag_MouseReleased);
-    const bool pressed = hovered && (m_DelayedPressedClicker == NullLayoutId || m_DelayedPressedClicker == elm->Id) &&
-                         m_Window->IsMousePressed(Mouse_Button1);
+    const bool clicked = hovered && m_ActiveId == elm->Id && checkFlags(OverlayEventFlag_MouseReleased);
+    const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
 
     if (pressed)
-    {
-        m_PressedClicker = elm->Id;
-        m_DelayedPressedClicker = elm->Id;
-    }
+        m_ActiveId = elm->Id;
     if (hovered)
         m_HoveredId = elm->Id;
 
@@ -881,7 +877,7 @@ DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
         return DragFocusInfo{};
 
     DragFocusInfo info;
-    if (m_PressedDragger == elm->Id)
+    if (m_ActiveId == elm->Id)
     {
         info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
         info.Hovered = true; // doesnt matter
@@ -890,14 +886,14 @@ DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
     else
     {
         const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
-        const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
+        const bool canHover = canFocus && m_ActiveId == NullLayoutId;
         const bool hovered = canHover && elm->IsHovered(m_MousePos);
         const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
 
         info.Pressed = pressed;
         info.Hovered = hovered;
         if (pressed)
-            m_PressedDragger = elm->Id;
+            m_ActiveId = elm->Id;
         if (hovered)
             m_HoveredId = elm->Id;
     }
@@ -910,7 +906,7 @@ InputFocusInfo Overlay::getInputFocusInfo(const LayoutElement *elm)
         return InputFocusInfo{};
 
     const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
-    const bool canHover = canFocus && m_PressedDragger == NullLayoutId && m_PressedClicker == NullLayoutId;
+    const bool canHover = canFocus && m_ActiveId == NullLayoutId;
 
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
     const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
@@ -1191,16 +1187,17 @@ void Overlay::processWindows()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
+    if (m_EventFlags & OverlayEventFlag_MouseReleased)
+        m_ActiveId = NullLayoutId;
+
     m_EventFlags = 0;
 
     m_EventKeys.ClearAll();
 
     if (m_FocusedInputter == NullLayoutId)
         m_DelayedFocusedInputter = NullLayoutId;
-    if (m_PressedClicker == NullLayoutId)
-        m_DelayedPressedClicker = NullLayoutId;
 
-    const bool pressingWidget = m_PressedClicker != NullLayoutId || m_PressedDragger != NullLayoutId;
+    const bool pressingWidget = m_ActiveId != NullLayoutId;
     // if nothing is grabbed, we check mouse cursors here
     if (!m_Grabbed && !pressingWidget)
     {
@@ -1281,8 +1278,6 @@ void Overlay::processWindows()
             m_EventFlags |= OverlayEventFlag_MouseReleased;
             if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
                 ++m_OverflowClicks;
-            m_PressedClicker = NullLayoutId;
-            m_PressedDragger = NullLayoutId;
         }
         else if (ev.Type == Event_Scrolled)
             scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset[1];
