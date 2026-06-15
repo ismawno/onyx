@@ -221,10 +221,10 @@ void Overlay::drawWindowBorders()
     }
 }
 
-void Overlay::drawWindowScrollBar()
+void Overlay::drawWindowScrollBar(const LayoutId id)
 {
     Layout &ly = getCurrentLayout();
-    const LayoutElement *contentArea = ly.QueryElement("Content area");
+    const LayoutElement *contentArea = ly.QueryElement(id);
     if (!contentArea)
         return;
 
@@ -282,9 +282,7 @@ void Overlay::drawWindowScrollBar()
 TKit::StringView Overlay::trimLabel(const TKit::StringView label)
 {
     const u32 idx = label.FindFirstOf("##");
-    if (idx == TKit::StringView::npos)
-        return label;
-    return label.SubString(idx);
+    return label.SubString(0, idx);
 }
 
 bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
@@ -371,15 +369,15 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
                                                                     .ChildGap = 0.5f * m_Style[OverlayStyle_ChildGap]});
     // must pass the id bc at this point, querying plainly with "Scroll area" will mix with the actual "Scroll area"
     // panel, giving a different id
+    const LayoutId contentId = AsStackedId("Content area");
     if (!collapsed && !autoResize)
-        drawWindowScrollBar();
-    ly.BeginPanel(AsStackedId("Content area"),
-                  LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
-                                        .Alignment = topLeft,
-                                        .Sizing = autoResize ? fit() : grow(),
-                                        .ChildOffset = oabs({0.f, -m_Current->ScrollBar.ElementOffset}),
-                                        .Padding = m_Style[OverlayStyle_ContentAreaPadding],
-                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        drawWindowScrollBar(contentId);
+    ly.BeginPanel(contentId, LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
+                                                   .Alignment = topLeft,
+                                                   .Sizing = autoResize ? fit() : grow(),
+                                                   .ChildOffset = oabs({0.f, -m_Current->ScrollBar.ElementOffset}),
+                                                   .Padding = m_Style[OverlayStyle_ContentAreaPadding],
+                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     return !collapsed;
 }
@@ -404,7 +402,7 @@ void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOf
 
     ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
                                    .Sizing = sabs({textOffset, width})});
-    ly.Text(trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
                                    .Sizing = {grow(), sabs(width)}});
     ly.EndPanel();
@@ -455,7 +453,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 
     ly.EndPanel();
 
-    ly.Text(trimLabel(label), getTextParams(OverlayColor_TreeText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_TreeText));
     ly.EndPanel();
 
     if (info.Clicked)
@@ -964,7 +962,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
     m_LastWidget = ly.BeginPanel(
         id, LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = 8.f});
 
-    ly.Text(trimLabel(label), getTextParams(OverlayColor_ButtonText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
     PopId();
     return info.Clicked;
@@ -999,7 +997,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
                                    .Shape = LayoutShape::Circle()});
     ly.EndPanel();
 
-    ly.Text(trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
 
     ly.EndPanel();
     PopId();
@@ -1036,7 +1034,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
                                    .Sizing = grow()});
     ly.EndPanel();
 
-    ly.Text(trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
 
     ly.EndPanel();
     PopId();
@@ -1153,7 +1151,7 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
 
     const bool updated = inputTextBox(buf, size, hint, flags);
     ly.EndPanel();
-    ly.Text(trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.EndPanel();
     PopId();
     return updated;

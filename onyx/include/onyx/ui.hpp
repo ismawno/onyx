@@ -400,7 +400,7 @@ class Overlay
 
         const bool updated = inputNumericBox(value, format, hint, flags);
         ly.EndPanel();
-        ly.Text(trimLabel(label), getTextParams());
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
         ly.EndPanel();
         PopId();
         return updated;
@@ -456,7 +456,7 @@ class Overlay
             PopId();
         }
         ly.EndPanel();
-        ly.Text(trimLabel(label), getTextParams(OverlayColor_SliderText));
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_SliderText));
         ly.EndPanel();
         PopId();
         return pressed;
@@ -484,7 +484,7 @@ class Overlay
         }
 
         ly.EndPanel();
-        ly.Text(trimLabel(label), getTextParams(OverlayColor_DragText));
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_DragText));
         ly.EndPanel();
         PopId();
         return pressed;
@@ -845,7 +845,7 @@ class Overlay
     void processWindows();
     void bringWindowToTop(u32 idx);
     void drawWindowBorders();
-    void drawWindowScrollBar();
+    void drawWindowScrollBar(LayoutId id);
 
     OverlayWidgetStateFlags getWidgetState(const usz id, const OverlayWidgetStateFlags fallback = 0)
     {

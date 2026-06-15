@@ -40,6 +40,9 @@ int main()
                 if (helloText)
                     ui.Text("Hi!");
 
+                ui.Button("I have a twin##Cant see me");
+                ui.Button("I have a twin##Cant see me eiter");
+
                 ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
                 static u32 radio = 0;
                 ui.RadioButton("Im enabled!", &radio, 0);
