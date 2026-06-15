@@ -236,7 +236,8 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
     {
         const Color *col = &m_Style[OverlayColor_ScrollBarIdle];
 
-        const LayoutElement *scrollBar = ly.QueryElement("Scroll bar");
+        const LayoutId scrollId = AsStackedId("Scroll bar");
+        const LayoutElement *scrollBar = ly.QueryElement(scrollId);
         if (scrollBar)
         {
             const DragFocusInfo iinfo = getDragFocusInfo(scrollBar);
@@ -267,7 +268,7 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
 
         const bool noScroll = m_Current->CheckFlags(OverlayWindowFlag_NoScrollBar);
         if (!noScroll)
-            ly.Panel("Scroll bar",
+            ly.Panel(scrollId,
                      LayoutPanelParameters{.FillColor = *col,
                                            .Sizing = sabs({m_Style[OverlayStyle_ScrollBarWidth], barSize}),
                                            .SelfOffset = oabs({0.f, sinfo.BarOffset}),
@@ -801,9 +802,6 @@ InputConvertInfo Overlay::getInputConvertInfo(const bool hovered, const bool all
     Layout &ly = getCurrentLayout();
     const LayoutElement *ibox = ly.QueryElement(AsStackedId("Input box"));
 
-    if (!ibox)
-        return info;
-
     const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
@@ -854,8 +852,7 @@ ClickFocusInfo Overlay::getClickFocusInfo(const LayoutElement *elm)
 
     const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
 
-    const bool canHover = canFocus && m_PressedDragger == NullLayoutId &&
-                          (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
+    const bool canHover = canFocus && (m_PressedClicker == NullLayoutId || m_PressedClicker == elm->Id);
     const bool hovered = canHover && elm->IsHovered(m_MousePos);
 
     const bool clicked = hovered && m_DelayedPressedClicker == elm->Id && checkFlags(OverlayEventFlag_MouseReleased);
@@ -868,7 +865,7 @@ ClickFocusInfo Overlay::getClickFocusInfo(const LayoutElement *elm)
         m_DelayedPressedClicker = elm->Id;
     }
     if (hovered)
-        m_HoveredClicker = elm->Id;
+        m_HoveredId = elm->Id;
 
     ClickFocusInfo info;
     info.Clicked = clicked;
@@ -888,7 +885,7 @@ DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
     {
         info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
         info.Hovered = true; // doesnt matter
-        m_HoveredDragger = elm->Id;
+        m_HoveredId = elm->Id;
     }
     else
     {
@@ -902,7 +899,7 @@ DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
         if (pressed)
             m_PressedDragger = elm->Id;
         if (hovered)
-            m_HoveredDragger = elm->Id;
+            m_HoveredId = elm->Id;
     }
     return info;
 }
@@ -1207,7 +1204,7 @@ void Overlay::processWindows()
     // if nothing is grabbed, we check mouse cursors here
     if (!m_Grabbed && !pressingWidget)
     {
-        const bool hoveringWidget = m_HoveredClicker != NullLayoutId || m_HoveredDragger != NullLayoutId;
+        const bool hoveringWidget = m_HoveredId != NullLayoutId;
         MouseCursor cursor = MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow &win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
@@ -1390,8 +1387,7 @@ void Overlay::processWindows()
         }
     }
 
-    m_HoveredClicker = NullLayoutId;
-    m_HoveredDragger = NullLayoutId;
+    m_HoveredId = NullLayoutId;
     if (m_CandidateLayout && !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
         m_HoveredWidgetCandidate = NullLayoutId;
 }

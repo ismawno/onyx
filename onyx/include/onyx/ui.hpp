@@ -459,9 +459,10 @@ class Overlay
                                                            .Sizing = {grow(300.f), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                        .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
+                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {snorm(0.6f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -477,6 +478,15 @@ class Overlay
         PopId();
         return pressed;
     }
+
+    // template <TKit::Integer T>
+    // bool Dropdown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
+    // {
+    //     Layout &ly = getCurrentLayout();
+    //     const LayoutId id = PushId(label);
+    //
+    //     PopId();
+    // }
 
     // /widgets //
 
@@ -982,8 +992,11 @@ class Overlay
     OverlayEventFlags m_EventFlags = 0;
 
     // interaction info
-    usz m_HoveredClicker = NullLayoutId;
-    usz m_HoveredDragger = NullLayoutId;
+    usz m_HoveredId = NullLayoutId;
+    // usz m_ActiveId = NullLayoutId;
+
+    // usz m_HoveredClicker = NullLayoutId;
+    // usz m_HoveredDragger = NullLayoutId;
 
     usz m_PressedClicker = NullLayoutId;
     usz m_DelayedPressedClicker = NullLayoutId;
