@@ -420,18 +420,6 @@ class Overlay
         return false;
     }
 
-    template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
-    {
-        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
-        Layout &ly = getCurrentLayout();
-        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-        if constexpr (sizeof...(Args) != 0)
-            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
-        else
-            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
-    }
-
     // TODO(Isma): Implement format rounding
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
@@ -491,6 +479,32 @@ class Overlay
     }
 
     // /widgets //
+
+    // display //
+
+    template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
+        Layout &ly = getCurrentLayout();
+        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+        if constexpr (sizeof...(Args) != 0)
+            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
+        else
+            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
+    }
+
+    void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
+               const f32v2 &scale = f32v2{1.f})
+    {
+        getCurrentLayout().Panel(LayoutPanelParameters{.FillColor = Color_White,
+                                                       .Sizing = sabs(size),
+                                                       .Texture = texture,
+                                                       .TexOffset = offset,
+                                                       .TexScale = scale});
+    }
+
+    // /display //
 
     // tooltips //
     void BeginTooltip();
@@ -641,6 +655,24 @@ class Overlay
     // /query //
 
     void Draw();
+
+    // NOTE(Isma): Consider adding const getters?
+    Camera<D2> &GetCamera()
+    {
+        return m_Camera;
+    }
+    Window *GetWindow()
+    {
+        return m_Window;
+    }
+    RenderContext<D2> *GetContext()
+    {
+        return m_Context;
+    }
+    RenderViewFlags GetRenderViewFlags() const
+    {
+        return RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency;
+    }
 
   private:
     bool checkFlags(const OverlayWindowFlags flags) const

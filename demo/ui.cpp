@@ -14,6 +14,12 @@ int main()
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
     Onyx::Overlay ui{win};
 
+    Onyx::RenderContext<D2> *ctx = ui.GetContext();
+
+    const f32v2 rdims = {800, 600};
+    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(rdims);
+    ctx->AddTarget(rt->CreateRenderView(&ui.GetCamera(), ui.GetRenderViewFlags()));
+
     while (Onyx::Running())
     {
         static Onyx::OverlayWindowFlags flags = 0;
@@ -52,16 +58,10 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Sliders/Drags", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Images", Onyx::OverlayTreeFlag_DrawLines))
             {
-                static f32 fval[2] = {4, 7};
-                ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
-
-                static i32 ival = 7;
-                ui.HorizontalSlider("My slider int", &ival, -3, 28);
-
-                static u32 uval2[3] = {7, 2, 5};
-                ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
+                ui.Text("May get a bit trippy...");
+                ui.Image(*rt, 0.25f * rdims);
                 ui.PopTree();
             }
 
@@ -85,6 +85,19 @@ int main()
 
                 static f32 ifval = 8.f;
                 ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Sliders/Drags", Onyx::OverlayTreeFlag_DrawLines))
+            {
+                static f32 fval[2] = {4, 7};
+                ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
+
+                static i32 ival = 7;
+                ui.HorizontalSlider("My slider int", &ival, -3, 28);
+
+                static u32 uval2[3] = {7, 2, 5};
+                ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
                 ui.PopTree();
             }
 

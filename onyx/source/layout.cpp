@@ -41,6 +41,9 @@ static void checkId(TKit::TierHashSet<usz> &elements, const LayoutId id)
 
 usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
 {
+    TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
+                "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
+
     CHECK_ID(id);
 
     const u32 c = m_Elements.GetSize();
@@ -92,6 +95,9 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     }
 
     current.ChildGap = params.ChildGap;
+    current.Texture = params.Texture;
+    current.TexOffset = params.TexOffset;
+    current.TexScale = params.TexScale;
     current.Material = params.Material;
     current.FillColor = params.FillColor;
     current.OutlineColor = params.OutlineColor;
@@ -162,6 +168,8 @@ void Layout::EndPanel()
 
 usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
 {
+    TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
+                "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
     CHECK_ID(id);
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
@@ -195,6 +203,9 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.Text = TKit::String{text.GetData(), text.GetSize()};
     // NOTE(Isma): This is a weak check. If user passes a bad font that is not NullHandle, it will go through
     current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
+    current.Texture = params.Texture;
+    current.TexOffset = params.TexOffset;
+    current.TexScale = params.TexScale;
     current.Material = params.Material;
     current.TextMode = params.Mode;
 
@@ -216,7 +227,10 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
 // NOTE(Isma): A bit repetitive here with text
 usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicodeParameters &params)
 {
+    TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
+                "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
     CHECK_ID(id);
+
     const u32 c = m_Elements.GetSize();
 
     LayoutElement &current = m_Elements.Append();
@@ -248,6 +262,9 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.OutlineWidth = params.OutlineWidth;
     current.Unicode = code;
     current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
+    current.Texture = params.Texture;
+    current.TexOffset = params.TexOffset;
+    current.TexScale = params.TexScale;
     current.Material = params.Material;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
@@ -713,6 +730,9 @@ void Layout::Compile()
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
 
         LayoutDrawInfo info;
+        info.Texture = elm.Texture;
+        info.TexOffset = elm.TexOffset;
+        info.TexScale = elm.TexScale;
         info.Material = elm.Material;
         info.RenderFlags = 0;
         if (fill)

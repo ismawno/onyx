@@ -227,7 +227,10 @@ struct LayoutElement
 
     u32 Parent;
     Resource Font;
+    Resource Texture;
     Resource Material;
+    f32v2 TexOffset;
+    f32v2 TexScale;
     u32 Unicode;
     TKit::String Text;
     TKit::TierArray<u32> Children{};
@@ -263,7 +266,10 @@ struct LayoutDrawInfo
     f32 OutlineWidth;
     u32 Unicode;
     Resource Handle;
+    Resource Texture;
     Resource Material;
+    f32v2 TexOffset;
+    f32v2 TexScale;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
 };
@@ -282,7 +288,11 @@ struct LayoutPanelParameters
 
     LayoutShape Shape = LayoutShape::Rectangle();
     LayoutFloatingParameters Floating{};
+    Resource Texture = NullHandle;
     Resource Material = NullHandle;
+
+    f32v2 TexOffset{0.f};
+    f32v2 TexScale{1.f};
     // NOTE(Isma): Could add overflow mode override per-children (as in a ChildOverflow and SelfOverflow parameters).
     // Skipping for now
     LayoutOverflowMode Overflow = LayoutOverflow_Clip;
@@ -301,7 +311,11 @@ struct LayoutTextParameters
     f32v2 MinSize{0.f};
     vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
     Resource Font = NullHandle;
+    Resource Texture = NullHandle;
     Resource Material = NullHandle;
+
+    f32v2 TexOffset{0.f};
+    f32v2 TexScale{1.f};
 };
 
 struct LayoutUnicodeParameters
@@ -313,7 +327,11 @@ struct LayoutUnicodeParameters
     f32v2 MinSize{0.f};
     vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
     Resource Font = NullHandle;
+    Resource Texture = NullHandle;
     Resource Material = NullHandle;
+
+    f32v2 TexOffset{0.f};
+    f32v2 TexScale{1.f};
 };
 
 struct LayoutSpecs

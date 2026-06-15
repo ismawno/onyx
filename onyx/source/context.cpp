@@ -784,6 +784,7 @@ template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout
     {
         Push();
         RenderFlags(info.RenderFlags);
+        Texture(info.Texture, info.TexOffset, info.TexScale);
         Material(info.Material);
         FillColor(info.FillColor);
         OutlineColor(info.OutlineColor);
