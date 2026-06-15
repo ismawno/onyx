@@ -7,153 +7,399 @@ I started this project with very little experience with graphics programming. Th
 1. OpenGL is deprecated in MacOS and I want good multi-platform support.
 2. Vulkan is growing more popular every year due to its versatility and optimization opportunities. Since I recently started graphics programming, I might as well learn a modern API.
 
-
 ## Features
 
-Onyx is designed for users that wish to create simple and fast visualization applications, such as particle simulations, physics engines, geometry visualization etc. It does not yet support graphics that attempt to simulate real-life environments, although it is a planned feature. Onyx has been designed for performance so most of the rendering API is thread safe and scales well with multiple cores.
+Onyx is designed for users that wish to create simple and fast visualization applications, such as particle simulations, physics engines, geometry visualization etc. It provides a high-level, immediate-mode rendering API while using Vulkan under the hood for performance and scalability. Onyx has been designed for performance: rendering is automatically batched with indirect draw calls, render contexts support dirty tracking to avoid redundant host-device communication, and most of the rendering API is thread safe and scales well with multiple cores.
 
-Onyx seamlessly supports 2D and 3D rendering with a unified API that let's the user choose the dimensionality of your visualization at compile time. This is specially advantageous for the 2D case as this allows the library to be much more memory efficient, unlocking many optimizations. It is also ergonomic, as the vector and matrix types will always match the dimension being used, and the API will not expose functionality that does not make sense for a 2D or 3D application. To specify this, many Onyx objects are templated with the `Dimension` enum, which can take either the `D2` or `D3` values. For simplicity, all examples shown in this README will use the `D2` api. `D3` is almost identical with small variations that will not matter for the examples.
+Onyx seamlessly supports 2D and 3D rendering with a unified API that lets the user choose the dimensionality of their visualization at compile time. This is specially advantageous for the 2D case as this allows the library to be much more memory efficient, unlocking many optimizations. It is also ergonomic, as the vector and matrix types will always match the dimension being used, and the API will not expose functionality that does not make sense for a 2D or 3D application. To specify this, many Onyx objects are templated with the `Dimension` enum, which can take either the `D2` or `D3` values. For simplicity, most examples shown in this README will use the `D2` API unless noted otherwise.
 
-Although it will not be explicitly needed in most use cases, Onyx exposes the Vulkan API so that you can hook custom behaviour to the frame loop by recording any command directly into the main command buffer.
+### Initialization
 
-A full sandbox of Onyx is available as a [demo](https://github.com/ismawno/onyx/tree/main/demo/sandbox). Be sure to set `ONYX_BUILD_DEMOS` to `ON` in `CMake` to be able to run it.
+Onyx uses a global initialization and termination model. Before using any part of the API, `Onyx::Initialize()` must be called, and `Onyx::Terminate()` must be called before the program exits. Default resources (built-in meshes, samplers, etc.) are created with `Onyx::Resources::CreateDefaultResources()`.
+
+```cpp
+Onyx::Initialize();
+Onyx::Resources::CreateDefaultResources();
+
+// ... your application ...
+
+Onyx::Terminate();
+```
 
 ### Windows
 
-The most straightforward way of using Onyx is through a standalone window. It is also the most versatile and customizable, as it gives you explicit control of the frame loop, but lacks out of the box features such as ImGui or ImPlot, which must be setup manually. Window management can be deferred to application objects (see [Applications](#applications)).
-
-Onyx supports the usage of multiple windows. Each of them is independent to an extent, and can be run on different threads as long as they use different queues. This however is slightly discouraged as the performance gains may be minimal and per-window queue assignment is automatic. The `Application` class may handle multiple windows for you. Control the maximum amount of windows with `ONYX_APP_MAX_WINDOWS`. If set to 1, the API to open/close additional windows will be disabled.
-
-Creating an Onyx window looks like this:
-
-**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, take a look at [this file](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp)**
+Windows are created with `Onyx::OpenWindow()` and closed with `Onyx::CloseWindow()`. The global `Onyx::Running()` function returns `false` when all windows have been closed or `Onyx::Quit()` has been called.
 
 ```cpp
-Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
+Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 ```
 
-But before moving forward and start rendering to the window, two more objects must be introduced.
+Onyx supports multiple windows. Each of them is independent to an extent.
 
-#### Render contexts
+A window on its own doesn't render anything - it needs one or more render views to display content.
 
-Render contexts are the main way of communicating with the rendering API. It is the object with which the user will render and manipulate primitives, meshes and lights with an immediate mode style. Contexts may prepare and expect inputs in 2D or 3D form depending on its dimension template parameter (`D2` or `D3`). An example of its usage may be the following:
+### Render views
+
+A render view is a viewport into the window with its own camera, scissor region, attachments and feature flags. Views are created from a window and are what render contexts ultimately target.
 
 ```cpp
-Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-context->Flush();
-
-context->Push();
-context->Scale(2.f);
-context->Square();
-context->Translate(0.f, 10.f);
-context->Circle();
-context->Pop();
-
-context->RoundedSquare();
+Onyx::Camera<D2> cam{};
+Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
 ```
 
-Most of the calls to `RenderContext` modify its internal state or store draw commands. At the end of the frame, the stored render data is sent to the device and rendered. Almost all `RenderContext` methods are thread safe and scale well when executed in parallel. Methods that are not thread safe will be explicitly marked as so in its documentation.
+Views can be configured with flags to enable features like shadows (`RenderViewFlag_Shadows`) or order-independent transparency (`RenderViewFlag_Transparency`). Each view also has a configurable viewport that controls what portion of the window it occupies and can operate in both normalized or absolute coordinates:
 
-`RenderContext`s cannot be created out of thin air. They must be bound to a window. Each window may have multiple contexts of multiple dimensions. Before using a context for the first time in a given frame, the method `Flush()` must be called, which resets its state and render data, allowing the user to draw a new frame. `Flush()` should only be called when explicitly re-using the context to update the scene. If the context represents a static scene updated only in isolated scenarios, it should be left alone as the context will avoid re-creating and sending the data to the device, which can be a real bottleneck. This makes rendering static scenes much more efficient as there is no host-device communication. Because of this, the scene should be divided into different contexts based on update frequency.
-
-`RenderContext`s are documented in more detail in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/rendering/context.hpp).
-
-#### Cameras
-
-The purpose of a camera is pretty self-explanatory in the context of graphics programming. Cameras are owned by windows and are created very similarly to render contexts. 2D cameras are simple, orthographic cameras, while 3D ones allow for other types of perspective projections.
 ```cpp
-Onyx::Camera<D2> *camera = window.CreateCamera<D2>();
+view->SetNormalizedViewport({.Position = {0.f, 0.f}, .Extent = {0.5f, 1.f}}); // left half of the window
 ```
 
-Cameras don't usually require much interaction. They provide convenient methods to modify its view and projection matrices through code or even user input (see `ControlMovementWithUserInput()` and `CameraControls<D>`). More documentation is available in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/property/camera.hpp).
+This makes it straightforward to set up things like split-screen layouts or picture-in-picture views within a single window.
 
-With these three ingredients, a very minimal working setup can be used to draw a simple primitive to the screen:
+### Render contexts
+
+Render contexts are the main way of communicating with the rendering API. It is the object with which the user will render and manipulate primitives, meshes and lights with an immediate-mode style. Contexts may prepare and expect inputs in 2D or 3D form depending on its dimension template parameter (`D2` or `D3`).
+
+Contexts are independent of windows. They are created globally and then pointed at one or more render views:
 
 ```cpp
-Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
-Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-window.CreateCamera<D2>();
+Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
+ctx->AddTarget(view);
+```
 
-while (!window.ShouldClose())
+A single context can target multiple views, and a single view can be targeted by multiple contexts. This means you can, for example, record a static background scene in one context and an animated foreground in another, both rendering into the same view.
+
+Before using a context for the first time in a given frame, the method `Flush()` must be called, which resets its state and render data, allowing the user to draw a new frame. `Flush()` should only be called when explicitly re-using the context to update the scene. If the context represents a static scene updated only in isolated scenarios, it should be left alone - the context will avoid re-creating and sending the data to the device, which can be a real bottleneck. This makes rendering static scenes much more efficient as there is no host-device communication. Because of this, the scene should be divided into different contexts based on update frequency.
+
+An example of its usage may be the following:
+
+```cpp
+ctx->Flush();
+
+ctx->Push();
+ctx->Scale(2.f);
+ctx->Quad();
+ctx->Translate(0.f, 10.f);
+ctx->Circle();
+ctx->Pop();
+
+ctx->RoundedRect();
+```
+
+Most of the calls to `RenderContext` modify its internal state or store draw commands. At the end of the frame, the stored render data is sent to the device and rendered. All `RenderContext` instances are completely independent and can be used in different threads. It is possible to divide a scene between many contexts to allow parallel rendering.
+
+### Cameras
+
+The purpose of a camera is pretty self-explanatory in the context of graphics programming. Cameras are value types that can be created on the stack and passed to render views. 2D cameras are simple orthographic cameras, while 3D ones allow for other types of perspective projections.
+
+```cpp
+Onyx::Camera<D2> cam{};
+cam.OrthoParameters.Size = 10.f;
+```
+
+Cameras provide convenient methods to modify their view and projection matrices through code or user input. Windows expose a `ControlCamera()` method for built-in camera controls:
+
+```cpp
+win->ControlCamera(Onyx::GetDeltaTime(win), view->GetCamera());
+```
+
+### Frame loop
+
+The frame loop is split into two explicit steps: `Transfer()` and `Render()`. `Transfer()` uploads context data to the GPU (updating meshes, lights, etc.), and `Render()` records and submits the actual draw commands. This separation allows Onyx to skip transfers for contexts that haven't changed and be able to keep rendering them.
+
+```cpp
+while (Onyx::Running())
 {
-    Onyx::Input::PollEvents();
+    // ... update contexts ...
 
-    context->Flush();
-
-    context->Fill(Onyx::Color::RED);
-    context->Square();
-
-    window.Render();
+    Onyx::Transfer();
+    Onyx::Render();
 }
 ```
-### Applications
 
-This feature grants the user high-level control of the flow of their application. One of the simplest use cases looks like this:
+## Examples
+
+All examples shown here are available under the [demo](https://github.com/ismawno/onyx/tree/main/demo) directory. Be sure to set `ONYX_BUILD_DEMOS` to `ON` in `CMake` to build them.
+
+**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version, take a look at the demo source files directly.**
+
+### Hello World
+
+This is one of the simplest possible Onyx program. It creates a window, a camera, a render view, and a render context, and draws a rotating triangle:
 
 ```cpp
-Onyx::Application app({.Name = "App1 Hello, World!", .Dimensions = u32v2{800, 600}});
-app.Run();
-```
+#include "onyx/resources.hpp"
+#include "onyx/context.hpp"
+#include "onyx/core.hpp"
+#include "onyx/onyx.hpp"
 
-Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
+using Onyx::D2;
+using namespace TKit::Alias;
 
-```cpp
-Onyx::Application app({.Name = "App2 Hello, World!", .Dimensions = u32v2{800, 600}});
-
-TKit::Clock clock;
-
-Onyx::Window *window = app.GetMainWindow();
-Onyx::RenderContext<D2> *context = window->CreateRenderContext<D2>();
-window->CreateCamera<D2>();
-while (app.NextFrame(clock))
+int main()
 {
-    context->Flush();
+    Onyx::Initialize();
+    Onyx::Resources::CreateDefaultResources();
 
-    context->Fill(Onyx::Color::RED);
-    context->Square();
-}
+    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
-```
+    Onyx::Camera<D2> cam{};
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
 
-This setup is more flexible than the previous one but still similar to the example shown in the [Windows](#window-api) section and not how an application is intended to be used. To take full advantage of the application interface, you will likely want to use the user layer to leverage its full capabilities:
+    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
+    ctx->AddTarget(view);
 
-**Note that ImGui must be enabled to replicate this example.**
-
-```cpp
-class MyLayer : public Onyx::UserLayer
-{
-    public:
-    void OnUpdate() override
+    f32 time = 0.f;
+    while (Onyx::Running())
     {
-        ImGui::Begin("Hello, World!");
-        ImGui::Text("Hello, World from ImGui!");
-        ImGui::End();
+        time += Onyx::GetDeltaTime(win).AsSeconds();
+
+        ctx->Flush();
+        ctx->Rotate(time);
+        ctx->Triangle();
+
+        Onyx::Transfer();
+        Onyx::Render();
     }
-};
 
-Onyx::Application app({.Name = "App3 Hello, World!", .Dimensions = u32v2{800, 600}});
-app.SetUserLayer<MyLayer>();
-
-app.Run();
+    Onyx::Terminate();
+}
 ```
 
-Every window gets a user layer (must be explicitly added), ImGui and ImPlot contexts (if enabled).
+The setup follows the pattern described above: initialize, create default resources, open a window, create a camera and a view, create a context and point it at the view. Each frame, the context is flushed, a rotation is applied based on elapsed time, and a triangle is drawn. `Transfer()` uploads the data and `Render()` draws it.
 
-There is more to this system, such as additional layer callbacks like `OnEvent()` and `OnUpdate()`. All user-relevant parts of this library are documented in the source code. The documentation can also be built with Doxygen. As mentioned earlier, the full working example can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp).
+### Lights
 
-Onyx also supports a multi-window application interface, allowing many windows per application by using the `OpenWindow()` and `CloseWindow()` methods and setting `ONYX_APP_MAX_WINDOWS` to a value greater than 1. For more details, refer to the documentation [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/application/app.hpp) and [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/application/user_layer.hpp).
+This example demonstrates lighting and shadows with a split-screen layout: a 2D scene on the left half and a 3D scene on the right, both with shadow-casting directional lights:
 
-### ImGui/ImPlot Usage
+```cpp
+#include "onyx/resources.hpp"
+#include "onyx/context.hpp"
+#include "onyx/core.hpp"
+#include "onyx/onyx.hpp"
 
-If enabled through `CMake`, ImGui and ImPlot support is built-in when using the application interface, as shown in the last example in the [Applications](#applications) section. You can use the ImGui API directly in the `OnUpdate()` or `OnRenderBegin()` callbacks.
+using Onyx::D2;
+using Onyx::D3;
+using namespace TKit::Alias;
+
+int main()
+{
+    Onyx::Initialize();
+    Onyx::Resources::CreateDefaultResources();
+
+    const Onyx::Resource lit2 = Onyx::Resources::RegisterMaterial<D2>();
+    const Onyx::Resource unlit2 = Onyx::Resources::RegisterMaterial<D2>({.Occluder = true});
+    const Onyx::Resource mat3 = Onyx::Resources::RegisterMaterial<D3>();
+    Onyx::Resources::Sync(Onyx::SyncFlag_Materials);
+
+    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
+    const Onyx::RenderViewFlags vflags =
+        Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Shadows;
+
+    // 2D view on the left half
+    Onyx::Camera<D2> cam2{};
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
+    Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
+    cam2.OrthoParameters.Size = 10.f;
+    view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
+    ctx2->AddTarget(view2);
+
+    // 3D view on the right half
+    Onyx::Camera<D3> cam3{};
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, vflags);
+    Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
+    cam3.View.Translation[2] = 5.f;
+    view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});
+    ctx3->AddTarget(view3);
+
+    f32 time = 0.f;
+    while (Onyx::Running())
+    {
+        const TKit::Timespan dt = Onyx::GetDeltaTime(win);
+        time += dt.AsSeconds();
+
+        // Camera controls: whichever view the mouse is over gets input
+        Onyx::RenderView<D2> *v2 = win->GetMouseRenderView<D2>();
+        Onyx::RenderView<D3> *v3 = win->GetMouseRenderView<D3>();
+        if (v2)
+            win->ControlCamera(Onyx::GetDeltaTime(win), v2->GetCamera());
+        else if (v3)
+            win->ControlCamera(Onyx::GetDeltaTime(win), v3->GetCamera());
+
+        // 2D scene: a lit background quad, a shadow-casting directional light,
+        // and a rotating red quad that occludes the light
+        {
+            ctx2->Flush();
+            ctx2->RenderFlags(Onyx::RenderModeFlag_Shaded);
+            ctx2->Material(lit2);
+
+            ctx2->Push();
+            ctx2->Scale(20.f);
+            ctx2->Quad();
+            ctx2->Pop();
+
+            ctx2->Material(unlit2);
+            ctx2->DirectionalLight(
+                {.DepthBias = -0.00001f, .Flags = Onyx::LightFlag_CastShadows});
+            ctx2->Rotate(time);
+            ctx2->FillColor(Onyx::Color_Red);
+            ctx2->Quad();
+        }
+
+        // 3D scene: a shadow-casting directional light with fitted cascades,
+        // a rotating red box, and a large floor quad
+        {
+            ctx3->Flush();
+            ctx3->Material(mat3);
+            ctx3->RenderFlags(Onyx::RenderModeFlag_Shaded);
+
+            ctx3->DirectionalLight(
+                {.Cascades = {.View = view3}, .Flags = Onyx::LightFlag_CastShadows});
+
+            ctx3->Push();
+            ctx3->RotateZ(time);
+            ctx3->FillColor(Onyx::Color_Red);
+            ctx3->Box();
+            ctx3->Pop();
+
+            ctx3->ScaleX(20.f);
+            ctx3->ScaleY(20.f);
+            ctx3->RotateX(0.5f * Onyx::Math::Pi());
+            ctx3->TranslateY(-2.f);
+            ctx3->Quad();
+        }
+
+        Onyx::Transfer();
+        Onyx::Render();
+    }
+
+    Onyx::Terminate();
+}
+```
+
+A few things worth noting here. Materials are registered and synced before rendering begins. The 2D scene uses two materials: a standard lit material for the background and an occluder material for the red quad so that it blocks light and casts shadows. The 3D directional light uses fitted cascades by pointing its `Cascades.View` at the active render view, which lets the cascade splits adapt to the camera's frustum. The `GetMouseRenderView()` calls detect which view the mouse is hovering over, so camera controls apply to the correct viewport.
+
+### Transparency
+
+This example demonstrates order-independent transparency (OIT) with another split-screen layout. OIT is enabled per-view with the `RenderViewFlag_Transparency` flag, which means transparent objects are rendered correctly regardless of draw order:
+
+```cpp
+#include "onyx/resources.hpp"
+#include "onyx/context.hpp"
+#include "onyx/core.hpp"
+#include "onyx/onyx.hpp"
+
+using Onyx::D2;
+using Onyx::D3;
+using namespace TKit::Alias;
+
+int main()
+{
+    Onyx::Initialize();
+    Onyx::Resources::CreateDefaultResources();
+
+    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
+    const Onyx::RenderViewFlags vflags =
+        Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Transparency;
+
+    // 2D view on the left half
+    Onyx::Camera<D2> cam2{};
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
+    Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
+    cam2.OrthoParameters.Size = 10.f;
+    view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
+    ctx2->AddTarget(view2);
+
+    // 3D view on the right half
+    Onyx::Camera<D3> cam3{};
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, vflags);
+    Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
+    cam3.View.Translation[2] = 5.f;
+    view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});
+    ctx3->AddTarget(view3);
+
+    f32 time = 0.f;
+    while (Onyx::Running())
+    {
+        const TKit::Timespan dt = Onyx::GetDeltaTime(win);
+        time += dt.AsSeconds();
+
+        Onyx::RenderView<D2> *v2 = win->GetMouseRenderView<D2>();
+        Onyx::RenderView<D3> *v3 = win->GetMouseRenderView<D3>();
+        if (v2)
+            win->ControlCamera(Onyx::GetDeltaTime(win), v2->GetCamera());
+        else if (v3)
+            win->ControlCamera(Onyx::GetDeltaTime(win), v3->GetCamera());
+
+        // 2D scene: overlapping transparent shapes
+        {
+            ctx2->Flush();
+
+            ctx2->Push();
+            ctx2->Scale(20.f);
+            ctx2->Quad();
+            ctx2->Pop();
+
+            ctx2->Rotate(time);
+            ctx2->FillColor(Onyx::Color_Red);
+            ctx2->Alpha(0.8f);
+            ctx2->Quad();
+
+            ctx2->FillColor(Onyx::Color_Green);
+            ctx2->Alpha(0.7f);
+            ctx2->Translate(0.2f);
+            ctx2->Triangle();
+
+            ctx2->FillColor(Onyx::Color_Blue);
+            ctx2->Alpha(0.9f);
+            ctx2->Translate(0.2f);
+            ctx2->Stadium();
+        }
+
+        // 3D scene: overlapping transparent volumes
+        {
+            ctx3->Flush();
+
+            ctx3->Push();
+            ctx3->ScaleX(20.f);
+            ctx3->ScaleY(20.f);
+            ctx3->RotateX(0.5f * Onyx::Math::Pi());
+            ctx3->TranslateY(-2.f);
+            ctx3->Quad();
+            ctx3->Pop();
+
+            ctx3->RotateZ(time);
+            ctx3->FillColor(Onyx::Color_Red);
+            ctx3->Alpha(0.8f);
+            ctx3->Box();
+
+            ctx3->FillColor(Onyx::Color_Green);
+            ctx3->Alpha(0.7f);
+            ctx3->TranslateZ(-2.f);
+            ctx3->RoundedRect();
+
+            ctx3->FillColor(Onyx::Color_Blue);
+            ctx3->Alpha(0.9f);
+            ctx3->TranslateZ(-2.f);
+            ctx3->Capsule();
+        }
+
+        Onyx::Transfer();
+        Onyx::Render();
+    }
+
+    Onyx::Terminate();
+}
+```
+
+The `Alpha()` call sets the opacity of subsequent draws and automatically marks them for transparent blending. Because OIT is enabled on both views, the overlapping shapes blend correctly without needing to sort by depth. The 2D side stacks a quad, triangle and stadium on top of each other, while the 3D side does the same with a box, rounded rect and capsule. Note that transforms accumulate - each `Translate()` call shifts relative to the current transform state, so the shapes spread apart progressively.
 
 ## Dependencies and Third-Party Libraries
 
-Onyx relies on some dependencies such as [toolkit](https://github.com/ismawno/toolkit), [vulkit](https://github.com/ismawno/vulkit) and [glfw](https://github.com/glfw/glfw). Some of them are optional ([imgui](https://github.com/ocornut/imgui) and [implot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
+Onyx relies on some dependencies such as [Toolkit](https://github.com/ismawno/toolkit), [Vulkit](https://github.com/ismawno/vulkit) and [GLFW](https://github.com/glfw/glfw). Both Toolkit and Vulkit are custom libraries I developed alongside Onyx: Toolkit provides general-purpose utilities (data structures, allocators, profiling, etc.) and Vulkit is an abstraction layer over the Vulkan API that handles device management, resource creation and synchronization. Some dependencies are optional ([ImGui](https://github.com/ocornut/imgui) and [ImPlot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
 
 ## Versioning
 
-Try to always use a tagged commit when using the library, as I can guarantee those will build and be stable->
+Try to always use a tagged commit when using the library, as I can guarantee those will build and be stable.
 
 ## Building
 
