@@ -3,8 +3,6 @@
 #include "onyx/resources.hpp"
 #include "tkit/container/stack_array.hpp"
 
-#define ONYX_LAYOUT_START_ID 14695981039346656037ULL
-
 namespace Onyx
 {
 static LayoutAxis getAxis(const LayoutDirection dir)
@@ -15,13 +13,39 @@ static LayoutAxis getAxis(const LayoutDirection dir)
 Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
 {
     applySpecDefaults();
-    m_IdStack.Append(ONYX_LAYOUT_START_ID);
 }
-usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
+
+#ifdef TKIT_ENABLE_ASSERTS
+static void checkId(TKit::TierHashSet<usz> &elements, const LayoutId id)
 {
+    if (id.__DebugName.IsEmpty())
+    {
+        TKIT_ASSERT(!elements.Contains(id.Id),
+                    "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
+                    "already exists in the layout (id name not available)",
+                    id.Id);
+    }
+    else
+    {
+        TKIT_ASSERT(!elements.Contains(id.Id),
+                    "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
+                    "already exists in the layout. Debug name: {}",
+                    id.Id, id.__DebugName);
+    }
+    elements.Insert(id.Id);
+}
+#    define CHECK_ID(id) checkId(m_InsertedElements, id)
+#else
+#    define CHECK_ID(id)
+#endif
+
+usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
+{
+    CHECK_ID(id);
+
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = GetNextId(label);
+    current.Id = id.Id;
 
     if (params.Floating.Enable)
     {
@@ -121,11 +145,10 @@ usz Layout::beginPanel(const usz label, const LayoutPanelParameters &params)
         current.SelfOffsetType[i] = params.SelfOffset[i].Type;
     }
     current.Padding = params.Padding;
-    PushId(label);
     return current.Id;
 }
 
-void Layout::endPanel()
+void Layout::EndPanel()
 {
     TKIT_ASSERT(!m_ElementStack.IsEmpty(),
                 "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
@@ -135,14 +158,14 @@ void Layout::endPanel()
         m_ReversedBreadth.Append(c);
 
     m_ElementStack.Pop();
-    PopId();
 }
 
-usz Layout::Text(const LayoutId label, const TKit::StringView text, const LayoutTextParameters &params)
+usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
 {
+    CHECK_ID(id);
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = GetNextId(label);
+    current.Id = id.Id;
     current.Type = LayoutElement_Text;
     current.Shape.Type = LayoutShape_Text;
 
@@ -191,12 +214,13 @@ usz Layout::Text(const LayoutId label, const TKit::StringView text, const Layout
 }
 
 // NOTE(Isma): A bit repetitive here with text
-usz Layout::Unicode(const LayoutId label, const CodePoint code, const LayoutUnicodeParameters &params)
+usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicodeParameters &params)
 {
+    CHECK_ID(id);
     const u32 c = m_Elements.GetSize();
 
     LayoutElement &current = m_Elements.Append();
-    current.Id = GetNextId(label);
+    current.Id = id.Id;
     current.Type = LayoutElement_Unicode;
     current.Shape.Type = LayoutShape_Unicode;
 
@@ -256,10 +280,10 @@ bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding) const
     return check(pos, mn, mx) && check(pos, cmn, cmx);
 }
 
-const LayoutElement *Layout::QueryElement(const usz id) const
+const LayoutElement *Layout::QueryElement(const LayoutId id) const
 {
-    const auto it = m_Map.Find(id);
-    if (it == m_Map.end())
+    const auto it = m_ElementMap.Find(id.Id);
+    if (it == m_ElementMap.end())
         return nullptr;
 
     const u32 idx = it->Value;
@@ -666,10 +690,6 @@ void Layout::Compile()
 {
     TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_ElementStack.GetSize());
-    TKIT_ASSERT(
-        m_IdStack.GetSize() == 1,
-        "[ONYX][LAYOUT] Id stack size mismatch (size = {}, should be 1). For every PushId(), there must be a PopId()",
-        m_IdStack.GetSize());
     fitPass(LayoutAxis_Horizontal);
     growShrinkPass(LayoutAxis_Horizontal);
     wrapText();
@@ -680,7 +700,7 @@ void Layout::Compile()
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
 
-    m_Map.Clear();
+    m_ElementMap.Clear();
     m_PreviousElements.Clear();
     m_DrawInfo.Clear();
 
@@ -738,7 +758,7 @@ void Layout::Compile()
             info.Size = f32v2{elm.FontSize};
             break;
         }
-        m_Map[elm.Id] = idx++;
+        m_ElementMap[elm.Id] = idx++;
 
         if ((!fill && !outline) || !sized)
             continue;
@@ -753,7 +773,10 @@ void Layout::Compile()
     m_Elements.Clear();
     m_Breadth.Clear();
     m_ReversedBreadth.Clear();
-    m_AutoLabel = 0;
+    m_AutoId = 0;
+#ifdef TKIT_ENABLE_ASSERTS
+    m_InsertedElements.Clear();
+#endif
 }
 void Layout::applySpecDefaults()
 {

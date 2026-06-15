@@ -358,9 +358,14 @@ class Overlay
   public:
     Overlay(Window *win, const UserInterfaceSpecs &specs = {});
 
+    // windows //
     // TODO(Isma): Should return id
     bool BeginWindow(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndWindow();
+
+    // /windows //
+
+    // widgets //
 
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label, OverlayButtonFlags flags = 0);
@@ -377,6 +382,117 @@ class Overlay
     }
     bool CheckBox(TKit::StringView label, bool *enable);
 
+    // TODO(Isma): Implement hint
+    bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
+                   OverlayInputFlags flags = 0);
+    template <TKit::Numeric T>
+    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const TKit::StringView hint = {},
+                      const OverlayInputFlags flags = 0)
+    {
+        Layout &ly = getCurrentLayout();
+        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {grow(300.f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
+                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {snorm(0.6f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        const bool updated = inputNumericBox(value, format, hint, flags);
+        ly.EndPanel();
+        ly.Text(trimLabel(label), getTextParams());
+        ly.EndPanel();
+        PopId();
+        return updated;
+    }
+    template <TKit::Integer T, std::convertible_to<T> U>
+    bool CheckBoxFlags(TKit::StringView label, T *flags, const U flag)
+    {
+        bool enabled = *flags & T(flag);
+        if (CheckBox(label, &enabled))
+        {
+            if (enabled)
+                *flags |= T(flag);
+            else
+                *flags &= ~T(flag);
+            return true;
+        }
+        return false;
+    }
+
+    template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
+        Layout &ly = getCurrentLayout();
+        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+        if constexpr (sizeof...(Args) != 0)
+            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
+        else
+            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
+    }
+
+    // TODO(Isma): Implement format rounding
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
+                          const u32 count = 1)
+    {
+        TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
+        Layout &ly = getCurrentLayout();
+        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {grow(300.f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        bool pressed = false;
+        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
+                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {snorm(0.6f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        for (u32 i = 0; i < count; ++i)
+        {
+            T &val = value[i];
+            PushId(&val);
+            pressed |= horizontalSliderBox(&val, mn, mx, format);
+            PopId();
+        }
+        ly.EndPanel();
+        ly.Text(trimLabel(label), getTextParams(OverlayColor_SliderText));
+        ly.EndPanel();
+        PopId();
+        return pressed;
+    }
+
+    template <TKit::Numeric T, std::convertible_to<T> U = T>
+    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
+                        const U mx = T(0), const char *format = nullptr, const u32 count = 1)
+    {
+        Layout &ly = getCurrentLayout();
+        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                           .Sizing = {grow(300.f), fit()},
+                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                        .Sizing = {snorm(0.6f), fit()},
+                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        bool pressed = false;
+        for (u32 i = 0; i < count; ++i)
+        {
+            T &val = value[i];
+            PushId(&val);
+            pressed |= horizontalDragBox(&val, speed, mn, mx, format);
+            PopId();
+        }
+
+        ly.EndPanel();
+        ly.Text(trimLabel(label), getTextParams(OverlayColor_DragText));
+        ly.EndPanel();
+        PopId();
+        return pressed;
+    }
+
+    // /widgets //
+
+    // tooltips //
     void BeginTooltip();
     void EndTooltip();
     template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
@@ -397,29 +513,9 @@ class Overlay
         return true;
     }
 
-    // TODO(Isma): Implement hint
-    bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
-                   OverlayInputFlags flags = 0);
-    template <TKit::Numeric T>
-    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const TKit::StringView hint = {},
-                      const OverlayInputFlags flags = 0)
-    {
-        Layout &ly = getCurrentLayout();
-        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
-        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                        .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    // /tooltips //
 
-        const bool updated = inputNumericBox(value, format, hint, flags);
-        ly.EndPanel();
-        ly.Text(label, getTextParams());
-        ly.EndPanel();
-        return updated;
-    }
-
-    bool IsItemHovered(const OverlayHoveredFlags flags = 0);
+    // layout //
 
     void Separator(const f32 width = 4.f)
     {
@@ -470,8 +566,50 @@ class Overlay
     {
         Pop();
         Pop();
+        PopId();
     }
 
+    void PushDirection(const LayoutDirection dir)
+    {
+        BeginPanel({.Direction = dir,
+                    .Alignment = {Alignment_Left, Alignment_Top},
+                    .Sizing = fit(),
+                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    }
+    void PushIndent(const f32 indent)
+    {
+        BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                    .Alignment = {Alignment_Left, Alignment_Top},
+                    .Sizing = fit(),
+                    .ChildOffset = oabs({indent, 0.f}),
+                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    }
+
+    Layout *GetCurrentLayout()
+    {
+        return m_Current ? &m_Current->Layout : nullptr;
+    }
+
+    LayoutId AsStackedId(LayoutId id)
+    {
+        if (m_IdStack.IsEmpty())
+            return id;
+        id.Id = TKit::Hash(m_IdStack.GetBack(), id.Id);
+        return id;
+    }
+
+    LayoutId PushId(const LayoutId id)
+    {
+        return m_IdStack.Append(AsStackedId(id));
+    }
+    void PopId()
+    {
+        m_IdStack.Pop();
+    }
+
+    // /layout //
+
+    // style //
     void PushStyleVar(const OverlayStyleType var, const f32 val)
     {
         m_StyleStack.Append(m_Style[var], var);
@@ -496,108 +634,11 @@ class Overlay
         m_Style[b.Index] = b.Old;
     }
 
-    void PushDirection(const LayoutDirection dir)
-    {
-        BeginPanel({.Direction = dir,
-                    .Alignment = {Alignment_Left, Alignment_Top},
-                    .Sizing = fit(),
-                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
-    }
-    void PushIndent(const f32 indent)
-    {
-        BeginPanel({.Direction = LayoutDirection_TopToBottom,
-                    .Alignment = {Alignment_Left, Alignment_Top},
-                    .Sizing = fit(),
-                    .ChildOffset = oabs({indent, 0.f}),
-                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
-    }
+    // /style //
 
-    Layout *GetCurrentLayout()
-    {
-        return m_Current ? &m_Current->Layout : nullptr;
-    }
-
-    template <TKit::Integer T, std::convertible_to<T> U>
-    bool CheckBoxFlags(TKit::StringView label, T *flags, const U flag)
-    {
-        bool enabled = *flags & T(flag);
-        if (CheckBox(label, &enabled))
-        {
-            if (enabled)
-                *flags |= T(flag);
-            else
-                *flags &= ~T(flag);
-            return true;
-        }
-        return false;
-    }
-
-    template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
-    {
-        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
-        Layout &ly = getCurrentLayout();
-        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-        if constexpr (sizeof...(Args) != 0)
-            m_LastWidget = ly.Text(++m_TextId, txt, params);
-        else
-            m_LastWidget = ly.Text(txt, params);
-    }
-
-    // TODO(Isma): Implement format rounding
-    template <TKit::Numeric T, std::convertible_to<T> U>
-    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
-                          const u32 count = 1)
-    {
-        TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
-        Layout &ly = getCurrentLayout();
-        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-        bool pressed = false;
-        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                        .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
-        for (u32 i = 0; i < count; ++i)
-        {
-            T &val = value[i];
-            ly.PushId(&val);
-            pressed |= horizontalSliderBox(&val, mn, mx, format);
-            ly.PopId();
-        }
-        ly.EndPanel();
-        ly.Text(label, getTextParams(OverlayColor_SliderText));
-        ly.EndPanel();
-        return pressed;
-    }
-
-    template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
-                        const U mx = T(0), const char *format = nullptr, const u32 count = 1)
-    {
-        Layout &ly = getCurrentLayout();
-        ly.BeginPanel(label, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                   .Sizing = {grow(300.f), fit()},
-                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-        m_LastWidget = ly.BeginPanel("Container", LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                        .Sizing = {snorm(0.6f), fit()},
-                                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
-        bool pressed = false;
-        for (u32 i = 0; i < count; ++i)
-        {
-            T &val = value[i];
-            ly.PushId(&val);
-            pressed |= horizontalDragBox(&val, speed, mn, mx, format);
-            ly.PopId();
-        }
-
-        ly.EndPanel();
-        ly.Text(label, getTextParams(OverlayColor_DragText));
-        ly.EndPanel();
-        return pressed;
-    }
+    // query //
+    bool IsItemHovered(const OverlayHoveredFlags flags = 0);
+    // /query //
 
     void Draw();
 
@@ -606,11 +647,16 @@ class Overlay
     {
         return flags & m_EventFlags;
     }
+
+    static TKit::StringView trimLabel(TKit::StringView label);
+
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
         Layout &ly = getCurrentLayout();
-        const LayoutElement *elm = ly.QueryElement("Slider box");
+        const LayoutId id = AsStackedId("Slider box");
+
+        const LayoutElement *elm = ly.QueryElement(id);
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
@@ -656,10 +702,10 @@ class Overlay
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
 
-        ly.BeginPanel("Slider box", LayoutPanelParameters{.FillColor = *col,
-                                                          .Alignment = {Alignment_Left, Alignment_Center},
-                                                          .Sizing = {grow(), fit()},
-                                                          .Padding = m_Style[OverlayStyle_WidgetPadding]});
+        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
+                                                .Alignment = {Alignment_Left, Alignment_Center},
+                                                .Sizing = {grow(), fit()},
+                                                .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text
         // length cannot interfere with slider button positioning in layout calculation
@@ -668,20 +714,20 @@ class Overlay
         // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
         // so, we offset text slot by 1 parent to align it correctly
 
-        ly.BeginPanel("Slider slot",
+        ly.BeginPanel(AsStackedId("Slider slot"),
                       LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
-        ly.Panel("Slider button", LayoutPanelParameters{.FillColor = m_Style[OverlayColor_SliderInner],
-                                                        .Sizing = {sabs(w), grow()},
-                                                        .SelfOffset = oabs({offset, 0.f})});
+        ly.Panel(AsStackedId("Slider button"), LayoutPanelParameters{.FillColor = m_Style[OverlayColor_SliderInner],
+                                                                     .Sizing = {sabs(w), grow()},
+                                                                     .SelfOffset = oabs({offset, 0.f})});
 
         ly.EndPanel();
-        ly.BeginPanel("Text slot", LayoutPanelParameters{.Alignment = Alignment_Center,
-                                                         .Sizing = {snorm(1.f), fit()},
-                                                         .SelfOffset = onorm({-1.f, 0.f})});
+        ly.BeginPanel(AsStackedId("Text slot"), LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                                      .Sizing = {snorm(1.f), fit()},
+                                                                      .SelfOffset = onorm({-1.f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
-        ly.Text(text, getTextParams(OverlayColor_SliderText));
+        ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_SliderText));
 
         ly.EndPanel();
         ly.EndPanel();
@@ -691,10 +737,12 @@ class Overlay
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
     {
         Layout &ly = getCurrentLayout();
+        const LayoutId id = AsStackedId("Drag box");
+
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
-        const LayoutElement *elm = ly.QueryElement("Drag box");
+        const LayoutElement *elm = ly.QueryElement(id);
         const Color *col = &m_Style[OverlayColor_DragIdle];
         DragFocusInfo info{};
         if (elm)
@@ -722,13 +770,13 @@ class Overlay
         if (hasLimits)
             *value = Math::Clamp(*value, T(mn), T(mx));
 
-        ly.BeginPanel("Drag box", LayoutPanelParameters{.FillColor = *col,
-                                                        .Alignment = Alignment_Center,
-                                                        .Sizing = {grow(), fit()},
-                                                        .Padding = m_Style[OverlayStyle_WidgetPadding]});
+        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
+                                                .Alignment = Alignment_Center,
+                                                .Sizing = {grow(), fit()},
+                                                .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
-        ly.Text(text, getTextParams(OverlayColor_DragText));
+        ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_DragText));
 
         ly.EndPanel();
         return info.Pressed;
@@ -918,9 +966,6 @@ class Overlay
     const Layout *m_CandidateLayout = nullptr;
     TKit::Clock m_WidgetHoverClock{};
 
-    // automatic id for texts
-    usz m_TextId = 0;
-
     // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
     // a double click)
     u32 m_OverflowClicks = 0;
@@ -933,6 +978,7 @@ class Overlay
     // TODO(Isma): Should be a hash map
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};
     TKit::TierArray<usz> m_WindowIds{};
+    TKit::TierArray<usz> m_IdStack{};
     TKit::TierHashMap<usz, OverlayWidgetStateFlags> m_WidgetStates{};
     OverlayTooltip m_Tooltip;
 };

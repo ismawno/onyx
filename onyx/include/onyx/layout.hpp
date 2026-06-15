@@ -330,11 +330,17 @@ struct LayoutId
     LayoutId(const usz id) : Id(id)
     {
     }
-    LayoutId(const char *label) : LayoutId(TKit::StringView{label})
+    LayoutId(const char *id) : LayoutId(TKit::StringView{id})
     {
+#ifdef TKIT_ENABLE_ASSERTS
+        __DebugName = id;
+#endif
     }
-    LayoutId(const TKit::StringView label) : Id(TKit::Hash(label))
+    LayoutId(const TKit::StringView id) : Id(TKit::Hash(id))
     {
+#ifdef TKIT_ENABLE_ASSERTS
+        __DebugName = id;
+#endif
     }
     LayoutId(const CodePoint code) : Id(TKit::Hash(code))
     {
@@ -351,6 +357,9 @@ struct LayoutId
     }
 
     usz Id;
+#ifdef TKIT_ENABLE_ASSERTS
+    TKit::StringView __DebugName{};
+#endif
 };
 
 // TODO(Isma): Have a tkit macro for this ::Max()
@@ -361,46 +370,37 @@ class Layout
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(const LayoutId label, const LayoutPanelParameters &params = {})
-    {
-        const usz id = beginPanel(label, params);
-        PushId(label);
-        return id;
-    }
+    usz BeginPanel(LayoutId id, const LayoutPanelParameters &params = {});
 
     // here id is not guaranteed to be persisted accross frames, so no point in returning it
     void BeginPanel(const LayoutPanelParameters &params = {})
     {
-        BeginPanel(++m_AutoLabel, params);
+        BeginPanel(GenerateNextId(), params);
     }
 
-    usz Panel(const LayoutId label, const LayoutPanelParameters &params = {})
+    usz Panel(const LayoutId id, const LayoutPanelParameters &params = {})
     {
-        const usz id = beginPanel(label, params);
-        endPanel();
-        return id;
+        const usz idd = BeginPanel(id, params);
+        EndPanel();
+        return idd;
     }
     void Panel(const LayoutPanelParameters &params = {})
     {
-        Panel(++m_AutoLabel, params);
+        Panel(GenerateNextId(), params);
     }
 
-    void EndPanel()
-    {
-        PopId();
-        endPanel();
-    }
+    void EndPanel();
 
-    usz Text(LayoutId label, TKit::StringView text, const LayoutTextParameters &params = {});
+    usz Text(LayoutId id, TKit::StringView text, const LayoutTextParameters &params = {});
     usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
         return Text(text, text, params);
     }
 
-    usz Unicode(LayoutId label, CodePoint code, const LayoutUnicodeParameters &params = {});
-    usz Unicode(const LayoutId label, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    usz Unicode(LayoutId id, CodePoint code, const LayoutUnicodeParameters &params = {});
+    usz Unicode(const LayoutId id, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
-        return Unicode(label, DecodeUTF8(code.GetData()), params);
+        return Unicode(id, DecodeUTF8(code.GetData()), params);
     }
     usz Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
     {
@@ -411,34 +411,17 @@ class Layout
         return Unicode(DecodeUTF8(code.GetData()), params);
     }
 
-    usz GetNextId(const LayoutId label) const
-    {
-        return TKit::Hash(m_IdStack.GetBack(), label.Id);
-    }
-
     const LayoutElement &GetCurrentElement() const
     {
         return m_Elements[m_ElementStack.GetBack()];
     }
 
-    const LayoutElement *QueryElement(usz id) const;
+    const LayoutElement *QueryElement(LayoutId id) const;
 
-    // This only works if called within the same id stack
-    const LayoutElement *QueryElement(const LayoutId label) const
-    {
-        return QueryElement(GetNextId(label));
-    }
-
-    bool IsHovered(const usz id, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f}) const
     {
         const LayoutElement *elm = QueryElement(id);
         return elm ? elm->IsHovered(point, padding) : false;
-    }
-
-    // This only works if called within the same id stack
-    bool IsHovered(const LayoutId label, const f32v2 &point, const f32v2 &padding = {0.f}) const
-    {
-        return IsHovered(GetNextId(label), point, padding);
     }
 
     void Compile();
@@ -446,16 +429,6 @@ class Layout
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const
     {
         return m_DrawInfo;
-    }
-
-    void PushId(const LayoutId label)
-    {
-        m_IdStack.Append(GetNextId(label));
-    }
-
-    void PopId()
-    {
-        m_IdStack.Pop();
     }
 
     const LayoutSpecs &GetSpecs() const
@@ -468,10 +441,12 @@ class Layout
         applySpecDefaults();
     }
 
-  private:
-    usz beginPanel(usz label, const LayoutPanelParameters &params);
-    void endPanel();
+    usz GenerateNextId()
+    {
+        return TKit::Hash(++m_AutoId);
+    }
 
+  private:
     void fitPass(LayoutAxis axis);
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
@@ -485,12 +460,14 @@ class Layout
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
-    TKit::TierHashMap<usz, u32> m_Map{};
+    TKit::TierHashMap<usz, u32> m_ElementMap{};
     TKit::TierArray<LayoutElement> m_PreviousElements{};
 
-    TKit::TierArray<usz> m_IdStack{};
+#ifdef TKIT_ENABLE_ASSERTS
+    TKit::TierHashSet<usz> m_InsertedElements{};
+#endif
 
     LayoutSpecs m_Specs{};
-    usz m_AutoLabel = 0;
+    usz m_AutoId = 0;
 };
 } // namespace Onyx
