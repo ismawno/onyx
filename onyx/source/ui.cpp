@@ -305,7 +305,7 @@ TKit::StringView Overlay::trimLabel(const TKit::StringView label)
 
 bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
 {
-    TKIT_ASSERT(!m_Current, "[ONYX][Overlay] Cannot begin a new window when another one is being processed");
+    TKIT_ASSERT(!m_Current, "[ONYX][OVERLAY] Cannot begin a new window when another one is being processed");
     const LayoutId id = PushId(title);
 
     m_Current = getOrCreateOverlayWindow(id);
@@ -402,7 +402,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
 
 void Overlay::EndWindow()
 {
-    TKIT_ASSERT(m_Current, "[ONYX][Overlay] Cannot end a window without having started one");
+    TKIT_ASSERT(m_Current, "[ONYX][OVERLAY] Cannot end a window without having started one");
     m_Current->Layout.EndPanel();
     m_Current->Layout.EndPanel();
     m_Current->Layout.EndPanel();
