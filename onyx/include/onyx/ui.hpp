@@ -5,24 +5,59 @@
 #include "onyx/window.hpp"
 #include "tkit/container/bitset.hpp"
 
+// in general, elements beginning with OverlayXXX are to be used by the public
+
 #ifndef ONYX_INPUT_NUMERIC_BUFFER_SIZE
 #    define ONYX_INPUT_NUMERIC_BUFFER_SIZE 128
 #endif
 
 namespace Onyx
 {
-enum OverlayResizeEdge : u8
+enum ResizeEdge : u8
 {
-    OverlayResizeEdge_Left,
-    OverlayResizeEdge_Right,
-    OverlayResizeEdge_Bottom,
-    OverlayResizeEdge_Top,
-    OverlayResizeEdge_Count
+    ResizeEdge_Left,
+    ResizeEdge_Right,
+    ResizeEdge_Bottom,
+    ResizeEdge_Top,
+    ResizeEdge_Count
 };
-using OverlayResizeFlags = u8;
-using OverlayEventFlags = u8;
-using OverlayWindowFlags = u16;
+using ResizeFlags = u8;
+using EventFlags = u8;
 
+using WidgetStateFlags = u8;
+enum WidgetStateFlagBit : WidgetStateFlags
+{
+    WidgetStateFlag_TreeOpened = 1U << 0,
+    WidgetStateFlag_ConvertedToInput = 1U << 1,
+};
+
+using FocusInfoFlags = u16;
+enum FocusInfoFlagBit : FocusInfoFlags
+{
+    FocusInfoFlag_Hovered = 1U << 0,
+    FocusInfoFlag_Pressed = 1U << 1,
+    FocusInfoFlag_Clicked = 1U << 2,
+    FocusInfoFlag_DoubleClicked = 1U << 3,
+    FocusInfoFlag_Active = 1U << 4,
+    FocusInfoFlag_JustActive = 1U << 5,
+
+    FocusInfoFlag_PressedIfActive = 1U << 6,
+    FocusInfoFlag_ClickedOnMousePress = 1U << 7,
+    FocusInfoFlag_UpdateInputText = 1U << 8,
+    FocusInfoFlag_KeepActiveOnRelease = 1U << 9,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 10,
+};
+
+using InputConvertInfoFlags = u8;
+enum InputConvertFlagBit : InputConvertInfoFlags
+{
+    InputConvertFlag_Hovered = FocusInfoFlag_Hovered,
+    InputConvertFlag_MustConvert = 1U << 1,
+    InputConvertFlag_MustOverrideHighlight = 1U << 2,
+    InputConvertFlag_AllowDoubleClick = 1U << 3,
+};
+
+using OverlayWindowFlags = u16;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
     OverlayWindowFlag_NoResize = 1U << 8,
@@ -53,7 +88,8 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
     OverlayHoveredFlag_NormalDelay = 1U << 1,
     OverlayHoveredFlag_Stationary = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 3,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 4,
+    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 4,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 5,
 };
 
 using OverlayButtonFlags = u8;
@@ -74,20 +110,13 @@ enum OverlayTreeFlagBit : OverlayTreeFlags
     OverlayTreeFlag_StartOpen = 1U << 6,
 };
 
-using OverlayWidgetStateFlags = u8;
-// NOTE(Isma): Could move to .cpp and hide this?
-enum OverlayWidgetStateFlagBit : OverlayWidgetStateFlags
+struct ResizeInfo
 {
-    OverlayWidgetStateFlag_TreeOpened = 1U << 0,
-};
-
-struct OverlayResizeInfo
-{
-    TKit::FixedArray<usz, OverlayResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
+    TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     const Color *InteractionColor = nullptr; // Whether hovered or pressed
     f32v2 Position;
     f32v2 Size;
-    OverlayResizeFlags Flags = 0;
+    ResizeFlags Flags = 0;
 };
 
 struct ScrollBarInfo
@@ -106,9 +135,9 @@ struct ScrollBarInfo
     }
 };
 
-struct OverlayTooltip
+struct Tooltip
 {
-    OverlayTooltip(const LayoutSpecs &spc) : Layout(spc)
+    Tooltip(const LayoutSpecs &spc) : Layout(spc)
     {
     }
     Layout Layout;
@@ -125,7 +154,7 @@ struct OverlayWindow
 
     usz Id = NullLayoutId;
 
-    OverlayResizeInfo Resize{};
+    ResizeInfo Resize{};
     ScrollBarInfo ScrollBar{};
 
     Layout Layout;
@@ -135,10 +164,6 @@ struct OverlayWindow
     f32 LastHeight = 240.f;
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
-
-    TKit::String TextInput{};
-    f32 TextHighlightSize = 0.f;
-    f32 TextCursorPos = 0.f;
 
     bool CheckFlags(const OverlayWindowFlags flags) const
     {
@@ -152,32 +177,6 @@ struct OverlayWindow
     {
         Flags &= ~flags;
     }
-};
-
-struct ClickFocusInfo
-{
-    bool Clicked = false;
-    bool DoubleClicked = false;
-    bool Pressed = false;
-    bool Hovered = false;
-};
-
-struct DragFocusInfo
-{
-    bool Pressed = false;
-    bool Hovered = false;
-};
-
-struct InputFocusInfo
-{
-    bool Focused = false;
-    bool EnteredFocus = false;
-};
-
-struct InputConvertInfo
-{
-    bool MustConvert = false;
-    bool MustOverrideHighlight = false;
 };
 
 enum OverlayPaletteType : u8
@@ -345,9 +344,7 @@ struct UserInterfaceSpecs
     OverlayStyle Style{};
 };
 
-// TODO(Isma): Implement bitset with pressed keys for control etc. as well for mouse
-// TODO(Isma): Have a function, eventKeyPressed/Released(), eventMousePressed() that takes a key/mouse enum and checks
-// if it was pressed
+// TODO(Isma): In sliders/drags, clamp to format
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
 // TODO(Isma): Implement arrow cursor movement with keyboard
 // TODO(Isma): Implement a way to push/pop colors
@@ -526,7 +523,7 @@ class Overlay
         EndTooltip();
     }
 
-    bool BeginItemTooltip();
+    bool BeginItemTooltip(OverlayHoveredFlags flags = 0);
     template <typename... Args> bool SetItemTooltip(const fmt::format_string<Args...> str, Args &&...args)
     {
         if (!BeginItemTooltip())
@@ -702,22 +699,20 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        DragFocusInfo info{};
+        FocusInfoFlags focusFlags = 0;
         if (elm)
         {
-            info = getDragFocusInfo(elm);
+            focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
 
-            if (info.Pressed)
+            if (focusFlags & FocusInfoFlag_Pressed)
                 col = &m_Style[OverlayColor_SliderPressed];
-            else if (info.Hovered)
+            else if (focusFlags & FocusInfoFlag_Hovered)
                 col = &m_Style[OverlayColor_SliderHovered];
-            info.Pressed = info.Pressed;
         }
 
-        const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered);
-        if (cinfo.MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll,
-                                   cinfo.MustOverrideHighlight);
+        const InputConvertInfoFlags cflags = mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered));
+        if (cflags & InputConvertFlag_MustConvert)
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
         const f32 w = 0.5f * m_Style[OverlayStyle_WidgetSize];
@@ -726,7 +721,7 @@ class Overlay
 
         f32 offset = 0.f;
         const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
-        if (info.Pressed && !m_Window->IsKeyPressed(Key_LeftControl))
+        if ((focusFlags & FocusInfoFlag_Pressed) && !m_Window->IsKeyPressed(Key_LeftControl))
         {
             const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
@@ -773,7 +768,7 @@ class Overlay
 
         ly.EndPanel();
         ly.EndPanel();
-        return info.Pressed;
+        return focusFlags & FocusInfoFlag_Pressed;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
@@ -785,24 +780,25 @@ class Overlay
         format = getFormat<T>(format);
 
         const LayoutElement *elm = ly.QueryElement(id);
+
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        DragFocusInfo info{};
+        FocusInfoFlags focusFlags = 0;
         if (elm)
         {
-            info = getDragFocusInfo(elm);
+            focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
 
-            if (info.Pressed)
-                col = &m_Style[OverlayColor_DragPressed];
-            else if (info.Hovered)
-                col = &m_Style[OverlayColor_DragHovered];
+            if (focusFlags & FocusInfoFlag_Pressed)
+                col = &m_Style[OverlayColor_SliderPressed];
+            else if (focusFlags & FocusInfoFlag_Hovered)
+                col = &m_Style[OverlayColor_SliderHovered];
         }
 
-        const InputConvertInfo cinfo = getInputConvertInfo(info.Hovered, true);
-        if (cinfo.MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll,
-                                   cinfo.MustOverrideHighlight);
+        const InputConvertInfoFlags cflags =
+            mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered) | InputConvertFlag_AllowDoubleClick);
+        if (cflags & InputConvertFlag_MustConvert)
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
 
-        if (info.Pressed)
+        if (focusFlags & FocusInfoFlag_Pressed)
         {
             const f32 md = m_MouseDelta[0];
             const T nval = *value + T(speed * md);
@@ -821,15 +817,15 @@ class Overlay
         ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_DragText));
 
         ly.EndPanel();
-        return info.Pressed;
+        return focusFlags & FocusInfoFlag_Pressed;
     }
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
-                      bool overrideEnterFocus = false);
+                      InputConvertInfoFlags cflags = 0);
 
     template <TKit::Numeric T>
     bool inputNumericBox(T *value, const char *format, const TKit::StringView hint, const OverlayInputFlags flags,
-                         const bool overrideEnterFocus = false)
+                         const InputConvertInfoFlags cflags = 0)
     {
         constexpr u32 bsize = ONYX_INPUT_NUMERIC_BUFFER_SIZE;
 
@@ -837,7 +833,7 @@ class Overlay
         TKit::StaticString<bsize> str = TKit::StaticString<bsize>::Format(TKit::RuntimeFormatString(format), *value);
         char *buf = str.CString();
 
-        if (inputTextBox(buf, bsize, hint, flags, overrideEnterFocus))
+        if (inputTextBox(buf, bsize, hint, flags, cflags))
         {
             char *end;
             if constexpr (TKit::Float<T>)
@@ -877,8 +873,6 @@ class Overlay
         return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
     }
 
-    InputConvertInfo getInputConvertInfo(bool hovered, bool allowDoubleClick = false);
-
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
     bool collapseButton();
     template <typename F> void iterateReverseWindows(F func);
@@ -889,26 +883,28 @@ class Overlay
     void drawWindowBorders();
     void drawWindowScrollBar(LayoutId id);
 
-    OverlayWidgetStateFlags getWidgetState(const usz id, const OverlayWidgetStateFlags fallback = 0)
+    bool isWidgetHovered(const LayoutElement *elm) const;
+    bool canWidgetInteract(usz id) const;
+
+    WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
     {
         return m_WidgetStates.TryInsert(id, fallback);
     }
-    bool checkWidgetState(const usz id, const OverlayWidgetStateFlags flags, const OverlayWidgetStateFlags fallback = 0)
+    bool checkWidgetState(const usz id, const WidgetStateFlags flags, const WidgetStateFlags fallback = 0)
     {
         return getWidgetState(id, fallback) & flags;
     }
-    void toggleWidgetState(const usz id, const OverlayWidgetStateFlagBit bit)
+    void toggleWidgetState(const usz id, const WidgetStateFlags bit)
     {
-        const OverlayWidgetStateFlags flags = getWidgetState(id);
+        const WidgetStateFlags flags = getWidgetState(id);
         if (flags & bit)
             m_WidgetStates[id] &= ~bit;
         else
             m_WidgetStates[id] |= bit;
     }
 
-    ClickFocusInfo getClickFocusInfo(const LayoutElement *elm);
-    DragFocusInfo getDragFocusInfo(const LayoutElement *elm);
-    InputFocusInfo getInputFocusInfo(const LayoutElement *elm);
+    FocusInfoFlags evaluateFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
+    InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(usz id);
@@ -989,14 +985,22 @@ class Overlay
     CodePoint m_ExpandedHeaderIcon = 0x25BC;
     CodePoint m_CollapsedHeaderIcon = 0x25B6;
 
-    OverlayEventFlags m_EventFlags = 0;
+    EventFlags m_EventFlags = 0;
 
     // interaction info
     usz m_HoveredId = NullLayoutId;
     usz m_ActiveId = NullLayoutId;
+    usz m_ActiveIdLastFrame = NullLayoutId;
+    // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
+    // pressed event. this is important for elements that if they are active think they are currently pressed, causing
+    // the firs mouse click outside their bounding box to still qualify as pressed
+    bool m_PressingMouse = false;
+    //
 
-    usz m_FocusedInputter = NullLayoutId;
-    usz m_DelayedFocusedInputter = NullLayoutId;
+    // text input info
+    TKit::String m_TextInput{};
+    f32 m_TextHighlightSize = 0.f;
+    f32 m_TextCursorPos = 0.f;
     //
 
     usz m_LastWidget = NullLayoutId;
@@ -1017,7 +1021,7 @@ class Overlay
     TKit::TierArray<OverlayWindow> m_OverlayWindows{};
     TKit::TierArray<usz> m_WindowIds{};
     TKit::TierArray<usz> m_IdStack{};
-    TKit::TierHashMap<usz, OverlayWidgetStateFlags> m_WidgetStates{};
-    OverlayTooltip m_Tooltip;
+    TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
+    Tooltip m_Tooltip;
 };
 } // namespace Onyx

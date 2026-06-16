@@ -4,30 +4,30 @@
 
 namespace Onyx
 {
-enum OverlayResizeFlagBit : OverlayResizeFlags
+enum ResizeFlagBit : ResizeFlags
 {
-    OverlayResizeFlag_Left = 1U << 0,
-    OverlayResizeFlag_Right = 1U << 1,
-    OverlayResizeFlag_Bottom = 1U << 2,
-    OverlayResizeFlag_Top = 1U << 3,
+    ResizeFlag_Left = 1U << 0,
+    ResizeFlag_Right = 1U << 1,
+    ResizeFlag_Bottom = 1U << 2,
+    ResizeFlag_Top = 1U << 3,
 };
-enum OverlayEventFlagBit : OverlayEventFlags
+enum EventFlagBit : EventFlags
 {
-    OverlayEventFlag_MousePressed = 1U << 0,
-    OverlayEventFlag_MouseReleased = 1U << 1,
+    EventFlag_MousePressed = 1U << 0,
+    EventFlag_MouseReleased = 1U << 1,
+    EventFlag_ActiveIdIsAlive = 1U << 2,
+    EventFlag_ActiveAllowsInteraction = 1U << 3,
+    // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
+    EventFlagPersist = EventFlag_ActiveAllowsInteraction
 };
-enum OverlayWindowInternalFlagBit : OverlayWindowFlags
+enum WindowInternalFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_Collapsed = 1U << 0,
-    OverlayWindowFlag_Hovered = 1U << 1,
-    OverlayWindowFlag_InputHovered = 1U << 2,
-    OverlayWindowFlagClear = (1U << 3) - 1U
+    WindowInternalFlag_Collapsed = 1U << 0,
+    WindowInternalFlag_Hovered = 1U << 1,
+    WindowInternalFlag_InputHovered = 1U << 2,
+    // we clear only user flags. internal flags persist
+    WindowInternalFlagPersist = (1U << 3) - 1U
 };
-
-static Color hex(const TKit::StringView h)
-{
-    return Color::FromHexadecimal(h);
-}
 
 OverlayStyleVariables CreateDefaultOverlayVariables()
 {
@@ -56,6 +56,11 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_BoxInputHintAlpha] = 0.4f;
     vars[OverlayStyle_BoxInputCursorAlpha] = 0.6f;
     return vars;
+}
+
+static Color hex(const TKit::StringView h)
+{
+    return Color::FromHexadecimal(h);
 }
 
 OverlayPalette CreateDefaultOverlayPalette()
@@ -156,20 +161,20 @@ void Overlay::drawWindowBorders()
     const Color &interaction = *m_Current->Resize.InteractionColor;
     const Color &idle = m_Style[OverlayColor_WindowBorderIdle];
 
-    OverlayResizeInfo &rinfo = m_Current->Resize;
+    ResizeInfo &rinfo = m_Current->Resize;
 
-    const bool l = rinfo.Flags & OverlayResizeFlag_Left;
-    const bool r = rinfo.Flags & OverlayResizeFlag_Right;
-    const bool b = rinfo.Flags & OverlayResizeFlag_Bottom;
-    const bool t = rinfo.Flags & OverlayResizeFlag_Top;
+    const bool l = rinfo.Flags & ResizeFlag_Left;
+    const bool r = rinfo.Flags & ResizeFlag_Right;
+    const bool b = rinfo.Flags & ResizeFlag_Bottom;
+    const bool t = rinfo.Flags & ResizeFlag_Top;
 
     const vec2<LayoutSizing> hsizing = {sabs(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
     const vec2<LayoutSizing> vsizing = {grow(), sabs(m_Style[OverlayStyle_WindowBorderWidth])};
 
-    const OverlayResizeEdge left = OverlayResizeEdge_Left;
-    const OverlayResizeEdge right = OverlayResizeEdge_Right;
-    const OverlayResizeEdge bottom = OverlayResizeEdge_Bottom;
-    const OverlayResizeEdge top = OverlayResizeEdge_Top;
+    const ResizeEdge left = ResizeEdge_Left;
+    const ResizeEdge right = ResizeEdge_Right;
+    const ResizeEdge bottom = ResizeEdge_Bottom;
+    const ResizeEdge top = ResizeEdge_Top;
 
     const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
 
@@ -240,18 +245,19 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
         const LayoutElement *scrollBar = ly.QueryElement(scrollId);
         if (scrollBar)
         {
-            const DragFocusInfo iinfo = getDragFocusInfo(scrollBar);
+            const FocusInfoFlags focusFlags = evaluateFocusStatus(scrollBar, FocusInfoFlag_PressedIfActive);
 
-            if (iinfo.Pressed)
+            if (focusFlags & FocusInfoFlag_Pressed)
             {
                 col = &m_Style[OverlayColor_ScrollBarPressed];
                 sinfo.CursorOffset += m_MouseDelta[1];
             }
             else
+            {
                 sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
-
-            if (!iinfo.Pressed && iinfo.Hovered)
-                col = &m_Style[OverlayColor_ScrollBarHovered];
+                if (focusFlags & FocusInfoFlag_Hovered)
+                    col = &m_Style[OverlayColor_ScrollBarHovered];
+            }
         }
         else
             sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
@@ -280,6 +286,17 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
     sinfo.WheelOffset = 0.f;
 }
 
+bool Overlay::isWidgetHovered(const LayoutElement *elm) const
+{
+    const bool canFocus = m_Current->CheckFlags(WindowInternalFlag_Hovered) && !m_Grabbed;
+    const bool canHover = canFocus && canWidgetInteract(elm->Id);
+    return canHover && elm->IsHovered(m_MousePos);
+}
+bool Overlay::canWidgetInteract(const usz id) const
+{
+    return (m_EventFlags & EventFlag_ActiveAllowsInteraction) || m_ActiveId == NullLayoutId || m_ActiveId == id;
+}
+
 TKit::StringView Overlay::trimLabel(const TKit::StringView label)
 {
     const u32 idx = label.FindFirstOf("##");
@@ -294,7 +311,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->MinSize = computeWindowMinSize(m_Style[OverlayStyle_WindowPadding], m_Style[OverlayStyle_HeaderPadding],
                                               m_Style[OverlayStyle_FontSize]);
-    m_Current->Flags &= OverlayWindowFlagClear;
+    m_Current->Flags &= WindowInternalFlagPersist;
     m_Current->Flags |= flags;
 
     Layout &ly = getCurrentLayout();
@@ -416,10 +433,11 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     const bool framed = flags & OverlayTreeFlag_Framed;
 
     const Color *col = framed ? &m_Style[OverlayColor_TreeIdle] : &Color_Transparent;
-    ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
-    if (info.Pressed)
+
+    FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id));
+    if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_TreePressed];
-    else if (info.Hovered)
+    else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_TreeHovered];
 
     const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
@@ -432,21 +450,23 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     const bool startOpen = flags & OverlayTreeFlag_StartOpen;
-    const bool opened =
-        checkWidgetState(id.Id, OverlayWidgetStateFlag_TreeOpened, startOpen ? OverlayWidgetStateFlag_TreeOpened : 0);
+    const bool opened = checkWidgetState(id.Id, WidgetStateFlag_TreeOpened, startOpen ? WidgetStateFlag_TreeOpened : 0);
 
     const usz buttonId =
         ly.BeginPanel(AsStackedId("Tree collapse"),
                       LayoutPanelParameters{.Alignment = Alignment_Center,
                                             .Sizing = {sabs(m_Style[OverlayStyle_HeaderButtonWidth]), fit()}});
-    if (info.Clicked)
+
+    bool toggleOpen = focusFlags & FocusInfoFlag_Clicked;
+    if (toggleOpen)
     {
         const bool onArrow = flags & OverlayTreeFlag_OpenOnArrow;
         const bool onDoubleClick = flags & OverlayTreeFlag_OpenOnDoubleClick;
+        const bool doubleClicked = focusFlags & FocusInfoFlag_DoubleClicked;
         if (onArrow)
-            info.Clicked = ly.IsHovered(buttonId, m_MousePos) || (onDoubleClick && info.DoubleClicked);
+            toggleOpen = ly.IsHovered(buttonId, m_MousePos) || (onDoubleClick && doubleClicked);
         else if (onDoubleClick)
-            info.Clicked = info.DoubleClicked;
+            toggleOpen = doubleClicked;
     }
 
     const CodePoint code = opened ? m_ExpandedHeaderIcon : m_CollapsedHeaderIcon;
@@ -457,8 +477,8 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_TreeText));
     ly.EndPanel();
 
-    if (info.Clicked)
-        toggleWidgetState(id.Id, OverlayWidgetStateFlag_TreeOpened);
+    if (toggleOpen)
+        toggleWidgetState(id.Id, WidgetStateFlag_TreeOpened);
 
     if (!opened)
     {
@@ -500,7 +520,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 }
 
 bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hint, const OverlayInputFlags flags,
-                           const bool overrideEnterFocus)
+                           const InputConvertInfoFlags cflags)
 {
     TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
     Layout &ly = getCurrentLayout();
@@ -511,7 +531,10 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
     const LayoutId iboxId = AsStackedId("Input box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
-    const InputFocusInfo info = getInputFocusInfo(ibox);
+    const FocusInfoFlags focusFlags = evaluateFocusStatus(
+        ibox, FocusInfoFlag_ClickedOnMousePress | FocusInfoFlag_UpdateInputText | FocusInfoFlag_KeepActiveOnRelease |
+                  FocusInfoFlag_ActiveAllowsInteraction | FocusInfoFlag_PressedIfActive);
+
     // this is the actual input box. color selection is a bit random
     ly.BeginPanel(iboxId, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundCollapsed],
                                                 .Alignment = {Alignment_Left, Alignment_Center},
@@ -527,26 +550,12 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     LayoutTextParameters tparams = getTextParams();
-    if (!info.Focused)
-    {
-        const bool elide = flags & OverlayInputFlag_ElideLeft;
-        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
-        const bool useHint = strSize == 0 && !hint.IsEmpty();
-
-        tparams.Offset[0] = oabs(textOffset);
-        if (useHint)
-        {
-            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_BoxInputHintAlpha];
-            ly.Text(hint, tparams);
-        }
-        else
-            ly.Text(buf, tparams);
-    }
-    else
+    if (focusFlags & FocusInfoFlag_Active)
     {
         TKit::String &str = m_InputWidgetBuffer;
-        const bool enteredFocus = info.EnteredFocus || overrideEnterFocus;
-        if (enteredFocus)
+        const bool justActive =
+            (focusFlags & FocusInfoFlag_JustActive) || (cflags & InputConvertFlag_MustOverrideHighlight);
+        if (justActive)
         {
             str.Clear();
             str.Insert(str.end(), buf, buf + strSize);
@@ -560,7 +569,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         }
         const f32 boxPos = ibox ? (ibox->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
-        f32 relCursorPos = m_Current->TextCursorPos - boxPos;
+        f32 relCursorPos = m_TextCursorPos - boxPos;
         // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, ==
         // 1 is a double click)
         //
@@ -568,10 +577,10 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         // pretty straightforward, just grab all the text
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
-        if (m_OverflowClicks == 2 || (enteredFocus && autoSelectAll))
+        if (m_OverflowClicks == 2 || (justActive && autoSelectAll))
         {
-            m_Current->TextCursorPos = boxPos;
-            m_Current->TextHighlightSize = fs * fdata.ComputeTextWidth(str);
+            m_TextCursorPos = boxPos;
+            m_TextHighlightSize = fs * fdata.ComputeTextWidth(str);
         }
         else if (m_OverflowClicks == 1)
         {
@@ -612,17 +621,17 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
             // and then update the global positions/sizes. this is important bc all input is derived from these, so
             // they must remain consisten
-            m_Current->TextCursorPos = startAdvance + boxPos;
-            m_Current->TextHighlightSize = endAdvance - startAdvance;
+            m_TextCursorPos = startAdvance + boxPos;
+            m_TextHighlightSize = endAdvance - startAdvance;
         }
 
         // now it is time to, given the cursor and the text highlight size, to draw the former if there is not
         // highlight, or the latter otherwise, and then act on them
         const f32 hgh1 = relCursorPos;
-        const f32 hgh2 = relCursorPos + m_Current->TextHighlightSize;
+        const f32 hgh2 = relCursorPos + m_TextHighlightSize;
 
         // text highlight might be negative!! (user drags to the left)
-        const bool negHsize = m_Current->TextHighlightSize < 0.f;
+        const bool negHsize = m_TextHighlightSize < 0.f;
 
         // guaranteed hstartPos <= hendPos
         const f32 hstartPos = negHsize ? hgh2 : hgh1;
@@ -633,6 +642,8 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         // one)
 
         f32 cursorAdvance = 0.f;
+        TKit::StackArray<f32> cursorAdvances{};
+        cursorAdvances.Reserve(str.GetSize());
 
         f32 hstartAdvance = 0.f;
         f32 hendAdvance = 0.f;
@@ -651,6 +662,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
             const f32 hw = textWidth + 0.5f * width;
             textWidth += width;
+            cursorAdvances.Append(textWidth);
             if (hw < relCursorPos)
             {
                 cursorStart = i;
@@ -670,6 +682,19 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
             return true;
         });
+
+        if (m_EventKeys[Key_Left] && cursorEnd != 0)
+        {
+            cursorAdvance = cursorStart == 0 ? 0.f : cursorAdvances[--cursorStart];
+            --cursorEnd;
+            m_TextCursorPos = cursorAdvance + boxPos;
+        }
+        else if (m_EventKeys[Key_Right] && cursorEnd != str.GetSize())
+        {
+            cursorAdvance = cursorAdvances[cursorEnd == 0 ? cursorStart : ++cursorStart];
+            ++cursorEnd;
+            m_TextCursorPos = cursorAdvance + boxPos;
+        }
 
         const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
         const f32 textOffset =
@@ -722,7 +747,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         // we just then see how many spots are left and how many spots the user wants to write to. we take the min
         // of them
         const u32 spotsLeft = size - 1 - strSize;
-        const u32 spots = Math::Min(m_Current->TextInput.GetSize(), spotsLeft);
+        const u32 spots = Math::Min(m_TextInput.GetSize(), spotsLeft);
 
         // we take a range to remove characters by cursor or by highlight
         const u32 toRemoveBegin = hasCursor ? cursorStart : hstart;
@@ -751,10 +776,10 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             // of the highlight, and we have to shift it)
 
             if (hasCursor || negHsize)
-                m_Current->TextCursorPos -= fs * toRemoveWidth;
+                m_TextCursorPos -= fs * toRemoveWidth;
 
             // we can now reset the highlight
-            m_Current->TextHighlightSize = 0.f;
+            m_TextHighlightSize = 0.f;
 
             // this is important bc we are gonna insert now into the cursor position. the deletion might have
             // invalidated the position, so we adjust for that
@@ -765,14 +790,14 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         updated |= spots != 0;
         // and then insert!
         for (u32 i = 0; i < spots; ++i)
-            str.Insert(str.begin() + cursorEnd, m_Current->TextInput[i]);
+            str.Insert(str.begin() + cursorEnd, m_TextInput[i]);
 
         if (spots != 0)
-            m_Current->TextCursorPos += fs * fdata.ComputeTextWidth(m_Current->TextInput);
+            m_TextCursorPos += fs * fdata.ComputeTextWidth(m_TextInput);
 
         const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
         if (enterCommits)
-            updated = m_Window->IsKeyPressed(Key_Enter);
+            updated = m_EventKeys[Key_Enter];
         if (updated)
         {
             // copy the new string into the buffer and we are done :)
@@ -786,8 +811,23 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         {
             const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
             if (enterTrue)
-                updated = m_Window->IsKeyPressed(Key_Enter);
+                updated = m_EventKeys[Key_Enter];
         }
+    }
+    else
+    {
+        const bool elide = flags & OverlayInputFlag_ElideLeft;
+        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
+        const bool useHint = strSize == 0 && !hint.IsEmpty();
+
+        tparams.Offset[0] = oabs(textOffset);
+        if (useHint)
+        {
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_BoxInputHintAlpha];
+            ly.Text(hint, tparams);
+        }
+        else
+            ly.Text(buf, tparams);
     }
 
     ly.EndPanel();
@@ -795,31 +835,32 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     return updated;
 }
 
-InputConvertInfo Overlay::getInputConvertInfo(const bool hovered, const bool allowDoubleClick)
+InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags flags)
 {
-    InputConvertInfo info{};
+    InputConvertInfoFlags outFlags = flags;
+    const bool allowDoubleClick = flags & InputConvertFlag_AllowDoubleClick;
+    const bool hovered = flags & InputConvertFlag_Hovered;
 
     Layout &ly = getCurrentLayout();
-    const LayoutElement *ibox = ly.QueryElement(AsStackedId("Input box"));
+
+    const usz iboxId = AsStackedId("Input box");
+    const LayoutElement *ibox = ly.QueryElement(iboxId);
 
     const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
-    const bool triggered = hovered && (dclick || (ctrl && checkFlags(OverlayEventFlag_MousePressed)));
-    const bool persisted = ibox && (ibox->IsHovered(m_MousePos) || m_FocusedInputter == ibox->Id);
+    const bool triggered = hovered && (dclick || (ctrl && checkFlags(EventFlag_MousePressed)));
+    const bool persisted = ibox && (ibox->IsHovered(m_MousePos) || m_ActiveId == ibox->Id);
 
-    info.MustConvert = triggered || persisted;
-    info.MustOverrideHighlight = ibox && ibox->IsHovered(m_MousePos) && m_DelayedFocusedInputter != ibox->Id;
+    const bool mustConvert = (triggered || persisted) && !m_EventKeys[Key_Enter];
+    if (mustConvert)
+        outFlags |= InputConvertFlag_MustConvert;
+    if (ibox && ibox->IsHovered(m_MousePos) && m_ActiveId != ibox->Id && m_ActiveIdLastFrame != ibox->Id)
+        outFlags |= InputConvertFlag_MustOverrideHighlight;
 
-    if (info.MustConvert)
-    {
-        if (ibox)
-        {
-            m_FocusedInputter = ibox->Id;
-            m_DelayedFocusedInputter = ibox->Id; // so that focus highlight all is not triggered
-        }
-    }
-    return info;
+    if (ibox && mustConvert)
+        m_ActiveId = ibox->Id;
+    return outFlags;
 }
 
 // TODO(Isma): Too much repetition between this and Button()
@@ -828,10 +869,10 @@ bool Overlay::collapseButton()
     Layout &ly = getCurrentLayout();
 
     const LayoutId id = AsStackedId("Collapse button");
-    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id));
 
     const Color *col = &Color_Transparent;
-    if (info.Pressed)
+    if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_ButtonPressed];
 
     ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
@@ -842,97 +883,81 @@ bool Overlay::collapseButton()
     ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_WindowHeader));
 
     ly.EndPanel();
-    return info.Clicked;
+    return focusFlags & FocusInfoFlag_Clicked;
 }
 
-ClickFocusInfo Overlay::getClickFocusInfo(const LayoutElement *elm)
+FocusInfoFlags Overlay::evaluateFocusStatus(const LayoutElement *elm, const FocusInfoFlags flags)
 {
+    FocusInfoFlags outFlags = flags;
     if (!elm)
-        return ClickFocusInfo{};
+        return outFlags;
 
-    const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
+    const bool pressedIfActive = flags & FocusInfoFlag_PressedIfActive;
 
-    const bool canHover = canFocus && (m_ActiveId == NullLayoutId || m_ActiveId == elm->Id);
-    const bool hovered = canHover && elm->IsHovered(m_MousePos);
+    const bool mreleased = checkFlags(EventFlag_MouseReleased);
+    const bool mpressed = checkFlags(EventFlag_MousePressed);
 
-    const bool clicked = hovered && m_ActiveId == elm->Id && checkFlags(OverlayEventFlag_MouseReleased);
-    const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
+    const bool hovered = isWidgetHovered(elm);
+
+    bool clicked = hovered;
+    if (flags & FocusInfoFlag_ClickedOnMousePress)
+        clicked &= mpressed;
+    else
+        clicked &= mreleased && m_ActiveId == elm->Id;
+
+    const bool pressed = (hovered || (pressedIfActive && m_ActiveId == elm->Id)) && m_PressingMouse;
 
     if (pressed)
+    {
+        if (flags & FocusInfoFlag_UpdateInputText)
+        {
+            m_TextHighlightSize += m_MouseDelta[0];
+            if (pressedIfActive)
+                m_Current->Flags |= WindowInternalFlag_InputHovered;
+        }
+
+        if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
+            outFlags |= FocusInfoFlag_JustActive;
+
         m_ActiveId = elm->Id;
+        outFlags |= FocusInfoFlag_Pressed;
+    }
+    if (clicked)
+    {
+        if (flags & FocusInfoFlag_UpdateInputText)
+            m_TextCursorPos = m_MousePos[0];
+
+        outFlags |= FocusInfoFlag_Clicked;
+        if (m_OverflowClicks == 1)
+            outFlags |= FocusInfoFlag_DoubleClicked;
+    }
+
     if (hovered)
+    {
+        if (flags & FocusInfoFlag_UpdateInputText)
+            m_Current->Flags |= WindowInternalFlag_InputHovered;
+
         m_HoveredId = elm->Id;
+        outFlags |= FocusInfoFlag_Hovered;
+    }
 
-    ClickFocusInfo info;
-    info.Clicked = clicked;
-    info.DoubleClicked = clicked && m_OverflowClicks == 1;
-    info.Pressed = pressed;
-    info.Hovered = hovered;
-    return info;
-}
-
-DragFocusInfo Overlay::getDragFocusInfo(const LayoutElement *elm)
-{
-    if (!elm)
-        return DragFocusInfo{};
-
-    DragFocusInfo info;
     if (m_ActiveId == elm->Id)
     {
-        info.Pressed = m_Window->IsMousePressed(Mouse_Button1);
-        info.Hovered = true; // doesnt matter
-        m_HoveredId = elm->Id;
-    }
-    else
-    {
-        const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
-        const bool canHover = canFocus && m_ActiveId == NullLayoutId;
-        const bool hovered = canHover && elm->IsHovered(m_MousePos);
-        const bool pressed = hovered && m_Window->IsMousePressed(Mouse_Button1);
-
-        info.Pressed = pressed;
-        info.Hovered = hovered;
-        if (pressed)
-            m_ActiveId = elm->Id;
-        if (hovered)
-            m_HoveredId = elm->Id;
-    }
-    return info;
-}
-
-InputFocusInfo Overlay::getInputFocusInfo(const LayoutElement *elm)
-{
-    if (!elm)
-        return InputFocusInfo{};
-
-    const bool canFocus = m_Current->CheckFlags(OverlayWindowFlag_Hovered) && !m_Grabbed;
-    const bool canHover = canFocus && m_ActiveId == NullLayoutId;
-
-    const bool hovered = canHover && elm->IsHovered(m_MousePos);
-    const bool pressed = m_Window->IsMousePressed(Mouse_Button1);
-    const bool clicked = checkFlags(OverlayEventFlag_MousePressed);
-
-    const bool interacting = hovered && pressed;
-    const bool clicking = hovered && clicked;
-
-    if (hovered)
-        m_Current->Flags |= OverlayWindowFlag_InputHovered;
-
-    InputFocusInfo info;
-    info.EnteredFocus = interacting && m_DelayedFocusedInputter != elm->Id;
-    info.Focused = clicking || m_FocusedInputter == elm->Id;
-
-    if (interacting)
-    {
-        m_Current->TextHighlightSize += m_MouseDelta[0];
-        if (clicking)
+        m_EventFlags |= EventFlag_ActiveIdIsAlive;
+        if (mreleased && !(flags & FocusInfoFlag_KeepActiveOnRelease))
+            m_ActiveId = NullLayoutId;
+        else
         {
-            m_FocusedInputter = elm->Id;
-            m_DelayedFocusedInputter = elm->Id;
-            m_Current->TextCursorPos = m_MousePos[0];
+            outFlags |= FocusInfoFlag_Active;
+
+            if ((flags & FocusInfoFlag_ActiveAllowsInteraction) && !pressed)
+                m_EventFlags |= EventFlag_ActiveAllowsInteraction;
+            else
+                m_EventFlags &= ~EventFlag_ActiveAllowsInteraction;
         }
     }
-    return info;
+
+    return outFlags;
 }
 
 bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flags)
@@ -940,12 +965,12 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id));
 
     const Color *col = &m_Style[OverlayColor_ButtonIdle];
-    if (info.Pressed)
+    if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_ButtonPressed];
-    else if (info.Hovered)
+    else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_ButtonHovered];
 
     const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
@@ -958,7 +983,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
     PopId();
-    return info.Clicked;
+    return focusFlags & FocusInfoFlag_Clicked;
 }
 
 bool Overlay::RadioButton(const TKit::StringView label, const bool active)
@@ -966,12 +991,12 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id));
 
     const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
-    if (info.Pressed)
+    if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_CheckBoxPressed];
-    else if (info.Hovered)
+    else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_CheckBoxHovered];
 
     m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -994,7 +1019,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
 
     ly.EndPanel();
     PopId();
-    return info.Clicked;
+    return focusFlags & FocusInfoFlag_Clicked;
 }
 
 // NOTE(Isma): Much repetition with radio button here
@@ -1003,14 +1028,15 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const ClickFocusInfo info = getClickFocusInfo(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id));
+
     const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
-    if (info.Pressed)
+    if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_CheckBoxPressed];
-    else if (info.Hovered)
+    else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_CheckBoxHovered];
 
-    if (info.Clicked)
+    if (focusFlags & FocusInfoFlag_Clicked)
         *enable = !*enable;
 
     m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -1031,7 +1057,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
 
     ly.EndPanel();
     PopId();
-    return info.Clicked;
+    return focusFlags & FocusInfoFlag_Clicked;
 }
 
 void Overlay::BeginTooltip()
@@ -1069,9 +1095,9 @@ void Overlay::BeginTooltip()
                                                       .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
 
-bool Overlay::BeginItemTooltip()
+bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
 {
-    if (!m_Current->CheckFlags(OverlayWindowFlag_Hovered) || !m_Current->Layout.IsHovered(m_LastWidget, m_MousePos))
+    if (!IsItemHovered(flags))
         return false;
 
     BeginTooltip();
@@ -1090,6 +1116,7 @@ void Overlay::EndTooltip()
 bool Overlay::IsItemHovered(const OverlayHoveredFlags flags)
 {
     const bool allowBlockWindow = flags & OverlayHoveredFlag_AllowBlockedByWindow;
+    const bool allowBlockId = flags & OverlayHoveredFlag_AllowBlockedByActiveItem;
     const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
     const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
     const bool stationary = flags & OverlayHoveredFlag_Stationary;
@@ -1103,9 +1130,8 @@ bool Overlay::IsItemHovered(const OverlayHoveredFlags flags)
         delay = m_Style[OverlayStyle_HoverDelayNormal];
 
     const Layout &ly = getCurrentLayout();
-
-    const bool candidate = (allowBlockWindow || m_Current->CheckFlags(OverlayWindowFlag_Hovered)) &&
-                           ly.IsHovered(m_LastWidget, m_MousePos);
+    const bool candidate = (allowBlockWindow || m_Current->CheckFlags(WindowInternalFlag_Hovered)) &&
+                           (allowBlockId || canWidgetInteract(m_LastWidget)) && ly.IsHovered(m_LastWidget, m_MousePos);
     if (candidate)
     {
         const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
@@ -1187,32 +1213,32 @@ void Overlay::processWindows()
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
 
-    if (m_EventFlags & OverlayEventFlag_MouseReleased)
+    m_ActiveIdLastFrame = m_ActiveId;
+    if (!(m_EventFlags & EventFlag_ActiveIdIsAlive))
+    {
         m_ActiveId = NullLayoutId;
-
-    m_EventFlags = 0;
+        m_EventFlags &= ~EventFlag_ActiveAllowsInteraction;
+    }
+    m_EventFlags &= EventFlagPersist;
 
     m_EventKeys.ClearAll();
 
-    if (m_FocusedInputter == NullLayoutId)
-        m_DelayedFocusedInputter = NullLayoutId;
-
-    const bool pressingWidget = m_ActiveId != NullLayoutId;
+    const bool widgetLocked = m_ActiveId != NullLayoutId && !(m_EventFlags & EventFlag_ActiveAllowsInteraction);
+    const bool widgetHovered = m_HoveredId != NullLayoutId;
     // if nothing is grabbed, we check mouse cursors here
-    if (!m_Grabbed && !pressingWidget)
+    if (!m_Grabbed)
     {
-        const bool hoveringWidget = m_HoveredId != NullLayoutId;
         MouseCursor cursor = MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow &win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
-            const bool winHovered = win.CheckFlags(OverlayWindowFlag_Hovered);
-            if (winHovered && win.CheckFlags(OverlayWindowFlag_InputHovered))
+            const bool winHovered = win.CheckFlags(WindowInternalFlag_Hovered);
+            if (winHovered && win.CheckFlags(WindowInternalFlag_InputHovered))
             {
                 win.Resize.Flags = 0;
                 cursor = MouseCursor_IBeam;
                 return false;
             }
-            if (!winHovered || hoveringWidget)
+            if (!winHovered || widgetHovered || widgetLocked)
             {
                 win.Resize.Flags = 0;
                 return true;
@@ -1221,8 +1247,8 @@ void Overlay::processWindows()
                 return true;
             // else, check if there is resize hover
 
-            OverlayResizeFlags rflags = 0;
-            OverlayResizeInfo &rinfo = win.Resize;
+            ResizeFlags rflags = 0;
+            ResizeInfo &rinfo = win.Resize;
             for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
             {
                 const usz id = rinfo.Ids[i];
@@ -1234,18 +1260,16 @@ void Overlay::processWindows()
             }
             rinfo.Flags = rflags;
 
-            const auto cf = [&](const OverlayResizeFlags f) { return f & rflags; };
-            if ((cf(OverlayResizeFlag_Left) && cf(OverlayResizeFlag_Bottom)) ||
-                (cf(OverlayResizeFlag_Right) && cf(OverlayResizeFlag_Top)))
+            const auto cf = [&](const ResizeFlags f) { return f & rflags; };
+            if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
                 cursor = MouseCursor_NESW;
 
-            else if ((cf(OverlayResizeFlag_Right) && cf(OverlayResizeFlag_Bottom)) ||
-                     (cf(OverlayResizeFlag_Left) && cf(OverlayResizeFlag_Top)))
+            else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
                 cursor = MouseCursor_NWSE;
 
-            else if (cf(OverlayResizeFlag_Left | OverlayResizeFlag_Right))
+            else if (cf(ResizeFlag_Left | ResizeFlag_Right))
                 cursor = MouseCursor_EW;
-            else if (cf(OverlayResizeFlag_Bottom | OverlayResizeFlag_Top))
+            else if (cf(ResizeFlag_Bottom | ResizeFlag_Top))
                 cursor = MouseCursor_NS;
 
             return true;
@@ -1258,26 +1282,29 @@ void Overlay::processWindows()
     {
         const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
         win.HeaderIcon = collapsed ? m_CollapsedHeaderIcon : m_ExpandedHeaderIcon;
-        win.RemoveFlags(OverlayWindowFlag_Hovered);
-        win.TextInput.Clear();
+        win.RemoveFlags(WindowInternalFlag_Hovered);
     };
 
     // check for mouse events
     OverlayWindowFlags wflags = 0;
     f32 scroll = 0.f;
-    TKit::String textInput{};
+    m_TextInput.Clear();
     for (const Event &ev : m_Window->GetNewEvents())
     {
         if (ev.Type == Event_MousePressed)
         {
-            m_EventFlags |= OverlayEventFlag_MousePressed;
-            m_FocusedInputter = NullLayoutId;
+            m_EventFlags |= EventFlag_MousePressed;
+            m_ActiveId = NullLayoutId;
+            m_EventFlags &= ~EventFlag_ActiveAllowsInteraction;
+            m_PressingMouse = true;
+            m_TextHighlightSize = 0.f;
         }
         else if (ev.Type == Event_MouseReleased)
         {
-            m_EventFlags |= OverlayEventFlag_MouseReleased;
+            m_EventFlags |= EventFlag_MouseReleased;
             if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
                 ++m_OverflowClicks;
+            m_PressingMouse = false;
         }
         else if (ev.Type == Event_Scrolled)
             scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset[1];
@@ -1285,10 +1312,14 @@ void Overlay::processWindows()
         {
             char buf[4];
             const u32 count = EncodeUTF8(buf, ev.Character);
-            textInput.Insert(textInput.end(), buf, buf + count);
+            m_TextInput.Insert(m_TextInput.end(), buf, buf + count);
         }
         else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
+        {
             m_EventKeys.Set(ev.Key);
+            if (ev.Key == Key_Left || ev.Key == Key_Right)
+                m_TextHighlightSize = 0.f;
+        }
     }
 
     if (m_ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
@@ -1299,23 +1330,19 @@ void Overlay::processWindows()
     u32 idx = m_OverlayWindows.GetSize();
     // go through the windows to 1. assign the mouse events to the uppermost hovered window and 2. assign such
     // window as grabbed if user pressed the mouse
-    const bool pressed = m_EventFlags & OverlayEventFlag_MousePressed;
+    const bool pressed = m_EventFlags & EventFlag_MousePressed;
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
         const bool winHovered =
             canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding]);
-        const bool inputHovered = win.CheckFlags(OverlayWindowFlag_InputHovered);
-
-        if (pressed)
-            win.TextHighlightSize = 0.f;
+        const bool inputHovered = win.CheckFlags(WindowInternalFlag_InputHovered);
 
         win.Flags |= wflags;
-        win.RemoveFlags(OverlayWindowFlag_InputHovered);
+        win.RemoveFlags(WindowInternalFlag_InputHovered);
 
-        win.TextInput = textInput;
         if (winHovered)
         {
-            win.AddFlags(OverlayWindowFlag_Hovered);
+            win.AddFlags(WindowInternalFlag_Hovered);
             win.ScrollBar.WheelOffset += scroll;
             canAssignHover = false;
         }
@@ -1323,7 +1350,7 @@ void Overlay::processWindows()
         if (pressed && (win.Resize.Flags != 0 || winHovered))
         {
             const bool noFocus = win.Flags & OverlayWindowFlag_NoBringToFocus;
-            if (!pressingWidget && !inputHovered)
+            if (!widgetHovered && !widgetLocked && !inputHovered)
             {
                 win.Resize.Position = win.Position;
                 win.Resize.Size = win.Size;
@@ -1338,12 +1365,12 @@ void Overlay::processWindows()
     });
 
     // now just handle grabbing, which is straightforward
-    if (!m_Window->IsMousePressed(Mouse_Button1))
+    if (!m_PressingMouse)
         m_Grabbed = nullptr;
     else if (m_Grabbed)
     {
         m_Grabbed->Resize.InteractionColor = &m_Style[OverlayColor_WindowBorderPressed];
-        OverlayResizeInfo &rinfo = m_Grabbed->Resize;
+        ResizeInfo &rinfo = m_Grabbed->Resize;
         f32v2 &p = rinfo.Position;
         f32v2 &s = rinfo.Size;
         const f32v2 &ms = m_Grabbed->MinSize;
@@ -1360,8 +1387,8 @@ void Overlay::processWindows()
         }
         else if (!noResize)
         {
-            const auto handleResizeAxis = [&](const u32 idx, const OverlayResizeFlags canonical,
-                                              const OverlayResizeFlags mirrored, const f32 sign = 1.f) {
+            const auto handleResizeAxis = [&](const u32 idx, const ResizeFlags canonical, const ResizeFlags mirrored,
+                                              const f32 sign = 1.f) {
                 const f32 step = md[idx];
                 if (rinfo.Flags & canonical)
                 {
@@ -1377,8 +1404,8 @@ void Overlay::processWindows()
                     m_Grabbed->Size[idx] = s[idx];
                 }
             };
-            handleResizeAxis(0, OverlayResizeFlag_Left, OverlayResizeFlag_Right);
-            handleResizeAxis(1, OverlayResizeFlag_Top, OverlayResizeFlag_Bottom, -1.f);
+            handleResizeAxis(0, ResizeFlag_Left, ResizeFlag_Right);
+            handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom, -1.f);
         }
     }
 
