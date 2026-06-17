@@ -60,14 +60,15 @@ enum InputConvertFlagBit : InputConvertInfoFlags
 using OverlayWindowFlags = u16;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoResize = 1U << 8,
-    OverlayWindowFlag_NoMove = 1U << 9,
-    OverlayWindowFlag_NoCollapse = 1U << 10,
-    OverlayWindowFlag_NoScrollBar = 1U << 11,
-    OverlayWindowFlag_NoHeaderBar = 1U << 12,
-    OverlayWindowFlag_NoBackground = 1U << 13,
-    OverlayWindowFlag_NoBringToFocus = 1U << 14,
-    OverlayWindowFlag_AlwaysAutoResize = 1U << 15,
+    OverlayWindowFlag_NoResize = 1U << 7,
+    OverlayWindowFlag_NoMove = 1U << 8,
+    OverlayWindowFlag_NoCollapse = 1U << 9,
+    OverlayWindowFlag_NoScrollBar = 1U << 10,
+    OverlayWindowFlag_NoHeaderBar = 1U << 11,
+    OverlayWindowFlag_NoBackground = 1U << 12,
+    OverlayWindowFlag_NoBringToFocus = 1U << 13,
+    OverlayWindowFlag_AlwaysAutoResize = 1U << 14,
+    OverlayWindowFlag_HorizontalScroll = 1U << 15,
 };
 
 using OverlayInputFlags = u8;
@@ -155,7 +156,8 @@ struct OverlayWindow
     usz Id = NullLayoutId;
 
     ResizeInfo Resize{};
-    ScrollBarInfo ScrollBar{};
+    ScrollBarInfo VerticalScrollBar{};
+    ScrollBarInfo HorizontalScrollBar{};
 
     Layout Layout;
     f32v2 Position{0.f};
@@ -388,7 +390,7 @@ class Overlay
     {
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {grow(300.f), fit()},
+                                                           .Sizing = {flex(300.f), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
         m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
                                      LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -425,7 +427,7 @@ class Overlay
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {grow(300.f), fit()},
+                                                           .Sizing = {flex(300.f), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         bool pressed = false;
@@ -453,7 +455,7 @@ class Overlay
     {
         Layout &ly = getCurrentLayout();
         ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {grow(300.f), fit()},
+                                                           .Sizing = {flex(300.f), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
@@ -807,7 +809,7 @@ class Overlay
 
         ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
                                                 .Alignment = Alignment_Center,
-                                                .Sizing = {grow(), fit()},
+                                                .Sizing = {flex(), fit()},
                                                 .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
@@ -892,8 +894,9 @@ class Overlay
     f32v2 getMousePos() const;
     void processWindows();
     void bringWindowToTop(u32 idx);
+
     void drawWindowBorders();
-    void drawWindowScrollBar(LayoutId id);
+    void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
     bool isWidgetHovered(const LayoutElement *elm) const;
     bool canWidgetInteract(usz id) const;
@@ -1034,6 +1037,7 @@ class Overlay
     TKit::TierArray<usz> m_WindowIds{};
     TKit::TierArray<usz> m_IdStack{};
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
+    TKit::TierHashMap<usz, ScrollBarInfo> m_VerticalScrollables{};
     Tooltip m_Tooltip;
 };
 } // namespace Onyx

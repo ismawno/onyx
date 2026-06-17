@@ -226,23 +226,26 @@ void Overlay::drawWindowBorders()
     }
 }
 
-void Overlay::drawWindowScrollBar(const LayoutId id)
+void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
+                            const bool drawBar)
 {
     Layout &ly = getCurrentLayout();
-    const LayoutElement *contentArea = ly.QueryElement(id);
+    const LayoutElement *contentArea = ly.QueryElement(contentAreaId);
     if (!contentArea)
         return;
 
-    const f32 size = contentArea->Size[1];
-    const f32 csize = contentArea->ChildrenSize[1] + 2.f * m_Style[OverlayStyle_WindowPadding];
+    const f32 size = contentArea->Size[axis];
 
-    ScrollBarInfo &sinfo = m_Current->ScrollBar;
-    if (csize > size)
+    if (contentArea->ChildrenSize[axis] > size)
     {
+        const f32 csize = contentArea->ChildrenSize[axis] + 2.f * m_Style[OverlayStyle_WindowPadding];
         const Color *col = &m_Style[OverlayColor_ScrollBarIdle];
 
-        const LayoutId scrollId = AsStackedId("Scroll bar");
+        const char *name = axis == LayoutAxis_Horizontal ? "Horizontal scroll bar" : "Vertical scroll bar";
+        const LayoutId scrollId = AsStackedId(name);
+
         const LayoutElement *scrollBar = ly.QueryElement(scrollId);
+        const f32 sign = axis == LayoutAxis_Horizontal ? -1.f : 1.f;
         if (scrollBar)
         {
             const FocusInfoFlags focusFlags = evaluateFocusStatus(scrollBar, FocusInfoFlag_PressedIfActive);
@@ -250,17 +253,17 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
             if (focusFlags & FocusInfoFlag_Pressed)
             {
                 col = &m_Style[OverlayColor_ScrollBarPressed];
-                sinfo.CursorOffset += m_MouseDelta[1];
+                sinfo.CursorOffset += sign * m_MouseDelta[axis];
             }
             else
             {
-                sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
+                sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
                 if (focusFlags & FocusInfoFlag_Hovered)
                     col = &m_Style[OverlayColor_ScrollBarHovered];
             }
         }
         else
-            sinfo.CursorOffset = sinfo.BarOffset; // this indirectly saves the WheelOffset state
+            sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
 
         const f32 barSize = size * size / csize;
         const f32 maxOffset = size - barSize;
@@ -268,17 +271,26 @@ void Overlay::drawWindowScrollBar(const LayoutId id)
         const f32 elementFactor = csize / size;
 
         const f32 unbounded = sinfo.CursorOffset + sinfo.WheelOffset / elementFactor;
-        sinfo.BarOffset = Math::Clamp(unbounded, -maxOffset, 0.f);
+        sinfo.BarOffset = sign * Math::Clamp(unbounded, -maxOffset, 0.f);
 
         sinfo.ElementOffset = elementFactor * sinfo.BarOffset;
 
-        const bool noScroll = m_Current->CheckFlags(OverlayWindowFlag_NoScrollBar);
-        if (!noScroll)
+        if (drawBar)
+        {
+            vec2<LayoutSizing> sizing;
+            sizing[axis] = sabs(barSize);
+            sizing[1 - axis] = sabs(m_Style[OverlayStyle_ScrollBarWidth]);
+
+            vec2<LayoutOffset> offset;
+            offset[axis] = oabs(sinfo.BarOffset);
+            offset[1 - axis] = oabs(0.f);
+
             ly.Panel(scrollId,
                      LayoutPanelParameters{.FillColor = *col,
-                                           .Sizing = sabs({m_Style[OverlayStyle_ScrollBarWidth], barSize}),
-                                           .SelfOffset = oabs({0.f, sinfo.BarOffset}),
+                                           .Sizing = sizing,
+                                           .SelfOffset = offset,
                                            .Shape = LayoutShape::Rectangle(m_Style[OverlayStyle_ScrollBarWidth])});
+        }
     }
     else
         sinfo.Reset();
@@ -311,7 +323,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->MinSize = computeWindowMinSize(m_Style[OverlayStyle_WindowPadding], m_Style[OverlayStyle_HeaderPadding],
                                               m_Style[OverlayStyle_FontSize]);
-    m_Current->Flags &= WindowInternalFlagPersist;
     m_Current->Flags |= flags;
 
     Layout &ly = getCurrentLayout();
@@ -320,7 +331,10 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     const bool collapsed = !noHeader && m_Current->HeaderIcon == m_CollapsedHeaderIcon;
     const bool autoResize = flags & OverlayWindowFlag_AlwaysAutoResize;
     if (autoResize)
-        m_Current->ScrollBar.Reset();
+    {
+        m_Current->VerticalScrollBar.Reset();
+        m_Current->HorizontalScrollBar.Reset();
+    }
 
     // ugly
     const vec2<LayoutSizing> sizing = [&]() -> vec2<LayoutSizing> {
@@ -368,7 +382,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
             if (collapsed)
             {
                 m_Current->Size[1] = m_Current->LastHeight;
-                m_Current->ScrollBar.Reset();
+                m_Current->VerticalScrollBar.Reset();
+                m_Current->HorizontalScrollBar.Reset();
             }
             else
             {
@@ -381,21 +396,32 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
         ly.EndPanel();
     }
 
-    ly.BeginPanel(AsStackedId("Scroll area"), LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
-                                                                    .Alignment = topLeft,
-                                                                    .Sizing = autoResize ? fit() : grow(),
-                                                                    .ChildGap = 0.5f * m_Style[OverlayStyle_ChildGap]});
-    // must pass the id bc at this point, querying plainly with "Scroll area" will mix with the actual "Scroll area"
-    // panel, giving a different id
+    const f32 cgap = m_Style[OverlayStyle_ChildGap];
+    ly.BeginPanel(AsStackedId("Horizontal scroll area"), LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop,
+                                                                               .Alignment = topLeft,
+                                                                               .Sizing = autoResize ? fit() : grow(),
+                                                                               .ChildGap = 0.5f * cgap});
+
     const LayoutId contentId = AsStackedId("Content area");
+    if (!collapsed && !autoResize && (flags & OverlayWindowFlag_HorizontalScroll))
+        performScroll(contentId, m_Current->HorizontalScrollBar, LayoutAxis_Horizontal,
+                      !(flags & OverlayWindowFlag_NoScrollBar));
+
+    ly.BeginPanel(AsStackedId("Vertical scroll area"), LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
+                                                                             .Alignment = topLeft,
+                                                                             .Sizing = autoResize ? fit() : grow(),
+                                                                             .ChildGap = 0.5f * cgap});
+
     if (!collapsed && !autoResize)
-        drawWindowScrollBar(contentId);
+        performScroll(contentId, m_Current->VerticalScrollBar, LayoutAxis_Vertical,
+                      !(flags & OverlayWindowFlag_NoScrollBar));
     ly.BeginPanel(contentId, LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
                                                    .Alignment = topLeft,
                                                    .Sizing = autoResize ? fit() : grow(),
-                                                   .ChildOffset = oabs({0.f, -m_Current->ScrollBar.ElementOffset}),
+                                                   .ChildOffset = oabs({-m_Current->HorizontalScrollBar.ElementOffset,
+                                                                        -m_Current->VerticalScrollBar.ElementOffset}),
                                                    .Padding = m_Style[OverlayStyle_ContentAreaPadding],
-                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+                                                   .ChildGap = cgap});
 
     return !collapsed;
 }
@@ -406,6 +432,8 @@ void Overlay::EndWindow()
     m_Current->Layout.EndPanel();
     m_Current->Layout.EndPanel();
     m_Current->Layout.EndPanel();
+    m_Current->Layout.EndPanel();
+    m_Current->Flags &= WindowInternalFlagPersist;
     m_Current = nullptr;
     PopId();
 }
@@ -440,8 +468,11 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_TreeHovered];
 
+    const bool horScroll = m_Current->Flags & OverlayWindowFlag_HorizontalScroll;
+    const LayoutSizing growOrFlex = horScroll ? flex() : grow();
+
     const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
-    const vec2<LayoutSizing> sizing = {spanLabel ? fit() : grow(), fit()};
+    const vec2<LayoutSizing> sizing = {spanLabel ? fit() : growOrFlex, fit()};
 
     m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
                                                            .Alignment = {Alignment_Left, Alignment_Center},
@@ -503,7 +534,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     {
         ly.BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_TopToBottom,
                                             .Alignment = Alignment_Center,
-                                            .Sizing = {sabs(treeIndent), grow()}});
+                                            .Sizing = {sabs(treeIndent), flex()}});
 
         if (lines)
             VerticalLine();
@@ -535,7 +566,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
     ly.BeginPanel(iboxId, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundCollapsed],
                                                 .Alignment = {Alignment_Left, Alignment_Center},
-                                                .Sizing = {grow(), fit()},
+                                                .Sizing = {flex(), fit()},
                                                 .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
     bool updated = false;
@@ -973,7 +1004,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
 
-    const vec2<LayoutSizing> sizing = spanFull ? vec2<LayoutSizing>{grow(), fit()} : vec2<LayoutSizing>{fit()};
+    const vec2<LayoutSizing> sizing = spanFull ? vec2<LayoutSizing>{flex(), fit()} : vec2<LayoutSizing>{fit()};
 
     m_LastWidget = ly.BeginPanel(
         id, LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = 8.f});
@@ -1158,7 +1189,7 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
 {
     Layout &ly = getCurrentLayout();
     ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                       .Sizing = {grow(300.f), fit()},
+                                                       .Sizing = {flex(300.f), fit()},
                                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     m_LastWidget =
@@ -1285,7 +1316,7 @@ void Overlay::processWindows()
 
     // check for mouse events
     OverlayWindowFlags wflags = 0;
-    f32 scroll = 0.f;
+    f32v2 scroll{0.f};
     m_TextInput.Clear();
     for (const Event &ev : m_Window->GetNewEvents())
     {
@@ -1305,7 +1336,7 @@ void Overlay::processWindows()
             m_PressingMouse = false;
         }
         else if (ev.Type == Event_Scrolled)
-            scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset[1];
+            scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
         else if (ev.Type == Event_CharInput)
         {
             char buf[4];
@@ -1337,7 +1368,8 @@ void Overlay::processWindows()
         if (winHovered)
         {
             win.AddFlags(WindowInternalFlag_Hovered);
-            win.ScrollBar.WheelOffset += scroll;
+            win.VerticalScrollBar.WheelOffset += scroll[1];
+            win.HorizontalScrollBar.WheelOffset += scroll[0];
             canAssignHover = false;
         }
 

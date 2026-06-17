@@ -165,6 +165,8 @@ int main()
                 ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
                 ui.CheckBoxFlags("OverlayWindowFlag_AlwaysAutoResize", &flags,
                                  Onyx::OverlayWindowFlag_AlwaysAutoResize);
+                ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags,
+                                 Onyx::OverlayWindowFlag_HorizontalScroll);
             }
             ui.EndWindow();
         }
