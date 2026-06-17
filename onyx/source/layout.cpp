@@ -412,89 +412,55 @@ void Layout::growShrinkPass(const LayoutAxis axis)
                     toShrink.Append(c);
             }
 
+            const auto distribute = [&](TKit::StackArray<u32> &candidates, const f32 sign) {
+                f32 extremal = sign > 0.f ? TKIT_F32_MAX : 0.f;
+                f32 secExtremal = extremal;
+                f32 budget = sign * remainingSize;
+
+                for (const u32 c : candidates)
+                {
+                    const LayoutElement &child = m_Elements[c];
+                    const f32 csize = sign * child.Size[axis];
+                    if (extremal > csize)
+                        extremal = csize;
+                    else if (extremal < csize)
+                    {
+                        secExtremal = Math::Min(secExtremal, csize);
+                        budget = secExtremal - extremal;
+                    }
+                }
+
+                const u32 ccount = candidates.GetSize();
+                budget = Math::Min(budget, sign * remainingSize / ccount);
+
+                for (u32 i = candidates.GetSize() - 1; i < candidates.GetSize(); --i)
+                {
+                    const u32 c = candidates[i];
+                    LayoutElement &child = m_Elements[c];
+                    f32 &csize = child.Size[axis];
+                    if (!Math::Approximately(csize, sign * extremal))
+                        continue;
+
+                    const bool growing = sign > 0.f;
+                    const f32 msize = growing ? child.MaxSize[axis] : child.MinSize[axis];
+                    if (sign * csize + budget >= sign * msize)
+                    {
+                        remainingSize += sign * (csize - msize);
+                        csize = msize;
+                        candidates.RemoveUnordered(candidates.begin() + i);
+                    }
+                    else
+                    {
+                        csize += sign * budget;
+                        remainingSize -= sign * budget;
+                    }
+                }
+            };
+
             while (!toGrow.IsEmpty() && remainingSize > TKIT_F32_EPSILON)
-            {
-                f32 smallest = TKIT_F32_MAX;
-                f32 secSmallest = TKIT_F32_MAX;
-                f32 toAdd = remainingSize;
-                for (const u32 c : toGrow)
-                {
-                    const LayoutElement &child = m_Elements[c];
-                    const f32 csize = child.Size[axis];
-                    if (smallest > csize)
-                        smallest = csize;
-                    else if (smallest < csize)
-                    {
-                        secSmallest = Math::Min(secSmallest, csize);
-                        toAdd = secSmallest - smallest;
-                    }
-                }
-
-                toAdd = Math::Min(toAdd, remainingSize / toGrow.GetSize());
-                for (u32 i = toGrow.GetSize() - 1; i < toGrow.GetSize(); --i)
-                {
-                    const u32 c = toGrow[i];
-                    LayoutElement &child = m_Elements[c];
-                    f32 &csize = child.Size[axis];
-                    if (!Math::Approximately(csize, smallest))
-                        continue;
-
-                    const f32 msize = child.MaxSize[axis];
-                    if (csize + toAdd >= msize)
-                    {
-                        remainingSize -= msize - csize;
-                        csize = msize;
-                        toGrow.RemoveUnordered(toGrow.begin() + i);
-                    }
-                    else
-                    {
-                        csize += toAdd;
-                        remainingSize -= toAdd;
-                    }
-                }
-            }
-            // NOTE(Isma): This and top part could be merged
+                distribute(toGrow, 1.f);
             while (!toShrink.IsEmpty() && remainingSize < -TKIT_F32_EPSILON)
-            {
-                f32 biggest = 0.f;
-                f32 secBiggest = 0.f;
-                f32 toRemove = -remainingSize;
-                for (const u32 c : toShrink)
-                {
-                    const LayoutElement &child = m_Elements[c];
-                    const f32 csize = child.Size[axis];
-                    if (biggest < csize)
-                        biggest = csize;
-                    else if (biggest > csize)
-                    {
-                        secBiggest = Math::Max(secBiggest, csize);
-                        toRemove = biggest - secBiggest;
-                    }
-                }
-
-                toRemove = Math::Min(toRemove, -remainingSize / toShrink.GetSize());
-                for (u32 i = toShrink.GetSize() - 1; i < toShrink.GetSize(); --i)
-                {
-                    const u32 c = toShrink[i];
-                    LayoutElement &child = m_Elements[c];
-                    f32 &csize = child.Size[axis];
-                    if (!Math::Approximately(csize, biggest))
-                        continue;
-
-                    const f32 msize = child.MinSize[axis];
-                    if (csize - toRemove <= msize)
-                    {
-                        remainingSize += csize - msize;
-                        csize = msize;
-                        toShrink.RemoveUnordered(toShrink.begin() + i);
-                    }
-                    else
-                    {
-                        csize -= toRemove;
-                        remainingSize += toRemove;
-                    }
-                }
-            }
+                distribute(toShrink, -1.f);
         }
         else
             for (const u32 c : parent.Children)
