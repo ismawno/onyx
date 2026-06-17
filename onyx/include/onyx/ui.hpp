@@ -491,14 +491,11 @@ class Overlay
 
     template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
     {
-        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        const LayoutTextParameters params = getTextParams(OverlayColor_Text);
-        Layout &ly = getCurrentLayout();
-        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-        if constexpr (sizeof...(Args) != 0)
-            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
-        else
-            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
+        text(TextMode_Unbounded, str, std::forward<Args>(args)...);
+    }
+    template <typename... Args> void TextWrapped(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        text(TextMode_Wrapped, str, std::forward<Args>(args)...);
     }
 
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
@@ -866,6 +863,21 @@ class Overlay
                 format = "{}";
         }
         return format;
+    }
+    template <typename... Args>
+    void text(const LayoutTextMode mode, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+
+        LayoutTextParameters params = getTextParams(OverlayColor_Text);
+        params.Mode = mode;
+
+        Layout &ly = getCurrentLayout();
+        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+        if constexpr (sizeof...(Args) != 0)
+            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
+        else
+            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
     }
 
     Layout &getCurrentLayout()

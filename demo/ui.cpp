@@ -36,6 +36,8 @@ int main()
                     ui.Text("And this is the time that passes between frames");
                     ui.EndTooltip();
                 }
+                ui.TextWrapped(
+                    "This is some text that should wrap because it is too long to fit into the width of the window");
 
                 ui.CheckBox("Open widow settings", &enableSettings);
 
