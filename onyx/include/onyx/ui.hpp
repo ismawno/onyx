@@ -60,15 +60,24 @@ enum InputConvertFlagBit : InputConvertInfoFlags
 using OverlayWindowFlags = u16;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoResize = 1U << 7,
-    OverlayWindowFlag_NoMove = 1U << 8,
-    OverlayWindowFlag_NoCollapse = 1U << 9,
-    OverlayWindowFlag_NoScrollBar = 1U << 10,
+    OverlayWindowFlag_NoScrollBar = 1U << 5,
+    OverlayWindowFlag_NoVerticalScroll = 1U << 6,
+    OverlayWindowFlag_HorizontalScroll = 1U << 7,
+    OverlayWindowFlag_NoResize = 1U << 8,
+    OverlayWindowFlag_NoMove = 1U << 9,
+    OverlayWindowFlag_NoCollapse = 1U << 10,
     OverlayWindowFlag_NoHeaderBar = 1U << 11,
     OverlayWindowFlag_NoBackground = 1U << 12,
     OverlayWindowFlag_NoBringToFocus = 1U << 13,
-    OverlayWindowFlag_AlwaysAutoResize = 1U << 14,
-    OverlayWindowFlag_HorizontalScroll = 1U << 15,
+    OverlayWindowFlag_AutoResize = 1U << 14,
+};
+
+using OverlayScrollFlags = u16;
+enum OverlayScrollFlagBit : OverlayScrollFlags
+{
+    OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
+    OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
+    OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
 };
 
 using OverlayInputFlags = u8;
@@ -126,14 +135,12 @@ struct ScrollBarInfo
     f32 ElementOffset = 0.f;
     f32 CursorOffset = 0.f;
     f32 WheelOffset = 0.f;
+};
 
-    void Reset()
-    {
-        BarOffset = 0.f;
-        ElementOffset = 0.f;
-        CursorOffset = 0.f;
-        WheelOffset = 0.f;
-    }
+struct ScrollInfo
+{
+    ScrollBarInfo Vertical{};
+    ScrollBarInfo Horizontal{};
 };
 
 struct Tooltip
@@ -156,8 +163,7 @@ struct OverlayWindow
     usz Id = NullLayoutId;
 
     ResizeInfo Resize{};
-    ScrollBarInfo VerticalScrollBar{};
-    ScrollBarInfo HorizontalScrollBar{};
+    ScrollInfo Scroll{};
 
     Layout Layout;
     f32v2 Position{0.f};
@@ -426,15 +432,15 @@ class Overlay
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = getCurrentLayout();
-        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {flex(300.f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        m_LastWidget =
+            ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                               .Sizing = {flex(300.f), fit()},
+                                                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         bool pressed = false;
-        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
-                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {snorm(0.6f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                      .Sizing = {snorm(0.6f), fit()},
+                                                                      .ChildGap = m_Style[OverlayStyle_ChildGap]});
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
@@ -449,19 +455,26 @@ class Overlay
         return pressed;
     }
 
+    template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
+    bool HorizontalSlider(const TKit::StringView label, vec<T, N> *value, const U mn, const U mx,
+                          const char *format = nullptr)
+    {
+        return HorizontalSlider(label, Math::AsPointer(*value), mn, mx, format, N);
+    }
+
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
                         const U mx = T(0), const char *format = nullptr, const u32 count = 1)
     {
         Layout &ly = getCurrentLayout();
-        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {flex(300.f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        m_LastWidget =
+            ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                               .Sizing = {flex(300.f), fit()},
+                                                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
-                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {snorm(0.6f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                      .Sizing = {snorm(0.6f), fit()},
+                                                                      .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -476,6 +489,13 @@ class Overlay
         ly.EndPanel();
         PopId();
         return pressed;
+    }
+
+    template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
+    bool HorizontalDrag(const TKit::StringView label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
+                        const U mx = T(0), const char *format = nullptr)
+    {
+        return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N);
     }
 
     // template <TKit::Integer T>
@@ -536,6 +556,17 @@ class Overlay
     // /tooltips //
 
     // layout //
+
+    void BeginScroll(LayoutId id, f32 maxHeight, f32 width = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
+    void BeginScroll(const f32 maxHeight, const f32 width = TKIT_F32_MAX, const OverlayScrollFlags flags = 0)
+    {
+        BeginScroll(getCurrentLayout().GenerateNextId(), maxHeight, width, flags);
+    }
+    void EndScroll()
+    {
+        PopId();
+        endScroll();
+    }
 
     void Separator(const f32 width = 4.f)
     {
@@ -688,9 +719,14 @@ class Overlay
 
     static TKit::StringView trimLabel(TKit::StringView label);
 
+    void beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizing> &outerSizing,
+                     const vec2<LayoutSizing> &contentSizing, OverlayScrollFlags flags);
+    void endScroll();
+
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
+        const T pval = *value;
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Slider box");
 
@@ -767,11 +803,12 @@ class Overlay
 
         ly.EndPanel();
         ly.EndPanel();
-        return focusFlags & FocusInfoFlag_Pressed;
+        return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
     {
+        const T pval = *value;
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Drag box");
 
@@ -816,7 +853,7 @@ class Overlay
         ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_DragText));
 
         ly.EndPanel();
-        return focusFlags & FocusInfoFlag_Pressed;
+        return *value != pval;
     }
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
@@ -876,10 +913,7 @@ class Overlay
 
         Layout &ly = getCurrentLayout();
         // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-        if constexpr (sizeof...(Args) != 0)
-            m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
-        else
-            m_LastWidget = ly.Text(AsStackedId(TKit::StringView{txt}), txt, params);
+        m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
     }
 
     Layout &getCurrentLayout()
@@ -898,7 +932,7 @@ class Overlay
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
-    bool isWidgetHovered(const LayoutElement *elm) const;
+    bool isElementHoveredForFocus(const LayoutElement *elm) const;
     bool canWidgetInteract(usz id) const;
 
     WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
@@ -1006,6 +1040,7 @@ class Overlay
     usz m_HoveredId = NullLayoutId;
     usz m_ActiveId = NullLayoutId;
     usz m_ActiveIdLastFrame = NullLayoutId;
+    usz m_FocusedScroll = NullLayoutId;
     // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
     // pressed event. this is important for elements that if they are active think they are currently pressed, causing
     // the firs mouse click outside their bounding box to still qualify as pressed
@@ -1037,7 +1072,7 @@ class Overlay
     TKit::TierArray<usz> m_WindowIds{};
     TKit::TierArray<usz> m_IdStack{};
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
-    TKit::TierHashMap<usz, ScrollBarInfo> m_VerticalScrollables{};
+    TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
     Tooltip m_Tooltip;
 };
 } // namespace Onyx

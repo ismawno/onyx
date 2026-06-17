@@ -16,7 +16,7 @@ int main()
 
     Onyx::RenderContext<D2> *ctx = ui.GetContext();
 
-    const f32v2 rdims = {800, 600};
+    f32v2 rdims = {800, 600};
     Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(rdims);
     ctx->AddTarget(rt->CreateRenderView(&ui.GetCamera(), ui.GetRenderViewFlags()));
 
@@ -63,6 +63,8 @@ int main()
             if (ui.PushTree("Images", Onyx::OverlayTreeFlag_DrawLines))
             {
                 ui.Text("May get a bit trippy...");
+                if (ui.HorizontalSlider("Image dimensions", &rdims, 50.f, 1600.f, "{:.0f}"))
+                    rt->Resize(rdims);
                 ui.Image(*rt, 0.25f * rdims);
                 ui.PopTree();
             }
@@ -87,6 +89,31 @@ int main()
 
                 static f32 ifval = 8.f;
                 ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Scroll area", Onyx::OverlayTreeFlag_DrawLines))
+            {
+                static f32v2 dimensions = {400.f, 200.f};
+                static bool xunlim = true;
+                ui.CheckBox("Unlimited width", &xunlim);
+                // TODO(Isma): Fix the bug
+                ui.SetItemTooltip("KNOWN BUG: When checking/unchecking, layout flickers");
+                if (xunlim)
+                    ui.HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
+                else
+                    ui.HorizontalSlider("Dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
+                // TODO(Isma): Fix the bug
+                ui.SetItemTooltip("KNOWN BUG: When auto resize window flag is on, sliders become unusable");
+
+                ui.BeginScroll(dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0],
+                               Onyx::OverlayScrollFlag_HorizontalScroll);
+                ui.Text("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
+                        "showcase the feature");
+                ui.Button("Im a useless button");
+                for (u32 i = 0; i < 10; ++i)
+                    ui.Text("Bla bla");
+                ui.EndScroll();
                 ui.PopTree();
             }
 
@@ -163,8 +190,9 @@ int main()
                 ui.CheckBoxFlags("OverlayWindowFlag_NoBackground", &flags, Onyx::OverlayWindowFlag_NoBackground);
                 ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
                 ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-                ui.CheckBoxFlags("OverlayWindowFlag_AlwaysAutoResize", &flags,
-                                 Onyx::OverlayWindowFlag_AlwaysAutoResize);
+                ui.CheckBoxFlags("OverlayWindowFlag_AutoResize", &flags, Onyx::OverlayWindowFlag_AutoResize);
+                ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", &flags,
+                                 Onyx::OverlayWindowFlag_NoVerticalScroll);
                 ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags,
                                  Onyx::OverlayWindowFlag_HorizontalScroll);
             }

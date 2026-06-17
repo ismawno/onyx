@@ -65,7 +65,7 @@ RenderTexture::~RenderTexture()
     }
 }
 
-void RenderTexture::SetDimensions(const u32v2 &dims)
+void RenderTexture::Resize(const u32v2 &dims)
 {
     m_Dimensions = dims;
     TKit::StackArray<VkSemaphore> semaphores{};
@@ -113,6 +113,7 @@ void RenderTexture::SetDimensions(const u32v2 &dims)
         nameImage(main->Image, 0);
 
     Resources::UpdateRenderTexture(main->Texture, main->Image.GetView());
+    updateRenderViews();
 }
 
 void RenderTexture::FindAvailableImages()

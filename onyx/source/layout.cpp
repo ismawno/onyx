@@ -350,6 +350,7 @@ void Layout::fitPass(const LayoutAxis axis)
         const f32 cgap = paxis == axis ? (parent.ChildGap * (parent.NonFloatChildCount - 1)) : 0.f;
 
         pmnsize = Math::Max(pmnsize, childMinSizeTotal + padding + cgap);
+        pmnsize = Math::Min(pmnsize, pmxsize);
         psize += padding + cgap;
 
         psize = Math::Clamp(psize, pmnsize, pmxsize);

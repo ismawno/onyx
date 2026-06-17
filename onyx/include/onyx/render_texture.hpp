@@ -23,7 +23,7 @@ class RenderTexture final : public RenderTarget
     {
         return m_Dimensions;
     }
-    void SetDimensions(const u32v2 &dims);
+    void Resize(const u32v2 &dims);
 
     operator u32() const
     {
