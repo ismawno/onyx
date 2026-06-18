@@ -2101,8 +2101,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
     const auto findInstanceRanges = [&](const u32 rmode, const u32 bpass, const u32 geo, const Resource handle,
                                         const auto getInstanceData) {
-        u64 vgen;
-        u64 igen;
+        u64 vgen = 0;
+        u64 igen = 0;
         if (geo == Geometry_Dynamic)
         {
             const DynamicMeshData<D> *data = Resources::GetDynamicMeshData<D>(handle);
