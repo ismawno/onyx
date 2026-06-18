@@ -64,7 +64,11 @@ static void createDevice(const InitializationFlags flags)
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface));
     VKit::PhysicalDevice::Selector selector(s_Instance.Get());
 
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4996)
     const char *dev = std::getenv("ONYX_DEVICE");
+    TKIT_COMPILER_WARNING_IGNORE_POP()
+
     if (dev)
     {
         u32 id = TKIT_U32_MAX;

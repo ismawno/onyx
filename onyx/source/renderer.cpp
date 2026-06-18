@@ -652,18 +652,18 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
         sdata.RayMarchSet = ONYX_CHECK_VKIT_RESULT(
             Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_RayMarch)));
 
-        VkPhysicalDeviceImageFormatInfo2KHR info{};
-        info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR;
-        info.format = sdata.ShadowFormat;
-        info.type = VK_IMAGE_TYPE_1D;
-        info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+        VkPhysicalDeviceImageFormatInfo2KHR finfo{};
+        finfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR;
+        finfo.format = sdata.ShadowFormat;
+        finfo.type = VK_IMAGE_TYPE_1D;
+        finfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        finfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
         VkImageFormatProperties2KHR props{};
         props.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR;
 
         const auto table = GetInstanceTable();
-        const VkResult result = table->GetPhysicalDeviceImageFormatProperties2KHR(GetPhysicalDevice(), &info, &props);
+        const VkResult result = table->GetPhysicalDeviceImageFormatProperties2KHR(GetPhysicalDevice(), &finfo, &props);
         if (result == VK_ERROR_FORMAT_NOT_SUPPORTED)
         {
             sdata.ShadowFormat = AsVulkanFormat(specs.FallbackShadowFormat);
