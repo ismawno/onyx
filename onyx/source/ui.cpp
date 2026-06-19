@@ -64,8 +64,8 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_HoverDelayNormal] = 0.40f;
     vars[OverlayStyle_HoverStationaryThreshold] = 5.f;
 
-    vars[OverlayStyle_BoxInputHintAlpha] = 0.4f;
-    vars[OverlayStyle_BoxInputCursorAlpha] = 0.6f;
+    vars[OverlayStyle_InputHintAlpha] = 0.4f;
+    vars[OverlayStyle_InputCursorAlpha] = 0.6f;
     return vars;
 }
 
@@ -105,8 +105,11 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     OverlayColors colors;
 
     colors[OverlayColor_Text] = palette[OverlayPalette_Text0];
-    colors[OverlayColor_Highlight] = palette[OverlayPalette_Pressed0];
     colors[OverlayColor_Line] = palette[OverlayPalette_Background1];
+
+    colors[OverlayColor_InputText] = palette[OverlayPalette_Text0];
+    colors[OverlayColor_InputCursor] = palette[OverlayPalette_Text0];
+    colors[OverlayColor_InputHighlight] = palette[OverlayPalette_Pressed0];
 
     colors[OverlayColor_WindowBorderIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_WindowBorderHovered] = palette[OverlayPalette_Hovered0];
@@ -143,6 +146,12 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_TreeHovered] = palette[OverlayPalette_Hovered2];
     colors[OverlayColor_TreePressed] = palette[OverlayPalette_Pressed1];
     colors[OverlayColor_TreeText] = palette[OverlayPalette_Text0];
+
+    colors[OverlayColor_DropDownIdle] = palette[OverlayPalette_Idle0];
+    colors[OverlayColor_DropDownHovered] = palette[OverlayPalette_Hovered0];
+    colors[OverlayColor_DropDownPressed] = palette[OverlayPalette_Pressed0];
+    colors[OverlayColor_DropDownText] = palette[OverlayPalette_Text0];
+    colors[OverlayColor_DropDownButton] = palette[OverlayPalette_Inner0];
 
     colors[OverlayColor_WindowBackgroundExpanded] = palette[OverlayPalette_Background0];
     colors[OverlayColor_WindowBackgroundCollapsed] = palette[OverlayPalette_Background2];
@@ -487,19 +496,25 @@ void Overlay::endScroll()
     ly.EndPanel();
 }
 
-void Overlay::horizontalWidget(const TKit::StringView label)
+void Overlay::beginHorizontalWidget(const usz id)
 {
     Layout &ly = getCurrentLayout();
     const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
     const f32 mw = m_Style[OverlayStyle_WidgetMinimumWidth];
-    m_LastWidget =
-        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+    m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                            .Sizing = {autoResize ? fit(mw) : flex(mw), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
                                                                   .Sizing = {autoResize ? fit(mw) : snorm(0.6f), fit()},
                                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+}
+void Overlay::endHorizontalWidget(const TKit::StringView label, const OverlayColor labelColor)
+{
+    Layout &ly = getCurrentLayout();
+    ly.EndPanel();
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(labelColor));
+    ly.EndPanel();
 }
 
 void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
@@ -512,7 +527,7 @@ void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOf
 
     ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
                                    .Sizing = sabs({textOffset, width})});
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
     ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
                                    .Sizing = {grow(), sabs(width)}});
     ly.EndPanel();
@@ -634,23 +649,30 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
                                                 .Sizing = {grow(), fit()},
                                                 .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
+    const bool mustConvert = cflags & InputConvertFlag_MustConvert;
+
+    // This input text box may be a "converted" slider/drag. this means that the first frame (where layout
+    // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
+    // important. without it, we cannot auto highlight. so we try this proxy, by trying to get the position of
+    // the parent box if thats the case
+    const LayoutElement *box = mustConvert ? ly.QueryElement(AsStackedId("Drag/Slider box")) : ibox;
     const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
     const FontData &fdata = getFontData();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
-    LayoutTextParameters tparams = getTextParams();
+    LayoutTextParameters tparams = getTextParams(OverlayColor_InputText);
     const bool pressed = focusFlags & FocusInfoFlag_Pressed;
     const bool hovered = focusFlags & FocusInfoFlag_Hovered;
     if (pressed || hovered)
         m_Current->Flags |= WindowInternalFlag_InputHovered;
 
     bool updated = false;
-    if (focusFlags & FocusInfoFlag_Active)
+    if ((focusFlags & FocusInfoFlag_Active) || mustConvert)
     {
         TKit::String &str = m_InputWidgetBuffer;
-        const bool justActive =
-            (focusFlags & FocusInfoFlag_JustActive) || (cflags & InputConvertFlag_MustOverrideHighlight);
+        const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
+        const bool justActive = (focusFlags & FocusInfoFlag_JustActive) || overrideHighlight;
         if (justActive)
         {
             str.Clear();
@@ -693,10 +715,9 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             return true;
         });
 
-        const f32 boxPos = ibox ? (ibox->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
+        const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
         const bool clicked = focusFlags & FocusInfoFlag_Clicked;
-
         f32 textCursorStart = 0.f;
         f32 textCursorEnd = 0.f;
 
@@ -729,6 +750,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         };
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
+
         if (m_OverflowClicks == 2 || (justActive && autoSelectAll))
             updateCursor(boxPos, boxPos + textWidth);
         else if (m_OverflowClicks == 1)
@@ -819,7 +841,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         const bool useHint = str.IsEmpty() && !hint.IsEmpty();
         if (useHint)
         {
-            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_BoxInputHintAlpha];
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_InputHintAlpha];
             ly.Text(useHint ? hint : str, tparams);
         }
         else
@@ -838,27 +860,25 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
         const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
         ly.Panel(AsStackedId("Cursor"),
-                 LayoutPanelParameters{.FillColor =
-                                           Color{m_Style[OverlayColor_Text], m_Style[OverlayStyle_BoxInputCursorAlpha]},
-                                       .Sizing = {sabs(cwidth), grow()},
-                                       .SelfOffset = oabs({offset, 0.f})});
+                 LayoutPanelParameters{
+                     .FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_InputCursorAlpha]},
+                     .Sizing = {sabs(cwidth), grow()},
+                     .SelfOffset = oabs({offset, 0.f})});
         if (hasHighlight)
         {
             const f32 hoffset = negSel ? offset : (offset - hLength);
             ly.Panel(AsStackedId("Highlight"),
-                     LayoutPanelParameters{.FillColor = Color{m_Style[OverlayColor_Highlight], 0.4f},
+                     LayoutPanelParameters{.FillColor = Color{m_Style[OverlayColor_InputHighlight], 0.4f},
                                            .Sizing = {sabs(hLength), grow()},
                                            .SelfOffset = oabs({hoffset - cwidth, 0.f})});
         }
 
-        const u32 spotsLeft = size - 1 - strSize;
-        const u32 spots = Math::Min(m_TextInput.GetSize(), spotsLeft);
-
-        const u32 toRemoveBegin = hasHighlight ? (selStart + 1) : selStart; // hasHighlight ? hstart : cursorStart;
-        const u32 toRemoveEnd = selEnd;                                     // hasHighlight ? hend : cursorEnd;
+        const u32 toRemoveBegin =
+            hasHighlight && selStart != 0 ? (selStart + 1) : selStart; // hasHighlight ? hstart : cursorStart;
+        const u32 toRemoveEnd = selEnd;                                // hasHighlight ? hend : cursorEnd;
 
         if (toRemoveBegin != toRemoveEnd && !str.IsEmpty() &&
-            (m_EventKeys[Key_Backspace] || (spots != 0 && hasHighlight)))
+            (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight)))
         {
             written = true;
             f32 toRemoveWidth = 0.f;
@@ -878,6 +898,9 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             if (selEnd > toRemoveBegin)
                 selEnd = toRemoveBegin;
         }
+
+        const u32 spotsLeft = size - 1 - strSize;
+        const u32 spots = Math::Min(m_TextInput.GetSize(), spotsLeft);
 
         written |= spots != 0;
         for (u32 i = 0; i < spots; ++i)
@@ -926,7 +949,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         tparams.Offset[0] = oabs(textOffset);
         if (useHint)
         {
-            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_BoxInputHintAlpha];
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_InputHintAlpha];
             ly.Text(hint, tparams);
         }
         else
@@ -953,16 +976,17 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
     const bool triggered = hovered && (dclick || (ctrl && checkFlags(EventFlag_MousePressed)));
-    const bool persisted = ibox && (ibox->IsHovered(m_MousePos) || m_ActiveId == ibox->Id);
+    const bool persisted =
+        ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(m_MousePos)));
 
     const bool mustConvert = (triggered || persisted) && !m_EventKeys[Key_Enter];
     if (mustConvert)
         outFlags |= InputConvertFlag_MustConvert;
-    if (ibox && ibox->IsHovered(m_MousePos) && m_ActiveId != ibox->Id && m_ActiveIdLastFrame != ibox->Id)
+    if (m_ActiveId != iboxId && m_ActiveIdLastFrame != iboxId)
         outFlags |= InputConvertFlag_MustOverrideHighlight;
 
-    if (ibox && mustConvert)
-        m_ActiveId = ibox->Id;
+    if (mustConvert)
+        m_ActiveId = iboxId;
     return outFlags;
 }
 
@@ -1248,13 +1272,9 @@ bool Overlay::IsItemHovered(const OverlayHoveredFlags flags)
 bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
                         const OverlayInputFlags flags)
 {
-    Layout &ly = getCurrentLayout();
-    horizontalWidget(label);
-
+    beginHorizontalWidget(PushId(label));
     const bool updated = inputTextBox(buf, size, hint, flags);
-    ly.EndPanel();
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-    ly.EndPanel();
+    endHorizontalWidget(label, OverlayColor_InputText);
     PopId();
     return updated;
 }

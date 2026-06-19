@@ -213,8 +213,11 @@ enum OverlayPaletteType : u8
 enum OverlayColor : u8
 {
     OverlayColor_Text,
-    OverlayColor_Highlight,
     OverlayColor_Line,
+
+    OverlayColor_InputText,
+    OverlayColor_InputCursor,
+    OverlayColor_InputHighlight,
 
     OverlayColor_WindowBorderIdle,
     OverlayColor_WindowBorderHovered,
@@ -247,6 +250,12 @@ enum OverlayColor : u8
     OverlayColor_TreeHovered,
     OverlayColor_TreePressed,
     OverlayColor_TreeText,
+
+    OverlayColor_DropDownIdle,
+    OverlayColor_DropDownHovered,
+    OverlayColor_DropDownPressed,
+    OverlayColor_DropDownText,
+    OverlayColor_DropDownButton,
 
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
@@ -294,8 +303,8 @@ enum OverlayStyleType : u8
     OverlayStyle_HoverDelayNormal,
     OverlayStyle_HoverStationaryThreshold,
 
-    OverlayStyle_BoxInputHintAlpha,
-    OverlayStyle_BoxInputCursorAlpha,
+    OverlayStyle_InputHintAlpha,
+    OverlayStyle_InputCursorAlpha,
 
     OverlayStyle_Count
 };
@@ -393,13 +402,9 @@ class Overlay
     bool InputNumeric(const TKit::StringView label, T *value, const char *format, const TKit::StringView hint = {},
                       const OverlayInputFlags flags = 0)
     {
-        Layout &ly = getCurrentLayout();
-        horizontalWidget(label);
-
+        beginHorizontalWidget(PushId(label));
         const bool updated = inputNumericBox(value, format, hint, flags);
-        ly.EndPanel();
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-        ly.EndPanel();
+        endHorizontalWidget(label, OverlayColor_InputText);
         PopId();
         return updated;
     }
@@ -424,9 +429,7 @@ class Overlay
                           const u32 count = 1)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
-        Layout &ly = getCurrentLayout();
-
-        horizontalWidget(label);
+        beginHorizontalWidget(PushId(label));
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -435,9 +438,7 @@ class Overlay
             pressed |= horizontalSliderBox(&val, mn, mx, format);
             PopId();
         }
-        ly.EndPanel();
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_SliderText));
-        ly.EndPanel();
+        endHorizontalWidget(label, OverlayColor_SliderText);
         PopId();
         return pressed;
     }
@@ -453,8 +454,7 @@ class Overlay
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
                         const U mx = T(0), const char *format = nullptr, const u32 count = 1)
     {
-        Layout &ly = getCurrentLayout();
-        horizontalWidget(label);
+        beginHorizontalWidget(PushId(label));
 
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
@@ -465,9 +465,7 @@ class Overlay
             PopId();
         }
 
-        ly.EndPanel();
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_DragText));
-        ly.EndPanel();
+        endHorizontalWidget(label, OverlayColor_DragText);
         PopId();
         return pressed;
     }
@@ -480,11 +478,13 @@ class Overlay
     }
 
     // template <TKit::Integer T>
-    // bool Dropdown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
+    // bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
     // {
     //     Layout &ly = getCurrentLayout();
     //     const LayoutId id = PushId(label);
+    //     beginHorizontalWidget(PushId(label));
     //
+    //     endHorizontalWidget(label, OverlayColor_Text);
     //     PopId();
     // }
 
@@ -704,29 +704,26 @@ class Overlay
                      const vec2<LayoutSizing> &contentSizing, OverlayScrollFlags flags);
     void endScroll();
 
-    void horizontalWidget(TKit::StringView label);
+    void beginHorizontalWidget(usz id);
+    void endHorizontalWidget(TKit::StringView label, OverlayColor labelColor);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
         const T pval = *value;
         Layout &ly = getCurrentLayout();
-        const LayoutId id = AsStackedId("Slider box");
+        const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        FocusInfoFlags focusFlags = 0;
-        if (elm)
-        {
-            focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
+        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
 
-            if (focusFlags & FocusInfoFlag_Pressed)
-                col = &m_Style[OverlayColor_SliderPressed];
-            else if (focusFlags & FocusInfoFlag_Hovered)
-                col = &m_Style[OverlayColor_SliderHovered];
-        }
+        if (focusFlags & FocusInfoFlag_Pressed)
+            col = &m_Style[OverlayColor_SliderPressed];
+        else if (focusFlags & FocusInfoFlag_Hovered)
+            col = &m_Style[OverlayColor_SliderHovered];
 
         const InputConvertInfoFlags cflags = mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered));
         if (cflags & InputConvertFlag_MustConvert)
@@ -793,24 +790,18 @@ class Overlay
     {
         const T pval = *value;
         Layout &ly = getCurrentLayout();
-        const LayoutId id = AsStackedId("Drag box");
+        const LayoutId id = AsStackedId("Drag/Slider box");
 
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
-        const LayoutElement *elm = ly.QueryElement(id);
-
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        FocusInfoFlags focusFlags = 0;
-        if (elm)
-        {
-            focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
+        const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id), FocusInfoFlag_PressedIfActive);
 
-            if (focusFlags & FocusInfoFlag_Pressed)
-                col = &m_Style[OverlayColor_SliderPressed];
-            else if (focusFlags & FocusInfoFlag_Hovered)
-                col = &m_Style[OverlayColor_SliderHovered];
-        }
+        if (focusFlags & FocusInfoFlag_Pressed)
+            col = &m_Style[OverlayColor_SliderPressed];
+        else if (focusFlags & FocusInfoFlag_Hovered)
+            col = &m_Style[OverlayColor_SliderHovered];
 
         const InputConvertInfoFlags cflags =
             mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered) | InputConvertFlag_AllowDoubleClick);
@@ -943,7 +934,7 @@ class Overlay
     const FontData &getFontData() const;
     f32 computeWindowMinSize(f32 winPadding, f32 headPadding, f32 fontSize) const;
 
-    LayoutTextParameters getTextParams(const OverlayColor color = OverlayColor_Text) const
+    LayoutTextParameters getTextParams(const OverlayColor color) const
     {
         return {.FillColor = m_Style[color], .FontSize = m_Style[OverlayStyle_FontSize]};
     }
