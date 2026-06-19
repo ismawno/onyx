@@ -1,21 +1,23 @@
 # Onyx
 
-Onyx is a core-friendly C++ application framework implemented with Vulkan that I plan to use for any project requiring geometry visualization or a GUI.
+Onyx is a C++ graphics engine implemented with Vulkan that I plan to use for any project requiring geometry visualization or a GUI.
 
 I started this project with very little experience with graphics programming. This project represents my first serious "deep dive" into the Vulkan API, which is also the first graphics API I have ever used. I am sure there is a lot of room for improvement but I am happy with how the project has evolved. I originally considered starting with OpenGL, but I eventually decided against it for two main reasons:
 
-1. OpenGL is deprecated in MacOS and I want good multi-platform support.
+1. OpenGL is deprecated in MacOS and I want nice multi-platform support.
 2. Vulkan is growing more popular every year due to its versatility and optimization opportunities. Since I recently started graphics programming, I might as well learn a modern API.
 
-## Features
+## Design
 
-Onyx is designed for users that wish to create simple and fast visualization applications, such as particle simulations, physics engines, geometry visualization etc. It provides a high-level, immediate-mode rendering API while using Vulkan under the hood for performance and scalability. Onyx has been designed for performance: rendering is automatically batched with indirect draw calls, render contexts support dirty tracking to avoid redundant host-device communication, and most of the rendering API is thread safe and scales well with multiple cores.
+Onyx is designed for users that wish to create simple and fast visualization applications, such as particle simulations, physics engines, geometry visualization etc. It provides a high-level, immediate-mode rendering API while using Vulkan under the hood for performance and scalability. Onyx has been designed with some conveniences: rendering is automatically batched with indirect draw calls, render contexts support dirty tracking to avoid redundant host-device communication, and a considerable part of the rendering API is thread safe and scales well with multiple cores.
 
-Onyx seamlessly supports 2D and 3D rendering with a unified API that lets the user choose the dimensionality of their visualization at compile time. This is specially advantageous for the 2D case as this allows the library to be much more memory efficient, unlocking many optimizations. It is also ergonomic, as the vector and matrix types will always match the dimension being used, and the API will not expose functionality that does not make sense for a 2D or 3D application. To specify this, many Onyx objects are templated with the `Dimension` enum, which can take either the `D2` or `D3` values. For simplicity, most examples shown in this README will use the `D2` API unless noted otherwise.
+Onyx natively supports 2D and 3D rendering with a unified API that lets the user choose the dimensionality of their visualization at compile time. This is advantageous for the 2D case as this allows the library to be more specific. It is also ergonomic, as the vector and matrix types will always match the dimension being used, and the API will not expose functionality that does not make sense for a 2D or 3D application. It of course comes with some caveats, such as a part of the API being templated. Many Onyx objects are templated with the `Dimension` enum, which can take either the `D2` or `D3` values. For simplicity, most examples shown in this README will use the `D2` API unless noted otherwise.
+
+The use of C++ features is somewhat limited. The STL is rarely used, as Onyx uses its own custom containers and allocators provided by the [Toolkit](https://github.com/ismawno/toolkit) library (which I also developed), and features like inheritance are avoided almost completely. Heap allocations are also limited. Custom allocators (arenas, stacks and general-purpose allocators) are heavily used and directly embedded into all custom containers.
 
 ### Initialization
 
-Onyx uses a global initialization and termination model. Before using any part of the API, `Onyx::Initialize()` must be called, and `Onyx::Terminate()` must be called before the program exits. Default resources (built-in meshes, samplers, etc.) are created with `Onyx::Resources::CreateDefaultResources()`.
+Onyx uses a global initialization and termination model. Before using any part of the API, `Onyx::Initialize()` must be called, and `Onyx::Terminate()` must be called before the program exits. Default resources (built-in meshes, samplers, etc.) are created with `Onyx::Resources::CreateDefaultResources()`, which is a convenient but not at all necessary function. Without it, all resources must be manually created and specified when drawn.
 
 ```cpp
 Onyx::Initialize();
@@ -53,7 +55,7 @@ Views can be configured with flags to enable features like shadows (`RenderViewF
 view->SetNormalizedViewport({.Position = {0.f, 0.f}, .Extent = {0.5f, 1.f}}); // left half of the window
 ```
 
-This makes it straightforward to set up things like split-screen layouts or picture-in-picture views within a single window.
+This makes it easy to set up things like split-screen layouts or picture-in-picture views within a single window.
 
 ### Render contexts
 
@@ -68,7 +70,7 @@ ctx->AddTarget(view);
 
 A single context can target multiple views, and a single view can be targeted by multiple contexts. This means you can, for example, record a static background scene in one context and an animated foreground in another, both rendering into the same view.
 
-Before using a context for the first time in a given frame, the method `Flush()` must be called, which resets its state and render data, allowing the user to draw a new frame. `Flush()` should only be called when explicitly re-using the context to update the scene. If the context represents a static scene updated only in isolated scenarios, it should be left alone - the context will avoid re-creating and sending the data to the device, which can be a real bottleneck. This makes rendering static scenes much more efficient as there is no host-device communication. Because of this, the scene should be divided into different contexts based on update frequency.
+Before using a context for the first time in a given frame, the method `Flush()` must be called, which resets its state and render data, allowing the user to draw a new frame. `Flush()` should only be called when explicitly re-using the context to update the scene. If the context represents a static scene updated only in isolated scenarios, it should be left alone - the context will avoid re-creating and sending the data to the device, which can be unnecessary. This makes rendering static scenes potentially more efficient as there is no host-device communication. Because of this, scenes can be divided into different contexts based on update frequency.
 
 An example of its usage may be the following:
 
@@ -85,18 +87,18 @@ ctx->Pop();
 ctx->RoundedRect();
 ```
 
-Most of the calls to `RenderContext` modify its internal state or store draw commands. At the end of the frame, the stored render data is sent to the device and rendered. All `RenderContext` instances are completely independent and can be used in different threads. It is possible to divide a scene between many contexts to allow parallel rendering.
+Most of the calls to `RenderContext` modify its internal state or store draw commands. At the end of the frame, the stored render data is sent to the device and rendered. All `RenderContext` instances are independent and can be used in different threads. It is possible to divide a scene between many contexts to allow parallel rendering.
 
 ### Cameras
 
-The purpose of a camera is pretty self-explanatory in the context of graphics programming. Cameras are value types that can be created on the stack and passed to render views. 2D cameras are simple orthographic cameras, while 3D ones allow for other types of perspective projections.
+The purpose of a camera is pretty self-explanatory in this context. Cameras are value types that can be created on the stack and passed to render views, although must remain alive until the render view is destroyed. 2D cameras are simple orthographic cameras, while 3D ones allow for other types of perspective projections.
 
 ```cpp
 Onyx::Camera<D2> cam{};
 cam.OrthoParameters.Size = 10.f;
 ```
 
-Cameras provide convenient methods to modify their view and projection matrices through code or user input. Windows expose a `ControlCamera()` method for built-in camera controls:
+Cameras provide convenient methods to modify their view and projection matrices through code or user input. Windows expose a `ControlCamera()` method for built-in basic camera controls:
 
 ```cpp
 win->ControlCamera(Onyx::GetDeltaTime(win), view->GetCamera());
@@ -104,7 +106,7 @@ win->ControlCamera(Onyx::GetDeltaTime(win), view->GetCamera());
 
 ### Frame loop
 
-The frame loop is split into two explicit steps: `Transfer()` and `Render()`. `Transfer()` uploads context data to the GPU (updating meshes, lights, etc.), and `Render()` records and submits the actual draw commands. This separation allows Onyx to skip transfers for contexts that haven't changed and be able to keep rendering them.
+The frame loop is split into two explicit steps: `Transfer()` and `Render()`. `Transfer()` uploads context data to the GPU (updating meshes, lights, etc.), and `Render()` records and submits the actual draw commands. This separation allows Onyx to skip transfers for contexts that haven't changed and be able to keep rendering them. All examples show these two functions being called with the same frequency, but this is not enforced. `Transfer()` can be called with a lower frequency. Calling it multiple times with no `Render()` in between will only waste resources. Contexts that are meant to be continuously updated should be recorded at the same frequency `Transfer()` is called.
 
 ```cpp
 while (Onyx::Running())
@@ -124,7 +126,7 @@ All examples shown here are available under the [demo](https://github.com/ismawn
 
 ### Hello World
 
-This is one of the simplest possible Onyx program. It creates a window, a camera, a render view, and a render context, and draws a rotating triangle:
+This is one of the simplest Onyx programs. It creates a window, a camera, a render view, and a render context, and draws a rotating triangle:
 
 ```cpp
 #include "onyx/resources.hpp"
@@ -276,7 +278,7 @@ int main()
 }
 ```
 
-A few things worth noting here. Materials are registered and synced before rendering begins. The 2D scene uses two materials: a standard lit material for the background and an occluder material for the red quad so that it blocks light and casts shadows. The 3D directional light uses fitted cascades by pointing its `Cascades.View` at the active render view, which lets the cascade splits adapt to the camera's frustum. The `GetMouseRenderView()` calls detect which view the mouse is hovering over, so camera controls apply to the correct viewport.
+A few things worth noting: Materials are registered and synced before rendering begins. The 2D scene uses two materials: a standard lit material for the background and an occluder material for the red quad so that it blocks light and casts shadows. The 3D directional light uses fitted cascades by pointing its `Cascades.View` at the active render view, which lets the cascade splits adapt to the camera's frustum. The `GetMouseRenderView()` calls detect which view the mouse is hovering over, so camera controls apply to the correct viewport.
 
 ### Transparency
 
@@ -399,7 +401,7 @@ Onyx relies on some dependencies such as [Toolkit](https://github.com/ismawno/to
 
 ## Versioning
 
-Try to always use a tagged commit when using the library, as I can guarantee those will build and be stable.
+Try to always use a tagged commit when using the library, as I can somewhat guarantee those will build and be stable.
 
 ## Building
 
