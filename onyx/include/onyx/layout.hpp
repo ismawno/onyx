@@ -478,8 +478,7 @@ class Layout
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
-    TKit::TierHashMap<usz, u32> m_ElementMap{};
-    TKit::TierArray<LayoutElement> m_PreviousElements{};
+    TKit::TierHashMap<usz, LayoutElement> m_ElementMap{};
 
 #ifdef TKIT_ENABLE_ASSERTS
     TKit::TierHashSet<usz> m_InsertedElements{};

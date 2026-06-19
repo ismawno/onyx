@@ -97,14 +97,12 @@ int main()
                 static f32v2 dimensions = {400.f, 200.f};
                 static bool xunlim = true;
                 ui.CheckBox("Unlimited width", &xunlim);
-                // TODO(Isma): Fix the bug
-                ui.SetItemTooltip("KNOWN BUG: When checking/unchecking, layout flickers");
                 if (xunlim)
                     ui.HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
                 else
                     ui.HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
-                ui.BeginScroll(dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0],
+                ui.BeginScroll("Scroll area", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0],
                                Onyx::OverlayScrollFlag_HorizontalScroll);
                 ui.Text("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
                         "showcase the feature");

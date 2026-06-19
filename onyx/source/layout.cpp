@@ -303,8 +303,7 @@ const LayoutElement *Layout::QueryElement(const LayoutId id) const
     if (it == m_ElementMap.end())
         return nullptr;
 
-    const u32 idx = it->Value;
-    return &m_PreviousElements[idx];
+    return &it->Value;
 }
 
 void Layout::fitPass(const LayoutAxis axis)
@@ -684,14 +683,11 @@ void Layout::Compile()
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
 
-    m_ElementMap.Clear();
-    m_PreviousElements.Clear();
     m_DrawInfo.Clear();
 
-    u32 idx = 0;
     for (const LayoutElement &elm : m_Elements)
     {
-        m_PreviousElements.Append(elm);
+        m_ElementMap[elm.Id] = elm;
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
@@ -745,7 +741,6 @@ void Layout::Compile()
             info.Size = f32v2{elm.FontSize};
             break;
         }
-        m_ElementMap[elm.Id] = idx++;
 
         if ((!fill && !outline) || !sized)
             continue;
