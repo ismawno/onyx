@@ -102,9 +102,7 @@ int main()
                 if (xunlim)
                     ui.HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
                 else
-                    ui.HorizontalSlider("Dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
-                // TODO(Isma): Fix the bug
-                ui.SetItemTooltip("KNOWN BUG: When auto resize window flag is on, sliders become unusable");
+                    ui.HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
                 ui.BeginScroll(dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0],
                                Onyx::OverlayScrollFlag_HorizontalScroll);

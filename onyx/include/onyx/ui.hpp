@@ -43,9 +43,8 @@ enum FocusInfoFlagBit : FocusInfoFlags
 
     FocusInfoFlag_PressedIfActive = 1U << 6,
     FocusInfoFlag_ClickedOnMousePress = 1U << 7,
-    FocusInfoFlag_UpdateInputText = 1U << 8,
-    FocusInfoFlag_KeepActiveOnRelease = 1U << 9,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 10,
+    FocusInfoFlag_KeepActiveOnRelease = 1U << 8,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 9,
 };
 
 using InputConvertInfoFlags = u8;
@@ -281,10 +280,10 @@ enum OverlayStyleType : u8
 
     OverlayStyle_ScrollBarWidth,
     OverlayStyle_ScrollSensitivity,
-    OverlayStyle_ScrollMargin,
 
     OverlayStyle_WidgetSize,
     OverlayStyle_WidgetPadding,
+    OverlayStyle_WidgetMinimumWidth,
 
     OverlayStyle_TreeLineWidth,
 
@@ -395,13 +394,7 @@ class Overlay
                       const OverlayInputFlags flags = 0)
     {
         Layout &ly = getCurrentLayout();
-        ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {flex(300.f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
-        m_LastWidget = ly.BeginPanel(AsStackedId("Container"),
-                                     LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                           .Sizing = {snorm(0.6f), fit()},
-                                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        horizontalWidget(label);
 
         const bool updated = inputNumericBox(value, format, hint, flags);
         ly.EndPanel();
@@ -432,15 +425,9 @@ class Overlay
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         Layout &ly = getCurrentLayout();
-        m_LastWidget =
-            ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                               .Sizing = {flex(300.f), fit()},
-                                                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
+        horizontalWidget(label);
         bool pressed = false;
-        ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                      .Sizing = {snorm(0.6f), fit()},
-                                                                      .ChildGap = m_Style[OverlayStyle_ChildGap]});
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
@@ -467,14 +454,8 @@ class Overlay
                         const U mx = T(0), const char *format = nullptr, const u32 count = 1)
     {
         Layout &ly = getCurrentLayout();
-        m_LastWidget =
-            ly.BeginPanel(PushId(label), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                               .Sizing = {flex(300.f), fit()},
-                                                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        horizontalWidget(label);
 
-        ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                      .Sizing = {snorm(0.6f), fit()},
-                                                                      .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -557,10 +538,10 @@ class Overlay
 
     // layout //
 
-    void BeginScroll(LayoutId id, f32 maxHeight, f32 width = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
-    void BeginScroll(const f32 maxHeight, const f32 width = TKIT_F32_MAX, const OverlayScrollFlags flags = 0)
+    void BeginScroll(LayoutId id, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
+    void BeginScroll(const f32 maxHeight, const f32 maxWidth = TKIT_F32_MAX, const OverlayScrollFlags flags = 0)
     {
-        BeginScroll(getCurrentLayout().GenerateNextId(), maxHeight, width, flags);
+        BeginScroll(getCurrentLayout().GenerateNextId(), maxHeight, maxWidth, flags);
     }
     void EndScroll()
     {
@@ -722,6 +703,8 @@ class Overlay
     void beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizing> &outerSizing,
                      const vec2<LayoutSizing> &contentSizing, OverlayScrollFlags flags);
     void endScroll();
+
+    void horizontalWidget(TKit::StringView label);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
@@ -1049,8 +1032,8 @@ class Overlay
 
     // text input info
     TKit::String m_TextInput{};
-    f32 m_TextHighlightSize = 0.f;
-    f32 m_TextCursorPos = 0.f;
+    f32 m_MouseCursorStart = 0.f;
+    f32 m_MouseCursorEnd = 0.f;
     //
 
     usz m_LastWidget = NullLayoutId;
