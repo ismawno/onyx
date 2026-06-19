@@ -257,24 +257,6 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
         const LayoutElement *scrollBar = ly.QueryElement(scrollId);
         const f32 sign = axis == LayoutAxis_Horizontal ? -1.f : 1.f;
-        if (scrollBar)
-        {
-            const FocusInfoFlags focusFlags = evaluateFocusStatus(scrollBar, FocusInfoFlag_PressedIfActive);
-
-            if (focusFlags & FocusInfoFlag_Pressed)
-            {
-                col = &m_Style[OverlayColor_ScrollBarPressed];
-                sinfo.CursorOffset += sign * m_MouseDelta[axis];
-            }
-            else
-            {
-                sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
-                if (focusFlags & FocusInfoFlag_Hovered)
-                    col = &m_Style[OverlayColor_ScrollBarHovered];
-            }
-        }
-        else
-            sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
 
         const f32 sw = m_Style[OverlayStyle_ScrollBarWidth];
         const f32 mw = 2.f * sw;
@@ -284,11 +266,36 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
         const f32 maxBarTravel = size - barSize;
         const f32 maxElementTravel = csize - size;
         const f32 barToElement = maxBarTravel > TKIT_F32_EPSILON ? (maxElementTravel / maxBarTravel) : 0.f;
-        const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
-        const f32 unbounded = sinfo.CursorOffset + wheel;
 
-        sinfo.BarOffset = sign * Math::Clamp(unbounded, -maxBarTravel, 0.f);
-        sinfo.ElementOffset = barToElement * sinfo.BarOffset;
+        if (scrollBar)
+        {
+            const FocusInfoFlags focusFlags = evaluateFocusStatus(scrollBar, FocusInfoFlag_PressedIfActive);
+
+            const bool pressed = focusFlags & FocusInfoFlag_Pressed;
+            const bool hovered = focusFlags & FocusInfoFlag_Hovered;
+            if (pressed || Math::Absolute(sinfo.WheelOffset) > 0.f)
+            {
+                if (pressed)
+                    col = &m_Style[OverlayColor_ScrollBarPressed];
+
+                const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
+                const f32 unbounded = sinfo.CursorOffset + wheel;
+
+                sinfo.CursorOffset += sign * m_MouseDelta[axis];
+                sinfo.BarOffset = sign * Math::Clamp(unbounded, -maxBarTravel, 0.f);
+                sinfo.ElementOffset = barToElement * sinfo.BarOffset;
+            }
+            else
+            {
+                sinfo.ElementOffset = sign * Math::Clamp(sign * sinfo.ElementOffset, -maxElementTravel, 0.f);
+                sinfo.BarOffset = barToElement > TKIT_F32_EPSILON ? sinfo.ElementOffset / barToElement : 0.f;
+                sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
+            }
+            if (!pressed && hovered)
+                col = &m_Style[OverlayColor_ScrollBarHovered];
+        }
+        else
+            sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
 
         if (drawBar)
         {
