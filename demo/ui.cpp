@@ -103,14 +103,22 @@ int main()
             {
                 static f32v2 dimensions = {400.f, 200.f};
                 static bool xunlim = true;
+                static Onyx::OverlayScrollFlags sflags = 0;
+                ui.CheckBoxFlags("OverlayScrollFlag_Borders", &sflags, Onyx::OverlayScrollFlag_Borders);
+                ui.CheckBoxFlags("OverlayScrollFlag_Title", &sflags, Onyx::OverlayScrollFlag_Title);
+                ui.CheckBoxFlags("OverlayScrollFlag_NoScrollBar", &sflags, Onyx::OverlayScrollFlag_NoScrollBar);
+                ui.CheckBoxFlags("OverlayScrollFlag_NoVerticalScroll", &sflags,
+                                 Onyx::OverlayScrollFlag_NoVerticalScroll);
+                ui.CheckBoxFlags("OverlayScrollFlag_HorizontalScroll", &sflags,
+                                 Onyx::OverlayScrollFlag_HorizontalScroll);
+
                 ui.CheckBox("Unlimited width", &xunlim);
                 if (xunlim)
                     ui.HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
                 else
                     ui.HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
-                ui.BeginScroll("Scroll area", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0],
-                               Onyx::OverlayScrollFlag_HorizontalScroll);
+                ui.BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
                 ui.Text("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
                         "showcase the feature");
                 ui.Button("Im a useless button");

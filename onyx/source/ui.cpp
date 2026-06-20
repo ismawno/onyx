@@ -142,6 +142,7 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_ScrollBarIdle] = palette[OverlayPalette_Idle1];
     colors[OverlayColor_ScrollBarHovered] = palette[OverlayPalette_Hovered1];
     colors[OverlayColor_ScrollBarPressed] = palette[OverlayPalette_Inner0];
+    colors[OverlayColor_ScrollAreaBorders] = palette[OverlayPalette_Background1];
 
     colors[OverlayColor_TreeIdle] = palette[OverlayPalette_Background1];
     colors[OverlayColor_TreeHovered] = palette[OverlayPalette_Hovered2];
@@ -445,12 +446,30 @@ void Overlay::EndWindow()
     PopId();
 }
 
-void Overlay::BeginScroll(LayoutId id, const f32 maxHeight, const f32 maxWidth, const OverlayScrollFlags flags)
+void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
+                          const OverlayScrollFlags flags)
 {
-    id = PushId(id);
+    const usz id = PushId(label);
     const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
-    const vec2<LayoutSizing> outer = {autoResize ? fit() : grow(), fit()};
+
+    const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
+    const bool borders = flags & OverlayScrollFlag_Borders;
+
+    const f32 omw = maxWidth + 2.f * padding;
+    const vec2<LayoutSizing> outer = {autoResize ? fit() : grow(0.f, omw), fit()};
     const vec2<LayoutSizing> content = {autoResize ? fit(0.f, maxWidth) : grow(0.f, maxWidth), fit(0.f, maxHeight)};
+
+    Layout &ly = getCurrentLayout();
+    ly.BeginPanel(
+        LayoutPanelParameters{.FillColor = borders ? m_Style[OverlayColor_ScrollAreaBorders] : Color_Transparent,
+                              .Direction = LayoutDirection_TopToBottom,
+                              .Alignment = {Alignment_Left, Alignment_Center},
+                              .Sizing = outer,
+                              .Padding = borders ? padding : 0.f});
+
+    if (flags & OverlayScrollFlag_Title)
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
+
     beginScroll(id, m_Scrollables[id], outer, content, flags);
     if (isElementHoveredForFocus(getCurrentLayout().QueryElement(id)))
         m_FocusedScroll = id;
@@ -460,6 +479,7 @@ void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizin
                           const vec2<LayoutSizing> &contentSizing, const OverlayScrollFlags flags)
 {
     Layout &ly = getCurrentLayout();
+    sinfo.Flags = flags;
 
     const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
@@ -468,9 +488,13 @@ void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizin
 
     const f32 cgap = m_Style[OverlayStyle_ChildGap];
 
-    ly.BeginPanel(id, LayoutPanelParameters{.Direction = LayoutDirection_BottomToTop,
+    const bool borders = flags & OverlayScrollFlag_Borders;
+    const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
+    ly.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
+                                            .Direction = LayoutDirection_BottomToTop,
                                             .Alignment = topLeft,
                                             .Sizing = outerSizing,
+                                            .Padding = borders ? padding : 0.f,
                                             .ChildGap = 0.25f * cgap});
 
     const LayoutId contentId = AsStackedId("Content area");
@@ -489,7 +513,7 @@ void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizin
                                  .Alignment = topLeft,
                                  .Sizing = contentSizing,
                                  .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset, -sinfo.Vertical.ElementOffset}),
-                                 .Padding = m_Style[OverlayStyle_ContentAreaPadding],
+                                 .Padding = padding,
                                  .ChildGap = cgap});
 }
 
@@ -1484,9 +1508,47 @@ void Overlay::processWindows()
         if (winHovered)
         {
             win.AddFlags(WindowInternalFlag_Hovered);
-            ScrollInfo &sinfo = m_FocusedScroll == NullLayoutId ? win.Scroll : m_Scrollables[m_FocusedScroll];
-            sinfo.Vertical.WheelOffset += scroll[1];
-            sinfo.Horizontal.WheelOffset += scroll[0];
+            ScrollBarInfo *vinfo;
+            ScrollBarInfo *hinfo;
+            OverlayScrollFlags vflags;
+            OverlayScrollFlags hflags;
+            if (m_FocusedScroll != NullLayoutId)
+            {
+                ScrollInfo &sinfo = m_Scrollables[m_FocusedScroll];
+                if (sinfo.Flags & OverlayWindowFlag_NoVerticalScroll)
+                {
+                    vinfo = &win.Scroll.Vertical;
+                    vflags = win.Scroll.Flags;
+                }
+                else
+                {
+                    vinfo = &sinfo.Vertical;
+                    vflags = sinfo.Flags;
+                }
+                if (sinfo.Flags & OverlayWindowFlag_HorizontalScroll)
+                {
+                    hinfo = &sinfo.Horizontal;
+                    hflags = sinfo.Flags;
+                }
+                else
+                {
+                    hinfo = &win.Scroll.Horizontal;
+                    hflags = win.Scroll.Flags;
+                }
+            }
+            else
+            {
+                vinfo = &win.Scroll.Vertical;
+                vflags = win.Scroll.Flags;
+                hinfo = &win.Scroll.Horizontal;
+                hflags = win.Scroll.Flags;
+            }
+
+            if (!(vflags & OverlayWindowFlag_NoVerticalScroll))
+                vinfo->WheelOffset += scroll[1];
+
+            if (hflags & OverlayWindowFlag_HorizontalScroll)
+                hinfo->WheelOffset += scroll[0];
             canAssignHover = false;
         }
 

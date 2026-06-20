@@ -82,6 +82,8 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
 using OverlayScrollFlags = u16;
 enum OverlayScrollFlagBit : OverlayScrollFlags
 {
+    OverlayScrollFlag_Borders = 1U << 0,
+    OverlayScrollFlag_Title = 1U << 1,
     OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
     OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
     OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
@@ -157,6 +159,7 @@ struct ScrollInfo
 {
     ScrollBarInfo Vertical{};
     ScrollBarInfo Horizontal{};
+    OverlayScrollFlags Flags = 0;
 };
 
 struct Tooltip
@@ -274,15 +277,17 @@ enum OverlayColor : u8
     OverlayColor_DropDownText,
     OverlayColor_DropDownButton,
 
+    OverlayColor_ScrollBarIdle,
+    OverlayColor_ScrollBarHovered,
+    OverlayColor_ScrollBarPressed,
+    OverlayColor_ScrollAreaBorders,
+
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
 
     OverlayColor_WindowHeaderBackgroundExpanded,
     OverlayColor_WindowHeaderBackgroundCollapsed,
 
-    OverlayColor_ScrollBarIdle,
-    OverlayColor_ScrollBarHovered,
-    OverlayColor_ScrollBarPressed,
     OverlayColor_Count,
 };
 
@@ -674,14 +679,11 @@ class Overlay
 
     // layout //
 
-    void BeginScroll(LayoutId id, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
-    void BeginScroll(const f32 maxHeight, const f32 maxWidth = TKIT_F32_MAX, const OverlayScrollFlags flags = 0)
-    {
-        BeginScroll(getCurrentLayout().GenerateNextId(), maxHeight, maxWidth, flags);
-    }
+    void BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
     void EndScroll()
     {
         PopId();
+        EndPanel();
         endScroll();
     }
 
