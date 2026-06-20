@@ -60,6 +60,15 @@ int main()
                 ui.PopTree();
             }
 
+            if (ui.PushTree("Dropdowns", Onyx::OverlayTreeFlag_DrawLines))
+            {
+                const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
+                                                                     "Element 4"};
+                static u32 idx = 0;
+                ui.DropDown("Dropdown", &idx, elements);
+                ui.PopTree();
+            }
+
             if (ui.PushTree("Images", Onyx::OverlayTreeFlag_DrawLines))
             {
                 ui.Text("May get a bit trippy...");

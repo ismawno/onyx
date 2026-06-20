@@ -13,6 +13,8 @@
 
 namespace Onyx
 {
+constexpr CodePoint s_ArrowDownIcon = 0x25BC;
+constexpr CodePoint s_ArrowRightIcon = 0x25B6;
 enum ResizeEdge : u8
 {
     ResizeEdge_Left,
@@ -27,7 +29,7 @@ using EventFlags = u8;
 using WidgetStateFlags = u8;
 enum WidgetStateFlagBit : WidgetStateFlags
 {
-    WidgetStateFlag_TreeOpened = 1U << 0,
+    WidgetStateFlag_Opened = 1U << 0,
     WidgetStateFlag_ConvertedToInput = 1U << 1,
 };
 
@@ -41,10 +43,14 @@ enum FocusInfoFlagBit : FocusInfoFlags
     FocusInfoFlag_Active = 1U << 4,
     FocusInfoFlag_JustActive = 1U << 5,
 
-    FocusInfoFlag_PressedIfActive = 1U << 6,
+    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 6,
     FocusInfoFlag_ClickedOnMousePress = 1U << 7,
-    FocusInfoFlag_KeepActiveOnRelease = 1U << 8,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 9,
+    FocusInfoFlag_KeepActiveOnPressed = 1U << 9,
+    FocusInfoFlag_KeepActiveOnRelease = 1U << 9,
+    FocusInfoFlag_SetActiveOnRelease = 1U << 10,
+    FocusInfoFlag_ToggleActiveOnRelease = 1U << 11,
+    FocusInfoFlag_IgnoreActive = 1U << 12,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 13,
 };
 
 using InputConvertInfoFlags = u8;
@@ -282,7 +288,7 @@ enum OverlayStyleType : u8
     OverlayStyle_WindowSpawnDelta,
 
     OverlayStyle_HeaderPadding,
-    OverlayStyle_HeaderButtonWidth,
+    OverlayStyle_IconWidth,
 
     OverlayStyle_BorderHoverPadding,
     OverlayStyle_ContentAreaPadding,
@@ -477,16 +483,108 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N);
     }
 
-    // template <TKit::Integer T>
-    // bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
-    // {
-    //     Layout &ly = getCurrentLayout();
-    //     const LayoutId id = PushId(label);
-    //     beginHorizontalWidget(PushId(label));
-    //
-    //     endHorizontalWidget(label, OverlayColor_Text);
-    //     PopId();
-    // }
+    template <TKit::Integer T>
+    bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
+    {
+        const T old = *current;
+        Layout &ly = getCurrentLayout();
+        beginHorizontalWidget(PushId(label));
+
+        const LayoutId id = AsStackedId("Drop down box");
+        const LayoutElement *elm = ly.QueryElement(id);
+        const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
+        const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
+
+        const FocusInfoFlags focusFlags =
+            evaluateFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
+                                         FocusInfoFlag_ToggleActiveOnRelease);
+
+        if (focusFlags & FocusInfoFlag_Pressed)
+            boxCol = &m_Style[OverlayColor_DropDownPressed];
+        else if (focusFlags & FocusInfoFlag_Hovered)
+            boxCol = &m_Style[OverlayColor_DropDownHovered];
+
+        const usz did = AsStackedId("Drop down");
+        const bool dropDownActive =
+            (focusFlags & FocusInfoFlag_Active) || checkWidgetState(did, WidgetStateFlag_Opened);
+        if (dropDownActive)
+            buttonCol = &m_Style[OverlayColor_DropDownButton];
+
+        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
+                                                .Alignment = {Alignment_Left, Alignment_Center},
+                                                .Sizing = {flex(), fit()}});
+
+        const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+        ly.BeginPanel(AsStackedId("Parent"),
+                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
+
+        const bool valid = *current < elements.GetSize() && *current >= 0;
+        if (valid)
+            ly.Text(ly.GenerateNextId(), elements[*current], getTextParams(OverlayColor_DropDownText));
+
+        ly.EndPanel();
+
+        ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
+
+        ly.BeginPanel(AsStackedId("Button box"),
+                      LayoutPanelParameters{.FillColor = *buttonCol,
+                                            .Alignment = Alignment_Center,
+                                            .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+
+        ly.Unicode(AsStackedId("Icon"), s_ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+        ly.EndPanel();
+
+        if (dropDownActive)
+        {
+            ly.BeginPanel(
+                did, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
+                                           .Direction = LayoutDirection_TopToBottom,
+                                           .Alignment = {Alignment_Left, Alignment_Top},
+                                           .Sizing = {snorm(1.f), fit()},
+                                           .Floating = {.Enable = true,
+                                                        .Attachment = {LayoutAttachment_Left, LayoutAttachment_Bottom},
+                                                        .Alignment = {Alignment_Left, Alignment_Top}}});
+
+            m_WidgetStates[did] = 0;
+            for (u32 i = 0; i < elements.GetSize(); ++i)
+            {
+                const usz elid = AsStackedId(i);
+                const LayoutElement *elm = ly.QueryElement(elid);
+                const FocusInfoFlags cfFlags =
+                    evaluateFocusStatus(elm, FocusInfoFlag_IgnoreActive | FocusInfoFlag_PressedEvenWhenAwayFromHover);
+
+                const Color *col = &Color_Transparent;
+                const bool pressed = cfFlags & FocusInfoFlag_Pressed;
+                const bool hovered = cfFlags & FocusInfoFlag_Hovered;
+
+                if (cfFlags & FocusInfoFlag_Clicked)
+                    *current = i;
+                else if (pressed || hovered)
+                    m_WidgetStates[did] |= WidgetStateFlag_Opened;
+
+                if (pressed)
+                    col = &m_Style[OverlayColor_DropDownPressed];
+                else if (hovered || i == *current)
+                    col = &m_Style[OverlayColor_DropDownHovered];
+
+                ly.BeginPanel(elid, LayoutPanelParameters{.FillColor = *col,
+                                                          .Direction = LayoutDirection_TopToBottom,
+                                                          .Alignment = {Alignment_Left, Alignment_Center},
+                                                          .Sizing = {grow(), fit()},
+                                                          .Padding = padding});
+
+                ly.Text(ly.GenerateNextId(), elements[i], getTextParams(OverlayColor_DropDownText));
+                ly.EndPanel();
+            }
+
+            ly.EndPanel();
+        }
+        ly.EndPanel();
+
+        endHorizontalWidget(label, OverlayColor_Text);
+        PopId();
+        return old != *current;
+    }
 
     // /widgets //
 
@@ -710,24 +808,26 @@ class Overlay
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
     {
-        const T pval = *value;
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
+        const InputConvertInfoFlags cflags =
+            mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
+
+        if (cflags & InputConvertFlag_MustConvert)
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+
+        const T pval = *value;
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedIfActive);
+        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
         else if (focusFlags & FocusInfoFlag_Hovered)
             col = &m_Style[OverlayColor_SliderHovered];
-
-        const InputConvertInfoFlags cflags = mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered));
-        if (cflags & InputConvertFlag_MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
 
         const f32 length = elm ? elm->Size[0] : 0.f;
         const f32 w = 0.5f * m_Style[OverlayStyle_WidgetSize];
@@ -788,25 +888,26 @@ class Overlay
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
     {
-        const T pval = *value;
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
+        const LayoutElement *elm = ly.QueryElement(id);
+        const InputConvertInfoFlags cflags = mustConvertToInputBox(
+            (isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
+        if (cflags & InputConvertFlag_MustConvert)
+            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+
+        const T pval = *value;
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        const FocusInfoFlags focusFlags = evaluateFocusStatus(ly.QueryElement(id), FocusInfoFlag_PressedIfActive);
+        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
         else if (focusFlags & FocusInfoFlag_Hovered)
             col = &m_Style[OverlayColor_SliderHovered];
-
-        const InputConvertInfoFlags cflags =
-            mustConvertToInputBox((focusFlags & FocusInfoFlag_Hovered) | InputConvertFlag_AllowDoubleClick);
-        if (cflags & InputConvertFlag_MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
 
         if (focusFlags & FocusInfoFlag_Pressed)
         {
@@ -906,8 +1007,8 @@ class Overlay
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
-    bool isElementHoveredForFocus(const LayoutElement *elm) const;
-    bool canWidgetInteract(usz id) const;
+    bool isElementHoveredForFocus(const LayoutElement *elm, bool ignoreActive = false) const;
+    bool canWidgetInteract(usz id, bool ignoreActive = false) const;
 
     WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
     {
@@ -1005,19 +1106,17 @@ class Overlay
     TKit::TierArray<ColorBackup> m_ColorStack{};
     TKit::TierArray<StyleBackup> m_StyleStack{};
 
-    CodePoint m_ExpandedHeaderIcon = 0x25BC;
-    CodePoint m_CollapsedHeaderIcon = 0x25B6;
-
     EventFlags m_EventFlags = 0;
 
     // interaction info
     usz m_HoveredId = NullLayoutId;
+    usz m_PressedId = NullLayoutId;
     usz m_ActiveId = NullLayoutId;
     usz m_ActiveIdLastFrame = NullLayoutId;
     usz m_FocusedScroll = NullLayoutId;
     // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
-    // pressed event. this is important for elements that if they are active think they are currently pressed, causing
-    // the firs mouse click outside their bounding box to still qualify as pressed
+    // pressed event. this is important for elements that if they are active think they are currently pressed,
+    // causing the firs mouse click outside their bounding box to still qualify as pressed
     bool m_PressingMouse = false;
     //
 
