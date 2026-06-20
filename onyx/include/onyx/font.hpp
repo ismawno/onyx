@@ -36,6 +36,7 @@ enum FontCharSet : u32
     CharSet_LatinExtendedB,
     CharSet_Greek,
     CharSet_Cyrillic,
+    CharSet_GeneralPunctuation,
     CharSet_Arrows,
     CharSet_MathOperators,
     CharSet_MiscTechnical,
@@ -77,6 +78,7 @@ struct CodePoints
     CodePointRange LatinExtendedB{384, 591};
     CodePointRange Greek{880, 1023};
     CodePointRange Cyrillic{1024, 1279};
+    CodePointRange GeneralPunctuation{0x2000, 0x206F};
     CodePointRange Arrows{8592, 8703};
     CodePointRange MathOperators{8704, 8959};
     CodePointRange MiscTechnical{8960, 9215};

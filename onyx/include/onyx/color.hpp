@@ -25,11 +25,11 @@ template <Numeric T> constexpr f32 FromType(const T val)
 }
 constexpr f32 ToLinear(const f32 c)
 {
-    return c <= 0.04045f ? c / 12.92f : Math::Pow((c + 0.055f) / 1.055f, 2.4f);
+    return c <= 0.04045f ? c / 12.92f : Math::Power((c + 0.055f) / 1.055f, 2.4f);
 }
 constexpr f32 ToSrgb(const f32 c)
 {
-    return c <= 0.0031308f ? c * 12.92f : 1.055f * Math::Pow(c, 1.0f / 2.4f) - 0.055f;
+    return c <= 0.0031308f ? c * 12.92f : 1.055f * Math::Power(c, 1.0f / 2.4f) - 0.055f;
 }
 #ifdef TKIT_ENABLE_ASSERTS
 inline void CheckRgba(const f32v4 &rgba)

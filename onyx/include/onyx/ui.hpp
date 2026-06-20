@@ -13,8 +13,10 @@
 
 namespace Onyx
 {
-constexpr CodePoint s_ArrowDownIcon = 0x25BC;
-constexpr CodePoint s_ArrowRightIcon = 0x25B6;
+constexpr CodePoint ArrowDownIcon = 0x25BC;
+constexpr CodePoint ArrowRightIcon = 0x25B6;
+constexpr CodePoint BulletIcon = 0x2022;
+
 enum ResizeEdge : u8
 {
     ResizeEdge_Left,
@@ -123,6 +125,15 @@ enum OverlayTreeFlagBit : OverlayTreeFlags
     OverlayTreeFlag_Framed = 1U << 4,
     OverlayTreeFlag_NoIndent = 1U << 5,
     OverlayTreeFlag_StartOpen = 1U << 6,
+};
+
+using OverlaySliderFlags = u8;
+enum OverlaySliderFlagBit : OverlaySliderFlags
+{
+    OverlaySliderFlag_ClampOnInput = 1U << 0,
+    OverlaySliderFlag_Logarithmic = 1U << 1,
+    OverlaySliderFlag_NoRoundToFormat = 1U << 2,
+    OverlaySliderFlag_NoInput = 1U << 3,
 };
 
 struct ResizeInfo
@@ -432,7 +443,7 @@ class Overlay
     // TODO(Isma): Implement format rounding
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
-                          const u32 count = 1)
+                          const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         beginHorizontalWidget(PushId(label));
@@ -441,7 +452,7 @@ class Overlay
         {
             T &val = value[i];
             PushId(&val);
-            pressed |= horizontalSliderBox(&val, mn, mx, format);
+            pressed |= horizontalSliderBox(&val, mn, mx, format, flags);
             PopId();
         }
         endHorizontalWidget(label, OverlayColor_SliderText);
@@ -451,14 +462,15 @@ class Overlay
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, vec<T, N> *value, const U mn, const U mx,
-                          const char *format = nullptr)
+                          const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
-        return HorizontalSlider(label, Math::AsPointer(*value), mn, mx, format, N);
+        return HorizontalSlider(label, Math::AsPointer(*value), mn, mx, format, N, flags);
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
-                        const U mx = T(0), const char *format = nullptr, const u32 count = 1)
+                        const U mx = T(0), const char *format = nullptr, const u32 count = 1,
+                        const OverlaySliderFlags flags = 0)
     {
         beginHorizontalWidget(PushId(label));
 
@@ -467,7 +479,7 @@ class Overlay
         {
             T &val = value[i];
             PushId(&val);
-            pressed |= horizontalDragBox(&val, speed, mn, mx, format);
+            pressed |= horizontalDragBox(&val, speed, mn, mx, format, flags);
             PopId();
         }
 
@@ -478,9 +490,9 @@ class Overlay
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
-                        const U mx = T(0), const char *format = nullptr)
+                        const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
-        return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N);
+        return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
     template <TKit::Integer T>
@@ -531,7 +543,7 @@ class Overlay
                                             .Alignment = Alignment_Center,
                                             .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
 
-        ly.Unicode(AsStackedId("Icon"), s_ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+        ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
         ly.EndPanel();
 
         if (dropDownActive)
@@ -590,13 +602,39 @@ class Overlay
 
     // display //
 
+    void TextRaw(LayoutTextMode mode, TKit::StringView text);
+    void TextRaw(const TKit::StringView text)
+    {
+        TextRaw(TextMode_Unbounded, text);
+    }
+
+    void TextIconRaw(CodePoint icon, LayoutTextMode mode, TKit::StringView text);
+    void TextIconRaw(const CodePoint icon, const TKit::StringView text)
+    {
+        TextIconRaw(icon, TextMode_Unbounded, text);
+    }
+
+    template <typename... Args>
+    void Text(const LayoutTextMode mode, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        TextRaw(mode, txt);
+    }
     template <typename... Args> void Text(const fmt::format_string<Args...> str, Args &&...args)
     {
-        text(TextMode_Unbounded, str, std::forward<Args>(args)...);
+        Text(TextMode_Unbounded, str, std::forward<Args>(args)...);
     }
-    template <typename... Args> void TextWrapped(const fmt::format_string<Args...> str, Args &&...args)
+    template <typename... Args>
+    void TextIcon(const CodePoint icon, const LayoutTextMode mode, const fmt::format_string<Args...> str,
+                  Args &&...args)
     {
-        text(TextMode_Wrapped, str, std::forward<Args>(args)...);
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        TextIconRaw(icon, mode, txt);
+    }
+    template <typename... Args>
+    void TextIcon(const CodePoint icon, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        TextIcon(icon, TextMode_Unbounded, str, std::forward<Args>(args)...);
     }
 
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
@@ -806,19 +844,29 @@ class Overlay
     void endHorizontalWidget(TKit::StringView label, OverlayColor labelColor);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format)
+    bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
     {
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
-        const InputConvertInfoFlags cflags =
-            mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
-
-        if (cflags & InputConvertFlag_MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
 
         const T pval = *value;
+        if (!(flags & OverlaySliderFlag_NoInput))
+        {
+            const InputConvertInfoFlags cflags =
+                mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
+
+            if (cflags & InputConvertFlag_MustConvert)
+            {
+                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                if (flags & OverlaySliderFlag_ClampOnInput)
+                    *value = Math::Clamp(*value, T(mn), T(mx));
+                return *value != pval;
+            }
+        }
+
+        const T clamped = Math::Clamp(pval, T(mn), T(mx));
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
@@ -830,26 +878,42 @@ class Overlay
             col = &m_Style[OverlayColor_SliderHovered];
 
         const f32 length = elm ? elm->Size[0] : 0.f;
-        const f32 w = 0.5f * m_Style[OverlayStyle_WidgetSize];
 
-        const f32 maxOffset = 0.5f * (length - w) - m_Style[OverlayStyle_WidgetPadding];
+        f32 baseWidth = 0.f;
+        if constexpr (TKit::Integer<T>)
+            baseWidth = length / f32(mx - mn + U(1));
+
+        const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+        const f32 innerWidth = Math::Max(baseWidth, 0.5f * m_Style[OverlayStyle_WidgetSize]);
+        const f32 maxOffset = 0.5f * (length - innerWidth) - padding;
+        const bool log = flags & OverlaySliderFlag_Logarithmic;
+
+        const auto map = [log](const f32 v, const f32 mn0, const f32 mx0, const f32 mn1, const f32 mx1) {
+            return log ? Math::LogMap(v, mn0, mx0, mn1, mx1) : Math::LinearMap(v, mn0, mx0, mn1, mx1);
+        };
+        const auto imap = [log](const f32 v, const f32 mn0, const f32 mx0, const f32 mn1, const f32 mx1) {
+            return log ? Math::InverseLogMap(v, mn0, mx0, mn1, mx1) : Math::LinearMap(v, mn0, mx0, mn1, mx1);
+        };
 
         f32 offset = 0.f;
-        const f32 normalized = Math::Map(f32(*value), f32(mn), f32(mx), -1.f, 1.f);
+        const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
         if ((focusFlags & FocusInfoFlag_Pressed) && !m_Window->IsKeyPressed(Key_LeftControl))
         {
-            const f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            if constexpr (TKit::Integer<T>)
+                relPos += 0.5f * innerWidth;
+
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
-            *value = T(Math::Map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
-            if constexpr (Integer<T>)
-                // snapping
+            *value = T(map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
+
+            if (!(flags & OverlaySliderFlag_NoRoundToFormat))
+                *value = roundToFormat(*value, format);
+
+            if constexpr (TKit::Integer<T>)
                 offset = normalized * maxOffset;
         }
-        else if (elm)
-        {
-            *value = Math::Clamp(*value, T(mn), T(mx));
+        else
             offset = normalized * maxOffset;
-        }
 
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
@@ -857,7 +921,7 @@ class Overlay
         ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
                                                 .Alignment = {Alignment_Left, Alignment_Center},
                                                 .Sizing = {grow(), fit()},
-                                                .Padding = m_Style[OverlayStyle_WidgetPadding]});
+                                                .Padding = padding});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text
         // length cannot interfere with slider button positioning in layout calculation
@@ -870,7 +934,7 @@ class Overlay
                       LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
         ly.Panel(AsStackedId("Slider button"), LayoutPanelParameters{.FillColor = m_Style[OverlayColor_SliderInner],
-                                                                     .Sizing = {sabs(w), grow()},
+                                                                     .Sizing = {sabs(innerWidth), grow()},
                                                                      .SelfOffset = oabs({offset, 0.f})});
 
         ly.EndPanel();
@@ -886,18 +950,28 @@ class Overlay
         return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format)
+    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format,
+                           const OverlaySliderFlags flags)
     {
         Layout &ly = getCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
-        const InputConvertInfoFlags cflags = mustConvertToInputBox(
-            (isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
-        if (cflags & InputConvertFlag_MustConvert)
-            return inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
-
         const T pval = *value;
+        if (!(flags & OverlaySliderFlag_NoInput))
+        {
+            const InputConvertInfoFlags cflags =
+                mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
+
+            if (cflags & InputConvertFlag_MustConvert)
+            {
+                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                if (flags & OverlaySliderFlag_ClampOnInput)
+                    *value = Math::Clamp(*value, T(mn), T(mx));
+                return *value != pval;
+            }
+        }
+
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
@@ -911,13 +985,26 @@ class Overlay
 
         if (focusFlags & FocusInfoFlag_Pressed)
         {
+            const u32 decimals = getFormatDecimals(format);
+            const bool log = flags & OverlaySliderFlag_Logarithmic;
+
+            const f32 effectiveSpeed =
+                log ? (speed * Math::Max(Math::Absolute(f32(*value)),
+                                         decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
+                    : speed;
+
             const f32 md = m_MouseDelta[0];
-            const T nval = *value + T(speed * md);
+            const T nval = *value + T(effectiveSpeed * md);
+
             if ((md > 0.f && nval > *value) || (md < 0.f && nval < *value))
+            {
                 *value = nval;
+                if (!(flags & OverlaySliderFlag_NoRoundToFormat))
+                    *value = roundToFormat(*value, decimals);
+            }
+            if (hasLimits)
+                *value = Math::Clamp(*value, T(mn), T(mx));
         }
-        if (hasLimits)
-            *value = Math::Clamp(*value, T(mn), T(mx));
 
         ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
                                                 .Alignment = Alignment_Center,
@@ -964,7 +1051,7 @@ class Overlay
         return false;
     }
 
-    template <TKit::Numeric T> const char *getFormat(const char *format)
+    template <TKit::Numeric T> static const char *getFormat(const char *format)
     {
         if constexpr (TKit::Float<T>)
         {
@@ -978,17 +1065,17 @@ class Overlay
         }
         return format;
     }
-    template <typename... Args>
-    void text(const LayoutTextMode mode, const fmt::format_string<Args...> str, Args &&...args)
+    static u32 getFormatDecimals(const char *format);
+    template <TKit::Numeric T> static T roundToFormat(const T value, const u32 decimals)
     {
-        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-
-        LayoutTextParameters params = getTextParams(OverlayColor_Text);
-        params.Mode = mode;
-
-        Layout &ly = getCurrentLayout();
-        // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-        m_LastWidget = ly.Text(AsStackedId(ly.GenerateNextId()), txt, params);
+        if constexpr (TKit::Integer<T>)
+            return value;
+        else
+            return decimals == 0 ? value : Math::Round(value, decimals);
+    }
+    template <TKit::Numeric T> static T roundToFormat(const T value, const char *format)
+    {
+        return roundToFormat(value, getFormatDecimals(format));
     }
 
     Layout &getCurrentLayout()

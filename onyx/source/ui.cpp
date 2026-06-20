@@ -367,7 +367,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     Layout &ly = getCurrentLayout();
 
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
-    const bool collapsed = !noHeader && m_Current->HeaderIcon == s_ArrowRightIcon;
+    const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
     const bool autoResize = flags & OverlayWindowFlag_AutoResize;
     if (autoResize)
         m_Current->Scroll = ScrollInfo{};
@@ -427,12 +427,12 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
             }
         }
 
-        ly.Text(AsStackedId(ly.GenerateNextId()), trimLabel(title), getTextParams(OverlayColor_WindowHeader));
+        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_WindowHeader));
         ly.EndPanel();
     }
 
     const vec2<LayoutSizing> scrollSizing = autoResize ? flex() : grow();
-    beginScroll(AsStackedId(ly.GenerateNextId()), m_Current->Scroll, scrollSizing, scrollSizing, flags);
+    beginScroll(ly.GenerateNextId(), m_Current->Scroll, scrollSizing, scrollSizing, flags);
     return !collapsed;
 }
 
@@ -462,7 +462,7 @@ void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizin
     Layout &ly = getCurrentLayout();
 
     const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
-    const bool collapsed = !noHeader && m_Current->HeaderIcon == s_ArrowRightIcon;
+    const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
     const bool drawBar = !(flags & OverlayScrollFlag_NoScrollBar);
     const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
 
@@ -584,7 +584,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
             toggleOpen = doubleClicked;
     }
 
-    const CodePoint code = opened ? s_ArrowDownIcon : s_ArrowRightIcon;
+    const CodePoint code = opened ? ArrowDownIcon : ArrowRightIcon;
     ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_TreeText));
 
     ly.EndPanel();
@@ -607,7 +607,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     const FontData &fdata = getFontData();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
-    const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(s_ArrowDownIcon)->Advance, m_Style[OverlayStyle_IconWidth]);
+    const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(ArrowDownIcon)->Advance, m_Style[OverlayStyle_IconWidth]);
     const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
 
     ly.BeginPanel(LayoutPanelParameters{
@@ -1192,6 +1192,28 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     return focusFlags & FocusInfoFlag_Clicked;
 }
 
+void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
+{
+    LayoutTextParameters params = getTextParams(OverlayColor_Text);
+    params.Mode = mode;
+
+    Layout &ly = getCurrentLayout();
+    // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+    m_LastWidget = ly.Text(ly.GenerateNextId(), text, params);
+}
+void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const TKit::StringView text)
+{
+    PushDirection(LayoutDirection_LeftToRight);
+
+    LayoutTextParameters params = getTextParams(OverlayColor_Text);
+    params.Mode = mode;
+
+    Layout &ly = getCurrentLayout();
+    ly.Unicode(ly.GenerateNextId(), icon, getUnicodeParams(OverlayColor_Text));
+    ly.Text(ly.GenerateNextId(), text, params);
+    Pop();
+}
+
 void Overlay::BeginTooltip()
 {
     TKIT_ASSERT(m_Current, "[ONYX][UI] Cannot begin a tooltip outside of a window");
@@ -1406,7 +1428,7 @@ void Overlay::processWindows()
     for (OverlayWindow &win : m_OverlayWindows)
     {
         const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
-        win.HeaderIcon = collapsed ? s_ArrowRightIcon : s_ArrowDownIcon;
+        win.HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
         win.RemoveFlags(WindowInternalFlag_Hovered);
     };
 
@@ -1556,10 +1578,22 @@ OverlayWindow *Overlay::getOrCreateOverlayWindow(const usz id)
 
     m_WindowIds.Append(id);
     OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
-    win.HeaderIcon = s_ArrowDownIcon;
+    win.HeaderIcon = ArrowDownIcon;
     win.Position += m_WindowSpawnOffset;
     m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
     return &win;
+}
+
+u32 Overlay::getFormatDecimals(const char *format)
+{
+    for (const char *cc = format; *cc != 0; ++cc)
+    {
+        const char c0 = cc[0];
+        const char c1 = cc[1];
+        if (c0 == '.' && c1 >= '0' && c1 <= '9')
+            return c1 - '0';
+    }
+    return 0;
 }
 
 const FontData &Overlay::getFontData() const

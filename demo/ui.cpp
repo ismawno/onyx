@@ -26,9 +26,9 @@ int main()
         static bool enableSettings = false;
         if (ui.BeginWindow("User interface demo", flags))
         {
+            const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
             if (ui.PushTree("General", Onyx::OverlayTreeFlag_DrawLines))
             {
-                const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
                 ui.Text("Delta time: {:.2f} ms", ftime);
                 if (ui.BeginItemTooltip())
                 {
@@ -36,8 +36,6 @@ int main()
                     ui.Text("And this is the time that passes between frames");
                     ui.EndTooltip();
                 }
-                ui.TextWrapped(
-                    "This is some text that should wrap because it is too long to fit into the width of the window");
 
                 ui.CheckBox("Open widow settings", &enableSettings);
 
@@ -124,14 +122,48 @@ int main()
 
             if (ui.PushTree("Sliders/Drags", Onyx::OverlayTreeFlag_DrawLines))
             {
+                static Onyx::OverlaySliderFlags sflags = 0;
+                ui.CheckBoxFlags("OverlaySliderFlag_ClampOnInput", &sflags, Onyx::OverlaySliderFlag_ClampOnInput);
+                ui.CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
+                ui.CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
+                ui.CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
+
+                ui.HorizontalSeparator("Sliders");
                 static f32 fval[2] = {4, 7};
-                ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2);
+                ui.Text("Underlying values: {:.2f}, {:.2f}", fval[0], fval[1]);
+
+                ui.HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+                ui.HorizontalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
 
                 static i32 ival = 7;
-                ui.HorizontalSlider("My slider int", &ival, -3, 28);
+                ui.Text("Underlying value: {}", ival);
+                ui.HorizontalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
+                ui.HorizontalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
+
+                ui.HorizontalSeparator("Drags");
+                static f32 speed = 0.1f;
+                ui.HorizontalSlider("Drag speed", &speed, 1e-2f, 10.f, "{:.2f}", 1,
+                                    Onyx::OverlaySliderFlag_Logarithmic);
+
+                ui.HorizontalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+                ui.HorizontalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
+
+                ui.HorizontalDrag("My drag int", &ival, speed, -3, 28, nullptr, 1, sflags);
+                ui.HorizontalDrag("My small drag int", &ival, speed, 0, 2, nullptr, 1, sflags);
 
                 static u32 uval2[3] = {7, 2, 5};
-                ui.HorizontalDrag("My drag uint", uval2, 1, 1, 87, nullptr, 3);
+                ui.HorizontalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Text", Onyx::OverlayTreeFlag_DrawLines))
+            {
+                ui.TextRaw("This is some raw text");
+                ui.TextRaw(
+                    Onyx::TextMode_Wrapped,
+                    "This is some text that should wrap because it is too long to fit into the width of the window");
+                ui.TextIconRaw(Onyx::BulletIcon, "A bullet!");
+                ui.TextIcon(Onyx::ArrowRightIcon, "Here is the delta time again: {:.2f} ms", ftime);
                 ui.PopTree();
             }
 

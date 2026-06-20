@@ -612,8 +612,8 @@ ParametricMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
 
-        const f32 y = Math::Map(pc, 0.f, 1.f, 0.5f, 1.f);
-        const f32 vv = Math::Map(v, 0.f, 0.5f, 0.f, 0.25f);
+        const f32 y = Math::LinearMap(pc, 0.f, 1.f, 0.5f, 1.f);
+        const f32 vv = Math::LinearMap(v, 0.f, 0.5f, 0.f, 0.25f);
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
@@ -647,8 +647,8 @@ ParametricMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
 
-        const f32 y = Math::Map(pc, 0.f, -1.f, -0.5f, -1.f);
-        const f32 vv = Math::Map(v, 0.5f, 1.f, 0.75f, 1.f);
+        const f32 y = Math::LinearMap(pc, 0.f, -1.f, -0.5f, -1.f);
+        const f32 vv = Math::LinearMap(v, 0.5f, 1.f, 0.75f, 1.f);
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
@@ -922,15 +922,15 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             const f32 phi = v * Math::Pi();
             const f32 pc = Math::Cosine(phi);
             const f32 ps = Math::Sine(phi);
-            const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
-            const f32 y = Math::Map(pc, 0.f, 1.f, 0.5f, 1.f);
-            const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
+            const f32 tx = Math::LinearMap(ps, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::LinearMap(pc, 0.f, 1.f, 0.5f, 1.f);
+            const f32 tz = Math::LinearMap(ps, 0.f, 1.f, mnz, mxz);
             const f32 u = f32(j) / sectors;
             const f32 th = 2.f * u * Math::Pi();
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
-            const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
+            const f32 x = Math::LinearMap(ps * tc, ps, 0.f, tx, sx * 0.5f);
+            const f32 z = Math::LinearMap(ps * ts, ps, 0.f, tz, sz * 0.5f);
             return f32v3{x, y, z};
         };
 
@@ -939,15 +939,15 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             const f32 phi = v * Math::Pi();
             const f32 pc = Math::Cosine(phi);
             const f32 ps = Math::Sine(phi);
-            const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
-            const f32 y = Math::Map(pc, 0.f, -1.f, -0.5f, -1.f);
-            const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
+            const f32 tx = Math::LinearMap(ps, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::LinearMap(pc, 0.f, -1.f, -0.5f, -1.f);
+            const f32 tz = Math::LinearMap(ps, 0.f, 1.f, mnz, mxz);
             const f32 u = f32(j) / sectors;
             const f32 th = 2.f * u * Math::Pi();
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
-            const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
+            const f32 x = Math::LinearMap(ps * tc, ps, 0.f, tx, sx * 0.5f);
+            const f32 z = Math::LinearMap(ps * ts, ps, 0.f, tz, sz * 0.5f);
             return f32v3{x, y, z};
         };
 
@@ -1197,8 +1197,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             {
                 const f32 cc = Math::Cosine(j * angle);
                 const f32 ss = Math::Sine(j * angle);
-                const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-                const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+                const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+                const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
                 addCylinderVertex02(x, -0.5f, z, faceA);
                 addCylinderVertex02(x, 0.5f, z, faceA);
@@ -1208,8 +1208,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             {
                 const f32 cc = Math::Cosine(halfQuart * angle);
                 const f32 ss = Math::Sine(halfQuart * angle);
-                const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-                const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+                const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+                const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
                 addCylinderVertex02(x, -0.5f, z, faceB);
                 addCylinderVertex02(x, 0.5f, z, faceB);
@@ -1220,8 +1220,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             {
                 const f32 cc = Math::Cosine(j * angle);
                 const f32 ss = Math::Sine(j * angle);
-                const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-                const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+                const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+                const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
                 addCylinderVertex02(x, -0.5f, z, faceB);
                 addCylinderVertex02(x, 0.5f, z, faceB);
@@ -1292,8 +1292,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
-            const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
-            const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+            const f32 y = Math::LinearMap(cc, 0.f, 1.f, mny, mxy);
+            const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
             addCylinderVertex12(-0.5f, y, z, faceA);
             addCylinderVertex12(0.5f, y, z, faceA);
@@ -1303,8 +1303,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(halfPart * angle);
             const f32 ss = Math::Sine(halfPart * angle);
-            const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
-            const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+            const f32 y = Math::LinearMap(cc, 0.f, 1.f, mny, mxy);
+            const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
             addCylinderVertex12(-0.5f, y, z, faceB);
             addCylinderVertex12(0.5f, y, z, faceB);
@@ -1315,8 +1315,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
-            const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
-            const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+            const f32 y = Math::LinearMap(cc, 0.f, 1.f, mny, mxy);
+            const f32 z = Math::LinearMap(ss, 0.f, 1.f, mnz, mxz);
 
             addCylinderVertex12(-0.5f, y, z, faceB);
             addCylinderVertex12(0.5f, y, z, faceB);
@@ -1375,8 +1375,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
-            const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-            const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
+            const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::LinearMap(ss, 0.f, 1.f, mny, mxy);
 
             addCylinderVertex01(x, y, -0.5f, faceA);
             addCylinderVertex01(x, y, 0.5f, faceA);
@@ -1386,8 +1386,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(halfPart * angle);
             const f32 ss = Math::Sine(halfPart * angle);
-            const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-            const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
+            const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::LinearMap(ss, 0.f, 1.f, mny, mxy);
 
             addCylinderVertex01(x, y, -0.5f, faceB);
             addCylinderVertex01(x, y, 0.5f, faceB);
@@ -1398,8 +1398,8 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
-            const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
-            const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
+            const f32 x = Math::LinearMap(cc, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::LinearMap(ss, 0.f, 1.f, mny, mxy);
 
             addCylinderVertex01(x, y, -0.5f, faceB);
             addCylinderVertex01(x, y, 0.5f, faceB);
