@@ -21,7 +21,7 @@ set(SOURCES
     source/color.cpp
     source/transform.cpp
     source/layout.cpp
-    source/ui.cpp
+    source/overlay.cpp
     source/conversion.cpp
     source/window.cpp)
 

@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/ui.hpp"
+#include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
 
 namespace Onyx
@@ -166,8 +166,9 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
 Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
     : m_LayoutSpecs(specs.Layout), m_Window(win), m_Style(specs.Style), m_Tooltip(specs.Layout)
 {
-    TKIT_ASSERT(specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
-                "[ONYX][UI] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
+    TKIT_ASSERT(
+        specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
+        "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
     m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
@@ -329,20 +330,59 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     sinfo.WheelOffset = 0.f;
 }
 
-bool Overlay::isElementHoveredForFocus(const LayoutElement *elm) const
+bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFlags flags)
 {
-    if (!elm)
+    if (!elm || !elm->IsHovered(m_MousePos))
         return false;
-    const bool canFocus = m_Current->CheckFlags(WindowInternalFlag_Hovered) && !m_Grabbed;
-    const bool canHover = canFocus && canWidgetInteract(elm->Id);
-    return canHover && elm->IsHovered(m_MousePos);
-}
-bool Overlay::canWidgetInteract(const usz id) const
-{
-    const bool pressBlocked = m_PressedId != NullLayoutId && m_PressedId != id;
-    const bool activeBlocked =
-        !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
-    return !pressBlocked && !activeBlocked;
+
+    const bool allowBlockWindow = flags & OverlayHoveredFlag_AllowBlockedByWindow;
+    const bool allowBlockResize = flags & OverlayHoveredFlag_AllowBlockedByResize;
+    const bool allowBlockPressed = flags & OverlayHoveredFlag_AllowBlockedByPressedItem;
+    const bool allowBlockActive = flags & OverlayHoveredFlag_AllowBlockedByActiveItem;
+
+    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
+    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
+    const bool stationary = flags & OverlayHoveredFlag_Stationary;
+    TKIT_ASSERT(normalDelay + shortDelay != 2,
+                "[ONYX][OVERLAY] Cannot have short delay and normal delay at the same time in tooltip");
+
+    f32 delay = 0.f;
+    if (shortDelay)
+        delay = m_Style[OverlayStyle_HoverDelayShort];
+    else if (normalDelay)
+        delay = m_Style[OverlayStyle_HoverDelayNormal];
+
+    const Layout &ly = getCurrentLayout();
+
+    const usz id = elm->Id;
+    const bool windowBlock = !allowBlockWindow && !m_Current->CheckFlags(WindowInternalFlag_Hovered);
+    const bool resizeBlock = !allowBlockResize && m_Grabbed;
+    const bool pressBlock = !allowBlockPressed && m_PressedId != NullLayoutId && m_PressedId != id;
+    const bool activeBlocked = !allowBlockActive && !(m_EventFlags & EventFlag_ActiveAllowsInteraction) &&
+                               m_ActiveId != id && m_ActiveId != m_PopupStack.GetBack();
+
+    const bool candidate = !windowBlock && !resizeBlock && !pressBlock && !activeBlocked;
+    if (candidate)
+    {
+        const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
+        if (Math::NormSquared(m_MouseDelta) > statThres)
+        {
+            m_WidgetHoverClock.Restart();
+            return false;
+        }
+
+        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastWidget;
+        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
+        if (m_HoveredWidgetCandidate == NullLayoutId || (noShared && !wasCandidate))
+            m_WidgetHoverClock.Restart();
+
+        m_HoveredWidgetCandidate = m_LastWidget;
+        m_CandidateLayout = &ly;
+
+        const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
+        return seconds >= delay;
+    }
+    return false;
 }
 
 TKit::StringView Overlay::trimLabel(const TKit::StringView label)
@@ -489,12 +529,12 @@ bool Overlay::beginScroll(const LayoutId id, const vec2<LayoutSizing> &outerSizi
 
     const bool borders = flags & OverlayScrollFlag_Borders;
     const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
-    ly.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
-                                            .Direction = LayoutDirection_BottomToTop,
-                                            .Alignment = topLeft,
-                                            .Sizing = outerSizing,
-                                            .Padding = borders ? padding : 0.f,
-                                            .ChildGap = 0.25f * cgap});
+    m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
+                                                           .Direction = LayoutDirection_BottomToTop,
+                                                           .Alignment = topLeft,
+                                                           .Sizing = outerSizing,
+                                                           .Padding = borders ? padding : 0.f,
+                                                           .ChildGap = 0.25f * cgap});
 
     const LayoutId contentId = AsStackedId("Content area");
     if (!collapsed && (flags & OverlayScrollFlag_HorizontalScroll))
@@ -515,7 +555,7 @@ bool Overlay::beginScroll(const LayoutId id, const vec2<LayoutSizing> &outerSizi
                                  .Padding = padding,
                                  .ChildGap = cgap});
 
-    if (isElementHoveredForFocus(ly.QueryElement(id)))
+    if (isElementHovered(ly.QueryElement(id)))
     {
         m_ScrollStack.Append(id);
         return true;
@@ -666,10 +706,11 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hint, const OverlayInputFlags flags,
                            const InputConvertInfoFlags cflags)
 {
-    TKIT_ASSERT(size != 0, "[ONYX][UI] Buffer size for text input cannot be zero");
+    TKIT_ASSERT(size != 0, "[ONYX][OVERLAY] Buffer size for text input cannot be zero");
     Layout &ly = getCurrentLayout();
     const u32 strSize = u32(std::strlen(buf));
-    TKIT_ASSERT(strSize < size, "[ONYX][UI] The input character length ({}) exceeds buffer size ({})", strSize, size);
+    TKIT_ASSERT(strSize < size, "[ONYX][OVERLAY] The input character length ({}) exceeds buffer size ({})", strSize,
+                size);
 
     const LayoutId iboxId = AsStackedId("Input box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
@@ -1009,7 +1050,7 @@ FocusInfoFlags Overlay::evaluateFocusStatus(const LayoutElement *elm, const Focu
     const bool mreleased = checkFlags(EventFlag_MouseReleased);
     const bool mpressed = checkFlags(EventFlag_MousePressed);
 
-    const bool hovered = isElementHoveredForFocus(elm);
+    const bool hovered = isElementHovered(elm);
 
     bool clicked = hovered;
     if (flags & FocusInfoFlag_ClickedOnMousePress)
@@ -1194,8 +1235,8 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
 
 void Overlay::BeginTooltip()
 {
-    TKIT_ASSERT(m_Current, "[ONYX][UI] Cannot begin a tooltip outside of a window");
-    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][UI] Cannot begin a tooltip inside of a tooltip");
+    TKIT_ASSERT(m_Current, "[ONYX][OVERLAY] Cannot begin a tooltip outside of a window");
+    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][OVERLAY] Cannot begin a tooltip inside of a tooltip");
     m_Tooltip.Active = true;
     m_Tooltip.Drawn = true;
 
@@ -1238,53 +1279,11 @@ bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
 
 void Overlay::EndTooltip()
 {
-    TKIT_ASSERT(m_Tooltip.Active, "[ONYX][UI] Cannot end a tooltip that has not started");
+    TKIT_ASSERT(m_Tooltip.Active, "[ONYX][OVERLAY] Cannot end a tooltip that has not started");
     m_Tooltip.Active = false;
     m_Tooltip.Layout.EndPanel();
     m_Tooltip.Layout.EndPanel();
     m_Tooltip.Layout.Compile();
-}
-
-bool Overlay::IsItemHovered(const OverlayHoveredFlags flags)
-{
-    const bool allowBlockWindow = flags & OverlayHoveredFlag_AllowBlockedByWindow;
-    const bool allowBlockId = flags & OverlayHoveredFlag_AllowBlockedByActiveItem;
-    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
-    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
-    const bool stationary = flags & OverlayHoveredFlag_Stationary;
-    TKIT_ASSERT(normalDelay + shortDelay != 2,
-                "[ONYX][UI] Cannot have short delay and normal delay at the same time in tooltip");
-
-    f32 delay = 0.f;
-    if (shortDelay)
-        delay = m_Style[OverlayStyle_HoverDelayShort];
-    else if (normalDelay)
-        delay = m_Style[OverlayStyle_HoverDelayNormal];
-
-    const Layout &ly = getCurrentLayout();
-    const bool candidate = (allowBlockWindow || m_Current->CheckFlags(WindowInternalFlag_Hovered)) &&
-                           (allowBlockId || canWidgetInteract(m_LastWidget)) && ly.IsHovered(m_LastWidget, m_MousePos);
-    if (candidate)
-    {
-        const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
-        if (Math::NormSquared(m_MouseDelta) > statThres)
-        {
-            m_WidgetHoverClock.Restart();
-            return false;
-        }
-
-        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastWidget;
-        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
-        if (m_HoveredWidgetCandidate == NullLayoutId || (noShared && !wasCandidate))
-            m_WidgetHoverClock.Restart();
-
-        m_HoveredWidgetCandidate = m_LastWidget;
-        m_CandidateLayout = &ly;
-
-        const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
-        return seconds >= delay;
-    }
-    return false;
 }
 
 bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
@@ -1301,7 +1300,7 @@ void Overlay::Draw()
 {
     TKIT_ASSERT(
         m_IdStack.IsEmpty(),
-        "[ONYX][UI] Id stack size mismatch (size = {}, should be 0). For every PushId(), there must be a PopId()",
+        "[ONYX][OVERLAY] Id stack size mismatch (size = {}, should be 0). For every PushId(), there must be a PopId()",
         m_IdStack.GetSize());
 
     processWindows();
@@ -1311,7 +1310,7 @@ void Overlay::Draw()
         win.Layout.Compile();
         m_Context->Layout(win.Layout);
     }
-    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][UI] Found a tooltip that has not been finished");
+    TKIT_ASSERT(!m_Tooltip.Active, "[ONYX][OVERLAY] Found a tooltip that has not been finished");
     if (m_Tooltip.Drawn)
     {
         // tooltip must be compiled everytime it is used
@@ -1553,6 +1552,9 @@ void Overlay::processWindows()
         hinfo->WheelOffset += scroll[0];
 
     m_ScrollStack.Clear();
+    TKIT_ASSERT(m_CurrentPopupStack.GetSize() == 1,
+                "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
+                m_CurrentPopupStack.GetSize() - 1);
 }
 
 void Overlay::bringWindowToTop(const u32 idx)

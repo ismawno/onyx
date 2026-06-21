@@ -106,8 +106,10 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
     OverlayHoveredFlag_NormalDelay = 1U << 1,
     OverlayHoveredFlag_Stationary = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 3,
-    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 4,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 5,
+    OverlayHoveredFlag_AllowBlockedByResize = 1U << 4,
+    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 5,
+    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 6,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 7,
 };
 
 using OverlayButtonFlags = u8;
@@ -448,7 +450,7 @@ class Overlay
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
                           const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
-        TKIT_ASSERT(mn < mx, "[ONYX][UI] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
+        TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         beginHorizontalWidget(PushId(label));
         bool pressed = false;
         for (u32 i = 0; i < count; ++i)
@@ -807,7 +809,10 @@ class Overlay
     // /style //
 
     // query //
-    bool IsItemHovered(const OverlayHoveredFlags flags = 0);
+    bool IsItemHovered(const OverlayHoveredFlags flags = 0)
+    {
+        return isElementHovered(getCurrentLayout().QueryElement(m_LastWidget), flags);
+    }
     // /query //
 
     void Draw();
@@ -857,7 +862,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
+                mustConvertToInputBox(isElementHovered(elm) ? FocusInfoFlag_Hovered : 0);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -963,7 +968,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHoveredForFocus(elm) ? FocusInfoFlag_Hovered : 0);
+                mustConvertToInputBox(isElementHovered(elm) ? FocusInfoFlag_Hovered : 0);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -1094,8 +1099,7 @@ class Overlay
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
-    bool isElementHoveredForFocus(const LayoutElement *elm) const;
-    bool canWidgetInteract(usz id) const;
+    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0);
 
     WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
     {
@@ -1203,6 +1207,8 @@ class Overlay
     usz m_ActiveIdLastFrame = NullLayoutId;
 
     TKit::TierArray<usz> m_ScrollStack{};
+    TKit::TierArray<usz> m_PopupStack{{NullLayoutId}};
+    TKit::TierArray<usz> m_CurrentPopupStack{{NullLayoutId}};
 
     f64 m_DragValue = 0.;
 

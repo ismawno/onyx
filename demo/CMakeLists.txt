@@ -3,19 +3,19 @@ project(onyx-demo)
 
 add_executable(onyx-hello-world hello_world.cpp)
 add_executable(onyx-layout layout.cpp)
-add_executable(onyx-ui ui.cpp)
+add_executable(onyx-overlay overlay.cpp)
 add_executable(onyx-lights lights.cpp)
 add_executable(onyx-transparency transparency.cpp)
 
 tkit_default_configure(onyx-hello-world)
 tkit_default_configure(onyx-layout)
-tkit_default_configure(onyx-ui)
+tkit_default_configure(onyx-overlay)
 tkit_default_configure(onyx-lights)
 tkit_default_configure(onyx-transparency)
 
 target_link_libraries(onyx-hello-world PRIVATE onyx)
 target_link_libraries(onyx-layout PRIVATE onyx)
-target_link_libraries(onyx-ui PRIVATE onyx)
+target_link_libraries(onyx-overlay PRIVATE onyx)
 target_link_libraries(onyx-lights PRIVATE onyx)
 target_link_libraries(onyx-transparency PRIVATE onyx)
 
