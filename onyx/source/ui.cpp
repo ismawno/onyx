@@ -750,31 +750,34 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
         if (pressed || clicked)
         {
-            f32 pixelStartPos;
-            f32 pixelEndPos;
-            if (clicked)
-            {
-                pixelStartPos = m_MousePos[0] - boxPos;
-                pixelEndPos = pixelStartPos;
-            }
-            else
-            {
-                pixelStartPos = advances[m_CursorStart];
-                // TODO(Isma): Brittle. find a way to do this better
-                pixelEndPos =
-                    Math::Absolute(m_DragAccum[0]) > 1.f ? (pixelStartPos + m_DragAccum[0]) : advances[m_CursorEnd];
-            }
+            const f32 onPress = m_MousePosOnPress[0] - boxPos;
+            const f32 mpos = m_MousePos[0] - boxPos;
+
+            const f32 pixelStartPos =
+                (!clicked && Math::Approximately(mpos, onPress, 1.f)) ? advances[m_CursorStart] : onPress;
+            const f32 pixelEndPos =
+                (!clicked && Math::Approximately(mpos, onPress, 1.f)) ? advances[m_CursorEnd] : mpos;
 
             m_CursorStart = 0;
             m_CursorEnd = 0;
+
+            bool startReady = false;
+            bool endReady = false;
             for (u32 i = 0; i < advCount; ++i)
             {
                 const f32 hw = midAdvances[i];
-                if (hw < pixelStartPos)
+                startReady = hw >= pixelStartPos;
+                if (!startReady)
                     m_CursorStart = i;
-                if (hw < pixelEndPos)
+
+                endReady = hw >= pixelEndPos;
+                if (!endReady)
                     m_CursorEnd = i;
             }
+            if (!startReady)
+                m_CursorStart = charCount;
+            if (!endReady)
+                m_CursorEnd = charCount;
         }
 
         if (m_OverflowClicks == 2 || (justActive && autoSelectAll))
@@ -1481,7 +1484,10 @@ void Overlay::processWindows()
 
     // now just handle grabbing, which is straightforward
     if (!m_PressingMouse)
+    {
         m_Grabbed = nullptr;
+        m_MousePosOnPress = m_MousePos;
+    }
     else if (m_Grabbed)
     {
         m_Grabbed->Resize.InteractionColor = &m_Style[OverlayColor_WindowBorderPressed];
@@ -1523,10 +1529,6 @@ void Overlay::processWindows()
             handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom, -1.f);
         }
     }
-    if (m_PressingMouse)
-        m_DragAccum += m_MouseDelta;
-    else
-        m_DragAccum = f32v2{0.f};
 
     m_HoveredId = NullLayoutId;
     if (m_CandidateLayout && !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))

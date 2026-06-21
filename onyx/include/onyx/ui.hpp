@@ -993,7 +993,7 @@ class Overlay
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
-            const f32 drag = m_DragAccum[0];
+            const f32 drag = m_MousePos[0] - m_MousePosOnPress[0];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
                                          decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
@@ -1186,6 +1186,7 @@ class Overlay
     OverlayWindow *m_Grabbed = nullptr;
 
     f32v2 m_MousePos{0.f};
+    f32v2 m_MousePosOnPress{0.f};
     f32v2 m_MouseDelta{0.f};
     f32 m_WindowSpawnOffset = 0.f;
 
@@ -1204,7 +1205,6 @@ class Overlay
     TKit::TierArray<usz> m_ScrollStack{};
 
     f64 m_DragValue = 0.;
-    f32v2 m_DragAccum{0.f};
 
     // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
     // pressed event. this is important for elements that if they are active think they are currently pressed,
