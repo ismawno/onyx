@@ -24,10 +24,11 @@ int main()
     {
         static Onyx::OverlayWindowFlags flags = 0;
         static bool enableSettings = false;
+        const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
         if (ui.BeginWindow("User interface demo", flags))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
-            if (ui.PushTree("General", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("General", drawLines))
             {
                 ui.Text("Delta time: {:.2f} ms", ftime);
                 if (ui.BeginItemTooltip())
@@ -58,7 +59,7 @@ int main()
                 ui.PopTree();
             }
 
-            // if (ui.PushTree("Dropdowns", Onyx::OverlayTreeFlag_DrawLines))
+            // if (ui.PushTree("Dropdowns", drawLines))
             // {
             //     const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
             //                                                          "Element 4"};
@@ -67,7 +68,7 @@ int main()
             //     ui.PopTree();
             // }
 
-            if (ui.PushTree("Images", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Images", drawLines))
             {
                 ui.Text("May get a bit trippy...");
                 if (ui.HorizontalSlider("Image dimensions", &rdims, 50.f, 1600.f, "{:.0f}"))
@@ -76,7 +77,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Inputs", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Inputs", drawLines))
             {
                 static Onyx::OverlayInputFlags iflags = 0;
                 ui.CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
@@ -99,7 +100,44 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Scroll area", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Queries", drawLines))
+            {
+                static Onyx::OverlayHoveredFlags hflags = 0;
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByResize", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByResize);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
+                ui.CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
+                ui.CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
+                ui.CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
+                ui.CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
+
+                if (ui.PushTree("I am to be queried"))
+                    ui.PopTree();
+
+                const bool hovered = ui.IsItemHovered(hflags);
+                const bool active = ui.IsItemActive();
+                const bool opened = ui.IsItemOpened();
+                const Onyx::OverlayHoverQueryFlags qflags = ui.QueryItemHoverStatus();
+
+                ui.Text("Hovered: {}", hovered);
+                ui.Text("Active: {}", active);
+                ui.Text("Opened: {}", opened);
+
+                ui.Text("Blocked by window: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
+                ui.Text("Blocked by resize: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByResize));
+                ui.Text("Blocked by pressed item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
+                ui.Text("Blocked by active item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
+                ui.Text("Natively hovered: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_Hovered));
+
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Scroll area", drawLines))
             {
                 static f32v2 dimensions = {400.f, 200.f};
                 static bool xunlim = true;
@@ -149,7 +187,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Sliders/Drags", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Sliders/Drags", drawLines))
             {
                 static Onyx::OverlaySliderFlags sflags = 0;
                 ui.CheckBoxFlags("OverlaySliderFlag_ClampOnInput", &sflags, Onyx::OverlaySliderFlag_ClampOnInput);
@@ -185,7 +223,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Text", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Text", drawLines))
             {
                 ui.TextRaw("This is some raw text");
                 ui.TextRaw(
@@ -196,7 +234,7 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Tooltips", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Tooltips", drawLines))
             {
                 ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered())
@@ -207,7 +245,7 @@ int main()
                     ui.SetTooltip("Im a bit delayed!");
 
                 ui.Button("Im a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-                if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
                     ui.SetTooltip("Im delayed!");
 
                 ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
@@ -216,10 +254,10 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Trees", Onyx::OverlayTreeFlag_DrawLines))
+            if (ui.PushTree("Trees", drawLines))
             {
                 static Onyx::OverlayTreeFlags tflags = 0;
-                ui.CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, Onyx::OverlayTreeFlag_DrawLines);
+                ui.CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, drawLines);
                 ui.CheckBoxFlags("OverlayTreeFlag_OpenOnArrow", &tflags, Onyx::OverlayTreeFlag_OpenOnArrow);
                 ui.CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
                 ui.CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
@@ -242,8 +280,8 @@ int main()
                 }
                 ui.PopTree();
             }
+            ui.EndWindow();
         }
-        ui.EndWindow();
 
         if (enableSettings)
         {
@@ -261,8 +299,8 @@ int main()
                                  Onyx::OverlayWindowFlag_NoVerticalScroll);
                 ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags,
                                  Onyx::OverlayWindowFlag_HorizontalScroll);
+                ui.EndWindow();
             }
-            ui.EndWindow();
         }
 
         ui.Draw();

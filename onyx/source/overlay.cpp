@@ -339,13 +339,15 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
     const bool resizeBlock = m_Grabbed;
     const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
     const bool activeBlocked =
-        !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != id && m_ActiveId != m_PopupStack.GetBack();
+        !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
+    const bool popupBlocked = m_CurrentPopupDepth < m_PopupDepth;
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
     flags |= OverlayHoverQueryFlag_BlockedByResize * resizeBlock;
     flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
     flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
 
     return flags;
 }
@@ -361,12 +363,6 @@ bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFla
     TKIT_ASSERT(normalDelay + shortDelay != 2,
                 "[ONYX][OVERLAY] Cannot have short delay and normal delay at the same time in tooltip");
 
-    f32 delay = 0.f;
-    if (shortDelay)
-        delay = m_Style[OverlayStyle_HoverDelayShort];
-    else if (normalDelay)
-        delay = m_Style[OverlayStyle_HoverDelayNormal];
-
     const Layout &ly = getCurrentLayout();
     if (candidate)
     {
@@ -376,14 +372,18 @@ bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFla
             m_WidgetHoverClock.Restart();
             return false;
         }
+        if (!shortDelay && !normalDelay)
+            return true;
 
+        const f32 delay = shortDelay ? m_Style[OverlayStyle_HoverDelayShort] : m_Style[OverlayStyle_HoverDelayNormal];
         const bool wasCandidate = m_HoveredWidgetCandidate == m_LastWidget;
         const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
-        if (m_HoveredWidgetCandidate == NullLayoutId || (noShared && !wasCandidate))
-            m_WidgetHoverClock.Restart();
 
         m_HoveredWidgetCandidate = m_LastWidget;
         m_CandidateLayout = &ly;
+
+        if (noShared && !wasCandidate)
+            m_WidgetHoverClock.Restart();
 
         const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
         return seconds >= delay;
@@ -480,7 +480,12 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
 
     const vec2<LayoutSizing> scrollSizing = autoResize ? flex() : grow();
     beginScroll(scrollId, scrollSizing, scrollSizing, flags);
-    return !collapsed;
+    if (collapsed)
+    {
+        EndWindow();
+        return false;
+    }
+    return true;
 }
 
 void Overlay::EndWindow()
@@ -642,7 +647,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     const bool startOpen = flags & OverlayTreeFlag_StartOpen;
-    const bool opened = checkWidgetState(id.Id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
+    const bool opened = checkWidgetState(id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
 
     const usz buttonId = ly.BeginPanel(
         AsStackedId("Tree collapse"),
@@ -669,7 +674,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     ly.EndPanel();
 
     if (toggleOpen)
-        toggleWidgetState(id.Id, WidgetStateFlag_Opened);
+        toggleWidgetState(id, WidgetStateFlag_Opened);
 
     if (!opened)
     {
@@ -1535,8 +1540,16 @@ void Overlay::processWindows()
     }
 
     m_HoveredId = NullLayoutId;
-    if (m_CandidateLayout && !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
+    if (!m_CandidateLayout || !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
+    {
+        TKit::PrintLine("Im down");
         m_HoveredWidgetCandidate = NullLayoutId;
+    }
+
+    if (m_HoveredWidgetCandidate == NullLayoutId)
+        m_WidgetHoverClock.Restart();
+
+    m_CandidateLayout = nullptr;
 
     ScrollBarInfo *vinfo = nullptr;
     ScrollBarInfo *hinfo = nullptr;

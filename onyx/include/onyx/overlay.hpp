@@ -99,27 +99,29 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_ElideLeft = 1U << 5,
 };
 
-using OverlayHoveredFlags = u8;
+using OverlayHoveredFlags = u16;
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
 {
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
     OverlayHoveredFlag_AllowBlockedByResize = 1U << 1,
     OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 4,
-    OverlayHoveredFlag_ShortDelay = 1U << 5,
-    OverlayHoveredFlag_NormalDelay = 1U << 6,
-    OverlayHoveredFlag_Stationary = 1U << 7,
+    OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 5,
+    OverlayHoveredFlag_ShortDelay = 1U << 6,
+    OverlayHoveredFlag_NormalDelay = 1U << 7,
+    OverlayHoveredFlag_Stationary = 1U << 8,
 };
 
-using OverlayHoverQueryFlags = u8;
+using OverlayHoverQueryFlags = u16;
 enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
 {
     OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
     OverlayHoverQueryFlag_BlockedByResize = OverlayHoveredFlag_AllowBlockedByResize,
     OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
     OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
-    OverlayHoverQueryFlag_Hovered = 1U << 6,
+    OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
+    OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
 using OverlayButtonFlags = u8;
@@ -831,7 +833,7 @@ class Overlay
     {
         return m_LastWidget == m_ActiveId;
     }
-    bool IsItemOpen() const
+    bool IsItemOpened() const
     {
         const auto it = m_WidgetStates.Find(m_LastWidget);
         return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
@@ -1239,8 +1241,16 @@ class Overlay
     usz m_ActiveIdLastFrame = NullLayoutId;
 
     TKit::TierArray<usz> m_ScrollStack{};
-    TKit::TierArray<usz> m_PopupStack{{NullLayoutId}};
-    TKit::TierArray<usz> m_CurrentPopupStack{{NullLayoutId}};
+    // TODO(Isma): Have a stack of ids, keep current depth. in query focus status, if stack[current] == id, then its
+    // popup is considered opened
+    // TODO(Isma): if current == stack.GetSize(), we just go as normal, like no popups exist. nothing to see here
+    // TODO(Isma): if current != stack.GetSize(), we have to close the popup IF user has pressed this OR user is
+    // hovering this. whether to use this or that, make it a flag. this i believe it has to be done in processWindows or
+    // smth
+    // TODO(Isma): To use with menu items, to check if a hover action closes subsequent popups, one has to traverse the
+    // stack in reverse, and if none is hovered, then that one is hovered and other popups can close
+    u32 m_PopupDepth = 0;
+    u32 m_CurrentPopupDepth = 0;
 
     f64 m_DragValue = 0.;
 
