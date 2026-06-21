@@ -753,10 +753,9 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             const f32 onPress = m_MousePosOnPress[0] - boxPos;
             const f32 mpos = m_MousePos[0] - boxPos;
 
-            const f32 pixelStartPos =
-                (!clicked && Math::Approximately(mpos, onPress, 1.f)) ? advances[m_CursorStart] : onPress;
-            const f32 pixelEndPos =
-                (!clicked && Math::Approximately(mpos, onPress, 1.f)) ? advances[m_CursorEnd] : mpos;
+            const bool mustUseCurrent = !clicked && Math::Approximately(mpos, onPress, 1.f);
+            const f32 pixelStartPos = mustUseCurrent ? advances[m_CursorStart] : onPress;
+            const f32 pixelEndPos = mustUseCurrent ? advances[m_CursorEnd] : mpos;
 
             m_CursorStart = 0;
             m_CursorEnd = 0;
