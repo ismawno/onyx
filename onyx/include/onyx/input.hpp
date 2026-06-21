@@ -173,7 +173,7 @@ enum EventType : u8
     Event_WindowRestored,
     Event_FramebufferResized,
     Event_CharInput,
-    Event_SwapChainRecreated,
+    Event_SwapchainRecreated,
     Event_Count,
 };
 

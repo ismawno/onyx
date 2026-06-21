@@ -52,7 +52,7 @@ static VKit::DeviceImage createAttachment(const VkExtent2D &ext, const Attachmen
             .Build());
 }
 
-struct FrameBuffer
+struct Framebuffer
 {
     Execution::Tracker Tracker{};
     TKit::FixedArray<VKit::DeviceImage, Attachment_Count> Attachments{};
@@ -112,7 +112,7 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 template <Dimension D> RenderView<D>::~RenderView()
 {
     drainWork();
-    destroyFrameBuffers();
+    destroyFramebuffers();
 
     // TODO(Isma): Remove this!! This is responsibility of onyx.hpp, should not be in destructor
     Renderer::RemoveTarget(m_ViewBit);
@@ -121,14 +121,14 @@ template <Dimension D> RenderView<D>::~RenderView()
 
 template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
 {
-    for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
-        if (!m_FrameBuffers[i]->Tracker.InUse())
+    for (u32 i = 0; i < m_Framebuffers.GetSize(); ++i)
+        if (!m_Framebuffers[i]->Tracker.InUse())
         {
             m_AttachmentIndex = i;
             return;
         }
 
-    m_AttachmentIndex = m_FrameBuffers.GetSize();
+    m_AttachmentIndex = m_Framebuffers.GetSize();
     TKIT_LOG_DEBUG("[ONYX][VIEW] Failed to find an available frame buffer. Increasing frame buffer pool to {} for "
                    "this particular view",
                    m_AttachmentIndex + 1);
@@ -140,7 +140,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
     const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
     TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
 
-    FrameBuffer *fb = m_FrameBuffers.Append(tier->Create<FrameBuffer>());
+    Framebuffer *fb = m_Framebuffers.Append(tier->Create<Framebuffer>());
     for (u32 att = 0; att < Attachment_Count; ++att)
         fb->Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
 
@@ -219,10 +219,10 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
 template <Dimension D> void RenderView<D>::drainWork()
 {
     TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(m_FrameBuffers.GetSize());
+    semaphores.Reserve(m_Framebuffers.GetSize());
     TKit::StackArray<u64> values{};
-    values.Reserve(m_FrameBuffers.GetSize());
-    for (const FrameBuffer *fb : m_FrameBuffers)
+    values.Reserve(m_Framebuffers.GetSize());
+    for (const Framebuffer *fb : m_Framebuffers)
         if (fb->Tracker.InFlight())
         {
             semaphores.Append(fb->Tracker.Queue->GetTimelineSempahore());
@@ -242,16 +242,16 @@ template <Dimension D> void RenderView<D>::drainWork()
     }
 }
 
-template <Dimension D> void RenderView<D>::destroyFrameBuffers()
+template <Dimension D> void RenderView<D>::destroyFramebuffers()
 {
     TKit::TierAllocator *tier = GetTier();
-    for (FrameBuffer *fb : m_FrameBuffers)
+    for (Framebuffer *fb : m_Framebuffers)
     {
         for (VKit::DeviceImage &att : fb->Attachments)
             att.Destroy();
         tier->Destroy(fb);
     }
-    m_FrameBuffers.Clear();
+    m_Framebuffers.Clear();
 }
 
 template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screenPos) const
@@ -314,7 +314,7 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
 
 template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker)
 {
-    m_FrameBuffers[m_AttachmentIndex]->Tracker = tracker;
+    m_Framebuffers[m_AttachmentIndex]->Tracker = tracker;
 }
 
 static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkRenderingAttachmentInfoKHR> &colors,
@@ -376,7 +376,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const VkCommandBuffer
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
     TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
@@ -441,7 +441,7 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer c
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
@@ -484,7 +484,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const VkCommandB
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginTransparentPass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
     TKit::FixedArray<VkRenderingAttachmentInfoKHR, 3> atts{};
 
     VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
@@ -546,7 +546,7 @@ template <Dimension D> void RenderView<D>::EndTransparentPass(const VkCommandBuf
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
     VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
@@ -571,7 +571,7 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const VkCommandBuffer 
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginBlendPass");
 
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
 
@@ -594,7 +594,7 @@ template <Dimension D> void RenderView<D>::EndBlendPass(const VkCommandBuffer cm
     const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(cmd);
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
 
@@ -634,7 +634,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::BeginPostProcess");
 
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 
@@ -658,7 +658,7 @@ template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer 
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndPostProcess");
     const auto table = GetDeviceTable();
-    FrameBuffer *fb = m_FrameBuffers[m_AttachmentIndex];
+    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
 

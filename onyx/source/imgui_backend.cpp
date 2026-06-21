@@ -790,7 +790,7 @@ static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &p
     vdata->Window->SetScreenDimensions(pos);
 }
 
-static ImVec2 platform_GetWindowFrameBufferScale(const ImGuiViewport *viewport)
+static ImVec2 platform_GetWindowFramebufferScale(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
     ImVec2 fbscale;
@@ -856,7 +856,7 @@ static void platform_InitMultiViewportSupport()
         const u32v2 size = platform_GetWindowSize(v);
         return ImVec2{f32(size[0]), f32(size[1])};
     };
-    pio.Platform_GetWindowFramebufferScale = [](ImGuiViewport *v) { return platform_GetWindowFrameBufferScale(v); };
+    pio.Platform_GetWindowFramebufferScale = [](ImGuiViewport *v) { return platform_GetWindowFramebufferScale(v); };
     pio.Platform_SetWindowFocus = [](ImGuiViewport *v) { platform_SetWindowFocus(v); };
     pio.Platform_GetWindowFocus = [](ImGuiViewport *v) { return platform_GetWindowFocus(v); };
     pio.Platform_GetWindowMinimized = [](ImGuiViewport *v) { return platform_GetWindowIconified(v); };
@@ -1211,7 +1211,7 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
     Renderer_ViewportData *vdata = tier->Create<Renderer_ViewportData>();
     vdata->Window = window;
 
-    const u32 imageCount = window->GetSwapChainImageCount();
+    const u32 imageCount = window->GetSwapchainImageCount();
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();

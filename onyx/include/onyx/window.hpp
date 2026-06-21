@@ -12,7 +12,7 @@ ONYX_DECLARE_PLATFORM_HANDLES()
 
 namespace VKit
 {
-class SwapChain;
+class Swapchain;
 class DeviceImage;
 class Queue;
 } // namespace VKit
@@ -218,7 +218,7 @@ class Window final : public RenderTarget
         m_MustRecreateSwapchain = true;
     }
 
-    u32 GetSwapChainImageCount() const;
+    u32 GetSwapchainImageCount() const;
 
     PresentMode GetPresentMode() const
     {
@@ -238,20 +238,20 @@ class Window final : public RenderTarget
 
   private:
     u32v2 getExtent() const override;
-    void extractSwapChainImages();
+    void extractSwapchainImages();
 
-    void createSwapChain(const u32v2 &windowExtent);
+    void createSwapchain(const u32v2 &windowExtent);
     void createSyncData();
     void destroySyncData();
     void drainWork();
-    void recreateSwapChain();
+    void recreateSwapchain();
     void recreateResources();
     void recreateSurface();
     bool handlePresentOrAcquireResult(const u32 result);
     void nameSurface();
-    void nameSwapChain();
+    void nameSwapchain();
     void nameSyncData();
-    void nameSwapChainImages();
+    void nameSwapchainImages();
 
     u32v2 getNewExtent();
 
@@ -265,7 +265,7 @@ class Window final : public RenderTarget
     TKit::Timespan m_MonitorDeltaTime{};
     TKit::Clock m_TimeSinceResize{};
 
-    VKit::SwapChain *m_SwapChain = nullptr;
+    VKit::Swapchain *m_Swapchain = nullptr;
     TKit::TierArray<VKit::DeviceImage *> m_Presentation{};
     TKit::TierArray<WindowSyncData *> m_SyncData{};
 

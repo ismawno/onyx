@@ -70,7 +70,7 @@ class RenderTarget
 
   protected:
     void updateRenderViews();
-    void findAvailableFrameBuffers();
+    void findAvailableFramebuffers();
 
     // TODO(Isma): Implement sort here somehow. rename this to get sorted views
     template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> getSortedViews() const

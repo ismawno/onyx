@@ -58,7 +58,7 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Hidden = 1U << 8,
 };
 
-struct FrameBuffer;
+struct Framebuffer;
 
 // TODO(Isma): Thoroughly test absolute viewport and scissor coordinate usage here
 template <Dimension D> class RenderView
@@ -155,7 +155,7 @@ template <Dimension D> class RenderView
         if ((flags & fbFlags) != (f & fbFlags))
         {
             drainWork();
-            recreateFrameBuffers();
+            recreateFramebuffers();
         }
     }
     void AddFlags(const RenderViewFlags flags)
@@ -211,7 +211,7 @@ template <Dimension D> class RenderView
         if (!(m_Flags & RenderViewFlag_DynamicViewport))
         {
             drainWork();
-            recreateFrameBuffers();
+            recreateFramebuffers();
         }
     }
     void SetAbsoluteViewport(const Viewport &vp)
@@ -226,7 +226,7 @@ template <Dimension D> class RenderView
         if (!(m_Flags & RenderViewFlag_DynamicViewport))
         {
             drainWork();
-            recreateFrameBuffers();
+            recreateFramebuffers();
         }
     }
     void SetNormalizedViewportPosition(const f32v2 &pos)
@@ -345,10 +345,10 @@ template <Dimension D> class RenderView
 
   private:
     void findAvailableFramebuffer();
-    void destroyFrameBuffers();
-    void recreateFrameBuffers()
+    void destroyFramebuffers();
+    void recreateFramebuffers()
     {
-        destroyFrameBuffers();
+        destroyFramebuffers();
         findAvailableFramebuffer();
     }
     void drainWork();
@@ -387,7 +387,7 @@ template <Dimension D> class RenderView
     {
         m_ParentExtent = parentExtent;
         if (m_Flags & (RenderViewFlag_DynamicViewport | RenderViewFlag_NormalizedViewportCoordinates))
-            recreateFrameBuffers();
+            recreateFramebuffers();
     }
 
     Camera<D> *m_Camera;
@@ -400,7 +400,7 @@ template <Dimension D> class RenderView
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();
 
-    TKit::TierArray<FrameBuffer *> m_FrameBuffers{};
+    TKit::TierArray<Framebuffer *> m_Framebuffers{};
     Onyx_DescriptorSet m_BlendSet;
     Onyx_DescriptorSet m_PostProcessSet;
     Onyx_DescriptorSet m_CompositorSet;

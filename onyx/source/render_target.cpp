@@ -45,7 +45,7 @@ void RenderTarget::updateRenderViews()
     for (RenderView<D3> *rv : m_RenderViews3)
         rv->update(extent);
 }
-void RenderTarget::findAvailableFrameBuffers()
+void RenderTarget::findAvailableFramebuffers()
 {
     for (RenderView<D2> *rv : m_RenderViews2)
         rv->findAvailableFramebuffer();

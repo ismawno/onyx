@@ -299,7 +299,7 @@ void Render(const RenderInfo &info)
     {
         Window *win = wdata.Window;
         for (const Event &event : win->GetNewEvents())
-            if (win->IsVSync() && (event.Type == Event_SwapChainRecreated || event.Type == Event_WindowMoved))
+            if (win->IsVSync() && (event.Type == Event_SwapchainRecreated || event.Type == Event_WindowMoved))
                 wdata.DeltaTarget = win->GetMonitorDeltaTime();
 
         win->FlushEvents();

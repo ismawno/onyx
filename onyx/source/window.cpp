@@ -232,7 +232,7 @@ void Window::createSyncData()
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
 
-    const u32 imageCount = m_SwapChain->GetImageCount();
+    const u32 imageCount = m_Swapchain->GetImageCount();
     TKit::TierAllocator *tier = GetTier();
     for (u32 i = 0; i < imageCount; ++i)
     {
@@ -261,15 +261,15 @@ void Window::destroySyncData()
 
 u32v2 Window::getExtent() const
 {
-    const VkExtent2D &e = m_SwapChain->GetInfo().Extent;
+    const VkExtent2D &e = m_Swapchain->GetInfo().Extent;
     return u32v2{e.width, e.height};
 }
 
-void Window::extractSwapChainImages()
+void Window::extractSwapchainImages()
 {
     m_Presentation.Clear();
-    for (u32 i = 0; i < m_SwapChain->GetImageCount(); ++i)
-        m_Presentation.Append(&m_SwapChain->GetImage(i));
+    for (u32 i = 0; i < m_Swapchain->GetImageCount(); ++i)
+        m_Presentation.Append(&m_Swapchain->GetImage(i));
 }
 
 static u32 toGlfwCursor(const MouseCursor cursor)
@@ -301,7 +301,7 @@ static u32 toGlfwCursor(const MouseCursor cursor)
 Window::Window(const WindowSpecs &specs)
 {
     TKit::TierAllocator *tier = GetTier();
-    m_SwapChain = tier->Create<VKit::SwapChain>();
+    m_Swapchain = tier->Create<VKit::Swapchain>();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, specs.Flags & WindowFlag_Resizable);
@@ -347,15 +347,15 @@ Window::Window(const WindowSpecs &specs)
 
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
 
-    createSwapChain(getNewExtent());
+    createSwapchain(getNewExtent());
     createSyncData();
     UpdateMonitorDeltaTime();
     if (IsDebugUtilsEnabled())
     {
         nameSurface();
-        nameSwapChain();
+        nameSwapchain();
         nameSyncData();
-        nameSwapChainImages();
+        nameSwapchainImages();
     }
     glfwSetWindowUserPointer(m_Window, this);
     if (specs.Flags & WindowFlag_InstallCallbacks)
@@ -368,10 +368,10 @@ Window::~Window()
     drainWork();
     destroySyncData();
 
-    m_SwapChain->Destroy();
+    m_Swapchain->Destroy();
 
     TKit::TierAllocator *tier = TKit::GetTier();
-    tier->Destroy(m_SwapChain);
+    tier->Destroy(m_Swapchain);
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
@@ -392,7 +392,7 @@ bool Window::handlePresentOrAcquireResult(const u32 r)
     if (m_MustRecreateSwapchain || result == VK_ERROR_OUT_OF_DATE_KHR ||
         (result == VK_SUBOPTIMAL_KHR && m_TimeSinceResize.GetElapsed().As<TKit::Timespan::Milliseconds, u64>() > 350))
     {
-        recreateSwapChain();
+        recreateSwapchain();
         return false;
     }
     else if (result == VK_SUBOPTIMAL_KHR)
@@ -409,17 +409,17 @@ void Window::nameSurface()
     ONYX_CHECK_VKIT_RESULT(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.CString()));
 }
 
-void Window::nameSwapChain()
+void Window::nameSwapchain()
 {
     const TKit::StackString name = TKit::StackString::Format("onyx-swapchain-window-'{}'", GetTitle());
-    ONYX_CHECK_VKIT_RESULT(m_SwapChain->SetName(name.CString()));
+    ONYX_CHECK_VKIT_RESULT(m_Swapchain->SetName(name.CString()));
 }
 
 void Window::nameSyncData()
 {
     const auto &device = GetDevice();
     const char *title = GetTitle();
-    for (u32 i = 0; i < m_SwapChain->GetImageCount(); ++i)
+    for (u32 i = 0; i < m_Swapchain->GetImageCount(); ++i)
     {
         const TKit::StackString rfinish =
             TKit::StackString::Format("onyx-render-finished-semaphore-window-'{}'-image-index-{}", title, i);
@@ -432,10 +432,10 @@ void Window::nameSyncData()
     }
 }
 
-void Window::nameSwapChainImages()
+void Window::nameSwapchainImages()
 {
     const char *title = GetTitle();
-    for (u32 i = 0; i < m_SwapChain->GetImageCount(); ++i)
+    for (u32 i = 0; i < m_Swapchain->GetImageCount(); ++i)
     {
         const TKit::StackString pres =
             TKit::StackString::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
@@ -443,9 +443,9 @@ void Window::nameSwapChainImages()
     }
 }
 
-u32 Window::GetSwapChainImageCount() const
+u32 Window::GetSwapchainImageCount() const
 {
-    return m_SwapChain->GetImageCount();
+    return m_Swapchain->GetImageCount();
 }
 
 void Window::Present()
@@ -459,7 +459,7 @@ void Window::Present()
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &sync->RenderFinishedSemaphore;
 
-    const VkSwapchainKHR swapChain = *m_SwapChain;
+    const VkSwapchainKHR swapChain = *m_Swapchain;
 
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapChain;
@@ -497,7 +497,7 @@ bool Window::AcquireNextImage(const Timeout timeout)
         ONYX_CHECK_VKIT_RESULT(result);
     }
 
-    const VkResult result = table->AcquireNextImageKHR(device, *m_SwapChain, timeout, sync->ImageAvailableSemaphore,
+    const VkResult result = table->AcquireNextImageKHR(device, *m_Swapchain, timeout, sync->ImageAvailableSemaphore,
                                                        VK_NULL_HANDLE, &m_ImageIndex);
 
     if (result != VK_NOT_READY && result != VK_TIMEOUT)
@@ -505,7 +505,7 @@ bool Window::AcquireNextImage(const Timeout timeout)
         m_SyncIndex = idx;
         if (handlePresentOrAcquireResult(result))
         {
-            findAvailableFrameBuffers();
+            findAvailableFramebuffers();
             return true;
         }
     }
@@ -528,20 +528,20 @@ static VkPresentModeKHR asVulkanPresentMode(const PresentMode mode)
     }
 }
 
-void Window::createSwapChain(const u32v2 &windowExtent)
+void Window::createSwapchain(const u32v2 &windowExtent)
 {
     const auto &device = GetDevice();
 
-    *m_SwapChain = ONYX_CHECK_VKIT_RESULT(
-        VKit::SwapChain::Builder(&device, m_Surface)
+    *m_Swapchain = ONYX_CHECK_VKIT_RESULT(
+        VKit::Swapchain::Builder(&device, m_Surface)
             .RequestSurfaceFormat(Platform::GetSurfaceFormat())
             .RequestPresentMode(asVulkanPresentMode(m_PresentMode))
             .RequestExtent(AsVulkanExtent(windowExtent))
             .RequestImageCount(3)
-            .SetOldSwapChain(*m_SwapChain)
-            .AddFlags(VKit::SwapChainBuilderFlag_Clipped | VKit::SwapChainBuilderFlag_CreateImageViews)
+            .SetOldSwapchain(*m_Swapchain)
+            .AddFlags(VKit::SwapchainBuilderFlag_Clipped | VKit::SwapchainBuilderFlag_CreateImageViews)
             .Build());
-    extractSwapChainImages();
+    extractSwapchainImages();
 }
 
 void Window::drainWork()
@@ -575,31 +575,31 @@ void Window::drainWork()
     ONYX_CHECK_VKIT_RESULT(m_Present->WaitIdle());
 }
 
-void Window::recreateSwapChain()
+void Window::recreateSwapchain()
 {
     TKIT_LOG_DEBUG("[ONYX][WINDOW] Out of date swap chain. Re-creating swap chain and resources");
 
     drainWork();
     const u32v2 extent = getNewExtent();
 
-    VKit::SwapChain old = *m_SwapChain;
-    createSwapChain(extent);
+    VKit::Swapchain old = *m_Swapchain;
+    createSwapchain(extent);
     old.Destroy();
 
     recreateResources();
     updateRenderViews();
 
     Event event{};
-    event.Type = Event_SwapChainRecreated;
+    event.Type = Event_SwapchainRecreated;
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
 
     if (IsDebugUtilsEnabled())
     {
-        nameSwapChain();
+        nameSwapchain();
         nameSyncData();
-        nameSwapChainImages();
+        nameSwapchainImages();
     }
 }
 
@@ -610,27 +610,27 @@ void Window::recreateSurface()
 
     const u32v2 extent = getNewExtent();
 
-    m_SwapChain->Destroy();
-    *m_SwapChain = VKit::SwapChain{};
+    m_Swapchain->Destroy();
+    *m_Swapchain = VKit::Swapchain{};
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
 
-    createSwapChain(extent);
+    createSwapchain(extent);
     recreateResources();
     updateRenderViews();
 
     Event event{};
-    event.Type = Event_SwapChainRecreated;
+    event.Type = Event_SwapchainRecreated;
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
     if (IsDebugUtilsEnabled())
     {
         nameSurface();
-        nameSwapChain();
+        nameSwapchain();
         nameSyncData();
-        nameSwapChainImages();
+        nameSwapchainImages();
     }
 }
 
@@ -673,7 +673,7 @@ void Window::BeginRendering(const VkCommandBuffer cmd)
                                .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
                                .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
-    const VkExtent2D &extent = m_SwapChain->GetInfo().Extent;
+    const VkExtent2D &extent = m_Swapchain->GetInfo().Extent;
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
     renderInfo.renderArea = {{0, 0}, extent};
