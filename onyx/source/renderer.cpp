@@ -1726,7 +1726,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
 
         const f32m4 view = Transform<D3>::LookTowards(center, dir);
         f32v3 min{TKIT_F32_MAX};
-        f32v3 max{TKIT_F32_LOWEST};
+        f32v3 max{TKIT_F32_MIN};
         for (const f32v4 &cr : corners)
         {
             const f32v3 lc = f32v3{view * cr};

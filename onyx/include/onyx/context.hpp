@@ -606,7 +606,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
     void NoClip()
     {
-        ClipRect<D> crect{f32v<D>{TKIT_F32_LOWEST}, f32v<D>{TKIT_F32_MAX}};
+        ClipRect<D> crect{f32v<D>{TKIT_F32_MIN}, f32v<D>{TKIT_F32_MAX}};
         m_Current->Rect = computeWorldRect(crect);
     }
 

@@ -51,8 +51,7 @@ enum FocusInfoFlagBit : FocusInfoFlags
     FocusInfoFlag_KeepActiveOnRelease = 1U << 9,
     FocusInfoFlag_SetActiveOnRelease = 1U << 10,
     FocusInfoFlag_ToggleActiveOnRelease = 1U << 11,
-    FocusInfoFlag_IgnoreActive = 1U << 12,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 13,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 12,
 };
 
 using InputConvertInfoFlags = u8;
@@ -182,7 +181,6 @@ struct OverlayWindow
     usz Id = NullLayoutId;
 
     ResizeInfo Resize{};
-    ScrollInfo Scroll{};
 
     Layout Layout;
     f32v2 Position{0.f};
@@ -500,108 +498,110 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    template <TKit::Integer T>
-    bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
-    {
-        const T old = *current;
-        Layout &ly = getCurrentLayout();
-        beginHorizontalWidget(PushId(label));
-
-        const LayoutId id = AsStackedId("Drop down box");
-        const LayoutElement *elm = ly.QueryElement(id);
-        const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
-        const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
-
-        const FocusInfoFlags focusFlags =
-            evaluateFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
-                                         FocusInfoFlag_ToggleActiveOnRelease);
-
-        if (focusFlags & FocusInfoFlag_Pressed)
-            boxCol = &m_Style[OverlayColor_DropDownPressed];
-        else if (focusFlags & FocusInfoFlag_Hovered)
-            boxCol = &m_Style[OverlayColor_DropDownHovered];
-
-        const usz did = AsStackedId("Drop down");
-        const bool dropDownActive =
-            (focusFlags & FocusInfoFlag_Active) || checkWidgetState(did, WidgetStateFlag_Opened);
-        if (dropDownActive)
-            buttonCol = &m_Style[OverlayColor_DropDownButton];
-
-        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
-                                                .Alignment = {Alignment_Left, Alignment_Center},
-                                                .Sizing = {flex(), fit()}});
-
-        const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-        ly.BeginPanel(AsStackedId("Parent"),
-                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
-
-        const bool valid = *current < elements.GetSize() && *current >= 0;
-        if (valid)
-            ly.Text(ly.GenerateNextId(), elements[*current], getTextParams(OverlayColor_DropDownText));
-
-        ly.EndPanel();
-
-        ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
-
-        ly.BeginPanel(AsStackedId("Button box"),
-                      LayoutPanelParameters{.FillColor = *buttonCol,
-                                            .Alignment = Alignment_Center,
-                                            .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
-
-        ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
-        ly.EndPanel();
-
-        if (dropDownActive)
-        {
-            ly.BeginPanel(
-                did, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
-                                           .Direction = LayoutDirection_TopToBottom,
-                                           .Alignment = {Alignment_Left, Alignment_Top},
-                                           .Sizing = {snorm(1.f), fit()},
-                                           .Floating = {.Enable = true,
-                                                        .Attachment = {LayoutAttachment_Left, LayoutAttachment_Bottom},
-                                                        .Alignment = {Alignment_Left, Alignment_Top}}});
-
-            m_WidgetStates[did] = 0;
-            for (u32 i = 0; i < elements.GetSize(); ++i)
-            {
-                const usz elid = AsStackedId(i);
-                const LayoutElement *elm = ly.QueryElement(elid);
-                const FocusInfoFlags cfFlags =
-                    evaluateFocusStatus(elm, FocusInfoFlag_IgnoreActive | FocusInfoFlag_PressedEvenWhenAwayFromHover);
-
-                const Color *col = &Color_Transparent;
-                const bool pressed = cfFlags & FocusInfoFlag_Pressed;
-                const bool hovered = cfFlags & FocusInfoFlag_Hovered;
-
-                if (cfFlags & FocusInfoFlag_Clicked)
-                    *current = i;
-                else if (pressed || hovered)
-                    m_WidgetStates[did] |= WidgetStateFlag_Opened;
-
-                if (pressed)
-                    col = &m_Style[OverlayColor_DropDownPressed];
-                else if (hovered || i == *current)
-                    col = &m_Style[OverlayColor_DropDownHovered];
-
-                ly.BeginPanel(elid, LayoutPanelParameters{.FillColor = *col,
-                                                          .Direction = LayoutDirection_TopToBottom,
-                                                          .Alignment = {Alignment_Left, Alignment_Center},
-                                                          .Sizing = {grow(), fit()},
-                                                          .Padding = padding});
-
-                ly.Text(ly.GenerateNextId(), elements[i], getTextParams(OverlayColor_DropDownText));
-                ly.EndPanel();
-            }
-
-            ly.EndPanel();
-        }
-        ly.EndPanel();
-
-        endHorizontalWidget(label, OverlayColor_Text);
-        PopId();
-        return old != *current;
-    }
+    // template <TKit::Integer T>
+    // bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
+    // {
+    //     const T old = *current;
+    //     Layout &ly = getCurrentLayout();
+    //     beginHorizontalWidget(PushId(label));
+    //
+    //     const LayoutId id = AsStackedId("Drop down box");
+    //     const LayoutElement *elm = ly.QueryElement(id);
+    //     const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
+    //     const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
+    //
+    //     const FocusInfoFlags focusFlags =
+    //         evaluateFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
+    //                                      FocusInfoFlag_ToggleActiveOnRelease);
+    //
+    //     if (focusFlags & FocusInfoFlag_Pressed)
+    //         boxCol = &m_Style[OverlayColor_DropDownPressed];
+    //     else if (focusFlags & FocusInfoFlag_Hovered)
+    //         boxCol = &m_Style[OverlayColor_DropDownHovered];
+    //
+    //     const usz did = AsStackedId("Drop down");
+    //     const bool dropDownActive =
+    //         (focusFlags & FocusInfoFlag_Active) || checkWidgetState(did, WidgetStateFlag_Opened);
+    //     if (dropDownActive)
+    //         buttonCol = &m_Style[OverlayColor_DropDownButton];
+    //
+    //     ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
+    //                                             .Alignment = {Alignment_Left, Alignment_Center},
+    //                                             .Sizing = {flex(), fit()}});
+    //
+    //     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+    //     ly.BeginPanel(AsStackedId("Parent"),
+    //                   LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
+    //
+    //     const bool valid = *current < elements.GetSize() && *current >= 0;
+    //     if (valid)
+    //         ly.Text(ly.GenerateNextId(), elements[*current], getTextParams(OverlayColor_DropDownText));
+    //
+    //     ly.EndPanel();
+    //
+    //     ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
+    //
+    //     ly.BeginPanel(AsStackedId("Button box"),
+    //                   LayoutPanelParameters{.FillColor = *buttonCol,
+    //                                         .Alignment = Alignment_Center,
+    //                                         .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+    //
+    //     ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+    //     ly.EndPanel();
+    //
+    //     if (dropDownActive)
+    //     {
+    //         ly.BeginPanel(
+    //             did, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
+    //                                        .Direction = LayoutDirection_TopToBottom,
+    //                                        .Alignment = {Alignment_Left, Alignment_Top},
+    //                                        .Sizing = {snorm(1.f), fit()},
+    //                                        .Floating = {.Enable = true,
+    //                                                     .Attachment = {LayoutAttachment_Left,
+    //                                                     LayoutAttachment_Bottom}, .Alignment = {Alignment_Left,
+    //                                                     Alignment_Top}}});
+    //
+    //         m_WidgetStates[did] = 0;
+    //         for (u32 i = 0; i < elements.GetSize(); ++i)
+    //         {
+    //             const usz elid = AsStackedId(i);
+    //             const LayoutElement *elm = ly.QueryElement(elid);
+    //             const FocusInfoFlags cfFlags =
+    //                 evaluateFocusStatus(elm, FocusInfoFlag_IgnoreActive |
+    //                 FocusInfoFlag_PressedEvenWhenAwayFromHover);
+    //
+    //             const Color *col = &Color_Transparent;
+    //             const bool pressed = cfFlags & FocusInfoFlag_Pressed;
+    //             const bool hovered = cfFlags & FocusInfoFlag_Hovered;
+    //
+    //             if (cfFlags & FocusInfoFlag_Clicked)
+    //                 *current = i;
+    //             else if (pressed || hovered)
+    //                 m_WidgetStates[did] |= WidgetStateFlag_Opened;
+    //
+    //             if (pressed)
+    //                 col = &m_Style[OverlayColor_DropDownPressed];
+    //             else if (hovered || i == *current)
+    //                 col = &m_Style[OverlayColor_DropDownHovered];
+    //
+    //             ly.BeginPanel(elid, LayoutPanelParameters{.FillColor = *col,
+    //                                                       .Direction = LayoutDirection_TopToBottom,
+    //                                                       .Alignment = {Alignment_Left, Alignment_Center},
+    //                                                       .Sizing = {grow(), fit()},
+    //                                                       .Padding = padding});
+    //
+    //             ly.Text(ly.GenerateNextId(), elements[i], getTextParams(OverlayColor_DropDownText));
+    //             ly.EndPanel();
+    //         }
+    //
+    //         ly.EndPanel();
+    //     }
+    //     ly.EndPanel();
+    //
+    //     endHorizontalWidget(label, OverlayColor_Text);
+    //     PopId();
+    //     return old != *current;
+    // }
 
     // /widgets //
 
@@ -679,7 +679,7 @@ class Overlay
 
     // layout //
 
-    void BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
+    bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
     void EndScroll()
     {
         PopId();
@@ -838,8 +838,8 @@ class Overlay
 
     static TKit::StringView trimLabel(TKit::StringView label);
 
-    void beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizing> &outerSizing,
-                     const vec2<LayoutSizing> &contentSizing, OverlayScrollFlags flags);
+    bool beginScroll(LayoutId id, const vec2<LayoutSizing> &outerSizing, const vec2<LayoutSizing> &contentSizing,
+                     OverlayScrollFlags flags);
     void endScroll();
 
     void beginHorizontalWidget(usz id);
@@ -985,27 +985,25 @@ class Overlay
         else if (focusFlags & FocusInfoFlag_Hovered)
             col = &m_Style[OverlayColor_SliderHovered];
 
+        if (focusFlags & FocusInfoFlag_JustActive)
+            m_DragValue = f64(*value);
+
         if (focusFlags & FocusInfoFlag_Pressed)
         {
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
+            const f32 drag = m_DragAccum[0];
             const f32 effectiveSpeed =
-                log ? (speed * Math::Max(Math::Absolute(f32(*value)),
+                log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
                                          decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
                     : speed;
 
-            const f32 md = m_MouseDelta[0];
-            const T nval = *value + T(effectiveSpeed * md);
-
-            if ((md > 0.f && nval > *value) || (md < 0.f && nval < *value))
-            {
-                *value = nval;
-                if (!(flags & OverlaySliderFlag_NoRoundToFormat))
-                    *value = roundToFormat(*value, decimals);
-            }
+            f64 nval = m_DragValue + f64(effectiveSpeed * drag);
             if (hasLimits)
-                *value = Math::Clamp(*value, T(mn), T(mx));
+                nval = Math::Clamp(nval, f64(mn), f64(mx));
+
+            *value = roundToFormat(T(nval), decimals);
         }
 
         ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
@@ -1096,8 +1094,8 @@ class Overlay
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
-    bool isElementHoveredForFocus(const LayoutElement *elm, bool ignoreActive = false) const;
-    bool canWidgetInteract(usz id, bool ignoreActive = false) const;
+    bool isElementHoveredForFocus(const LayoutElement *elm) const;
+    bool canWidgetInteract(usz id) const;
 
     WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
     {
@@ -1202,7 +1200,12 @@ class Overlay
     usz m_PressedId = NullLayoutId;
     usz m_ActiveId = NullLayoutId;
     usz m_ActiveIdLastFrame = NullLayoutId;
-    usz m_FocusedScroll = NullLayoutId;
+
+    TKit::TierArray<usz> m_ScrollStack{};
+
+    f64 m_DragValue = 0.;
+    f32v2 m_DragAccum{0.f};
+
     // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
     // pressed event. this is important for elements that if they are active think they are currently pressed,
     // causing the firs mouse click outside their bounding box to still qualify as pressed
@@ -1211,8 +1214,8 @@ class Overlay
 
     // text input info
     TKit::String m_TextInput{};
-    f32 m_MouseCursorStart = 0.f;
-    f32 m_MouseCursorEnd = 0.f;
+    u32 m_CursorStart = 0;
+    u32 m_CursorEnd = 0;
     //
 
     usz m_LastWidget = NullLayoutId;

@@ -88,11 +88,11 @@ enum Alignment : u8
     Alignment_None = 3,
 };
 
-#define TKIT_F32_LOWEST -340282346638528859811704183484516925440.000000
+#define TKIT_F32_MIN -340282346638528859811704183484516925440.000000
 
 bool CheckWorldClip(const f32v2 worldPos, const WorldRect2D rect)
 {
-    if (rect.Min[0] == TKIT_F32_LOWEST)
+    if (rect.Min[0] == TKIT_F32_MIN)
         return true;
 
     const f32v2 mn = f32v2(rect.Min[0], rect.Min[1]);
@@ -112,7 +112,7 @@ bool CheckWorldClip(const f32v2 worldPos, const WorldRect2D rect)
 
 bool CheckWorldClip(const f32v3 worldPos, const WorldRect3D rect)
 {
-    if (rect.Min[0] == TKIT_F32_LOWEST)
+    if (rect.Min[0] == TKIT_F32_MIN)
         return true;
 
     const f32v3 mn = f32v3(rect.Min[0], rect.Min[1], rect.Min[2]);

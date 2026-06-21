@@ -253,13 +253,10 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 {
     Layout &ly = getCurrentLayout();
     const LayoutElement *contentArea = ly.QueryElement(contentAreaId);
-    if (!contentArea)
-        return;
 
-    const f32 size = contentArea->Size[axis];
-
-    if (contentArea->ChildrenSize[axis] > size)
+    if (contentArea && contentArea->ChildrenSize[axis] > contentArea->Size[axis])
     {
+        const f32 size = contentArea->Size[axis];
         const f32 csize = contentArea->ChildrenSize[axis] + 2.f * m_Style[OverlayStyle_WindowPadding];
         const Color *col = &m_Style[OverlayColor_ScrollBarIdle];
 
@@ -332,19 +329,19 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     sinfo.WheelOffset = 0.f;
 }
 
-bool Overlay::isElementHoveredForFocus(const LayoutElement *elm, const bool ignoreActive) const
+bool Overlay::isElementHoveredForFocus(const LayoutElement *elm) const
 {
     if (!elm)
         return false;
     const bool canFocus = m_Current->CheckFlags(WindowInternalFlag_Hovered) && !m_Grabbed;
-    const bool canHover = canFocus && canWidgetInteract(elm->Id, ignoreActive);
+    const bool canHover = canFocus && canWidgetInteract(elm->Id);
     return canHover && elm->IsHovered(m_MousePos);
 }
-bool Overlay::canWidgetInteract(const usz id, const bool ignoreActive) const
+bool Overlay::canWidgetInteract(const usz id) const
 {
     const bool pressBlocked = m_PressedId != NullLayoutId && m_PressedId != id;
-    const bool activeBlocked = !ignoreActive && !(m_EventFlags & EventFlag_ActiveAllowsInteraction) &&
-                               m_ActiveId != NullLayoutId && m_ActiveId != id;
+    const bool activeBlocked =
+        !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
     return !pressBlocked && !activeBlocked;
 }
 
@@ -370,8 +367,11 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
     const bool autoResize = flags & OverlayWindowFlag_AutoResize;
+
+    const usz scrollId = AsStackedId(id);
+    ScrollInfo &sinfo = m_Scrollables[scrollId];
     if (autoResize)
-        m_Current->Scroll = ScrollInfo{};
+        sinfo = ScrollInfo{};
 
     // ugly
     const vec2<LayoutSizing> sizing = [&]() -> vec2<LayoutSizing> {
@@ -419,7 +419,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
             if (collapsed)
             {
                 m_Current->Size[1] = m_Current->LastHeight;
-                m_Current->Scroll = ScrollInfo{};
+                sinfo = ScrollInfo{};
             }
             else
             {
@@ -433,7 +433,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     }
 
     const vec2<LayoutSizing> scrollSizing = autoResize ? flex() : grow();
-    beginScroll(ly.GenerateNextId(), m_Current->Scroll, scrollSizing, scrollSizing, flags);
+    beginScroll(scrollId, scrollSizing, scrollSizing, flags);
     return !collapsed;
 }
 
@@ -446,7 +446,7 @@ void Overlay::EndWindow()
     PopId();
 }
 
-void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
+bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
                           const OverlayScrollFlags flags)
 {
     const usz id = PushId(label);
@@ -470,15 +470,14 @@ void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
     if (flags & OverlayScrollFlag_Title)
         ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
 
-    beginScroll(id, m_Scrollables[id], outer, content, flags);
-    if (isElementHoveredForFocus(getCurrentLayout().QueryElement(id)))
-        m_FocusedScroll = id;
+    return beginScroll(id, outer, content, flags);
 }
 
-void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizing> &outerSizing,
+bool Overlay::beginScroll(const LayoutId id, const vec2<LayoutSizing> &outerSizing,
                           const vec2<LayoutSizing> &contentSizing, const OverlayScrollFlags flags)
 {
     Layout &ly = getCurrentLayout();
+    ScrollInfo &sinfo = m_Scrollables[id];
     sinfo.Flags = flags;
 
     const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
@@ -515,6 +514,13 @@ void Overlay::beginScroll(LayoutId id, ScrollInfo &sinfo, const vec2<LayoutSizin
                                  .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset, -sinfo.Vertical.ElementOffset}),
                                  .Padding = padding,
                                  .ChildGap = cgap});
+
+    if (isElementHoveredForFocus(ly.QueryElement(id)))
+    {
+        m_ScrollStack.Append(id);
+        return true;
+    }
+    return false;
 }
 
 void Overlay::endScroll()
@@ -708,33 +714,26 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
 
-        bool written = false;
         if (escapeClears && m_EventKeys[Key_Escape])
         {
             str.Clear();
-            written = true;
+            updated = true;
+            m_CursorStart = 0;
+            m_CursorEnd = 0;
         }
 
-        // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, ==
-        // 1 is a double click)
-        //
-        // in general, advances are clamped to char borders, but are in pixel units as well
-
-        const u32 charCount = str.GetSize();
-
         TKit::StackArray<f32> advances{};
-        advances.Reserve(str.GetSize());
-
-        TKit::StackArray<f32> widths{};
-        widths.Reserve(str.GetSize());
+        advances.Reserve(str.GetSize() + 1);
+        advances.Append(0.f);
 
         TKit::StackArray<f32> midAdvances{};
-        midAdvances.Reserve(str.GetSize());
+        midAdvances.Reserve(str.GetSize() + 1);
+        midAdvances.Append(0.f);
 
         f32 textWidth = 0.f;
         fdata.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
             const f32 width = fs * w;
-            widths.Append(width);
+            // widths.Append(width);
 
             midAdvances.Append(textWidth + 0.5f * width);
             textWidth += width;
@@ -743,119 +742,95 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         });
 
         const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
-
         const bool clicked = focusFlags & FocusInfoFlag_Clicked;
-        f32 textCursorStart = 0.f;
-        f32 textCursorEnd = 0.f;
-
-        const auto updateCursorStart = [&](const f32 start) {
-            m_MouseCursorStart = start;
-            textCursorStart = Math::Clamp(start - boxPos, 0.f, textWidth);
-        };
-        const auto updateCursorEnd = [&](const f32 end) {
-            m_MouseCursorEnd = end;
-            textCursorEnd = Math::Clamp(end - boxPos, 0.f, textWidth);
-        };
-        const auto updateCursor = [&](const f32 start, const f32 end) {
-            updateCursorStart(start);
-            updateCursorEnd(end);
-        };
-
-        if (clicked)
-            updateCursor(m_MousePos[0], m_MousePos[0]);
-        else if (pressed)
-            updateCursor(m_MouseCursorStart, m_MouseCursorEnd + m_MouseDelta[0]);
-        else
-            updateCursor(m_MouseCursorStart, m_MouseCursorEnd);
-
-        // the same as mouse cursor pos but clamped to box
-        const auto getCursorIndex = [&] {
-            for (u32 i = 0; i < charCount; ++i)
-                if (midAdvances[i] >= textCursorEnd)
-                    return i;
-            return charCount;
-        };
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
+        const u32 charCount = str.GetSize();
+        const u32 advCount = charCount + 1;
+
+        if (pressed || clicked)
+        {
+            f32 pixelStartPos;
+            f32 pixelEndPos;
+            if (clicked)
+            {
+                pixelStartPos = m_MousePos[0] - boxPos;
+                pixelEndPos = pixelStartPos;
+            }
+            else
+            {
+                pixelStartPos = advances[m_CursorStart];
+                // TODO(Isma): Brittle. find a way to do this better
+                pixelEndPos =
+                    Math::Absolute(m_DragAccum[0]) > 1.f ? (pixelStartPos + m_DragAccum[0]) : advances[m_CursorEnd];
+            }
+
+            m_CursorStart = 0;
+            m_CursorEnd = 0;
+            for (u32 i = 0; i < advCount; ++i)
+            {
+                const f32 hw = midAdvances[i];
+                if (hw < pixelStartPos)
+                    m_CursorStart = i;
+                if (hw < pixelEndPos)
+                    m_CursorEnd = i;
+            }
+        }
 
         if (m_OverflowClicks == 2 || (justActive && autoSelectAll))
-            updateCursor(boxPos, boxPos + textWidth);
+        {
+            m_CursorStart = 0;
+            m_CursorEnd = charCount;
+        }
         else if (m_OverflowClicks == 1)
         {
-            const u32 cidx = getCursorIndex();
-
-            u32 wordBegin = cidx;
-            u32 wordEnd = cidx;
-            while (wordBegin > 0 && str[wordBegin - 1] != ' ')
-                --wordBegin;
-            while (wordEnd < charCount && str[wordEnd] != ' ')
-                ++wordEnd;
-
-            const f32 startAdvance = wordBegin == 0 ? 0.f : advances[wordBegin - 1];
-            const f32 endAdvance = advances[wordEnd - 1];
-
-            updateCursor(boxPos + startAdvance, boxPos + endAdvance);
+            if (m_CursorEnd != 0)
+            {
+                u32 start = m_CursorEnd - 1;
+                while (start != 0 && str[start - 1] != ' ')
+                    --start;
+                m_CursorStart = start;
+            }
+            if (m_CursorEnd != charCount)
+            {
+                u32 end = m_CursorEnd - 1;
+                while (end != charCount - 1 && str[end + 1] != ' ')
+                    ++end;
+                m_CursorEnd = end + 1;
+            }
         }
         else if (m_EventKeys[Key_Left] || m_EventKeys[Key_Right])
         {
             const bool left = m_EventKeys[Key_Left];
-            const f32 sign = left ? 1.f : -1.f;
 
-            const u32 comparison = left ? 0 : charCount;
-            const u32 cidx = getCursorIndex();
-            const f32 hlen = m_MouseCursorEnd - m_MouseCursorStart;
-            if (cidx != comparison)
+            const u32 limit = left ? 0 : charCount;
+            const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
+            if (m_CursorEnd != limit)
             {
                 const bool lshift = m_Window->IsKeyPressed(Key_LeftShift);
-                const f32 w = sign * widths[left ? (cidx - 1) : cidx];
+                const i32 diff = left ? -1 : 1;
                 if (lshift)
-                    textCursorEnd -= w;
-                else if (hlen == 0.f)
+                    m_CursorEnd += diff;
+                else if (hlen == 0)
                 {
-                    textCursorStart -= w;
-                    textCursorEnd -= w;
+                    m_CursorEnd += diff;
+                    if (m_CursorStart != limit)
+                        m_CursorStart += diff;
                 }
-                else if (sign * hlen > 0.f)
-                    updateCursorEnd(m_MouseCursorStart);
+                else if (diff * hlen > 0)
+                    m_CursorEnd = m_CursorStart;
                 else
-                    updateCursorStart(m_MouseCursorEnd);
-
-                m_MouseCursorStart = boxPos + textCursorStart;
-                m_MouseCursorEnd = boxPos + textCursorEnd;
+                    m_CursorStart = m_CursorEnd;
             }
         }
 
-        const bool negSel = textCursorStart > textCursorEnd;
+        const bool negSel = m_CursorStart > m_CursorEnd;
+        u32 selStart = negSel ? m_CursorEnd : m_CursorStart;
+        u32 selEnd = negSel ? m_CursorStart : m_CursorEnd;
 
-        const f32 selStartPos = negSel ? textCursorEnd : textCursorStart;
-        const f32 selEndPos = negSel ? textCursorStart : textCursorEnd;
-
-        f32 textEndAdv = 0.f;
-
-        f32 selStartAdv = 0.f;
-        f32 selEndAdv = 0.f;
-
-        // either cursorStart == cursorEnd or cursorStart + 1 == cursorEnd
-        u32 selStart = TKIT_U32_MAX;
-        u32 selEnd = 0;
-
-        for (u32 i = 0; i < charCount; ++i)
-        {
-            const f32 hw = midAdvances[i];
-            const f32 w = advances[i];
-            if (hw < selStartPos)
-            {
-                selStart = i;
-                selStartAdv = w;
-            }
-            if (hw < selEndPos)
-            {
-                selEnd = i + 1;
-                selEndAdv = w;
-            }
-            if (hw < textCursorEnd)
-                textEndAdv = w;
-        }
+        const f32 selStartAdv = advances[selStart];
+        const f32 selEndAdv = advances[selEnd];
+        const f32 textEndAdv = advances[m_CursorEnd];
 
         const f32 hLength = selEndAdv - selStartAdv;
         const bool hasHighlight = hLength != 0.f;
@@ -900,53 +875,36 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
                                            .SelfOffset = oabs({hoffset - cwidth, 0.f})});
         }
 
-        if (selStart == TKIT_U32_MAX)
-            selStart = 0;
-        else if (hasHighlight)
-            ++selStart;
-
-        const u32 toRemoveBegin = selStart;
+        const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
         const u32 toRemoveEnd = selEnd;
 
-        if (toRemoveBegin != toRemoveEnd && !str.IsEmpty() &&
+        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty() &&
             (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight)))
         {
-            written = true;
-            f32 toRemoveWidth = 0.f;
-            for (u32 i = toRemoveBegin; i < toRemoveEnd; ++i)
-                toRemoveWidth += widths[i];
-
+            updated = true;
             str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
-            // importantly, we have to account for the text we have removed, and subtract it from the cursor pos
-            // only if user uses cursor or highlight is negative (bc then the invisible cursor would be at the end
-            // of the highlight, and we have to shift it)
 
+            const u32 removeCount = toRemoveEnd - toRemoveBegin;
             if (!hasHighlight || negSel)
-                textCursorStart -= toRemoveWidth;
+                m_CursorStart -= removeCount;
             if (!hasHighlight || !negSel)
-                textCursorEnd -= toRemoveWidth;
+                m_CursorEnd -= removeCount;
 
-            if (selEnd > toRemoveBegin)
-                selEnd = toRemoveBegin;
+            selEnd = toRemoveBegin;
         }
 
-        const u32 spotsLeft = size - 1 - strSize;
-        const u32 spots = Math::Min(m_TextInput.GetSize(), spotsLeft);
+        const u32 insertionsLeft = size - 1 - strSize;
+        const u32 insertions = Math::Min(m_TextInput.GetSize(), insertionsLeft);
 
-        written |= spots != 0;
-        for (u32 i = 0; i < spots; ++i)
+        updated |= insertions != 0;
+        for (u32 i = 0; i < insertions; ++i)
             str.Insert(str.begin() + selEnd, m_TextInput[i]);
 
-        if (spots != 0)
-        {
-            const f32 w = fs * fdata.ComputeTextWidth(m_TextInput);
-            textCursorStart += w;
-            textCursorEnd += w;
-        }
+        m_CursorStart += insertions;
+        m_CursorEnd += insertions;
 
         const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
 
-        updated = written;
         if (enterCommits)
             updated = m_EventKeys[Key_Enter];
         if (updated)
@@ -963,12 +921,6 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
             if (enterTrue)
                 updated = m_EventKeys[Key_Enter];
-        }
-
-        if (written)
-        {
-            m_MouseCursorStart = boxPos + textCursorStart;
-            m_MouseCursorEnd = boxPos + textCursorEnd;
         }
     }
     else
@@ -1055,7 +1007,7 @@ FocusInfoFlags Overlay::evaluateFocusStatus(const LayoutElement *elm, const Focu
     const bool mreleased = checkFlags(EventFlag_MouseReleased);
     const bool mpressed = checkFlags(EventFlag_MousePressed);
 
-    const bool hovered = isElementHoveredForFocus(elm, flags & FocusInfoFlag_IgnoreActive);
+    const bool hovered = isElementHoveredForFocus(elm);
 
     bool clicked = hovered;
     if (flags & FocusInfoFlag_ClickedOnMousePress)
@@ -1466,7 +1418,6 @@ void Overlay::processWindows()
         {
             m_EventFlags |= EventFlag_MousePressed;
             m_PressingMouse = true;
-            m_MouseCursorStart = m_MouseCursorEnd;
         }
         else if (ev.Type == Event_MouseReleased && ev.Mouse.Button == Mouse_Button1)
         {
@@ -1508,47 +1459,6 @@ void Overlay::processWindows()
         if (winHovered)
         {
             win.AddFlags(WindowInternalFlag_Hovered);
-            ScrollBarInfo *vinfo;
-            ScrollBarInfo *hinfo;
-            OverlayScrollFlags vflags;
-            OverlayScrollFlags hflags;
-            if (m_FocusedScroll != NullLayoutId)
-            {
-                ScrollInfo &sinfo = m_Scrollables[m_FocusedScroll];
-                if (sinfo.Flags & OverlayWindowFlag_NoVerticalScroll)
-                {
-                    vinfo = &win.Scroll.Vertical;
-                    vflags = win.Scroll.Flags;
-                }
-                else
-                {
-                    vinfo = &sinfo.Vertical;
-                    vflags = sinfo.Flags;
-                }
-                if (sinfo.Flags & OverlayWindowFlag_HorizontalScroll)
-                {
-                    hinfo = &sinfo.Horizontal;
-                    hflags = sinfo.Flags;
-                }
-                else
-                {
-                    hinfo = &win.Scroll.Horizontal;
-                    hflags = win.Scroll.Flags;
-                }
-            }
-            else
-            {
-                vinfo = &win.Scroll.Vertical;
-                vflags = win.Scroll.Flags;
-                hinfo = &win.Scroll.Horizontal;
-                hflags = win.Scroll.Flags;
-            }
-
-            if (!(vflags & OverlayWindowFlag_NoVerticalScroll))
-                vinfo->WheelOffset += scroll[1];
-
-            if (hflags & OverlayWindowFlag_HorizontalScroll)
-                hinfo->WheelOffset += scroll[0];
             canAssignHover = false;
         }
 
@@ -1568,8 +1478,6 @@ void Overlay::processWindows()
         }
         return true;
     });
-
-    m_FocusedScroll = NullLayoutId;
 
     // now just handle grabbing, which is straightforward
     if (!m_PressingMouse)
@@ -1615,10 +1523,35 @@ void Overlay::processWindows()
             handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom, -1.f);
         }
     }
+    if (m_PressingMouse)
+        m_DragAccum += m_MouseDelta;
+    else
+        m_DragAccum = f32v2{0.f};
 
     m_HoveredId = NullLayoutId;
     if (m_CandidateLayout && !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
         m_HoveredWidgetCandidate = NullLayoutId;
+
+    ScrollBarInfo *vinfo = nullptr;
+    ScrollBarInfo *hinfo = nullptr;
+
+    const u32 size = m_ScrollStack.GetSize();
+    for (u32 i = size - 1; i < size; --i)
+    {
+        const usz id = m_ScrollStack[i];
+        ScrollInfo &sinfo = m_Scrollables[id];
+        if (!vinfo && !(sinfo.Flags & OverlayWindowFlag_NoVerticalScroll))
+            vinfo = &sinfo.Vertical;
+        if (!hinfo && (sinfo.Flags & OverlayWindowFlag_HorizontalScroll))
+            hinfo = &sinfo.Horizontal;
+    }
+
+    if (vinfo)
+        vinfo->WheelOffset += scroll[1];
+    if (hinfo)
+        hinfo->WheelOffset += scroll[0];
+
+    m_ScrollStack.Clear();
 }
 
 void Overlay::bringWindowToTop(const u32 idx)

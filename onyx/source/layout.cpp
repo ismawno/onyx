@@ -90,7 +90,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
                     "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
 
         TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
-        current.ClipMin = f32v2{TKIT_F32_LOWEST};
+        current.ClipMin = f32v2{TKIT_F32_MIN};
         current.ClipMax = f32v2{TKIT_F32_MAX};
     }
 
@@ -645,7 +645,7 @@ void Layout::positionPass()
                         clipChild(child);
                     else
                     {
-                        child.ClipMin[axis] = TKIT_F32_LOWEST;
+                        child.ClipMin[axis] = TKIT_F32_MIN;
                         child.ClipMax[axis] = TKIT_F32_MAX;
                     }
                     return;

@@ -403,9 +403,9 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
 template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const ClipRect<D> &clip)
 {
     WorldRect<D> wrect;
-    if (clip.Min[0] == TKIT_F32_LOWEST)
+    if (clip.Min[0] == TKIT_F32_MIN)
     {
-        wrect.Min[0] = TKIT_F32_LOWEST;
+        wrect.Min[0] = TKIT_F32_MIN;
         return wrect;
     }
     if constexpr (D == D2)

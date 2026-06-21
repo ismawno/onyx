@@ -58,14 +58,14 @@ int main()
                 ui.PopTree();
             }
 
-            if (ui.PushTree("Dropdowns", Onyx::OverlayTreeFlag_DrawLines))
-            {
-                const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
-                                                                     "Element 4"};
-                static u32 idx = 0;
-                ui.DropDown("Dropdown", &idx, elements);
-                ui.PopTree();
-            }
+            // if (ui.PushTree("Dropdowns", Onyx::OverlayTreeFlag_DrawLines))
+            // {
+            //     const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
+            //                                                          "Element 4"};
+            //     static u32 idx = 0;
+            //     ui.DropDown("Dropdown", &idx, elements);
+            //     ui.PopTree();
+            // }
 
             if (ui.PushTree("Images", Onyx::OverlayTreeFlag_DrawLines))
             {
@@ -118,12 +118,33 @@ int main()
                 else
                     ui.HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
-                ui.BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
-                ui.Text("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
-                        "showcase the feature");
+                const bool focused =
+                    ui.BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
+
+                if (focused)
+                    ui.TextRaw("Im focused!");
+                else
+                    ui.TextRaw("Im not focused");
+
+                ui.TextRaw("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
+                           "showcase the feature");
                 ui.Button("Im a useless button");
-                for (u32 i = 0; i < 10; ++i)
-                    ui.Text("Bla bla");
+                if (ui.PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
+                {
+                    for (u32 i = 0; i < 10; ++i)
+                        ui.Text("Bla bla");
+                    ui.PopTree();
+                }
+
+                ui.BeginScroll("I am yet another scroll", 200.f, 200.f, sflags);
+                if (ui.PushTree("Some more content"))
+                {
+                    for (u32 i = 0; i < 10; ++i)
+                        ui.Text("Bla bla");
+                    ui.PopTree();
+                }
+                ui.EndScroll();
+
                 ui.EndScroll();
                 ui.PopTree();
             }
