@@ -102,14 +102,24 @@ enum OverlayInputFlagBit : OverlayInputFlags
 using OverlayHoveredFlags = u8;
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
 {
-    OverlayHoveredFlag_ShortDelay = 1U << 0,
-    OverlayHoveredFlag_NormalDelay = 1U << 1,
-    OverlayHoveredFlag_Stationary = 1U << 2,
-    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 3,
-    OverlayHoveredFlag_AllowBlockedByResize = 1U << 4,
-    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 5,
-    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 6,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 7,
+    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
+    OverlayHoveredFlag_AllowBlockedByResize = 1U << 1,
+    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
+    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 4,
+    OverlayHoveredFlag_ShortDelay = 1U << 5,
+    OverlayHoveredFlag_NormalDelay = 1U << 6,
+    OverlayHoveredFlag_Stationary = 1U << 7,
+};
+
+using OverlayHoverQueryFlags = u8;
+enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
+{
+    OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
+    OverlayHoverQueryFlag_BlockedByResize = OverlayHoveredFlag_AllowBlockedByResize,
+    OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
+    OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
+    OverlayHoverQueryFlag_Hovered = 1U << 6,
 };
 
 using OverlayButtonFlags = u8;
@@ -513,7 +523,7 @@ class Overlay
     //     const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
     //
     //     const FocusInfoFlags focusFlags =
-    //         evaluateFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
+    //         queryFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
     //                                      FocusInfoFlag_ToggleActiveOnRelease);
     //
     //     if (focusFlags & FocusInfoFlag_Pressed)
@@ -569,7 +579,7 @@ class Overlay
     //             const usz elid = AsStackedId(i);
     //             const LayoutElement *elm = ly.QueryElement(elid);
     //             const FocusInfoFlags cfFlags =
-    //                 evaluateFocusStatus(elm, FocusInfoFlag_IgnoreActive |
+    //                 queryFocusStatus(elm, FocusInfoFlag_IgnoreActive |
     //                 FocusInfoFlag_PressedEvenWhenAwayFromHover);
     //
     //             const Color *col = &Color_Transparent;
@@ -809,9 +819,22 @@ class Overlay
     // /style //
 
     // query //
+    OverlayHoverQueryFlags QueryItemHoverStatus() const
+    {
+        return queryHoverStatus(getCurrentLayout().QueryElement(m_LastWidget));
+    }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0)
     {
         return isElementHovered(getCurrentLayout().QueryElement(m_LastWidget), flags);
+    }
+    bool IsItemActive() const
+    {
+        return m_LastWidget == m_ActiveId;
+    }
+    bool IsItemOpen() const
+    {
+        const auto it = m_WidgetStates.Find(m_LastWidget);
+        return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
     }
     // /query //
 
@@ -877,7 +900,7 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const FocusInfoFlags focusFlags = queryFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
@@ -983,7 +1006,7 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        const FocusInfoFlags focusFlags = evaluateFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const FocusInfoFlags focusFlags = queryFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
@@ -1087,6 +1110,10 @@ class Overlay
     {
         return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
     }
+    const Layout &getCurrentLayout() const
+    {
+        return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
+    }
 
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
     bool collapseButton();
@@ -1099,6 +1126,11 @@ class Overlay
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
 
+    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm) const;
+    bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
+    {
+        return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
+    }
     bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0);
 
     WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
@@ -1118,7 +1150,7 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
-    FocusInfoFlags evaluateFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
+    FocusInfoFlags queryFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
