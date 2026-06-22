@@ -1254,22 +1254,27 @@ void Overlay::BeginTooltip()
     f32v2 offset = f32v2{m_Style[OverlayStyle_TooltipOffset], -2.f * m_Style[OverlayStyle_TooltipOffset]};
     vec2<Alignment> alg{Alignment_Left, Alignment_Top};
 
-    if (m_MousePos[0] + offset[0] > 0.f)
+    const LayoutElement *elm = m_Tooltip.Layout.QueryElement("Tooltip");
+    const f32v2 size = elm ? elm->Size : f32v2{0.f};
+    // normalized screen dimensions
+    const f32v2 p1 = m_View->ScreenToWorld(f32v2{1.f});
+
+    if (m_MousePos[0] + offset[0] + size[0] > p1[0])
     {
         alg[0] = Alignment_Right;
         offset[0] = -offset[0];
     }
-    if (m_MousePos[1] + offset[1] < 0.f)
+    if (m_MousePos[1] + offset[1] - size[1] < p1[1])
     {
         alg[1] = Alignment_Bottom;
         offset[1] = -0.5f * offset[1];
     }
     m_Tooltip.Layout.SetSpecs({.RootAlignment = alg});
 
-    m_Tooltip.Layout.BeginPanel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
-                                                      .Sizing = fit(),
-                                                      .SelfOffset = oabs(m_MousePos + offset),
-                                                      .Padding = m_Style[OverlayStyle_TooltipPadding]});
+    m_Tooltip.Layout.BeginPanel("Tooltip", LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
+                                                                 .Sizing = fit(),
+                                                                 .SelfOffset = oabs(m_MousePos + offset),
+                                                                 .Padding = m_Style[OverlayStyle_TooltipPadding]});
 
     m_Tooltip.Layout.BeginPanel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
                                                       .Direction = LayoutDirection_TopToBottom,
@@ -1541,10 +1546,7 @@ void Overlay::processWindows()
 
     m_HoveredId = NullLayoutId;
     if (!m_CandidateLayout || !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
-    {
-        TKit::PrintLine("Im down");
         m_HoveredWidgetCandidate = NullLayoutId;
-    }
 
     if (m_HoveredWidgetCandidate == NullLayoutId)
         m_WidgetHoverClock.Restart();
@@ -1571,9 +1573,8 @@ void Overlay::processWindows()
         hinfo->WheelOffset += scroll[0];
 
     m_ScrollStack.Clear();
-    TKIT_ASSERT(m_CurrentPopupStack.GetSize() == 1,
-                "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
-                m_CurrentPopupStack.GetSize() - 1);
+    TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
+                m_CurrentPopupDepth);
 }
 
 void Overlay::bringWindowToTop(const u32 idx)
