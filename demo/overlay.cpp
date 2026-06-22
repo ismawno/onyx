@@ -24,8 +24,9 @@ int main()
     {
         static Onyx::OverlayWindowFlags flags = 0;
         static bool enableSettings = false;
+
         const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
-        if (ui.BeginWindow("User interface demo", flags))
+        if (ui.BeginWindow("Overlay demo", flags))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
             if (ui.PushTree("General", drawLines))
@@ -33,13 +34,17 @@ int main()
                 ui.Text("Delta time: {:.2f} ms", ftime);
                 if (ui.BeginItemTooltip())
                 {
-                    ui.Text("Im a tooltip!");
+                    ui.Text("I am a tooltip!");
                     ui.Text("And this is the time that passes between frames");
                     ui.EndTooltip();
                 }
 
                 ui.CheckBox("Open widow settings", &enableSettings);
+                ui.PopTree();
+            }
 
+            if (ui.PushTree("Buttons", drawLines))
+            {
                 static bool helloText = false;
                 if (ui.Button("This is a button"))
                     helloText = !helloText;
@@ -49,13 +54,20 @@ int main()
 
                 ui.Button("I have a twin##Cant see me");
                 ui.Button("I have a twin##Cant see me eiter");
+                ui.Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
+
+                ui.PushDirection(Onyx::LayoutDirection_LeftToRight, 0.f);
+                ui.TextRaw("A small button can be easily ");
+                ui.Button("embedded", Onyx::OverlayButtonFlag_Small);
+                ui.TextRaw(" in text");
+                ui.PopDirection();
 
                 ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
                 static u32 radio = 0;
-                ui.RadioButton("Im enabled!", &radio, 0);
-                ui.RadioButton("Im not :(", &radio, 1);
+                ui.RadioButton("I am enabled!", &radio, 0);
+                ui.RadioButton("I am not :(", &radio, 1);
 
-                ui.Pop();
+                ui.PopDirection();
                 ui.PopTree();
             }
 
@@ -90,7 +102,7 @@ int main()
                 ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
 
                 static char buf1[32] = "This is some nice text";
-                ui.InputText("Text 1", buf1, 32, "Im a little hint", iflags);
+                ui.InputText("Text 1", buf1, 32, "I am a little hint", iflags);
 
                 static i32 iival = 4;
                 ui.InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
@@ -137,6 +149,32 @@ int main()
                 ui.PopTree();
             }
 
+            if (ui.PushTree("Selectables", drawLines))
+            {
+                static Onyx::OverlaySelectableFlags sflags = 0;
+
+                ui.CheckBoxFlags("OverlaySelectableFlag_SpanLabelWidth", &sflags,
+                                 Onyx::OverlaySelectableFlag_SpanLabelWidth);
+                ui.CheckBoxFlags("OverlaySelectableFlag_SelectOnDoubleClick", &sflags,
+                                 Onyx::OverlaySelectableFlag_SelectOnDoubleClick);
+                ui.CheckBoxFlags("OverlaySelectableFlag_Highlight", &sflags, Onyx::OverlaySelectableFlag_Highlight);
+
+                ui.Selectable("I am not selected at all##One", false, sflags);
+                ui.Selectable("I am permanently selected", true, sflags);
+                ui.Selectable("I am not selected at all##Two", false, sflags);
+
+                static bool enabled[3] = {false, false, false};
+                ui.Selectable("I can be toggled on and off##One", &enabled[0], sflags);
+                ui.Selectable("I can be toggled on and off##Two", &enabled[1], sflags);
+
+                ui.BeginSelectable(&enabled[2], sflags);
+                ui.TextRaw("I am a fancy selectable");
+                ui.TextRaw("I even have multiple lines");
+                ui.EndSelectable();
+
+                ui.PopTree();
+            }
+
             if (ui.PushTree("Scroll area", drawLines))
             {
                 static f32v2 dimensions = {400.f, 200.f};
@@ -160,13 +198,14 @@ int main()
                     ui.BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
 
                 if (focused)
-                    ui.TextRaw("Im focused!");
+                    ui.TextRaw("I am focused!");
                 else
-                    ui.TextRaw("Im not focused");
+                    ui.TextRaw("I am not focused");
 
-                ui.TextRaw("Im a long text that will require you to scroll horizontally to read fully, allowing me to "
-                           "showcase the feature");
-                ui.Button("Im a useless button");
+                ui.TextRaw(
+                    "I am a long text that will require you to scroll horizontally to read fully, allowing me to "
+                    "showcase the feature");
+                ui.Button("I am a useless button");
                 if (ui.PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
                 {
                     for (u32 i = 0; i < 10; ++i)
@@ -236,21 +275,21 @@ int main()
 
             if (ui.PushTree("Tooltips", drawLines))
             {
-                ui.Button("Im an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ui.Button("I am an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered())
-                    ui.SetTooltip("Im instant!");
+                    ui.SetTooltip("I am instant!");
 
-                ui.Button("Im a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ui.Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
-                    ui.SetTooltip("Im a bit delayed!");
+                    ui.SetTooltip("I am a bit delayed!");
 
-                ui.Button("Im a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ui.Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
-                    ui.SetTooltip("Im delayed!");
+                    ui.SetTooltip("I am delayed!");
 
-                ui.Button("Im a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ui.Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
                 if (ui.IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
-                    ui.SetTooltip("Im stationary!");
+                    ui.SetTooltip("I am stationary!");
                 ui.PopTree();
             }
 
@@ -258,7 +297,7 @@ int main()
             {
                 static Onyx::OverlayTreeFlags tflags = 0;
                 ui.CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, drawLines);
-                ui.CheckBoxFlags("OverlayTreeFlag_OpenOnArrow", &tflags, Onyx::OverlayTreeFlag_OpenOnArrow);
+                ui.CheckBoxFlags("OverlayTreeFlag_ToggleOnArrow", &tflags, Onyx::OverlayTreeFlag_ToggleOnArrow);
                 ui.CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
                 ui.CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
                 ui.CheckBoxFlags("OverlayTreeFlag_Framed", &tflags, Onyx::OverlayTreeFlag_Framed);
@@ -271,7 +310,7 @@ int main()
                         ui.Button("Hello");
                         ui.PopTree();
                     }
-                    if (ui.PushTree("Im open", tflags | Onyx::OverlayTreeFlag_StartOpen))
+                    if (ui.PushTree("I am open", tflags | Onyx::OverlayTreeFlag_StartOpen))
                     {
                         ui.Text("You can see me");
                         ui.PopTree();
@@ -283,24 +322,18 @@ int main()
             ui.EndWindow();
         }
 
-        if (enableSettings)
+        if (enableSettings && ui.BeginWindow("Window settings", flags))
         {
-            if (ui.BeginWindow("Window settings", flags))
-            {
-                ui.CheckBoxFlags("OverlayWindowFlag_NoResize", &flags, Onyx::OverlayWindowFlag_NoResize);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoMove", &flags, Onyx::OverlayWindowFlag_NoMove);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoCollapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoScrollBar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoBackground", &flags, Onyx::OverlayWindowFlag_NoBackground);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-                ui.CheckBoxFlags("OverlayWindowFlag_AutoResize", &flags, Onyx::OverlayWindowFlag_AutoResize);
-                ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", &flags,
-                                 Onyx::OverlayWindowFlag_NoVerticalScroll);
-                ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags,
-                                 Onyx::OverlayWindowFlag_HorizontalScroll);
-                ui.EndWindow();
-            }
+            ui.CheckBoxFlags("OverlayWindowFlag_NoResize", &flags, Onyx::OverlayWindowFlag_NoResize);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoMove", &flags, Onyx::OverlayWindowFlag_NoMove);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoCollapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoScrollBar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+            ui.CheckBoxFlags("OverlayWindowFlag_AutoResize", &flags, Onyx::OverlayWindowFlag_AutoResize);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", &flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
+            ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+            ui.EndWindow();
         }
 
         ui.Draw();

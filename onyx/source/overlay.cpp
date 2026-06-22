@@ -55,6 +55,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_WidgetSize] = 24.f;
     vars[OverlayStyle_WidgetPadding] = 6.f;
     vars[OverlayStyle_WidgetMinimumWidth] = 300.f;
+    vars[OverlayStyle_SmallButtonPadding] = 1.f;
 
     vars[OverlayStyle_TreeLineWidth] = 4.f;
 
@@ -115,7 +116,7 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_WindowBorderIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_WindowBorderHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_WindowBorderPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_WindowHeader] = palette[OverlayPalette_Text0];
+    colors[OverlayColor_Header] = palette[OverlayPalette_Text0];
 
     colors[OverlayColor_ButtonIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_ButtonHovered] = palette[OverlayPalette_Hovered0];
@@ -155,10 +156,15 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_DropDownText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_DropDownButton] = palette[OverlayPalette_Inner0];
 
+    colors[OverlayColor_SelectableIdle] = palette[OverlayPalette_Idle0];
+    colors[OverlayColor_SelectableHovered] = palette[OverlayPalette_Hovered0];
+    colors[OverlayColor_SelectablePressed] = palette[OverlayPalette_Pressed0];
+    colors[OverlayColor_SelectableText] = palette[OverlayPalette_Text0];
+
     colors[OverlayColor_WindowBackgroundExpanded] = palette[OverlayPalette_Background0];
     colors[OverlayColor_WindowBackgroundCollapsed] = palette[OverlayPalette_Background2];
-    colors[OverlayColor_WindowHeaderBackgroundExpanded] = palette[OverlayPalette_Background1];
-    colors[OverlayColor_WindowHeaderBackgroundCollapsed] = palette[OverlayPalette_Background3];
+    colors[OverlayColor_HeaderBackgroundExpanded] = palette[OverlayPalette_Background1];
+    colors[OverlayColor_HeaderBackgroundCollapsed] = palette[OverlayPalette_Background3];
 
     return colors;
 }
@@ -340,7 +346,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
     const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
     const bool activeBlocked =
         !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
-    const bool popupBlocked = m_CurrentPopupDepth < m_PopupDepth;
+    const bool popupBlocked = m_CurrentPopupDepth < m_PopupStack.GetSize();
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
@@ -429,35 +435,30 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
 
     const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
 
-    const bool noBckg = flags & OverlayWindowFlag_NoBackground;
-    m_Current->Id =
-        ly.BeginPanel(id, LayoutPanelParameters{.FillColor =
-                                                    [&] {
-                                                        if (noBckg)
-                                                            return Color_Transparent;
-                                                        if (collapsed)
-                                                            return m_Style[OverlayColor_WindowBackgroundCollapsed];
-                                                        return m_Style[OverlayColor_WindowBackgroundExpanded];
-                                                    }(),
-                                                .Direction = LayoutDirection_TopToBottom,
-                                                .Alignment = topLeft,
-                                                .Sizing = sizing,
-                                                .SelfOffset = oabs(m_Current->Position),
-                                                .Padding = m_Style[OverlayStyle_WindowPadding],
-                                                .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    m_Current->Id = ly.BeginPanel(
+        id, LayoutPanelParameters{
+                .FillColor =
+                    m_Style[collapsed ? OverlayColor_WindowBackgroundCollapsed : OverlayColor_WindowBackgroundExpanded],
+                .Direction = LayoutDirection_TopToBottom,
+                .Alignment = topLeft,
+                .Sizing = sizing,
+                .SelfOffset = oabs(m_Current->Position),
+                .Padding = m_Style[OverlayStyle_WindowPadding],
+                .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     m_LastWidget = m_Current->Id;
     drawWindowBorders();
     if (!noHeader)
     {
-        ly.BeginPanel(AsStackedId("Header"),
-                      LayoutPanelParameters{.FillColor = collapsed
-                                                             ? m_Style[OverlayColor_WindowHeaderBackgroundCollapsed]
-                                                             : m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
-                                            .Alignment = {Alignment_Left, Alignment_Center},
-                                            .Sizing = {flex(), fit()},
-                                            .Padding = m_Style[OverlayStyle_HeaderPadding],
-                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly.BeginPanel(
+            AsStackedId("Header"),
+            LayoutPanelParameters{
+                .FillColor =
+                    m_Style[collapsed ? OverlayColor_HeaderBackgroundCollapsed : OverlayColor_HeaderBackgroundExpanded],
+                .Alignment = {Alignment_Left, Alignment_Center},
+                .Sizing = {flex(), fit()},
+                .Padding = m_Style[OverlayStyle_HeaderPadding],
+                .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
         if (!noCollapse && collapseButton())
@@ -474,7 +475,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
             }
         }
 
-        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_WindowHeader));
+        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
         ly.EndPanel();
     }
 
@@ -496,6 +497,14 @@ void Overlay::EndWindow()
     m_Current = nullptr;
     PopId();
 }
+
+// bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview)
+// {
+// }
+//
+// void Overlay::EndDropDown()
+// {
+// }
 
 bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
                           const OverlayScrollFlags flags)
@@ -611,10 +620,10 @@ void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOf
                                         .Sizing = {grow(), fit()},
                                         .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
+    ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_HeaderBackgroundExpanded],
                                    .Sizing = sabs({textOffset, width})});
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
-    ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowHeaderBackgroundExpanded],
+    ly.Panel(LayoutPanelParameters{.FillColor = m_Style[OverlayColor_HeaderBackgroundExpanded],
                                    .Sizing = {grow(), sabs(width)}});
     ly.EndPanel();
 }
@@ -656,8 +665,8 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     bool toggleOpen = focusFlags & FocusInfoFlag_Clicked;
     if (toggleOpen)
     {
-        const bool onArrow = flags & OverlayTreeFlag_OpenOnArrow;
-        const bool onDoubleClick = flags & OverlayTreeFlag_OpenOnDoubleClick;
+        const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
+        const bool onDoubleClick = !opened && (flags & OverlayTreeFlag_OpenOnDoubleClick);
         const bool doubleClicked = focusFlags & FocusInfoFlag_DoubleClicked;
         if (onArrow)
             toggleOpen = ly.IsHovered(buttonId, m_MousePos) || (onDoubleClick && doubleClicked);
@@ -727,7 +736,8 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     const LayoutElement *ibox = ly.QueryElement(iboxId);
     const FocusInfoFlags focusFlags =
         queryFocusStatus(ibox, FocusInfoFlag_ClickedOnMousePress | FocusInfoFlag_KeepActiveOnRelease |
-                                   FocusInfoFlag_ActiveAllowsInteraction | FocusInfoFlag_PressedEvenWhenAwayFromHover);
+                                   FocusInfoFlag_KeepActiveOnPressed | FocusInfoFlag_ActiveAllowsInteraction |
+                                   FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
     ly.BeginPanel(iboxId, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundCollapsed],
                                                 .Alignment = {Alignment_Left, Alignment_Center},
@@ -1044,7 +1054,7 @@ bool Overlay::collapseButton()
                                             .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     const CodePoint code = m_Current->HeaderIcon;
-    ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_WindowHeader));
+    ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_Header));
 
     ly.EndPanel();
     return focusFlags & FocusInfoFlag_Clicked;
@@ -1055,6 +1065,16 @@ FocusInfoFlags Overlay::queryFocusStatus(const LayoutElement *elm, const FocusIn
     FocusInfoFlags outFlags = flags;
     if (!elm)
         return outFlags;
+
+    TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
+                "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
+                m_PopupStack.GetSize());
+    if (m_CurrentPopupDepth != m_PopupStack.GetSize())
+    {
+        if (m_PopupStack[m_CurrentPopupDepth - 1] == elm->Id)
+            outFlags |= FocusInfoFlag_PopupOpen;
+        return outFlags;
+    }
 
     const bool evenWhenAway = flags & FocusInfoFlag_PressedEvenWhenAwayFromHover;
 
@@ -1139,8 +1159,11 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const vec2<LayoutSizing> sizing = spanFull ? vec2<LayoutSizing>{flex(), fit()} : vec2<LayoutSizing>{fit()};
 
+    const bool small = flags & OverlayButtonFlag_Small;
+    const f32 padding = m_Style[small ? OverlayStyle_SmallButtonPadding : OverlayStyle_WidgetPadding];
     m_LastWidget = ly.BeginPanel(
-        id, LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = 8.f});
+        id,
+        LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = padding});
 
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
@@ -1222,6 +1245,73 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     return focusFlags & FocusInfoFlag_Clicked;
 }
 
+bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySelectableFlags flags)
+{
+    Layout &ly = getCurrentLayout();
+    id = PushId(id);
+    const LayoutElement *elm = ly.QueryElement(id);
+
+    const FocusInfoFlags focusFlags = queryFocusStatus(elm);
+
+    const bool highlight = flags & OverlaySelectableFlag_Highlight;
+    const Color *col = highlight ? &m_Style[OverlayColor_SelectableHovered] : &m_Style[OverlayColor_SelectableIdle];
+
+    if (focusFlags & FocusInfoFlag_Pressed)
+        col = &m_Style[OverlayColor_SelectablePressed];
+    else if (focusFlags & FocusInfoFlag_Hovered)
+        col = &m_Style[OverlayColor_SelectableHovered];
+    else if (enabled)
+        col = &m_Style[OverlayColor_SelectablePressed];
+
+    const bool spanLabel = flags & OverlaySelectableFlag_SpanLabelWidth;
+    ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
+                                            .Direction = LayoutDirection_TopToBottom,
+                                            .Alignment = {Alignment_Left, Alignment_Center},
+                                            .Sizing = {spanLabel ? fit() : grow(), fit()},
+                                            .Padding = m_Style[OverlayStyle_WidgetPadding]});
+
+    if (!enabled && (flags & OverlaySelectableFlag_SelectOnDoubleClick))
+        return focusFlags & FocusInfoFlag_DoubleClicked;
+
+    return focusFlags & FocusInfoFlag_Clicked;
+}
+bool Overlay::BeginSelectable(const LayoutId id, bool *enabled, const OverlaySelectableFlags flags)
+{
+    if (BeginSelectable(id, *enabled, flags))
+    {
+        *enabled = !*enabled;
+        return true;
+    }
+    return false;
+}
+
+void Overlay::EndSelectable()
+{
+    Layout &ly = getCurrentLayout();
+    PopId();
+    ly.EndPanel();
+}
+
+bool Overlay::Selectable(const TKit::StringView label, const bool enabled, const OverlaySelectableFlags flags)
+{
+    const bool selected = BeginSelectable(label, enabled, flags);
+    Layout &ly = getCurrentLayout();
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_DropDownText));
+    EndSelectable();
+
+    return selected;
+}
+
+bool Overlay::Selectable(const TKit::StringView label, bool *enabled, const OverlaySelectableFlags flags)
+{
+    if (Selectable(label, *enabled, flags))
+    {
+        *enabled = !*enabled;
+        return true;
+    }
+    return false;
+}
+
 void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
 {
     LayoutTextParameters params = getTextParams(OverlayColor_Text);
@@ -1241,7 +1331,7 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
     Layout &ly = getCurrentLayout();
     ly.Unicode(ly.GenerateNextId(), icon, getUnicodeParams(OverlayColor_Text));
     ly.Text(ly.GenerateNextId(), text, params);
-    Pop();
+    PopDirection();
 }
 
 void Overlay::BeginTooltip()

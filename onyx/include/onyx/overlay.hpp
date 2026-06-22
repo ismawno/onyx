@@ -44,14 +44,15 @@ enum FocusInfoFlagBit : FocusInfoFlags
     FocusInfoFlag_DoubleClicked = 1U << 3,
     FocusInfoFlag_Active = 1U << 4,
     FocusInfoFlag_JustActive = 1U << 5,
+    FocusInfoFlag_PopupOpen = 1U << 6,
 
-    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 6,
-    FocusInfoFlag_ClickedOnMousePress = 1U << 7,
+    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 7,
+    FocusInfoFlag_ClickedOnMousePress = 1U << 8,
     FocusInfoFlag_KeepActiveOnPressed = 1U << 9,
-    FocusInfoFlag_KeepActiveOnRelease = 1U << 9,
-    FocusInfoFlag_SetActiveOnRelease = 1U << 10,
-    FocusInfoFlag_ToggleActiveOnRelease = 1U << 11,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 12,
+    FocusInfoFlag_KeepActiveOnRelease = 1U << 10,
+    FocusInfoFlag_SetActiveOnRelease = 1U << 11,
+    FocusInfoFlag_ToggleActiveOnRelease = 1U << 12,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 13,
 };
 
 using InputConvertInfoFlags = u8;
@@ -73,9 +74,8 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_NoMove = 1U << 9,
     OverlayWindowFlag_NoCollapse = 1U << 10,
     OverlayWindowFlag_NoHeaderBar = 1U << 11,
-    OverlayWindowFlag_NoBackground = 1U << 12,
-    OverlayWindowFlag_NoBringToFocus = 1U << 13,
-    OverlayWindowFlag_AutoResize = 1U << 14,
+    OverlayWindowFlag_NoBringToFocus = 1U << 12,
+    OverlayWindowFlag_AutoResize = 1U << 13,
 };
 
 using OverlayScrollFlags = u16;
@@ -97,6 +97,14 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_AutoSelectAll = 1U << 3,
     OverlayInputFlag_NoHorizontalScroll = 1U << 4,
     OverlayInputFlag_ElideLeft = 1U << 5,
+};
+
+using OverlaySelectableFlags = u8;
+enum OverlaySelectableFlagBit : OverlaySelectableFlags
+{
+    OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
+    OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
+    OverlaySelectableFlag_Highlight = 1U << 2,
 };
 
 using OverlayHoveredFlags = u16;
@@ -128,13 +136,15 @@ using OverlayButtonFlags = u8;
 enum OverlayButtonFlagBit : OverlayButtonFlags
 {
     OverlayButtonFlag_SpanFullWidth = 1U << 0,
+    OverlayButtonFlag_Small = 1U << 1,
 };
 
 using OverlayTreeFlags = u8;
 enum OverlayTreeFlagBit : OverlayTreeFlags
 {
     OverlayTreeFlag_DrawLines = 1U << 0,
-    OverlayTreeFlag_OpenOnArrow = 1U << 1,
+    OverlayTreeFlag_ToggleOnArrow = 1U << 1,
+    // TODO(Isma): Make this only on open. Add CloseOnDoubleClick
     OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
     OverlayTreeFlag_SpanLabelWidth = 1U << 3,
     OverlayTreeFlag_Framed = 1U << 4,
@@ -254,7 +264,7 @@ enum OverlayColor : u8
     OverlayColor_WindowBorderIdle,
     OverlayColor_WindowBorderHovered,
     OverlayColor_WindowBorderPressed,
-    OverlayColor_WindowHeader,
+    OverlayColor_Header,
 
     OverlayColor_ButtonIdle,
     OverlayColor_ButtonHovered,
@@ -289,6 +299,11 @@ enum OverlayColor : u8
     OverlayColor_DropDownText,
     OverlayColor_DropDownButton,
 
+    OverlayColor_SelectableIdle,
+    OverlayColor_SelectableHovered,
+    OverlayColor_SelectablePressed,
+    OverlayColor_SelectableText,
+
     OverlayColor_ScrollBarIdle,
     OverlayColor_ScrollBarHovered,
     OverlayColor_ScrollBarPressed,
@@ -297,8 +312,8 @@ enum OverlayColor : u8
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
 
-    OverlayColor_WindowHeaderBackgroundExpanded,
-    OverlayColor_WindowHeaderBackgroundCollapsed,
+    OverlayColor_HeaderBackgroundExpanded,
+    OverlayColor_HeaderBackgroundCollapsed,
 
     OverlayColor_Count,
 };
@@ -327,6 +342,7 @@ enum OverlayStyleType : u8
     OverlayStyle_WidgetSize,
     OverlayStyle_WidgetPadding,
     OverlayStyle_WidgetMinimumWidth,
+    OverlayStyle_SmallButtonPadding,
 
     OverlayStyle_TreeLineWidth,
 
@@ -417,6 +433,7 @@ class Overlay
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label, OverlayButtonFlags flags = 0);
     bool RadioButton(TKit::StringView label, bool active);
+
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool RadioButton(const TKit::StringView label, T *value, const U reference)
     {
@@ -428,6 +445,23 @@ class Overlay
         return false;
     }
     bool CheckBox(TKit::StringView label, bool *enable);
+
+    bool BeginSelectable(LayoutId id, bool enabled = false, OverlaySelectableFlags flags = 0);
+    bool BeginSelectable(LayoutId id, bool *enabled, OverlaySelectableFlags flags = 0);
+
+    bool BeginSelectable(const bool enabled = false, const OverlaySelectableFlags flags = 0)
+    {
+        return BeginSelectable(getCurrentLayout().GenerateNextId(), enabled, flags);
+    }
+    bool BeginSelectable(bool *enabled, const OverlaySelectableFlags flags = 0)
+    {
+        return BeginSelectable(getCurrentLayout().GenerateNextId(), enabled, flags);
+    }
+
+    void EndSelectable();
+
+    bool Selectable(TKit::StringView label, bool enabled = false, OverlaySelectableFlags flags = 0);
+    bool Selectable(TKit::StringView label, bool *enabled, OverlaySelectableFlags flags = 0);
 
     // TODO(Isma): Implement hint
     bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
@@ -689,6 +723,9 @@ class Overlay
         return true;
     }
 
+    // bool BeginDropDown(TKit::StringView label, TKit::StringView preview);
+    // void EndDropDown();
+
     // /tooltips //
 
     // layout //
@@ -731,10 +768,6 @@ class Overlay
     {
         getCurrentLayout().EndPanel();
     }
-    void Pop()
-    {
-        EndPanel();
-    }
 
     bool PushTree(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
     bool PushTree(TKit::StringView label, const OverlayTreeFlags flags = 0)
@@ -748,17 +781,24 @@ class Overlay
     }
     void PopTree()
     {
-        Pop();
-        Pop();
+        Layout &ly = getCurrentLayout();
+        ly.EndPanel();
+        ly.EndPanel();
         PopId();
     }
 
+    void PushDirection(const LayoutDirection dir, const f32 childGap)
+    {
+        BeginPanel(
+            {.Direction = dir, .Alignment = {Alignment_Left, Alignment_Top}, .Sizing = fit(), .ChildGap = childGap});
+    }
     void PushDirection(const LayoutDirection dir)
     {
-        BeginPanel({.Direction = dir,
-                    .Alignment = {Alignment_Left, Alignment_Top},
-                    .Sizing = fit(),
-                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        PushDirection(dir, m_Style[OverlayStyle_ChildGap]);
+    }
+    void PopDirection()
+    {
+        EndPanel();
     }
     void PushIndent(const f32 indent)
     {
@@ -767,6 +807,10 @@ class Overlay
                     .Sizing = fit(),
                     .ChildOffset = oabs({indent, 0.f}),
                     .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    }
+    void PopIndent()
+    {
+        EndPanel();
     }
 
     Layout *GetCurrentLayout()
@@ -992,8 +1036,8 @@ class Overlay
         const T pval = *value;
         if (!(flags & OverlaySliderFlag_NoInput))
         {
-            const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHovered(elm) ? FocusInfoFlag_Hovered : 0);
+            const InputConvertInfoFlags cflags = mustConvertToInputBox(
+                (isElementHovered(elm) ? FocusInfoFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -1249,7 +1293,7 @@ class Overlay
     // smth
     // TODO(Isma): To use with menu items, to check if a hover action closes subsequent popups, one has to traverse the
     // stack in reverse, and if none is hovered, then that one is hovered and other popups can close
-    u32 m_PopupDepth = 0;
+    TKit::TierArray<usz> m_PopupStack{};
     u32 m_CurrentPopupDepth = 0;
 
     f64 m_DragValue = 0.;
