@@ -264,22 +264,26 @@ enum OverlayPaletteType : u8
 {
     OverlayPalette_Idle0,
     OverlayPalette_Idle1,
+    OverlayPalette_Idle2,
 
     OverlayPalette_Hovered0,
     OverlayPalette_Hovered1,
     OverlayPalette_Hovered2,
+    OverlayPalette_Hovered3,
 
     OverlayPalette_Pressed0,
     OverlayPalette_Pressed1,
+    OverlayPalette_Pressed2,
 
     OverlayPalette_Text0,
+    OverlayPalette_Text1,
 
     OverlayPalette_Inner0,
+    OverlayPalette_Inner1,
 
     OverlayPalette_Background0,
     OverlayPalette_Background1,
     OverlayPalette_Background2,
-    OverlayPalette_Background3,
 
     OverlayPalette_Count,
 };
@@ -296,6 +300,7 @@ enum OverlayColor : u8
     OverlayColor_WindowBorderIdle,
     OverlayColor_WindowBorderHovered,
     OverlayColor_WindowBorderPressed,
+
     OverlayColor_Header,
 
     OverlayColor_ButtonIdle,
@@ -340,6 +345,8 @@ enum OverlayColor : u8
     OverlayColor_ScrollBarHovered,
     OverlayColor_ScrollBarPressed,
     OverlayColor_ScrollAreaBorders,
+
+    OverlayColor_PopupBackground,
 
     OverlayColor_WindowBackgroundExpanded,
     OverlayColor_WindowBackgroundCollapsed,
@@ -400,7 +407,8 @@ using OverlayColors = TKit::FixedArray<Color, OverlayColor_Count>;
 using OverlayStyleVariables = TKit::FixedArray<f32, OverlayStyle_Count>;
 
 OverlayStyleVariables CreateDefaultOverlayVariables();
-OverlayPalette CreateDefaultOverlayPalette();
+OverlayPalette CreateSlateOverlayPalette();
+OverlayPalette CreateEmberOverlayPalette();
 
 OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette);
 
@@ -419,7 +427,7 @@ struct StyleBackup
 struct OverlayStyle
 {
     OverlayStyleVariables Variables = CreateDefaultOverlayVariables();
-    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateDefaultOverlayPalette());
+    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateEmberOverlayPalette());
 
     constexpr f32 operator[](const OverlayStyleType idx) const
     {
@@ -1120,7 +1128,7 @@ class Overlay
     }
 
     // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
-    bool collapseButton();
+    bool collapseButton(bool collapsed);
     template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;

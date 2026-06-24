@@ -89,28 +89,60 @@ static Color hex(const TKit::StringView h)
     return Color::FromHexadecimal(h);
 }
 
-OverlayPalette CreateDefaultOverlayPalette()
+OverlayPalette CreateSlateOverlayPalette()
 {
     OverlayPalette palette;
     palette[OverlayPalette_Idle0] = hex("2D3748");
     palette[OverlayPalette_Idle1] = hex("3A4F6F");
+    palette[OverlayPalette_Idle2] = hex("384A64");
 
     palette[OverlayPalette_Hovered0] = hex("4A5568");
     palette[OverlayPalette_Hovered1] = hex("5A7A9E");
     palette[OverlayPalette_Hovered2] = hex("3A4A60");
+    palette[OverlayPalette_Hovered3] = hex("4E6888");
 
     palette[OverlayPalette_Pressed0] = hex("5A6A7E");
     palette[OverlayPalette_Pressed1] = hex("4A5A72");
+    palette[OverlayPalette_Pressed2] = hex("6A7E96");
 
     palette[OverlayPalette_Text0] = hex("E2E8F0");
+    palette[OverlayPalette_Text1] = hex("8899AA");
 
     palette[OverlayPalette_Inner0] = hex("4A8EC2");
+    palette[OverlayPalette_Inner1] = hex("5BA0D4");
 
     palette[OverlayPalette_Background0] = hex("2A3F5F");
     palette[OverlayPalette_Background1] = hex("344E6E");
+    palette[OverlayPalette_Background2] = hex("161F2E");
 
-    palette[OverlayPalette_Background2] = hex("1E2D45D9");
-    palette[OverlayPalette_Background3] = hex("2A3F5FD9");
+    return palette;
+}
+
+OverlayPalette CreateEmberOverlayPalette()
+{
+    OverlayPalette palette;
+    palette[OverlayPalette_Idle0] = hex("4D3636");
+    palette[OverlayPalette_Idle1] = hex("6E4A4A");
+    palette[OverlayPalette_Idle2] = hex("5A4040");
+
+    palette[OverlayPalette_Hovered0] = hex("704E4E");
+    palette[OverlayPalette_Hovered1] = hex("9E6E6E");
+    palette[OverlayPalette_Hovered2] = hex("604848");
+    palette[OverlayPalette_Hovered3] = hex("806060");
+
+    palette[OverlayPalette_Pressed0] = hex("8E6464");
+    palette[OverlayPalette_Pressed1] = hex("7C5555");
+    palette[OverlayPalette_Pressed2] = hex("A07878");
+
+    palette[OverlayPalette_Text0] = hex("F5EDE6");
+    palette[OverlayPalette_Text1] = hex("B8A498");
+
+    palette[OverlayPalette_Inner0] = hex("D4885B");
+    palette[OverlayPalette_Inner1] = hex("E09A6C");
+
+    palette[OverlayPalette_Background0] = hex("3A2828");
+    palette[OverlayPalette_Background1] = hex("4A3535");
+    palette[OverlayPalette_Background2] = hex("2A1C1C");
 
     return palette;
 }
@@ -170,14 +202,16 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_DropDownButton] = palette[OverlayPalette_Inner0];
 
     colors[OverlayColor_SelectableIdle] = palette[OverlayPalette_Idle0];
-    colors[OverlayColor_SelectableHovered] = palette[OverlayPalette_Hovered0];
-    colors[OverlayColor_SelectablePressed] = palette[OverlayPalette_Pressed0];
+    colors[OverlayColor_SelectableHovered] = palette[OverlayPalette_Hovered3];
+    colors[OverlayColor_SelectablePressed] = palette[OverlayPalette_Pressed2];
     colors[OverlayColor_SelectableText] = palette[OverlayPalette_Text0];
 
+    colors[OverlayColor_PopupBackground] = palette[OverlayPalette_Background2];
+
     colors[OverlayColor_WindowBackgroundExpanded] = palette[OverlayPalette_Background0];
-    colors[OverlayColor_WindowBackgroundCollapsed] = palette[OverlayPalette_Background2];
+    colors[OverlayColor_WindowBackgroundCollapsed] = palette[OverlayPalette_Background0];
     colors[OverlayColor_HeaderBackgroundExpanded] = palette[OverlayPalette_Background1];
-    colors[OverlayColor_HeaderBackgroundCollapsed] = palette[OverlayPalette_Background3];
+    colors[OverlayColor_HeaderBackgroundCollapsed] = palette[OverlayPalette_Background1];
 
     return colors;
 }
@@ -478,7 +512,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
                 .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
-        if (!noCollapse && collapseButton())
+        if (!noCollapse && collapseButton(collapsed))
         {
             if (collapsed)
             {
@@ -491,6 +525,10 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
                 m_Current->Size[1] = m_Current->MinSize[1];
             }
         }
+
+        LayoutTextParameters tparams = getTextParams(OverlayColor_Header);
+        if (collapsed)
+            tparams.FillColor.rgba[3] = 0.8f;
 
         ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
         ly.EndPanel();
@@ -588,7 +626,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
         const usz did = AsStackedId("Drop down");
         const bool tight = flags & OverlayDropDownFlag_Tight;
         ly.BeginPanel(did,
-                      LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
+                      LayoutPanelParameters{.FillColor = m_Style[OverlayColor_PopupBackground],
                                             .Direction = LayoutDirection_TopToBottom,
                                             .Alignment = {Alignment_Left, Alignment_Top},
                                             .Sizing = {fit(size), fit()},
@@ -1164,7 +1202,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-bool Overlay::collapseButton()
+bool Overlay::collapseButton(const bool collapsed)
 {
     Layout &ly = getCurrentLayout();
 
@@ -1180,6 +1218,9 @@ bool Overlay::collapseButton()
                                             .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     const CodePoint code = m_Current->HeaderIcon;
+    LayoutUnicodeParameters uparams = getUnicodeParams(OverlayColor_Header);
+    if (collapsed)
+        uparams.FillColor.rgba[3] = 0.8f;
     ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_Header));
 
     ly.EndPanel();
