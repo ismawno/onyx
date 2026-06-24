@@ -90,6 +90,7 @@ enum OverlayScrollFlagBit : OverlayScrollFlags
 {
     OverlayScrollFlag_Borders = 1U << 0,
     OverlayScrollFlag_Title = 1U << 1,
+    OverlayScrollFlag_NoBackground = 1U << 2,
     OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
     OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
     OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
@@ -112,6 +113,17 @@ enum OverlaySelectableFlagBit : OverlaySelectableFlags
     OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
     OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
     OverlaySelectableFlag_Highlight = 1U << 2,
+};
+
+using OverlayDropDownFlags = u8;
+enum OverlayDropDownFlagBit : OverlayDropDownFlags
+{
+    OverlayDropDownFlag_NoArrowButton = 1U << 0,
+    OverlayDropDownFlag_NoPreview = 1U << 1,
+    OverlayDropDownFlag_HeightSmall = 1U << 2,
+    OverlayDropDownFlag_HeightRegular = 1U << 3,
+    OverlayDropDownFlag_HeightLargest = 1U << 4,
+    OverlayDropDownFlag_Tight = 1U << 5,
 };
 
 using OverlayHoveredFlags = u16;
@@ -192,6 +204,16 @@ struct ScrollInfo
     ScrollBarInfo Vertical{};
     ScrollBarInfo Horizontal{};
     OverlayScrollFlags Flags = 0;
+};
+
+struct ScrollParameterSpecs
+{
+    LayoutId Id;
+    vec2<LayoutSizing> OuterSizing;
+    vec2<LayoutSizing> ContentSizing;
+    f32 ContentPadding;
+    f32 ChildGap;
+    OverlayScrollFlags Flags;
 };
 
 struct Tooltip
@@ -347,6 +369,7 @@ enum OverlayStyleType : u8
     OverlayStyle_ContentAreaPadding,
 
     OverlayStyle_ScrollBarWidth,
+    OverlayStyle_ScrollBarGap,
     OverlayStyle_ScrollSensitivity,
 
     OverlayStyle_WidgetSize,
@@ -362,6 +385,9 @@ enum OverlayStyleType : u8
     OverlayStyle_HoverDelayShort,
     OverlayStyle_HoverDelayNormal,
     OverlayStyle_HoverStationaryThreshold,
+
+    OverlayStyle_DropDownHeightSmall,
+    OverlayStyle_DropDownHeightRegular,
 
     OverlayStyle_InputHintAlpha,
     OverlayStyle_InputCursorAlpha,
@@ -628,14 +654,35 @@ class Overlay
         return true;
     }
 
-    bool BeginDropDown(TKit::StringView label, TKit::StringView preview);
+    void CloseCurrentPopup();
+    bool BeginDropDown(TKit::StringView label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
     void EndDropDown()
     {
+        endScroll();
+        PopStyleVar();
         Layout &ly = getCurrentLayout();
         ly.EndPanel();
         ly.EndPanel();
         PopId();
         --m_CurrentPopupDepth;
+    }
+
+    template <TKit::Integer T>
+    bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
+                  const OverlayDropDownFlags flags = 0)
+    {
+        const T val = *current;
+        if (BeginDropDown(label, val < elements.GetSize() ? elements[val] : "", flags | OverlayDropDownFlag_Tight))
+        {
+            for (u32 i = 0; i < elements.GetSize(); ++i)
+                if (Selectable(elements[i], val == i))
+                {
+                    *current = i;
+                    CloseCurrentPopup();
+                }
+            EndDropDown();
+        }
+        return val != *current;
     }
 
     // /tooltips //
@@ -824,8 +871,7 @@ class Overlay
 
     static TKit::StringView trimLabel(TKit::StringView label);
 
-    bool beginScroll(LayoutId id, const vec2<LayoutSizing> &outerSizing, const vec2<LayoutSizing> &contentSizing,
-                     OverlayScrollFlags flags);
+    bool beginScroll(const ScrollParameterSpecs &specs);
     void endScroll();
 
     void beginHorizontalWidget(usz id, f32 normSize = 0.7f);
@@ -1082,7 +1128,7 @@ class Overlay
     void bringWindowToTop(u32 idx);
 
     void drawWindowBorders();
-    void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, bool drawBar);
+    void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
 
     OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)

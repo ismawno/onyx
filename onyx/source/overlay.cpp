@@ -25,6 +25,7 @@ enum EventFlagBit : EventFlags
 
     EventFlag_MustCollapsePopups = 1U << 7,
     EventFlag_FocusBlockByPopupCollapse = 1U << 8,
+    EventFlag_PopupProtectionForbidden = 1U << 9,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     EventFlagPersist = EventFlag_ActiveAllowsInteraction | EventFlag_FocusBlockByPopupCollapse
 };
@@ -58,6 +59,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_ContentAreaPadding] = 4.f;
 
     vars[OverlayStyle_ScrollBarWidth] = 8.f;
+    vars[OverlayStyle_ScrollBarGap] = 4.f;
     vars[OverlayStyle_ScrollSensitivity] = 64.f;
 
     vars[OverlayStyle_WidgetSize] = 24.f;
@@ -69,6 +71,9 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_ClickMilliseconds] = 200.f;
     vars[OverlayStyle_CursorWidth] = 2.f;
+
+    vars[OverlayStyle_DropDownHeightSmall] = 80.f;
+    vars[OverlayStyle_DropDownHeightRegular] = 200.f;
 
     vars[OverlayStyle_HoverDelayShort] = 0.15f;
     vars[OverlayStyle_HoverDelayNormal] = 0.40f;
@@ -264,7 +269,7 @@ void Overlay::drawWindowBorders()
 }
 
 void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
-                            const bool drawBar)
+                            const f32 contentPadding, const bool drawBar)
 {
     Layout &ly = getCurrentLayout();
     const LayoutElement *contentArea = ly.QueryElement(contentAreaId);
@@ -272,7 +277,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     if (contentArea && contentArea->ChildrenSize[axis] > contentArea->Size[axis])
     {
         const f32 size = contentArea->Size[axis];
-        const f32 csize = contentArea->ChildrenSize[axis] + 2.f * m_Style[OverlayStyle_WindowPadding];
+        const f32 csize = contentArea->ChildrenSize[axis] + 2.f * contentPadding;
         const Color *col = &m_Style[OverlayColor_ScrollBarIdle];
 
         const char *name = axis == LayoutAxis_Horizontal ? "Horizontal scroll bar" : "Vertical scroll bar";
@@ -492,7 +497,12 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     }
 
     const vec2<LayoutSizing> scrollSizing = autoResize ? flex() : grow();
-    beginScroll(scrollId, scrollSizing, scrollSizing, flags);
+    beginScroll({.Id = scrollId,
+                 .OuterSizing = scrollSizing,
+                 .ContentSizing = scrollSizing,
+                 .ContentPadding = m_Style[OverlayStyle_ContentAreaPadding],
+                 .ChildGap = m_Style[OverlayStyle_ChildGap],
+                 .Flags = flags});
     if (collapsed)
     {
         EndWindow();
@@ -510,7 +520,16 @@ void Overlay::EndWindow()
     PopId();
 }
 
-bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview)
+void Overlay::CloseCurrentPopup()
+{
+    TKIT_ASSERT(m_CurrentPopupDepth != 0,
+                "[ONYX][OVERLAY] CloseCurrentPopup() can only be called inside an active popup");
+    m_EventFlags |= EventFlag_PopupProtectionForbidden | EventFlag_MustCollapsePopups;
+    m_PopupCollapseDepth = m_CurrentPopupDepth - 1;
+}
+
+bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview,
+                            const OverlayDropDownFlags flags)
 {
     Layout &ly = getCurrentLayout();
     beginHorizontalWidget(PushId(label), 1.f);
@@ -518,7 +537,6 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     const LayoutId id = AsStackedId("Drop down box");
     const LayoutElement *elm = ly.QueryElement(id);
     const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
-    const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
 
     const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_LeftClickOpensPopup);
 
@@ -527,35 +545,48 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     else if (focusFlags & FocusInfoFlag_Hovered)
         boxCol = &m_Style[OverlayColor_DropDownHovered];
 
-    const bool dropDownActive = focusFlags & FocusInfoFlag_PopupOpen;
-    if (dropDownActive)
-        buttonCol = &m_Style[OverlayColor_DropDownButton];
-
-    ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
-                                            .Alignment = {Alignment_Left, Alignment_Center},
-                                            .Sizing = {m_CurrentPopupDepth == 0 ? snorm(0.7f) : flex(), fit()}});
+    const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-    ly.BeginPanel(AsStackedId("Parent"),
-                  LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
+    ly.BeginPanel(id, LayoutPanelParameters{
+                          .FillColor = *boxCol,
+                          .Alignment = {Alignment_Left, Alignment_Center},
+                          .Sizing = {m_CurrentPopupDepth == 0 ? snorm(0.7f) : flex(),
+                                     hasPreview ? fit()
+                                                : sabs(getFontData().LineHeight * m_Style[OverlayStyle_FontSize] +
+                                                       2.f * padding)}});
 
-    ly.Text(ly.GenerateNextId(), preview, getTextParams(OverlayColor_DropDownText));
-    ly.EndPanel();
+    if (hasPreview)
+    {
+        ly.BeginPanel(AsStackedId("Parent"), LayoutPanelParameters{.Alignment = Alignment_Center,
+                                                                   .Sizing = fit(),
+                                                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
+
+        ly.Text(ly.GenerateNextId(), preview, getTextParams(OverlayColor_DropDownText));
+        ly.EndPanel();
+    }
 
     ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
 
-    ly.BeginPanel(AsStackedId("Button box"),
-                  LayoutPanelParameters{.FillColor = *buttonCol,
-                                        .Alignment = Alignment_Center,
-                                        .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+    const bool dropDownActive = focusFlags & FocusInfoFlag_PopupOpen;
+    if (!(flags & OverlayDropDownFlag_NoArrowButton))
+    {
+        const Color *buttonCol =
+            dropDownActive ? &m_Style[OverlayColor_DropDownButton] : &m_Style[OverlayColor_DropDownHovered];
+        ly.BeginPanel(AsStackedId("Button box"),
+                      LayoutPanelParameters{.FillColor = *buttonCol,
+                                            .Alignment = Alignment_Center,
+                                            .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+        ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+        ly.EndPanel();
+    }
 
-    ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
-    ly.EndPanel();
     if (dropDownActive)
     {
         endHorizontalWidget(label, OverlayColor_Text);
 
         const f32 size = elm ? elm->Size[0] : 0.f;
         const usz did = AsStackedId("Drop down");
+        const bool tight = flags & OverlayDropDownFlag_Tight;
         ly.BeginPanel(did,
                       LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
                                             .Direction = LayoutDirection_TopToBottom,
@@ -564,9 +595,26 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                                             .Floating = {.Enable = true,
                                                          .Attachment = {LayoutAttachment_Left, LayoutAttachment_Bottom},
                                                          .Alignment = {Alignment_Left, Alignment_Top}},
-                                            .Padding = padding});
+                                            .Padding = tight ? 0.f : m_Style[OverlayStyle_WidgetPadding]});
+
+        const f32 height = (flags & OverlayDropDownFlag_HeightSmall) ? m_Style[OverlayStyle_DropDownHeightSmall]
+                                                                     : m_Style[OverlayStyle_DropDownHeightRegular];
+        const bool largest = flags & OverlayDropDownFlag_HeightLargest;
+
+        const usz sid = AsStackedId("Scroll");
+        const vec2<LayoutSizing> osizing = flex();
+        const vec2<LayoutSizing> csizing = {flex(), largest ? fit() : fit(0.f, height)};
+        const f32 cgap = tight ? 0.f : m_Style[OverlayStyle_ChildGap];
 
         ++m_CurrentPopupDepth;
+        PushStyleVar(OverlayStyle_ScrollBarGap, 0.f);
+        beginScroll({.Id = sid,
+                     .OuterSizing = osizing,
+                     .ContentSizing = csizing,
+                     .ContentPadding = 0.f,
+                     .ChildGap = cgap,
+                     .Flags = OverlayScrollFlag_NoBackground});
+
         queryAndSetFocusStatus(ly.QueryElement(did), FocusInfoFlag_DoNotSetPressedId | FocusInfoFlag_DoNotSetActiveId);
         return true;
     }
@@ -600,54 +648,61 @@ bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
     if (flags & OverlayScrollFlag_Title)
         ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
 
-    return beginScroll(id, outer, content, flags);
+    return beginScroll({.Id = id,
+                        .OuterSizing = outer,
+                        .ContentSizing = content,
+                        .ContentPadding = m_Style[OverlayStyle_ContentAreaPadding],
+                        .ChildGap = m_Style[OverlayStyle_ChildGap],
+                        .Flags = flags});
 }
 
-bool Overlay::beginScroll(const LayoutId id, const vec2<LayoutSizing> &outerSizing,
-                          const vec2<LayoutSizing> &contentSizing, const OverlayScrollFlags flags)
+bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
 {
     Layout &ly = getCurrentLayout();
-    ScrollInfo &sinfo = m_Scrollables[id];
-    sinfo.Flags = flags;
+    ScrollInfo &sinfo = m_Scrollables[specs.Id];
+    sinfo.Flags = specs.Flags;
 
     const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
-    const bool drawBar = !(flags & OverlayScrollFlag_NoScrollBar);
+    const bool drawBar = !(specs.Flags & OverlayScrollFlag_NoScrollBar);
     const vec2<Alignment> topLeft = {Alignment_Left, Alignment_Top};
 
-    const f32 cgap = m_Style[OverlayStyle_ChildGap];
-
-    const bool borders = flags & OverlayScrollFlag_Borders;
-    const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
-    m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
-                                                           .Direction = LayoutDirection_BottomToTop,
-                                                           .Alignment = topLeft,
-                                                           .Sizing = outerSizing,
-                                                           .Padding = borders ? padding : 0.f,
-                                                           .ChildGap = 0.25f * cgap});
+    const bool borders = specs.Flags & OverlayScrollFlag_Borders;
+    const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
+    const bool bckg = !(specs.Flags & OverlayScrollFlag_NoBackground);
+    m_LastWidget =
+        ly.BeginPanel(specs.Id, LayoutPanelParameters{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded]
+                                                                        : Color_Transparent,
+                                                      .Direction = LayoutDirection_BottomToTop,
+                                                      .Alignment = topLeft,
+                                                      .Sizing = specs.OuterSizing,
+                                                      .Padding = borders ? cpadding : 0.f,
+                                                      .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     const LayoutId contentId = AsStackedId("Content area");
-    if (!collapsed && (flags & OverlayScrollFlag_HorizontalScroll))
-        performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, drawBar);
+    if (!collapsed && (specs.Flags & OverlayScrollFlag_HorizontalScroll))
+        performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
 
-    ly.BeginPanel(AsStackedId("Vertical scroll area"), LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
-                                                                             .Alignment = topLeft,
-                                                                             .Sizing = outerSizing,
-                                                                             .ChildGap = 0.25f * cgap});
-    if (!collapsed && !(flags & OverlayScrollFlag_NoVerticalScroll))
-        performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, drawBar);
+    ly.BeginPanel(AsStackedId("Vertical scroll area"),
+                  LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
+                                        .Alignment = topLeft,
+                                        .Sizing = specs.ContentSizing,
+                                        .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
+
+    if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
+        performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
 
     ly.BeginPanel(contentId, LayoutPanelParameters{
                                  .Direction = LayoutDirection_TopToBottom,
                                  .Alignment = topLeft,
-                                 .Sizing = contentSizing,
+                                 .Sizing = specs.ContentSizing,
                                  .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset, -sinfo.Vertical.ElementOffset}),
-                                 .Padding = padding,
-                                 .ChildGap = cgap});
+                                 .Padding = specs.ContentPadding,
+                                 .ChildGap = specs.ChildGap});
 
-    if (isElementHovered(ly.QueryElement(id)))
+    if (isElementHovered(ly.QueryElement(specs.Id)))
     {
-        m_ScrollStack.Append(id);
+        m_ScrollStack.Append(specs.Id);
         return true;
     }
     return false;
@@ -1152,7 +1207,8 @@ FocusInfoFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const F
     const bool setHovered = !(flags & FocusInfoFlag_DoNotSetHoveredId);
     const bool setPressed = !(flags & FocusInfoFlag_DoNotSetPressedId);
     const bool setActive = !(flags & FocusInfoFlag_DoNotSetActiveId);
-    const bool protectPopup = !(flags & FocusInfoFlag_DoNotProtectPopup);
+    const bool protectPopup =
+        !(flags & FocusInfoFlag_DoNotProtectPopup) && !(m_EventFlags & EventFlag_PopupProtectionForbidden);
 
     bool lclicked = focusHovered;
     // NOTE(Isma): Could add a _ClickedOnMousePress for right clicks as well
@@ -1573,7 +1629,7 @@ void Overlay::processWindows()
 
     if (m_EventFlags & EventFlag_MustCollapsePopups)
     {
-        if (m_PopupCollapseDepth < m_PopupStack.GetSize())
+        if (m_PressingLeftMouse && m_PopupCollapseDepth < m_PopupStack.GetSize())
             m_EventFlags |= EventFlag_FocusBlockByPopupCollapse;
         m_PopupStack.Resize(m_PopupCollapseDepth);
     }

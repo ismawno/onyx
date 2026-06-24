@@ -73,27 +73,34 @@ int main()
 
             if (ui.PushTree("Dropdowns", drawLines))
             {
-                // const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
-                //                                                      "Element 4"};
-                // static u32 idx = 0;
-                // ui.DropDown("Dropdown", &idx, elements);
-                if (ui.BeginDropDown("Hello", "Some preview"))
+                static Onyx::OverlayDropDownFlags dflags = 0;
+                ui.CheckBoxFlags("OverlayDropDownFlag_NoArrowButton", &dflags, Onyx::OverlayDropDownFlag_NoArrowButton);
+                ui.CheckBoxFlags("OverlayDropDownFlag_NoPreview", &dflags, Onyx::OverlayDropDownFlag_NoPreview);
+                ui.CheckBoxFlags("OverlayDropDownFlag_HeightSmall", &dflags, Onyx::OverlayDropDownFlag_HeightSmall);
+                ui.CheckBoxFlags("OverlayDropDownFlag_HeightRegular", &dflags, Onyx::OverlayDropDownFlag_HeightRegular);
+                ui.CheckBoxFlags("OverlayDropDownFlag_HeightLargest", &dflags, Onyx::OverlayDropDownFlag_HeightLargest);
+                ui.CheckBoxFlags("OverlayDropDownFlag_Tight", &dflags, Onyx::OverlayDropDownFlag_Tight);
+                if (ui.BeginDropDown("Hello", "Some preview", dflags))
                 {
                     static bool dummy = false;
                     ui.TextRaw("Some text");
                     ui.Button("Im a button in a drop down!");
                     ui.CheckBox("You can pretty much put whatever you want in here...", &dummy);
 
-                    if (ui.BeginDropDown("Even another dropdown!", "I preview"))
+                    if (ui.BeginDropDown("Even another dropdown!", "I am another preview", dflags))
                     {
-                        ui.TextRaw("Cozy");
+                        for (u32 i = 0; i < 10; ++i)
+                            ui.TextRaw("Bla bla");
                         ui.EndDropDown();
                     }
 
                     ui.EndDropDown();
                 }
-                if (ui.BeginDropDown("Loooong test", "Preview"))
-                    ui.EndDropDown();
+                const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3",
+                                                                     "Element 4", "Element 5", "Element 6",
+                                                                     "Element 7", "Element 8"};
+                static u32 idx = 0;
+                ui.DropDown("One-liner", &idx, elements, dflags);
                 ui.PopTree();
             }
 
@@ -140,6 +147,10 @@ int main()
                                  Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
                                  Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopup", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
                 ui.CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
                 ui.CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
                 ui.CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
@@ -162,6 +173,8 @@ int main()
                 ui.Text("Blocked by pressed item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
                 ui.Text("Blocked by active item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
                 ui.Text("Blocked by popup : {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
+                ui.Text("Blocked by popup collapse : {}",
+                        bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
                 ui.Text("Natively hovered: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_Hovered));
 
                 ui.PopTree();
@@ -200,6 +213,7 @@ int main()
                 static Onyx::OverlayScrollFlags sflags = 0;
                 ui.CheckBoxFlags("OverlayScrollFlag_Borders", &sflags, Onyx::OverlayScrollFlag_Borders);
                 ui.CheckBoxFlags("OverlayScrollFlag_Title", &sflags, Onyx::OverlayScrollFlag_Title);
+                ui.CheckBoxFlags("OverlayScrollFlag_NoBackground", &sflags, Onyx::OverlayScrollFlag_NoBackground);
                 ui.CheckBoxFlags("OverlayScrollFlag_NoScrollBar", &sflags, Onyx::OverlayScrollFlag_NoScrollBar);
                 ui.CheckBoxFlags("OverlayScrollFlag_NoVerticalScroll", &sflags,
                                  Onyx::OverlayScrollFlag_NoVerticalScroll);
