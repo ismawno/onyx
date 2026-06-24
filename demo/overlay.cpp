@@ -71,14 +71,31 @@ int main()
                 ui.PopTree();
             }
 
-            // if (ui.PushTree("Dropdowns", drawLines))
-            // {
-            //     const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
-            //                                                          "Element 4"};
-            //     static u32 idx = 0;
-            //     ui.DropDown("Dropdown", &idx, elements);
-            //     ui.PopTree();
-            // }
+            if (ui.PushTree("Dropdowns", drawLines))
+            {
+                // const TKit::FixedArray<TKit::StringView, 4> elements{"Element 1", "Element 2", "Element 3",
+                //                                                      "Element 4"};
+                // static u32 idx = 0;
+                // ui.DropDown("Dropdown", &idx, elements);
+                if (ui.BeginDropDown("Hello", "Some preview"))
+                {
+                    static bool dummy = false;
+                    ui.TextRaw("Some text");
+                    ui.Button("Im a button in a drop down!");
+                    ui.CheckBox("You can pretty much put whatever you want in here...", &dummy);
+
+                    if (ui.BeginDropDown("Even another dropdown!", "I preview"))
+                    {
+                        ui.TextRaw("Cozy");
+                        ui.EndDropDown();
+                    }
+
+                    ui.EndDropDown();
+                }
+                if (ui.BeginDropDown("Loooong test", "Preview"))
+                    ui.EndDropDown();
+                ui.PopTree();
+            }
 
             if (ui.PushTree("Images", drawLines))
             {
@@ -117,8 +134,8 @@ int main()
                 static Onyx::OverlayHoveredFlags hflags = 0;
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
                                  Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
-                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByResize", &hflags,
-                                 Onyx::OverlayHoveredFlag_AllowBlockedByResize);
+                ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
+                                 Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
                                  Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
@@ -141,9 +158,10 @@ int main()
                 ui.Text("Opened: {}", opened);
 
                 ui.Text("Blocked by window: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
-                ui.Text("Blocked by resize: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByResize));
+                ui.Text("Blocked by window grab: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
                 ui.Text("Blocked by pressed item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
                 ui.Text("Blocked by active item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
+                ui.Text("Blocked by popup : {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
                 ui.Text("Natively hovered: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_Hovered));
 
                 ui.PopTree();

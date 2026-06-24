@@ -13,21 +13,29 @@ enum ResizeFlagBit : ResizeFlags
 };
 enum EventFlagBit : EventFlags
 {
-    EventFlag_MousePressed = 1U << 0,
-    EventFlag_MouseReleased = 1U << 1,
-    EventFlag_ActiveIdMustPersist = 1U << 2,
-    EventFlag_PressedIdMustPersist = 1U << 3,
-    EventFlag_ActiveAllowsInteraction = 1U << 4,
+    EventFlag_LeftMousePressed = 1U << 0,
+    EventFlag_LeftMouseReleased = 1U << 1,
+
+    EventFlag_RightMousePressed = 1U << 2,
+    EventFlag_RightMouseReleased = 1U << 3,
+
+    EventFlag_ActiveIdMustPersist = 1U << 4,
+    EventFlag_PressedIdMustPersist = 1U << 5,
+    EventFlag_ActiveAllowsInteraction = 1U << 6,
+
+    EventFlag_MustCollapsePopups = 1U << 7,
+    EventFlag_FocusBlockByPopupCollapse = 1U << 8,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
-    EventFlagPersist = EventFlag_ActiveAllowsInteraction
+    EventFlagPersist = EventFlag_ActiveAllowsInteraction | EventFlag_FocusBlockByPopupCollapse
 };
 enum WindowInternalFlagBit : OverlayWindowFlags
 {
     WindowInternalFlag_Collapsed = 1U << 0,
     WindowInternalFlag_Hovered = 1U << 1,
-    WindowInternalFlag_InputHovered = 1U << 2,
+    WindowInternalFlag_Focused = 1U << 2,
+    WindowInternalFlag_InputHovered = 1U << 3,
     // we clear only user flags. internal flags persist
-    WindowInternalFlagPersist = (1U << 3) - 1U
+    WindowInternalFlagPersist = (1U << 4) - 1U
 };
 
 OverlayStyleVariables CreateDefaultOverlayVariables()
@@ -50,7 +58,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_ContentAreaPadding] = 4.f;
 
     vars[OverlayStyle_ScrollBarWidth] = 8.f;
-    vars[OverlayStyle_ScrollSensitivity] = 16.f;
+    vars[OverlayStyle_ScrollSensitivity] = 64.f;
 
     vars[OverlayStyle_WidgetSize] = 24.f;
     vars[OverlayStyle_WidgetPadding] = 6.f;
@@ -284,7 +292,8 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
         if (scrollBar)
         {
-            const FocusInfoFlags focusFlags = queryFocusStatus(scrollBar, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+            const FocusInfoFlags focusFlags =
+                queryAndSetFocusStatus(scrollBar, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
             const bool pressed = focusFlags & FocusInfoFlag_Pressed;
             const bool hovered = focusFlags & FocusInfoFlag_Hovered;
@@ -341,19 +350,22 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
     const usz id = elm ? elm->Id : NullLayoutId;
 
     const bool hovered = elm && elm->IsHovered(m_MousePos);
-    const bool windowBlock = !m_Current->CheckFlags(WindowInternalFlag_Hovered);
-    const bool resizeBlock = m_Grabbed;
+    const bool windowBlock =
+        !m_Current->CheckFlags(WindowInternalFlag_Focused) && !m_Current->CheckFlags(WindowInternalFlag_Hovered);
+    const bool grabBlock = m_Grabbed;
     const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
     const bool activeBlocked =
         !(m_EventFlags & EventFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
-    const bool popupBlocked = m_CurrentPopupDepth < m_PopupStack.GetSize();
+    const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
+    const bool popupCollapseBlocked = m_EventFlags & EventFlag_FocusBlockByPopupCollapse;
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByResize * resizeBlock;
+    flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
     flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
     flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
 
     return flags;
 }
@@ -498,13 +510,71 @@ void Overlay::EndWindow()
     PopId();
 }
 
-// bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview)
-// {
-// }
-//
-// void Overlay::EndDropDown()
-// {
-// }
+bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview)
+{
+    Layout &ly = getCurrentLayout();
+    beginHorizontalWidget(PushId(label), 1.f);
+
+    const LayoutId id = AsStackedId("Drop down box");
+    const LayoutElement *elm = ly.QueryElement(id);
+    const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
+    const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
+
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_LeftClickOpensPopup);
+
+    if (focusFlags & FocusInfoFlag_Pressed)
+        boxCol = &m_Style[OverlayColor_DropDownPressed];
+    else if (focusFlags & FocusInfoFlag_Hovered)
+        boxCol = &m_Style[OverlayColor_DropDownHovered];
+
+    const bool dropDownActive = focusFlags & FocusInfoFlag_PopupOpen;
+    if (dropDownActive)
+        buttonCol = &m_Style[OverlayColor_DropDownButton];
+
+    ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
+                                            .Alignment = {Alignment_Left, Alignment_Center},
+                                            .Sizing = {m_CurrentPopupDepth == 0 ? snorm(0.7f) : flex(), fit()}});
+    const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+    ly.BeginPanel(AsStackedId("Parent"),
+                  LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
+
+    ly.Text(ly.GenerateNextId(), preview, getTextParams(OverlayColor_DropDownText));
+    ly.EndPanel();
+
+    ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
+
+    ly.BeginPanel(AsStackedId("Button box"),
+                  LayoutPanelParameters{.FillColor = *buttonCol,
+                                        .Alignment = Alignment_Center,
+                                        .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+
+    ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+    ly.EndPanel();
+    if (dropDownActive)
+    {
+        endHorizontalWidget(label, OverlayColor_Text);
+
+        const f32 size = elm ? elm->Size[0] : 0.f;
+        const usz did = AsStackedId("Drop down");
+        ly.BeginPanel(did,
+                      LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
+                                            .Direction = LayoutDirection_TopToBottom,
+                                            .Alignment = {Alignment_Left, Alignment_Top},
+                                            .Sizing = {fit(size), fit()},
+                                            .Floating = {.Enable = true,
+                                                         .Attachment = {LayoutAttachment_Left, LayoutAttachment_Bottom},
+                                                         .Alignment = {Alignment_Left, Alignment_Top}},
+                                            .Padding = padding});
+
+        ++m_CurrentPopupDepth;
+        queryAndSetFocusStatus(ly.QueryElement(did), FocusInfoFlag_DoNotSetPressedId | FocusInfoFlag_DoNotSetActiveId);
+        return true;
+    }
+    endHorizontalWidget(label, OverlayColor_Text);
+    ly.EndPanel();
+    PopId();
+    return false;
+}
 
 bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
                           const OverlayScrollFlags flags)
@@ -591,7 +661,7 @@ void Overlay::endScroll()
     ly.EndPanel();
 }
 
-void Overlay::beginHorizontalWidget(const usz id)
+void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 {
     Layout &ly = getCurrentLayout();
     const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
@@ -600,9 +670,10 @@ void Overlay::beginHorizontalWidget(const usz id)
                                                            .Sizing = {autoResize ? fit(mw) : flex(mw), fit()},
                                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.BeginPanel(AsStackedId("Container"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
-                                                                  .Sizing = {autoResize ? fit(mw) : snorm(0.6f), fit()},
-                                                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    ly.BeginPanel(AsStackedId("Container"),
+                  LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                        .Sizing = {autoResize ? fit(mw) : snorm(normSize), fit()},
+                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
 void Overlay::endHorizontalWidget(const TKit::StringView label, const OverlayColor labelColor)
 {
@@ -636,7 +707,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 
     const Color *col = framed ? &m_Style[OverlayColor_TreeIdle] : &Color_Transparent;
 
-    FocusInfoFlags focusFlags = queryFocusStatus(ly.QueryElement(id));
+    FocusInfoFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
     if (focusFlags & FocusInfoFlag_Pressed)
         col = &m_Style[OverlayColor_TreePressed];
     else if (focusFlags & FocusInfoFlag_Hovered)
@@ -662,7 +733,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
         AsStackedId("Tree collapse"),
         LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
-    bool toggleOpen = focusFlags & FocusInfoFlag_Clicked;
+    bool toggleOpen = focusFlags & FocusInfoFlag_LeftClicked;
     if (toggleOpen)
     {
         const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
@@ -735,9 +806,9 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     const LayoutId iboxId = AsStackedId("Input box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
     const FocusInfoFlags focusFlags =
-        queryFocusStatus(ibox, FocusInfoFlag_ClickedOnMousePress | FocusInfoFlag_KeepActiveOnRelease |
-                                   FocusInfoFlag_KeepActiveOnPressed | FocusInfoFlag_ActiveAllowsInteraction |
-                                   FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        queryAndSetFocusStatus(ibox, FocusInfoFlag_ClickedOnMousePress | FocusInfoFlag_KeepActiveOnRelease |
+                                         FocusInfoFlag_KeepActiveOnPressed | FocusInfoFlag_ActiveAllowsInteraction |
+                                         FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
     ly.BeginPanel(iboxId, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBackgroundCollapsed],
                                                 .Alignment = {Alignment_Left, Alignment_Center},
@@ -804,7 +875,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         });
 
         const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
-        const bool clicked = focusFlags & FocusInfoFlag_Clicked;
+        const bool clicked = focusFlags & FocusInfoFlag_LeftClicked;
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
         const u32 charCount = str.GetSize();
@@ -1022,7 +1093,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
     const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
-    const bool triggered = hovered && (dclick || (ctrl && checkFlags(EventFlag_MousePressed)));
+    const bool triggered = hovered && (dclick || (ctrl && checkFlags(EventFlag_LeftMousePressed)));
     const bool persisted =
         ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(m_MousePos)));
 
@@ -1043,7 +1114,7 @@ bool Overlay::collapseButton()
     Layout &ly = getCurrentLayout();
 
     const LayoutId id = AsStackedId("Collapse button");
-    const FocusInfoFlags focusFlags = queryFocusStatus(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
     const Color *col = &Color_Transparent;
     if (focusFlags & FocusInfoFlag_Pressed)
@@ -1057,10 +1128,10 @@ bool Overlay::collapseButton()
     ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_Header));
 
     ly.EndPanel();
-    return focusFlags & FocusInfoFlag_Clicked;
+    return focusFlags & FocusInfoFlag_LeftClicked;
 }
 
-FocusInfoFlags Overlay::queryFocusStatus(const LayoutElement *elm, const FocusInfoFlags flags)
+FocusInfoFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const FocusInfoFlags flags)
 {
     FocusInfoFlags outFlags = flags;
     if (!elm)
@@ -1069,63 +1140,109 @@ FocusInfoFlags Overlay::queryFocusStatus(const LayoutElement *elm, const FocusIn
     TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
                 "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
                 m_PopupStack.GetSize());
-    if (m_CurrentPopupDepth != m_PopupStack.GetSize())
-    {
-        if (m_PopupStack[m_CurrentPopupDepth - 1] == elm->Id)
-            outFlags |= FocusInfoFlag_PopupOpen;
-        return outFlags;
-    }
 
     const bool evenWhenAway = flags & FocusInfoFlag_PressedEvenWhenAwayFromHover;
 
-    const bool mreleased = checkFlags(EventFlag_MouseReleased);
-    const bool mpressed = checkFlags(EventFlag_MousePressed);
+    const bool lmpressed = checkFlags(EventFlag_LeftMousePressed);
+    const bool lmreleased = checkFlags(EventFlag_LeftMouseReleased);
 
-    const bool hovered = isElementHovered(elm);
+    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm);
+    const bool focusHovered = isElementHovered(hflags);
 
-    bool clicked = hovered;
+    const bool setHovered = !(flags & FocusInfoFlag_DoNotSetHoveredId);
+    const bool setPressed = !(flags & FocusInfoFlag_DoNotSetPressedId);
+    const bool setActive = !(flags & FocusInfoFlag_DoNotSetActiveId);
+    const bool protectPopup = !(flags & FocusInfoFlag_DoNotProtectPopup);
+
+    bool lclicked = focusHovered;
+    // NOTE(Isma): Could add a _ClickedOnMousePress for right clicks as well
     if (flags & FocusInfoFlag_ClickedOnMousePress)
-        clicked &= mpressed;
+        lclicked &= lmpressed;
     else
-        clicked &= mreleased && m_PressedId == elm->Id;
+        lclicked &= lmreleased && m_PressedId == elm->Id;
 
-    const bool pressed = (hovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingMouse;
+    // we leniently allow setting hovered id even when blocked by popups, so that windows dont eat into widget hover
+    // signals
+    const bool popupHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPopup |
+                                                           OverlayHoveredFlag_AllowBlockedByPopupCollapse);
+    if (popupHovered && protectPopup)
+        m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth);
+
+    if (m_CurrentPopupDepth != m_PopupStack.GetSize())
+    {
+        if (m_PopupStack[m_CurrentPopupDepth] == elm->Id)
+            outFlags |= FocusInfoFlag_PopupOpen;
+
+        // hover id is essentially used to stop from windows from moving/resizing when a widget is being hovered. we
+        // want to allow immediate dragging when out of the popup, and close everything, except for intermediate popups.
+        // those must still prevent windows from moving, because the popup hierarchy is still not completely collapsed
+        // TODO(Isma): Clicking outside of a depth > 1 popup to a depth lower than it different from zero interacts
+        // immediately with down widgets. this happens because focus is no longer blocked by m_Grabbed not being null.
+        // set an event flag that prevents hover if mouse is being pressed, somehow. up there, allow hover for popup
+        // check, something like "_AllowBlockedByRequest". essentially, mimick m_Grabbed blocked in an "official" way
+        if (setHovered && popupHovered && m_CurrentPopupDepth != 0)
+            m_HoveredId = elm->Id;
+
+        return outFlags;
+    }
+
+    const bool rclicked = focusHovered && checkFlags(EventFlag_RightMouseReleased);
+    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse;
+
+    if (focusHovered && setHovered)
+    {
+        m_HoveredId = elm->Id;
+        outFlags |= FocusInfoFlag_Hovered;
+    }
 
     if (pressed)
     {
         if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
             outFlags |= FocusInfoFlag_JustActive;
 
-        if (!(flags & FocusInfoFlag_SetActiveOnRelease))
+        if (setActive && !(flags & FocusInfoFlag_SetActiveOnRelease))
             m_ActiveId = elm->Id;
-        m_PressedId = elm->Id;
+        if (setPressed && !(flags & FocusInfoFlag_DoNotSetPressedId))
+            m_PressedId = elm->Id;
         outFlags |= FocusInfoFlag_Pressed;
     }
-    if (clicked)
+    if (lclicked)
     {
-        outFlags |= FocusInfoFlag_Clicked;
+        outFlags |= FocusInfoFlag_LeftClicked;
         if (m_OverflowClicks == 1)
             outFlags |= FocusInfoFlag_DoubleClicked;
 
-        if (flags & FocusInfoFlag_ToggleActiveOnRelease)
-            m_ActiveId = m_ActiveId == elm->Id ? NullLayoutId : elm->Id;
-        else
-            m_ActiveId = elm->Id;
+        if (setActive)
+        {
+            if (flags & FocusInfoFlag_ToggleActiveOnRelease)
+                m_ActiveId = m_ActiveId == elm->Id ? NullLayoutId : elm->Id;
+            else
+                m_ActiveId = elm->Id;
+        }
+        if (flags & FocusInfoFlag_LeftClickOpensPopup)
+        {
+            m_PopupStack.Append(elm->Id);
+            outFlags |= FocusInfoFlag_PopupOpen;
+        }
     }
-
-    if (hovered)
+    // no rclicked if lclicked, so that popup doesnt increase twice
+    else if (rclicked)
     {
-        m_HoveredId = elm->Id;
-        outFlags |= FocusInfoFlag_Hovered;
+        outFlags |= FocusInfoFlag_RightClicked;
+        if (flags & FocusInfoFlag_RightClickOpensPopup)
+        {
+            m_PopupStack.Append(elm->Id);
+            outFlags |= FocusInfoFlag_PopupOpen;
+        }
     }
 
-    if (m_PressedId == elm->Id && !mreleased)
+    if (m_PressedId == elm->Id && !lmreleased)
         m_EventFlags |= EventFlag_PressedIdMustPersist;
 
     if (m_ActiveId == elm->Id)
     {
-        const bool unclaimOnPress = mpressed && (!hovered || !(flags & FocusInfoFlag_KeepActiveOnPressed));
-        const bool unclaimOnRelease = mreleased && !(flags & FocusInfoFlag_KeepActiveOnRelease);
+        const bool unclaimOnPress = lmpressed && (!focusHovered || !(flags & FocusInfoFlag_KeepActiveOnPressed));
+        const bool unclaimOnRelease = lmreleased && !(flags & FocusInfoFlag_KeepActiveOnRelease);
         // NOTE(Isma): Should allow flagging as active still?
         if (!unclaimOnPress && !unclaimOnRelease)
         {
@@ -1147,7 +1264,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const FocusInfoFlags focusFlags = queryFocusStatus(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
     const Color *col = &m_Style[OverlayColor_ButtonIdle];
     if (focusFlags & FocusInfoFlag_Pressed)
@@ -1168,7 +1285,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
     PopId();
-    return focusFlags & FocusInfoFlag_Clicked;
+    return focusFlags & FocusInfoFlag_LeftClicked;
 }
 
 bool Overlay::RadioButton(const TKit::StringView label, const bool active)
@@ -1176,7 +1293,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const FocusInfoFlags focusFlags = queryFocusStatus(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
     const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
     if (focusFlags & FocusInfoFlag_Pressed)
@@ -1204,7 +1321,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
 
     ly.EndPanel();
     PopId();
-    return focusFlags & FocusInfoFlag_Clicked;
+    return focusFlags & FocusInfoFlag_LeftClicked;
 }
 
 // NOTE(Isma): Much repetition with radio button here
@@ -1213,7 +1330,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     Layout &ly = getCurrentLayout();
     const LayoutId id = PushId(label);
 
-    const FocusInfoFlags focusFlags = queryFocusStatus(ly.QueryElement(id));
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
     const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
     if (focusFlags & FocusInfoFlag_Pressed)
@@ -1221,7 +1338,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     else if (focusFlags & FocusInfoFlag_Hovered)
         col = &m_Style[OverlayColor_CheckBoxHovered];
 
-    if (focusFlags & FocusInfoFlag_Clicked)
+    if (focusFlags & FocusInfoFlag_LeftClicked)
         *enable = !*enable;
 
     m_LastWidget = ly.BeginPanel(id, LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
@@ -1242,7 +1359,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
 
     ly.EndPanel();
     PopId();
-    return focusFlags & FocusInfoFlag_Clicked;
+    return focusFlags & FocusInfoFlag_LeftClicked;
 }
 
 bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySelectableFlags flags)
@@ -1251,7 +1368,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     id = PushId(id);
     const LayoutElement *elm = ly.QueryElement(id);
 
-    const FocusInfoFlags focusFlags = queryFocusStatus(elm);
+    const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm);
 
     const bool highlight = flags & OverlaySelectableFlag_Highlight;
     const Color *col = highlight ? &m_Style[OverlayColor_SelectableHovered] : &m_Style[OverlayColor_SelectableIdle];
@@ -1273,7 +1390,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     if (!enabled && (flags & OverlaySelectableFlag_SelectOnDoubleClick))
         return focusFlags & FocusInfoFlag_DoubleClicked;
 
-    return focusFlags & FocusInfoFlag_Clicked;
+    return focusFlags & FocusInfoFlag_LeftClicked;
 }
 bool Overlay::BeginSelectable(const LayoutId id, bool *enabled, const OverlaySelectableFlags flags)
 {
@@ -1408,6 +1525,8 @@ void Overlay::Draw()
         m_IdStack.IsEmpty(),
         "[ONYX][OVERLAY] Id stack size mismatch (size = {}, should be 0). For every PushId(), there must be a PopId()",
         m_IdStack.GetSize());
+    if (m_OverlayWindows.IsEmpty())
+        return;
 
     processWindows();
     m_Context->Flush();
@@ -1448,6 +1567,17 @@ void Overlay::processWindows()
     if (!(m_EventFlags & EventFlag_PressedIdMustPersist))
         m_PressedId = NullLayoutId;
 
+    TKIT_ASSERT(m_PopupCollapseDepth <= m_PopupStack.GetSize(),
+                "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
+                m_PopupCollapseDepth, m_PopupStack.GetSize());
+
+    if (m_EventFlags & EventFlag_MustCollapsePopups)
+    {
+        if (m_PopupCollapseDepth < m_PopupStack.GetSize())
+            m_EventFlags |= EventFlag_FocusBlockByPopupCollapse;
+        m_PopupStack.Resize(m_PopupCollapseDepth);
+    }
+
     m_EventFlags &= EventFlagPersist;
 
     m_EventKeys.ClearAll();
@@ -1462,13 +1592,14 @@ void Overlay::processWindows()
         iterateReverseWindows([&](OverlayWindow &win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
             const bool winHovered = win.CheckFlags(WindowInternalFlag_Hovered);
+            const bool popupLocked = win.PopupDepth != m_PopupStack.GetSize();
             if (winHovered && win.CheckFlags(WindowInternalFlag_InputHovered))
             {
                 win.Resize.Flags = 0;
                 cursor = MouseCursor_IBeam;
                 return false;
             }
-            if (!winHovered || widgetHovered || widgetPressed || widgetLocked)
+            if (!winHovered || widgetHovered || widgetPressed || widgetLocked || popupLocked)
             {
                 win.Resize.Flags = 0;
                 return true;
@@ -1512,7 +1643,7 @@ void Overlay::processWindows()
     {
         const bool collapsed = Math::Approximately(win.Size[1], win.MinSize[1], 1.f);
         win.HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
-        win.RemoveFlags(WindowInternalFlag_Hovered);
+        win.RemoveFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
     };
 
     // check for mouse events
@@ -1521,17 +1652,29 @@ void Overlay::processWindows()
     m_TextInput.Clear();
     for (const Event &ev : m_Window->GetNewEvents())
     {
-        if (ev.Type == Event_MousePressed && ev.Mouse.Button == Mouse_Button1)
+        if (ev.Type == Event_MousePressed)
         {
-            m_EventFlags |= EventFlag_MousePressed;
-            m_PressingMouse = true;
+            if (ev.Mouse.Button == Mouse_Button1)
+            {
+                m_EventFlags |= EventFlag_LeftMousePressed | EventFlag_MustCollapsePopups;
+                m_PopupCollapseDepth = 0;
+                m_PressingLeftMouse = true;
+            }
+            if (ev.Mouse.Button == Mouse_Button2)
+                m_EventFlags |= EventFlag_RightMousePressed;
         }
-        else if (ev.Type == Event_MouseReleased && ev.Mouse.Button == Mouse_Button1)
+        else if (ev.Type == Event_MouseReleased)
         {
-            m_EventFlags |= EventFlag_MouseReleased;
-            if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
-                ++m_OverflowClicks;
-            m_PressingMouse = false;
+            if (ev.Mouse.Button == Mouse_Button1)
+            {
+                m_EventFlags |= EventFlag_LeftMouseReleased;
+                if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
+                    ++m_OverflowClicks;
+                m_PressingLeftMouse = false;
+                m_EventFlags &= ~EventFlag_FocusBlockByPopupCollapse;
+            }
+            if (ev.Mouse.Button == Mouse_Button2)
+                m_EventFlags |= EventFlag_RightMouseReleased;
         }
         else if (ev.Type == Event_Scrolled)
             scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
@@ -1553,11 +1696,17 @@ void Overlay::processWindows()
     u32 idx = m_OverlayWindows.GetSize();
     // go through the windows to 1. assign the mouse events to the uppermost hovered window and 2. assign such
     // window as grabbed if user pressed the mouse
-    const bool pressed = m_EventFlags & EventFlag_MousePressed;
+    const bool pressed = m_EventFlags & EventFlag_LeftMousePressed;
     iterateReverseWindows([&](OverlayWindow &win) {
         --idx;
-        const bool winHovered =
-            canAssignHover && win.Layout.IsHovered(win.Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding]);
+        const bool popupLocked = win.PopupDepth != m_PopupStack.GetSize();
+        // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
+        // if we are popup locked, we can still allow hovering if no depth > 0 widget previously set hovering id. this
+        // is because we want to allow dragging immediately when collapsing the whole popup stack, but we dont want
+        // dragging when collapsing all. thats why when popups exist, only widgets that belong to the popup tree (any
+        // depth except 0) are allowed to set hovered id
+        const bool winHovered = (!popupLocked || !widgetHovered) && canAssignHover &&
+                                win.Layout.IsHovered(win.Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding]);
         const bool inputHovered = win.CheckFlags(WindowInternalFlag_InputHovered);
 
         win.Flags |= wflags;
@@ -1585,9 +1734,10 @@ void Overlay::processWindows()
         }
         return true;
     });
+    m_OverlayWindows.GetBack().AddFlags(WindowInternalFlag_Focused);
 
     // now just handle grabbing, which is straightforward
-    if (!m_PressingMouse)
+    if (!m_PressingLeftMouse)
     {
         m_Grabbed = nullptr;
         m_MousePosOnPress = m_MousePos;
@@ -1682,12 +1832,16 @@ OverlayWindow *Overlay::getOrCreateOverlayWindow(const usz id)
 {
     for (u32 i = 0; i < m_WindowIds.GetSize(); ++i)
         if (id == m_WindowIds[i])
+        {
+            m_OverlayWindows[i].PopupDepth = m_CurrentPopupDepth;
             return &m_OverlayWindows[i];
+        }
 
     m_WindowIds.Append(id);
     OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
     win.HeaderIcon = ArrowDownIcon;
     win.Position += m_WindowSpawnOffset;
+    win.PopupDepth = m_CurrentPopupDepth;
     m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
     return &win;
 }

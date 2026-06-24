@@ -26,7 +26,7 @@ enum ResizeEdge : u8
     ResizeEdge_Count
 };
 using ResizeFlags = u8;
-using EventFlags = u8;
+using EventFlags = u16;
 
 using WidgetStateFlags = u8;
 enum WidgetStateFlagBit : WidgetStateFlags
@@ -35,24 +35,31 @@ enum WidgetStateFlagBit : WidgetStateFlags
     WidgetStateFlag_ConvertedToInput = 1U << 1,
 };
 
-using FocusInfoFlags = u16;
+using FocusInfoFlags = u32;
 enum FocusInfoFlagBit : FocusInfoFlags
 {
     FocusInfoFlag_Hovered = 1U << 0,
     FocusInfoFlag_Pressed = 1U << 1,
-    FocusInfoFlag_Clicked = 1U << 2,
-    FocusInfoFlag_DoubleClicked = 1U << 3,
-    FocusInfoFlag_Active = 1U << 4,
-    FocusInfoFlag_JustActive = 1U << 5,
-    FocusInfoFlag_PopupOpen = 1U << 6,
+    FocusInfoFlag_LeftClicked = 1U << 2,
+    FocusInfoFlag_RightClicked = 1U << 3,
+    FocusInfoFlag_DoubleClicked = 1U << 4,
+    FocusInfoFlag_Active = 1U << 5,
+    FocusInfoFlag_JustActive = 1U << 6,
+    FocusInfoFlag_PopupOpen = 1U << 7,
 
-    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 7,
-    FocusInfoFlag_ClickedOnMousePress = 1U << 8,
-    FocusInfoFlag_KeepActiveOnPressed = 1U << 9,
-    FocusInfoFlag_KeepActiveOnRelease = 1U << 10,
-    FocusInfoFlag_SetActiveOnRelease = 1U << 11,
-    FocusInfoFlag_ToggleActiveOnRelease = 1U << 12,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 13,
+    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 8,
+    FocusInfoFlag_ClickedOnMousePress = 1U << 9,
+    FocusInfoFlag_KeepActiveOnPressed = 1U << 10,
+    FocusInfoFlag_KeepActiveOnRelease = 1U << 11,
+    FocusInfoFlag_SetActiveOnRelease = 1U << 12,
+    FocusInfoFlag_ToggleActiveOnRelease = 1U << 13,
+    FocusInfoFlag_ActiveAllowsInteraction = 1U << 14,
+    FocusInfoFlag_LeftClickOpensPopup = 1U << 15,
+    FocusInfoFlag_RightClickOpensPopup = 1U << 16,
+    FocusInfoFlag_DoNotSetHoveredId = 1U << 17,
+    FocusInfoFlag_DoNotSetPressedId = 1U << 18,
+    FocusInfoFlag_DoNotSetActiveId = 1U << 19,
+    FocusInfoFlag_DoNotProtectPopup = 1U << 20,
 };
 
 using InputConvertInfoFlags = u8;
@@ -111,24 +118,26 @@ using OverlayHoveredFlags = u16;
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
 {
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
-    OverlayHoveredFlag_AllowBlockedByResize = 1U << 1,
+    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
     OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
     OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 5,
-    OverlayHoveredFlag_ShortDelay = 1U << 6,
-    OverlayHoveredFlag_NormalDelay = 1U << 7,
-    OverlayHoveredFlag_Stationary = 1U << 8,
+    OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 6,
+    OverlayHoveredFlag_ShortDelay = 1U << 7,
+    OverlayHoveredFlag_NormalDelay = 1U << 8,
+    OverlayHoveredFlag_Stationary = 1U << 9,
 };
 
 using OverlayHoverQueryFlags = u16;
 enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
 {
     OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
-    OverlayHoverQueryFlag_BlockedByResize = OverlayHoveredFlag_AllowBlockedByResize,
+    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
     OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
     OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
     OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
+    OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
     OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
@@ -211,6 +220,7 @@ struct OverlayWindow
     f32v2 Size{240.f};
     f32v2 MinSize;
     f32 LastHeight = 240.f;
+    u32 PopupDepth = 0;
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
 
@@ -546,111 +556,6 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    // template <TKit::Integer T>
-    // bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements)
-    // {
-    //     const T old = *current;
-    //     Layout &ly = getCurrentLayout();
-    //     beginHorizontalWidget(PushId(label));
-    //
-    //     const LayoutId id = AsStackedId("Drop down box");
-    //     const LayoutElement *elm = ly.QueryElement(id);
-    //     const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
-    //     const Color *buttonCol = &m_Style[OverlayColor_DropDownHovered];
-    //
-    //     const FocusInfoFlags focusFlags =
-    //         queryFocusStatus(elm, FocusInfoFlag_KeepActiveOnRelease | FocusInfoFlag_SetActiveOnRelease |
-    //                                      FocusInfoFlag_ToggleActiveOnRelease);
-    //
-    //     if (focusFlags & FocusInfoFlag_Pressed)
-    //         boxCol = &m_Style[OverlayColor_DropDownPressed];
-    //     else if (focusFlags & FocusInfoFlag_Hovered)
-    //         boxCol = &m_Style[OverlayColor_DropDownHovered];
-    //
-    //     const usz did = AsStackedId("Drop down");
-    //     const bool dropDownActive =
-    //         (focusFlags & FocusInfoFlag_Active) || checkWidgetState(did, WidgetStateFlag_Opened);
-    //     if (dropDownActive)
-    //         buttonCol = &m_Style[OverlayColor_DropDownButton];
-    //
-    //     ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *boxCol,
-    //                                             .Alignment = {Alignment_Left, Alignment_Center},
-    //                                             .Sizing = {flex(), fit()}});
-    //
-    //     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-    //     ly.BeginPanel(AsStackedId("Parent"),
-    //                   LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = padding});
-    //
-    //     const bool valid = *current < elements.GetSize() && *current >= 0;
-    //     if (valid)
-    //         ly.Text(ly.GenerateNextId(), elements[*current], getTextParams(OverlayColor_DropDownText));
-    //
-    //     ly.EndPanel();
-    //
-    //     ly.Panel(AsStackedId("Push"), LayoutPanelParameters{.Sizing = grow()});
-    //
-    //     ly.BeginPanel(AsStackedId("Button box"),
-    //                   LayoutPanelParameters{.FillColor = *buttonCol,
-    //                                         .Alignment = Alignment_Center,
-    //                                         .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
-    //
-    //     ly.Unicode(AsStackedId("Icon"), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
-    //     ly.EndPanel();
-    //
-    //     if (dropDownActive)
-    //     {
-    //         ly.BeginPanel(
-    //             did, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_DropDownIdle],
-    //                                        .Direction = LayoutDirection_TopToBottom,
-    //                                        .Alignment = {Alignment_Left, Alignment_Top},
-    //                                        .Sizing = {snorm(1.f), fit()},
-    //                                        .Floating = {.Enable = true,
-    //                                                     .Attachment = {LayoutAttachment_Left,
-    //                                                     LayoutAttachment_Bottom}, .Alignment = {Alignment_Left,
-    //                                                     Alignment_Top}}});
-    //
-    //         m_WidgetStates[did] = 0;
-    //         for (u32 i = 0; i < elements.GetSize(); ++i)
-    //         {
-    //             const usz elid = AsStackedId(i);
-    //             const LayoutElement *elm = ly.QueryElement(elid);
-    //             const FocusInfoFlags cfFlags =
-    //                 queryFocusStatus(elm, FocusInfoFlag_IgnoreActive |
-    //                 FocusInfoFlag_PressedEvenWhenAwayFromHover);
-    //
-    //             const Color *col = &Color_Transparent;
-    //             const bool pressed = cfFlags & FocusInfoFlag_Pressed;
-    //             const bool hovered = cfFlags & FocusInfoFlag_Hovered;
-    //
-    //             if (cfFlags & FocusInfoFlag_Clicked)
-    //                 *current = i;
-    //             else if (pressed || hovered)
-    //                 m_WidgetStates[did] |= WidgetStateFlag_Opened;
-    //
-    //             if (pressed)
-    //                 col = &m_Style[OverlayColor_DropDownPressed];
-    //             else if (hovered || i == *current)
-    //                 col = &m_Style[OverlayColor_DropDownHovered];
-    //
-    //             ly.BeginPanel(elid, LayoutPanelParameters{.FillColor = *col,
-    //                                                       .Direction = LayoutDirection_TopToBottom,
-    //                                                       .Alignment = {Alignment_Left, Alignment_Center},
-    //                                                       .Sizing = {grow(), fit()},
-    //                                                       .Padding = padding});
-    //
-    //             ly.Text(ly.GenerateNextId(), elements[i], getTextParams(OverlayColor_DropDownText));
-    //             ly.EndPanel();
-    //         }
-    //
-    //         ly.EndPanel();
-    //     }
-    //     ly.EndPanel();
-    //
-    //     endHorizontalWidget(label, OverlayColor_Text);
-    //     PopId();
-    //     return old != *current;
-    // }
-
     // /widgets //
 
     // display //
@@ -723,8 +628,15 @@ class Overlay
         return true;
     }
 
-    // bool BeginDropDown(TKit::StringView label, TKit::StringView preview);
-    // void EndDropDown();
+    bool BeginDropDown(TKit::StringView label, TKit::StringView preview);
+    void EndDropDown()
+    {
+        Layout &ly = getCurrentLayout();
+        ly.EndPanel();
+        ly.EndPanel();
+        PopId();
+        --m_CurrentPopupDepth;
+    }
 
     // /tooltips //
 
@@ -916,7 +828,7 @@ class Overlay
                      OverlayScrollFlags flags);
     void endScroll();
 
-    void beginHorizontalWidget(usz id);
+    void beginHorizontalWidget(usz id, f32 normSize = 0.7f);
     void endHorizontalWidget(TKit::StringView label, OverlayColor labelColor);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
@@ -946,7 +858,7 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        const FocusInfoFlags focusFlags = queryFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
@@ -1052,7 +964,7 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        const FocusInfoFlags focusFlags = queryFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & FocusInfoFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
@@ -1196,7 +1108,7 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
-    FocusInfoFlags queryFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
+    FocusInfoFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
@@ -1295,13 +1207,14 @@ class Overlay
     // stack in reverse, and if none is hovered, then that one is hovered and other popups can close
     TKit::TierArray<usz> m_PopupStack{};
     u32 m_CurrentPopupDepth = 0;
+    u32 m_PopupCollapseDepth = 0;
 
     f64 m_DragValue = 0.;
 
     // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
     // pressed event. this is important for elements that if they are active think they are currently pressed,
     // causing the firs mouse click outside their bounding box to still qualify as pressed
-    bool m_PressingMouse = false;
+    bool m_PressingLeftMouse = false;
     //
 
     // text input info

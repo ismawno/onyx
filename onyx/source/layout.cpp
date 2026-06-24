@@ -157,7 +157,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
 void Layout::EndPanel()
 {
     TKIT_ASSERT(!m_ElementStack.IsEmpty(),
-                "[ONYX][UI] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
+                "[ONYX][LAYOUT] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
     const u32 c = m_ElementStack.GetBack();
     if (m_Elements[c].NonFloatChildCount != 0)
