@@ -139,7 +139,9 @@ int main()
 
             if (ui.PushTree("Queries", drawLines))
             {
+                ui.HorizontalSeparator("Hover flags");
                 static Onyx::OverlayHoveredFlags hflags = 0;
+
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
                                  Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
                 ui.CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
@@ -157,26 +159,53 @@ int main()
                 ui.CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
                 ui.CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
 
+                ui.HorizontalSeparator("Focus flags");
+                static Onyx::OverlayFocusFlags fflags = 0;
+                ui.CheckBoxFlags("OverlayFocusFlag_PressedEvenWhenAwayFromHover", &fflags,
+                                 Onyx::OverlayFocusFlag_PressedEvenWhenAwayFromHover);
+
+                ui.HorizontalSeparator("The experiment");
                 if (ui.PushTree("I am to be queried"))
                     ui.PopTree();
 
                 const bool hovered = ui.IsItemHovered(hflags);
-                const bool active = ui.IsItemActive();
                 const bool opened = ui.IsItemOpened();
-                const Onyx::OverlayHoverQueryFlags qflags = ui.QueryItemHoverStatus();
+                const Onyx::OverlayHoverQueryFlags hqflags = ui.QueryItemHoverStatus();
+                const Onyx::OverlayFocusQueryFlags fqflags = ui.QueryItemFocusStatus(fflags);
 
+                ui.HorizontalSeparator("Hovering info");
                 ui.Text("Hovered: {}", hovered);
-                ui.Text("Active: {}", active);
-                ui.Text("Opened: {}", opened);
-
-                ui.Text("Blocked by window: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
-                ui.Text("Blocked by window grab: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
-                ui.Text("Blocked by pressed item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
-                ui.Text("Blocked by active item: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
-                ui.Text("Blocked by popup : {}", bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
+                ui.Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
+                ui.Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
+                ui.Text("Blocked by pressed item: {}",
+                        bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
+                ui.Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
+                ui.Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
                 ui.Text("Blocked by popup collapse : {}",
-                        bool(qflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
-                ui.Text("Natively hovered: {}", bool(qflags & Onyx::OverlayHoverQueryFlag_Hovered));
+                        bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
+                ui.Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
+
+                ui.HorizontalSeparator("Focus info");
+
+                static TKit::Clock lclickClock{};
+                static TKit::Clock rclickClock{};
+
+                if (fqflags & Onyx::OverlayFocusQueryFlag_LeftClicked)
+                    lclickClock.Restart();
+                if (fqflags & Onyx::OverlayFocusQueryFlag_RightClicked)
+                    rclickClock.Restart();
+
+                ui.Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
+                ui.Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
+                ui.Text("Left clicked: true {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
+                ui.Text("Right clicked: true {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
+                ui.Text("Double clicked: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked));
+                ui.Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
+                ui.Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
+                ui.Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
+
+                ui.HorizontalSeparator("State info");
+                ui.Text("Opened: {}", opened);
 
                 ui.PopTree();
             }

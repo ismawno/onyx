@@ -28,6 +28,7 @@ enum ResizeEdge : u8
 using ResizeFlags = u8;
 using EventFlags = u16;
 
+// NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
 using WidgetStateFlags = u8;
 enum WidgetStateFlagBit : WidgetStateFlags
 {
@@ -35,37 +36,52 @@ enum WidgetStateFlagBit : WidgetStateFlags
     WidgetStateFlag_ConvertedToInput = 1U << 1,
 };
 
-using FocusInfoFlags = u32;
-enum FocusInfoFlagBit : FocusInfoFlags
+// public focus query flags -> these flags are given to the user/dev by queries
+using OverlayFocusQueryFlags = u8;
+enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
 {
-    FocusInfoFlag_Hovered = 1U << 0,
-    FocusInfoFlag_Pressed = 1U << 1,
-    FocusInfoFlag_LeftClicked = 1U << 2,
-    FocusInfoFlag_RightClicked = 1U << 3,
-    FocusInfoFlag_DoubleClicked = 1U << 4,
-    FocusInfoFlag_Active = 1U << 5,
-    FocusInfoFlag_JustActive = 1U << 6,
-    FocusInfoFlag_PopupOpen = 1U << 7,
+    OverlayFocusQueryFlag_Hovered = 1U << 0,
+    OverlayFocusQueryFlag_Pressed = 1U << 1,
+    OverlayFocusQueryFlag_LeftClicked = 1U << 2,
+    OverlayFocusQueryFlag_RightClicked = 1U << 3,
+    OverlayFocusQueryFlag_DoubleClicked = 1U << 4,
+    OverlayFocusQueryFlag_Active = 1U << 5,
+    OverlayFocusQueryFlag_JustActive = 1U << 6,
+    OverlayFocusQueryFlag_PopupOpen = 1U << 7,
+};
 
-    FocusInfoFlag_PressedEvenWhenAwayFromHover = 1U << 8,
-    FocusInfoFlag_ClickedOnMousePress = 1U << 9,
-    FocusInfoFlag_KeepActiveOnPressed = 1U << 10,
-    FocusInfoFlag_KeepActiveOnRelease = 1U << 11,
-    FocusInfoFlag_SetActiveOnRelease = 1U << 12,
-    FocusInfoFlag_ToggleActiveOnRelease = 1U << 13,
-    FocusInfoFlag_ActiveAllowsInteraction = 1U << 14,
-    FocusInfoFlag_LeftClickOpensPopup = 1U << 15,
-    FocusInfoFlag_RightClickOpensPopup = 1U << 16,
-    FocusInfoFlag_DoNotSetHoveredId = 1U << 17,
-    FocusInfoFlag_DoNotSetPressedId = 1U << 18,
-    FocusInfoFlag_DoNotSetActiveId = 1U << 19,
-    FocusInfoFlag_DoNotProtectPopup = 1U << 20,
+// internal focus flags -> these configure how querying focus behave
+using FocusFlags = u32;
+enum FocusFlagBit : FocusFlags
+{
+    FocusFlag_PressedEvenWhenAwayFromHover = 1U << 8,
+    FocusFlag_ClickedOnMousePress = 1U << 9,
+    FocusFlag_KeepActiveOnPressed = 1U << 10,
+    FocusFlag_KeepActiveOnRelease = 1U << 11,
+    FocusFlag_SetActiveOnRelease = 1U << 12,
+    FocusFlag_ToggleActiveOnRelease = 1U << 13,
+    FocusFlag_ActiveAllowsInteraction = 1U << 14,
+    FocusFlag_LeftClickOpensPopup = 1U << 15,
+    FocusFlag_RightClickOpensPopup = 1U << 16,
+    FocusFlag_DoNotSetHoveredId = 1U << 17,
+    FocusFlag_DoNotSetPressedId = 1U << 18,
+    FocusFlag_DoNotSetActiveId = 1U << 19,
+    FocusFlag_DoNotProtectPopup = 1U << 20,
+    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
+                         FocusFlag_DoNotProtectPopup
+};
+
+// same as above, but public
+using OverlayFocusFlags = u32;
+enum OverlayFocusFlagBit : OverlayFocusFlags
+{
+    OverlayFocusFlag_PressedEvenWhenAwayFromHover = FocusFlag_PressedEvenWhenAwayFromHover
 };
 
 using InputConvertInfoFlags = u8;
 enum InputConvertFlagBit : InputConvertInfoFlags
 {
-    InputConvertFlag_Hovered = FocusInfoFlag_Hovered,
+    InputConvertFlag_Hovered = OverlayFocusQueryFlag_Hovered,
     InputConvertFlag_MustConvert = 1U << 1,
     InputConvertFlag_MustOverrideHighlight = 1U << 2,
     InputConvertFlag_AllowDoubleClick = 1U << 3,
@@ -849,13 +865,41 @@ class Overlay
     {
         return queryHoverStatus(getCurrentLayout().QueryElement(m_LastWidget));
     }
+    OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
+    {
+        return queryAndSetFocusStatus(getCurrentLayout().QueryElement(m_LastWidget), flags | FocusFlag_ReadOnly);
+    }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0)
     {
         return isElementHovered(getCurrentLayout().QueryElement(m_LastWidget), flags);
     }
-    bool IsItemActive() const
+    bool IsItemPressed(const OverlayFocusFlags flags = 0)
     {
-        return m_LastWidget == m_ActiveId;
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_Pressed;
+    }
+    bool IsItemLeftClicked(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_LeftClicked;
+    }
+    bool IsItemRightClicked(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_RightClicked;
+    }
+    bool IsItemDoubleClicked(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DoubleClicked;
+    }
+    bool IsItemActive(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_Active;
+    }
+    bool IsItemJustActive(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_JustActive;
+    }
+    bool HasItemAnOpenPopup(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_PopupOpen;
     }
     bool IsItemOpened() const
     {
@@ -910,7 +954,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHovered(elm) ? FocusInfoFlag_Hovered : 0);
+                mustConvertToInputBox(isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -925,11 +969,11 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_SliderIdle];
-        const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
 
-        if (focusFlags & FocusInfoFlag_Pressed)
+        if (focusFlags & OverlayFocusQueryFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
-        else if (focusFlags & FocusInfoFlag_Hovered)
+        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
             col = &m_Style[OverlayColor_SliderHovered];
 
         const f32 length = elm ? elm->Size[0] : 0.f;
@@ -952,7 +996,7 @@ class Overlay
 
         f32 offset = 0.f;
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
-        if ((focusFlags & FocusInfoFlag_Pressed) && !m_Window->IsKeyPressed(Key_LeftControl))
+        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !m_Window->IsKeyPressed(Key_LeftControl))
         {
             f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
@@ -1016,7 +1060,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags = mustConvertToInputBox(
-                (isElementHovered(elm) ? FocusInfoFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
+                (isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -1031,17 +1075,17 @@ class Overlay
         format = getFormat<T>(format);
 
         const Color *col = &m_Style[OverlayColor_DragIdle];
-        const FocusInfoFlags focusFlags = queryAndSetFocusStatus(elm, FocusInfoFlag_PressedEvenWhenAwayFromHover);
+        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
 
-        if (focusFlags & FocusInfoFlag_Pressed)
+        if (focusFlags & OverlayFocusQueryFlag_Pressed)
             col = &m_Style[OverlayColor_SliderPressed];
-        else if (focusFlags & FocusInfoFlag_Hovered)
+        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
             col = &m_Style[OverlayColor_SliderHovered];
 
-        if (focusFlags & FocusInfoFlag_JustActive)
+        if (focusFlags & OverlayFocusQueryFlag_JustActive)
             m_DragValue = f64(*value);
 
-        if (focusFlags & FocusInfoFlag_Pressed)
+        if (focusFlags & OverlayFocusQueryFlag_Pressed)
         {
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
@@ -1175,7 +1219,7 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
-    FocusInfoFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusInfoFlags flags = 0);
+    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
