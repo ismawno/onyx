@@ -250,7 +250,8 @@ struct LayoutElement
     LayoutOverflowMode SelfOverflow;
     LayoutOverflowMode ChildOverflow;
 
-    bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}) const;
+    // NOTE(Isma, 25/06/06): Bool arg. not very nice but a bit overkill setting up flags for an option
+    bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
 };
 
 struct LayoutDrawInfo
@@ -436,10 +437,11 @@ class Layout
 
     const LayoutElement *QueryElement(LayoutId id) const;
 
-    bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f}) const
+    bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f},
+                   const bool applyPaddingToClip = true) const
     {
         const LayoutElement *elm = QueryElement(id);
-        return elm ? elm->IsHovered(point, padding) : false;
+        return elm ? elm->IsHovered(point, padding, applyPaddingToClip) : false;
     }
 
     void Compile();

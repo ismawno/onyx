@@ -99,6 +99,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_NoHeaderBar = 1U << 11,
     OverlayWindowFlag_NoBringToFocus = 1U << 12,
     OverlayWindowFlag_AutoResize = 1U << 13,
+    OverlayWindowFlag_BringToTop = 1U << 14,
 };
 
 using OverlayScrollFlags = u16;
@@ -198,6 +199,20 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_NoInput = 1U << 3,
 };
 
+using NextWindowFlags = u8;
+enum NextWindowFlagBit : NextWindowFlags
+{
+    NextWindowFlag_Position = 1U << 0,
+    NextWindowFlag_Size = 1U << 1,
+};
+
+struct NextWindowData
+{
+    f32v2 Position;
+    f32v2 Size;
+    NextWindowFlags Flags = 0;
+};
+
 struct ResizeInfo
 {
     TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
@@ -250,6 +265,7 @@ struct OverlayWindow
     }
 
     usz Id = NullLayoutId;
+    u64 Layer;
 
     ResizeInfo Resize{};
 
@@ -481,6 +497,21 @@ class Overlay
   public:
     Overlay(Window *win, const UserInterfaceSpecs &specs = {});
 
+    void SetNextWindowPosition(const f32v2 &pos)
+    {
+        m_NextWindow.Position = pos;
+        m_NextWindow.Flags |= NextWindowFlag_Position;
+    }
+    void SetNextWindowSize(const f32v2 &size)
+    {
+        m_NextWindow.Size = size;
+        m_NextWindow.Flags |= NextWindowFlag_Size;
+    }
+    void SetNextTextId(const LayoutId id)
+    {
+        m_TextId = id;
+    }
+
     // windows //
     // TODO(Isma): Should return id
     bool BeginWindow(TKit::StringView title, OverlayWindowFlags flags = 0);
@@ -657,28 +688,17 @@ class Overlay
 
     // /display //
 
-    // tooltips //
-    void BeginTooltip();
-    void EndTooltip();
-    template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    // popups
+
+    void OpenPopup(const LayoutId id)
     {
-        BeginTooltip();
-        Text(str, std::forward<Args>(args)...);
-        EndTooltip();
+        m_PopupStack.Append(id);
     }
-
-    bool BeginItemTooltip(OverlayHoveredFlags flags = 0);
-    template <typename... Args> bool SetItemTooltip(const fmt::format_string<Args...> str, Args &&...args)
-    {
-        if (!BeginItemTooltip())
-            return false;
-
-        Text(str, std::forward<Args>(args)...);
-        EndTooltip();
-        return true;
-    }
-
     void CloseCurrentPopup();
+
+    bool BeginPopup(TKit::StringView title, OverlayWindowFlags flags = 0);
+    void EndPopup();
+
     bool BeginDropDown(TKit::StringView label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
     void EndDropDown()
     {
@@ -720,6 +740,35 @@ class Overlay
         for (const TKit::StackString &elm : splits)
             views.Append(elm);
         return DropDown(label, current, views, flags);
+    }
+
+    // /popups
+
+    // tooltips //
+    void BeginTooltip();
+    void EndTooltip();
+    template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        BeginTooltip();
+        Text(str, std::forward<Args>(args)...);
+        EndTooltip();
+    }
+
+    bool BeginItemTooltip(OverlayHoveredFlags flags = 0);
+
+    template <typename... Args>
+    bool SetItemTooltip(const OverlayHoveredFlags flags, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        if (!BeginItemTooltip(flags))
+            return false;
+
+        Text(str, std::forward<Args>(args)...);
+        EndTooltip();
+        return true;
+    }
+    template <typename... Args> bool SetItemTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        return SetItemTooltip(0, str, std::forward<Args>(args)...);
     }
 
     // /tooltips //
@@ -863,15 +912,15 @@ class Overlay
     // query //
     OverlayHoverQueryFlags QueryItemHoverStatus() const
     {
-        return queryHoverStatus(getCurrentLayout().QueryElement(m_LastWidget));
+        return queryHoverStatus(getCurrentLayout().QueryElement(m_LastItem));
     }
     OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
     {
-        return queryAndSetFocusStatus(getCurrentLayout().QueryElement(m_LastWidget), flags | FocusFlag_ReadOnly);
+        return queryAndSetFocusStatus(getCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
     }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0)
     {
-        return isElementHovered(getCurrentLayout().QueryElement(m_LastWidget), flags);
+        return isElementHovered(getCurrentLayout().QueryElement(m_LastItem), flags);
     }
     bool IsItemPressed(const OverlayFocusFlags flags = 0)
     {
@@ -903,7 +952,7 @@ class Overlay
     }
     bool IsItemOpened() const
     {
-        const auto it = m_WidgetStates.Find(m_LastWidget);
+        const auto it = m_WidgetStates.Find(m_LastItem);
         return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
     }
     // /query //
@@ -1189,11 +1238,16 @@ class Overlay
     template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;
+    f32v2 computeMouseAlignedPosition(const f32v2 &size, const f32v2 &offset = f32v2{0.f}) const;
     void processWindows();
-    void bringWindowToTop(u32 idx);
 
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
+    bool addActiveWindow(OverlayWindow *win);
+    u64 toTop()
+    {
+        return m_LayerCount++;
+    }
 
     OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
@@ -1223,9 +1277,9 @@ class Overlay
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
-    OverlayWindow *getOrCreateOverlayWindow(usz id);
+    OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
     const FontData &getFontData() const;
-    f32 computeWindowMinSize(f32 winPadding, f32 headPadding, f32 fontSize) const;
+    f32 computeWindowMinSize() const;
 
     LayoutTextParameters getTextParams(const OverlayColor color) const
     {
@@ -1308,15 +1362,9 @@ class Overlay
     usz m_ActiveIdLastFrame = NullLayoutId;
 
     TKit::TierArray<usz> m_ScrollStack{};
-    // TODO(Isma): Have a stack of ids, keep current depth. in query focus status, if stack[current] == id, then its
-    // popup is considered opened
-    // TODO(Isma): if current == stack.GetSize(), we just go as normal, like no popups exist. nothing to see here
-    // TODO(Isma): if current != stack.GetSize(), we have to close the popup IF user has pressed this OR user is
-    // hovering this. whether to use this or that, make it a flag. this i believe it has to be done in processWindows or
-    // smth
-    // TODO(Isma): To use with menu items, to check if a hover action closes subsequent popups, one has to traverse the
-    // stack in reverse, and if none is hovered, then that one is hovered and other popups can close
+
     TKit::TierArray<usz> m_PopupStack{};
+    // TKit::TierArray<
     u32 m_CurrentPopupDepth = 0;
     u32 m_PopupCollapseDepth = 0;
 
@@ -1334,7 +1382,7 @@ class Overlay
     u32 m_CursorEnd = 0;
     //
 
-    usz m_LastWidget = NullLayoutId;
+    usz m_LastItem = NullLayoutId;
     usz m_HoveredWidgetCandidate = NullLayoutId;
     const Layout *m_CandidateLayout = nullptr;
     TKit::Clock m_WidgetHoverClock{};
@@ -1348,12 +1396,26 @@ class Overlay
 
     TKit::Clock m_ClickClock{};
 
-    // TODO(Isma): Should be a hash map
-    TKit::TierArray<OverlayWindow> m_OverlayWindows{};
+    // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear
+    // search is overall better
+
+    // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
+    // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
+    // time, so 256 should be plenty
+    TKit::StaticArray256<OverlayWindow> m_OverlayWindows{};
+    TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
+    TKit::TierArray<OverlayWindow *> m_WindowStack{};
+
     TKit::TierArray<usz> m_WindowIds{};
     TKit::TierArray<usz> m_IdStack{};
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
+
+    NextWindowData m_NextWindow{};
+    LayoutId m_TextId = NullLayoutId;
+
+    u64 m_LayerCount = 0;
+
     Tooltip m_Tooltip;
 };
 } // namespace Onyx

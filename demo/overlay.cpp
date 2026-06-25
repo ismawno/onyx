@@ -22,11 +22,25 @@ int main()
 
     while (Onyx::Running())
     {
-        static Onyx::OverlayWindowFlags flags = 0;
+        static Onyx::OverlayWindowFlags wflags = 0;
         static bool enableSettings = false;
 
         const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
-        if (ui.BeginWindow("Overlay demo", flags))
+
+        const auto editWindowFlags = [&](Onyx::OverlayWindowFlags *flags) {
+            ui.CheckBoxFlags("OverlayWindowFlag_NoResize", flags, Onyx::OverlayWindowFlag_NoResize);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoMove", flags, Onyx::OverlayWindowFlag_NoMove);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoCollapse", flags, Onyx::OverlayWindowFlag_NoCollapse);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoScrollBar", flags, Onyx::OverlayWindowFlag_NoScrollBar);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+            ui.CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
+            ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
+            ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+            ui.CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
+        };
+
+        if (ui.BeginWindow("Overlay demo", wflags))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
             if (ui.PushTree("General", drawLines))
@@ -101,7 +115,7 @@ int main()
                                                                      "Element 7", "Element 8"};
                 static u32 idx = 0;
                 ui.DropDown("One-liner 1", &idx, elements, dflags);
-                ui.DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", flags);
+                ui.DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", dflags);
                 ui.PopTree();
             }
 
@@ -134,6 +148,40 @@ int main()
 
                 static f32 ifval = 8.f;
                 ui.InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+                ui.PopTree();
+            }
+
+            if (ui.PushTree("Popups"))
+            {
+                static Onyx::OverlayWindowFlags pflags =
+                    Onyx::OverlayWindowFlag_BringToTop | Onyx::OverlayWindowFlag_AutoResize;
+                editWindowFlags(&pflags);
+
+                if (ui.Button("Open popup"))
+                    ui.OpenPopup("Popup example");
+
+                if (ui.BeginPopup("Popup example", pflags))
+                {
+                    ui.TextRaw("I am a popup");
+                    if (ui.Button("Another one?"))
+                        ui.OpenPopup("Yes, another one");
+
+                    ui.SetItemTooltip("This will open another popup!");
+
+                    if (ui.BeginPopup("Yes, another one", pflags))
+                    {
+                        ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
+                        ui.TextRaw("Hi!");
+                        if (ui.Button("Close##Two"))
+                            ui.CloseCurrentPopup();
+                        ui.PopDirection();
+                        ui.EndPopup();
+                    }
+
+                    if (ui.Button("Close##One"))
+                        ui.CloseCurrentPopup();
+                    ui.EndPopup();
+                }
                 ui.PopTree();
             }
 
@@ -384,17 +432,21 @@ int main()
             ui.EndWindow();
         }
 
-        if (enableSettings && ui.BeginWindow("Window settings", flags))
+        if (enableSettings && ui.BeginWindow("Window settings", wflags))
         {
-            ui.CheckBoxFlags("OverlayWindowFlag_NoResize", &flags, Onyx::OverlayWindowFlag_NoResize);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoMove", &flags, Onyx::OverlayWindowFlag_NoMove);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoCollapse", &flags, Onyx::OverlayWindowFlag_NoCollapse);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoScrollBar", &flags, Onyx::OverlayWindowFlag_NoScrollBar);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", &flags, Onyx::OverlayWindowFlag_NoHeaderBar);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", &flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-            ui.CheckBoxFlags("OverlayWindowFlag_AutoResize", &flags, Onyx::OverlayWindowFlag_AutoResize);
-            ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", &flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
-            ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", &flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+            editWindowFlags(&wflags);
+            ui.EndWindow();
+        }
+
+        if (ui.BeginWindow("Overlay demo"))
+        {
+            if (ui.PushTree("Extra content", drawLines))
+            {
+                ui.TextRaw(Onyx::TextMode_Wrapped, "Nothing to see here! This is extra content to demonstrate "
+                                                   "appending multiple times to a window after it has "
+                                                   "been closed");
+                ui.PopTree();
+            }
             ui.EndWindow();
         }
 

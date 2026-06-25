@@ -280,15 +280,20 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     return current.Id;
 }
 
-bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding) const
+bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
 {
     const f32v2 hpad = 0.5f * padding;
 
     const f32v2 mn = Position - hpad;
     const f32v2 mx = Position + Size + hpad;
 
-    const f32v2 cmn = ClipMin - hpad;
-    const f32v2 cmx = ClipMax + hpad;
+    f32v2 cmn = ClipMin;
+    f32v2 cmx = ClipMax;
+    if (applyPaddingToClip)
+    {
+        cmn -= hpad;
+        cmx += hpad;
+    }
 
     const auto check = [](const f32v2 &p, const f32v2 &mn, const f32v2 &mx) {
         return p[0] >= mn[0] && p[0] <= mx[0] && p[1] >= mn[1] && p[1] <= mx[1];
