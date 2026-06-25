@@ -692,6 +692,19 @@ class Overlay
         }
         return val != *current;
     }
+    template <TKit::Integer T>
+    bool DropDown(const TKit::StringView label, T *current, const TKit::StringView elements,
+                  const OverlayDropDownFlags flags = 0)
+    {
+        const TKit::StackString str{elements.GetData(), elements.GetSize()};
+        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
+
+        TKit::StackArray<TKit::StringView> views{};
+        views.Reserve(splits.GetSize());
+        for (const TKit::StackString &elm : splits)
+            views.Append(elm);
+        return DropDown(label, current, views, flags);
+    }
 
     // /tooltips //
 

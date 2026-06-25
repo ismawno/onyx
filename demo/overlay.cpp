@@ -100,7 +100,8 @@ int main()
                                                                      "Element 4", "Element 5", "Element 6",
                                                                      "Element 7", "Element 8"};
                 static u32 idx = 0;
-                ui.DropDown("One-liner", &idx, elements, dflags);
+                ui.DropDown("One-liner 1", &idx, elements, dflags);
+                ui.DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", flags);
                 ui.PopTree();
             }
 
