@@ -751,7 +751,7 @@ bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
     return beginScroll({.Id = id,
                         .OuterSizing = outer,
                         .ContentSizing = content,
-                        .ContentPadding = m_Style[OverlayStyle_ContentAreaPadding],
+                        .ContentPadding = padding,
                         .ChildGap = m_Style[OverlayStyle_ChildGap],
                         .Flags = flags});
 }
@@ -786,7 +786,7 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
     ly.BeginPanel(AsStackedId("Vertical scroll area"),
                   LayoutPanelParameters{.Direction = LayoutDirection_RightToLeft,
                                         .Alignment = topLeft,
-                                        .Sizing = specs.ContentSizing,
+                                        .Sizing = specs.OuterSizing,
                                         .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
