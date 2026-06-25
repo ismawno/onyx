@@ -471,6 +471,7 @@ TKit::StringView Overlay::trimLabel(const TKit::StringView label)
 bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
 {
     const LayoutId id = title; /* forcing titles to be unique for now */ // PushId(title);
+    const LayoutId nid = PushId(id);
 
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->PopupDepth = m_CurrentPopupDepth;
@@ -500,7 +501,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
 
     const bool autoResize = flags & OverlayWindowFlag_AutoResize;
 
-    const usz scrollId = AsStackedId("Window scroll bar");
+    const usz scrollId = AsStackedId(nid);
     ScrollInfo &sinfo = m_Scrollables[scrollId];
     if (autoResize)
         sinfo = ScrollInfo{};
@@ -586,7 +587,7 @@ void Overlay::EndWindow()
     TKIT_ASSERT(m_Current, "[ONYX][OVERLAY] Cannot end a window without having started one");
     m_WindowStack.Pop();
     m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
-    // PopId(); /* forcing titles to be unique for now */
+    PopId();
 }
 
 void Overlay::CloseCurrentPopup()
