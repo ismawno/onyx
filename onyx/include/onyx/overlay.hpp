@@ -100,6 +100,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_NoBringToFocus = 1U << 12,
     OverlayWindowFlag_AutoResize = 1U << 13,
     OverlayWindowFlag_BringToTop = 1U << 14,
+    OverlayWindowFlag_Modal = 1U << 15,
 };
 
 using OverlayScrollFlags = u16;
@@ -197,6 +198,13 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_Logarithmic = 1U << 1,
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
     OverlaySliderFlag_NoInput = 1U << 3,
+};
+
+using OverlayPopupFlags = u8;
+enum OverlayPopupFlagBit : OverlayPopupFlags
+{
+    OverlayPopupFlag_LeftClick = OverlayFocusQueryFlag_LeftClicked,
+    OverlayPopupFlag_RightClick = OverlayFocusQueryFlag_RightClicked
 };
 
 using NextWindowFlags = u8;
@@ -486,10 +494,9 @@ struct UserInterfaceSpecs
     OverlayStyle Style{};
 };
 
-// TODO(Isma): In sliders/drags, clamp to format
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
-// TODO(Isma): Implement arrow cursor movement with keyboard
-// TODO(Isma): Implement a way to push/pop colors
+// TODO(Isma): Fix modals
+// TODO(Isma): Add close button to both windows and popups
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -558,8 +565,8 @@ class Overlay
     bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
                    OverlayInputFlags flags = 0);
     template <TKit::Numeric T>
-    bool InputNumeric(const TKit::StringView label, T *value, const char *format, const TKit::StringView hint = {},
-                      const OverlayInputFlags flags = 0)
+    bool InputNumeric(const TKit::StringView label, T *value, const char *format = nullptr,
+                      const TKit::StringView hint = {}, const OverlayInputFlags flags = 0)
     {
         beginHorizontalWidget(PushId(label));
         const bool updated = inputNumericBox(value, format, hint, flags);
@@ -698,6 +705,15 @@ class Overlay
 
     bool BeginPopup(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndPopup();
+
+    bool BeginPopupContextItem(const TKit::StringView title, const OverlayFocusFlags wflags = 0,
+                               const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
+    {
+        if (QueryItemFocusStatus() & flags)
+            OpenPopup(title);
+
+        return BeginPopup(title, wflags);
+    }
 
     bool BeginDropDown(TKit::StringView label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
     void EndDropDown()
@@ -1238,8 +1254,8 @@ class Overlay
     template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;
-    f32v2 computeMouseAlignedPosition(const f32v2 &size, const f32v2 &offset = f32v2{0.f}) const;
-    void processWindows();
+    f32v2 computeMouseAlignedPosition(const f32v2 &size) const;
+    u32 processWindows();
 
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
@@ -1367,6 +1383,8 @@ class Overlay
     // TKit::TierArray<
     u32 m_CurrentPopupDepth = 0;
     u32 m_PopupCollapseDepth = 0;
+    // so that modals only collapse manually
+    u32 m_ModalCollapseDepth = 0;
 
     f64 m_DragValue = 0.;
 

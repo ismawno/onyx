@@ -18,8 +18,8 @@ int main()
 
     f32v2 rdims = {800, 600};
     Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(rdims);
-    ctx->AddTarget(rt->CreateRenderView(&ui.GetCamera(), ui.GetRenderViewFlags()));
 
+    ctx->AddTarget(rt->CreateRenderView(&ui.GetCamera(), ui.GetRenderViewFlags()));
     while (Onyx::Running())
     {
         static Onyx::OverlayWindowFlags wflags = 0;
@@ -38,6 +38,7 @@ int main()
             ui.CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
             ui.CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
             ui.CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
+            ui.CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
         };
 
         if (ui.BeginWindow("Overlay demo", wflags))
@@ -170,11 +171,19 @@ int main()
 
                     if (ui.BeginPopup("Yes, another one", pflags))
                     {
-                        ui.PushDirection(Onyx::LayoutDirection_LeftToRight);
                         ui.TextRaw("Hi!");
+
+                        static u32 value = 3;
+                        ui.SetNextTextId("Text id");
+                        ui.Text("Right click me and change the value!: {}", value);
+                        if (ui.BeginPopupContextItem("Value edit", pflags))
+                        {
+                            ui.InputNumeric("Value", &value);
+                            ui.EndPopup();
+                        }
+
                         if (ui.Button("Close##Two"))
                             ui.CloseCurrentPopup();
-                        ui.PopDirection();
                         ui.EndPopup();
                     }
 

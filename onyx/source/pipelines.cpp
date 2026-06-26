@@ -678,6 +678,9 @@ VKit::GraphicsPipeline CreateBlendPipeline()
             .BeginColorAttachment()
             .EnableBlending()
             .SetColorBlendFactors(VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+            // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
+            // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
+            // counterintuitive
             .SetAlphaBlendFactors(VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
             .EndColorAttachment()
             .Bake()

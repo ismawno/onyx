@@ -224,7 +224,6 @@ Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
 
     m_Camera.Mode = CameraMode_Viewport;
     m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
-    m_View->ClearColor.rgba[3] = 0.f;
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
@@ -477,6 +476,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     m_Current->PopupDepth = m_CurrentPopupDepth;
     if (flags & OverlayWindowFlag_BringToTop)
         m_Current->Layer = toTop();
+    if (flags & OverlayWindowFlag_Modal)
+        m_ModalCollapseDepth = Math::Max(m_ModalCollapseDepth, m_CurrentPopupDepth);
 
     const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
@@ -596,6 +597,9 @@ void Overlay::CloseCurrentPopup()
                 "[ONYX][OVERLAY] CloseCurrentPopup() can only be called inside an active popup");
     m_EventFlags |= EventFlag_PopupProtectionForbidden | EventFlag_MustCollapsePopups;
     m_PopupCollapseDepth = m_CurrentPopupDepth - 1;
+    // this means only the topmost modal can be collapsed
+    if (m_ModalCollapseDepth == m_CurrentPopupDepth)
+        m_ModalCollapseDepth = m_PopupCollapseDepth;
 }
 
 bool Overlay::BeginPopup(const TKit::StringView title, const OverlayWindowFlags flags)
@@ -1630,10 +1634,7 @@ void Overlay::BeginTooltip()
     const LayoutElement *elm = m_Tooltip.Layout.QueryElement(id);
     const f32v2 size = elm ? elm->Size : f32v2{0.f};
 
-    const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
-    const f32v2 offset = f32v2{toffset, -2.f * toffset};
-
-    const f32v2 pos = computeMouseAlignedPosition(size, offset);
+    const f32v2 pos = computeMouseAlignedPosition(size);
 
     m_Tooltip.Layout.BeginPanel(id, LayoutPanelParameters{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
                                                           .Sizing = fit(),
@@ -1686,10 +1687,24 @@ void Overlay::Draw()
     if (m_ActiveWindows.IsEmpty() && !m_Tooltip.Drawn)
         return;
 
-    processWindows();
     m_Context->Flush();
+    const u32 modalWindow = processWindows();
+    if (modalWindow != 0)
+        m_View->ClearColor.rgba[3] = 1.f;
+    else
+        m_View->ClearColor.rgba[3] = 0.f;
+
+    u32 idx = 0;
     for (OverlayWindow *win : m_ActiveWindows)
     {
+        if (++idx == modalWindow)
+        {
+            m_Context->Push();
+            m_Context->Scale(2.f * m_View->ScreenToWorld(f32v2{1.f}));
+            m_Context->Alpha(0.2f);
+            m_Context->Quad();
+            m_Context->Pop();
+        }
         win->Layout.Compile();
         m_Context->Layout(win->Layout);
     }
@@ -1710,14 +1725,16 @@ template <typename F> void Overlay::iterateReverseWindows(const F func)
             return;
 }
 
-void Overlay::processWindows()
+u32 Overlay::processWindows()
 {
-    // close all windows
-    for (OverlayWindow *win : m_ActiveWindows)
+    u32 modalWindow = 0;
+    for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
     {
-        m_Current = win;
+        m_Current = m_ActiveWindows[i];
         endScroll();
         m_Current->Layout.EndPanel();
+        if (m_Current->Flags & OverlayWindowFlag_Modal)
+            modalWindow = i + 1;
     }
 
     const f32v2 mpos = getMousePos();
@@ -1740,16 +1757,17 @@ void Overlay::processWindows()
 
     if (m_EventFlags & EventFlag_MustCollapsePopups)
     {
-        if (m_PressingLeftMouse && m_PopupCollapseDepth < m_PopupStack.GetSize())
+        const u32 collapse = Math::Max(m_PopupCollapseDepth, m_ModalCollapseDepth);
+        if (m_PressingLeftMouse && collapse < m_PopupStack.GetSize())
             m_EventFlags |= EventFlag_FocusBlockByPopupCollapse;
-        m_PopupStack.Resize(m_PopupCollapseDepth);
+        m_PopupStack.Resize(collapse);
     }
 
     m_EventFlags &= EventFlagPersist;
 
     m_EventKeys.ClearAll();
 
-    const bool widgetLocked = m_ActiveId != NullLayoutId && !(m_EventFlags & EventFlag_ActiveAllowsInteraction);
+    const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_EventFlags & EventFlag_ActiveAllowsInteraction);
     const bool widgetPressed = m_PressedId != NullLayoutId;
     const bool widgetHovered = m_HoveredId != NullLayoutId;
     // if nothing is grabbed, we check mouse cursors here
@@ -1759,14 +1777,15 @@ void Overlay::processWindows()
         iterateReverseWindows([&](OverlayWindow *win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
             const bool winHovered = win->CheckFlags(WindowInternalFlag_Hovered);
-            const bool popupLocked = win->PopupDepth != m_PopupStack.GetSize();
+            const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
+            const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
             if (winHovered && win->CheckFlags(WindowInternalFlag_InputHovered))
             {
                 win->Resize.Flags = 0;
                 cursor = MouseCursor_IBeam;
                 return false;
             }
-            if (!winHovered || widgetHovered || widgetPressed || widgetLocked || popupLocked)
+            if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
             {
                 win->Resize.Flags = 0;
                 return true;
@@ -1775,13 +1794,14 @@ void Overlay::processWindows()
                 return true;
             // else, check if there is resize hover
 
+            const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
             ResizeFlags rflags = 0;
             ResizeInfo &rinfo = win->Resize;
             for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
             {
                 const usz id = rinfo.Ids[i];
                 if (win->Layout.IsHovered(id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding],
-                                          /* so that popups dont "fakingly" announce a resize*/ win->PopupDepth == 0))
+                                          /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                 {
                     win->Resize.InteractionColor = &m_Style[OverlayColor_WindowBorderHovered];
                     rflags |= 1U << i;
@@ -1864,15 +1884,18 @@ void Overlay::processWindows()
 
     const bool pressed = m_EventFlags & EventFlag_LeftMousePressed;
     iterateReverseWindows([&](OverlayWindow *win) {
-        const bool popupLocked = win->PopupDepth != m_PopupStack.GetSize();
+        const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
+        const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
+        const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
         // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
         // if we are popup locked, we can still allow hovering if no depth > 0 widget previously set hovering id. this
         // is because we want to allow dragging immediately when collapsing the whole popup stack, but we dont want
         // dragging when collapsing all. thats why when popups exist, only widgets that belong to the popup tree (any
         // depth except 0) are allowed to set hovered id
+
         const bool winHovered =
-            (!popupLocked || !widgetHovered) && canAssignHover &&
-            win->Layout.IsHovered(win->Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding], win->PopupDepth == 0);
+            !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
+            win->Layout.IsHovered(win->Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
         const bool inputHovered = win->CheckFlags(WindowInternalFlag_InputHovered);
 
         win->Flags |= wflags;
@@ -1984,6 +2007,7 @@ void Overlay::processWindows()
                 m_CurrentPopupDepth);
     TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
                 m_WindowStack.GetSize());
+    return modalWindow;
 }
 
 OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
@@ -2030,8 +2054,11 @@ f32v2 Overlay::getMousePos() const
     return m_View->ScreenToWorld(m_Window->GetNormalizedMousePosition());
 }
 
-f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size, const f32v2 &offset) const
+f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
 {
+    const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
+    const f32v2 offset = f32v2{toffset, -2.f * toffset};
+
     const f32v2 border = m_View->ScreenToWorld(f32v2{1.f});
 
     const f32 rt = m_MousePos[0] + offset[0] + size[0];

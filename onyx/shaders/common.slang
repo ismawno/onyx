@@ -135,7 +135,7 @@ bool CheckWorldClip(const f32v3 worldPos, const WorldRect3D rect)
 
 f32 ComputeDepth(const u32 depthCounter)
 {
-    return max(0.f, 1.f - f32(depthCounter) / f32(1U << 24));
+    return max(0.f, 1.f - f32(depthCounter) / f32(ONYX_MAX_DEPTH_COUNTER_VALUE));
 }
 
 f32m4 ConstructTransform(const Transform2D transform)
