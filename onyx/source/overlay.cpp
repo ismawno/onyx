@@ -467,8 +467,11 @@ TKit::StringView Overlay::trimLabel(const TKit::StringView label)
     return label.SubString(0, idx);
 }
 
-bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags)
+bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const OverlayWindowFlags flags)
 {
+    if (opened && !(*opened))
+        return false;
+
     const LayoutId id = title; /* forcing titles to be unique for now */ // PushId(title);
     const LayoutId nid = PushId(id);
 
@@ -485,8 +488,12 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
 
     m_WindowStack.Append(m_Current);
     if (!addActiveWindow(m_Current))
+    {
         // window is still active. user can still append to it
+        if (collapsed)
+            EndWindow();
         return !collapsed;
+    }
 
     if (m_NextWindow.Flags & NextWindowFlag_Position)
         m_Current->Position = m_NextWindow.Position;
@@ -536,16 +543,19 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
     if (!noHeader)
     {
         ly.BeginPanel(
-            AsStackedId("Header"),
+            AsStackedId("Header root"),
             LayoutPanelParameters{
                 .FillColor =
                     m_Style[collapsed ? OverlayColor_HeaderBackgroundCollapsed : OverlayColor_HeaderBackgroundExpanded],
                 .Alignment = {Alignment_Left, Alignment_Center},
-                .Sizing = {flex(), fit()},
-                .Padding = m_Style[OverlayStyle_HeaderPadding],
-                .ChildGap = m_Style[OverlayStyle_ChildGap]});
+                .Sizing = {flex(), fit()}});
 
-        if (!noCollapse && collapseButton(collapsed))
+        ly.BeginPanel(AsStackedId("Header"), LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                                                   .Sizing = {autoResize ? flex() : grow(), fit()},
+                                                                   .Padding = m_Style[OverlayStyle_HeaderPadding],
+                                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        if (!noCollapse && headerButton("Collapse button", m_Current->HeaderIcon))
         {
             if (collapsed)
             {
@@ -564,6 +574,13 @@ bool Overlay::BeginWindow(const TKit::StringView title, const OverlayWindowFlags
             tparams.FillColor.rgba[3] = 0.8f;
 
         ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
+        ly.EndPanel();
+
+        if (opened && headerButton("Close button", CrossIcon))
+            *opened = false;
+        else if ((flags & WindowInternalFlag_ClosePopupButton) && headerButton("Close button", CrossIcon))
+            CloseCurrentPopup();
+
         ly.EndPanel();
     }
 
@@ -623,7 +640,7 @@ bool Overlay::BeginPopup(const TKit::StringView title, const OverlayWindowFlags 
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
 
-    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse);
+    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton);
 }
 
 void Overlay::EndPopup()
@@ -1267,27 +1284,22 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-bool Overlay::collapseButton(const bool collapsed)
+bool Overlay::headerButton(const LayoutId id, const CodePoint code)
 {
     Layout &ly = getCurrentLayout();
-
-    const LayoutId id = AsStackedId("Collapse button");
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
     const Color *col = &Color_Transparent;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
         col = &m_Style[OverlayColor_ButtonPressed];
+    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        col = &m_Style[OverlayColor_ButtonHovered];
 
     ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
                                             .Alignment = Alignment_Center,
                                             .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
-    const CodePoint code = m_Current->HeaderIcon;
-    LayoutUnicodeParameters uparams = getUnicodeParams(OverlayColor_Header);
-    if (collapsed)
-        uparams.FillColor.rgba[3] = 0.8f;
     ly.Unicode(AsStackedId(code), code, getUnicodeParams(OverlayColor_Header));
-
     ly.EndPanel();
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
 }

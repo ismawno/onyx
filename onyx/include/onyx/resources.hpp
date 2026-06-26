@@ -104,8 +104,23 @@ struct DefaultResources
     }
 };
 
+constexpr CodePoint ArrowDownIcon = 0x25BC;
+constexpr CodePoint ArrowRightIcon = 0x25B6;
+constexpr CodePoint BulletIcon = 0x2022;
+constexpr CodePoint CrossIcon = 0x2715;
+
 struct DefaultResourcesOptions
 {
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    DefaultResourcesOptions() : FontOpts{}
+    {
+        FontOpts.CharSet.LoadRange(CharSets.ASCII);
+        FontOpts.CharSet.Load(ArrowDownIcon);
+        FontOpts.CharSet.Load(ArrowRightIcon);
+        FontOpts.CharSet.Load(BulletIcon);
+        FontOpts.CharSet.Load(CrossIcon);
+    }
+#endif
     ResourcePool StaticPool2 = NullHandle;
     ResourcePool ParametricPool2 = NullHandle;
 
@@ -117,7 +132,7 @@ struct DefaultResourcesOptions
 
     SamplerData SamplerData{};
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
-    FontLoadOptions FontOpts{.CharSet = {CharSets.ASCII, CharSets.GeneralPunctuation, CharSets.GeometricShapes}};
+    FontLoadOptions FontOpts;
 #endif
 
     StaticMeshData<D2> TriangleData2 = CreateTriangleMeshData<D2>();

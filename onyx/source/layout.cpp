@@ -591,11 +591,11 @@ void Layout::positionPass()
                 coffset *= Math::Absolute(factor);
             }
 
-            const f32 mn = parent.ClipMin[axis];
-            const f32 mx = parent.ClipMax[axis];
+            const f32 mn = parent.ClipMin[axis] + p0;
+            const f32 mx = parent.ClipMax[axis] - p1;
 
-            const f32 pmx = ppos + psize - p1;
             const f32 pmn = ppos + p0;
+            const f32 pmx = ppos + psize - p1;
 
             f32 poffset = ppos + coffset + padding + parentAlignOffset;
 

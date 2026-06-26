@@ -441,7 +441,7 @@ int main()
             ui.EndWindow();
         }
 
-        if (enableSettings && ui.BeginWindow("Window settings", wflags))
+        if (ui.BeginWindow("Window settings", &enableSettings, wflags))
         {
             editWindowFlags(&wflags);
             ui.EndWindow();

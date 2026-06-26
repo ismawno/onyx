@@ -13,10 +13,6 @@
 
 namespace Onyx
 {
-constexpr CodePoint ArrowDownIcon = 0x25BC;
-constexpr CodePoint ArrowRightIcon = 0x25B6;
-constexpr CodePoint BulletIcon = 0x2022;
-
 enum ResizeEdge : u8
 {
     ResizeEdge_Left,
@@ -90,17 +86,18 @@ enum InputConvertFlagBit : InputConvertInfoFlags
 using OverlayWindowFlags = u16;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoScrollBar = 1U << 5,
-    OverlayWindowFlag_NoVerticalScroll = 1U << 6,
-    OverlayWindowFlag_HorizontalScroll = 1U << 7,
-    OverlayWindowFlag_NoResize = 1U << 8,
-    OverlayWindowFlag_NoMove = 1U << 9,
-    OverlayWindowFlag_NoCollapse = 1U << 10,
-    OverlayWindowFlag_NoHeaderBar = 1U << 11,
-    OverlayWindowFlag_NoBringToFocus = 1U << 12,
-    OverlayWindowFlag_AutoResize = 1U << 13,
-    OverlayWindowFlag_BringToTop = 1U << 14,
-    OverlayWindowFlag_Modal = 1U << 15,
+    OverlayWindowFlag_NoScrollBar = 1U << 3,
+    OverlayWindowFlag_NoVerticalScroll = 1U << 4,
+    OverlayWindowFlag_HorizontalScroll = 1U << 5,
+    OverlayWindowFlag_NoResize = 1U << 6,
+    OverlayWindowFlag_NoMove = 1U << 7,
+    OverlayWindowFlag_NoCollapse = 1U << 8,
+    OverlayWindowFlag_NoHeaderBar = 1U << 9,
+    OverlayWindowFlag_NoBringToFocus = 1U << 10,
+    OverlayWindowFlag_AutoResize = 1U << 11,
+    OverlayWindowFlag_BringToTop = 1U << 12,
+    OverlayWindowFlag_Modal = 1U << 13,
+    WindowInternalFlag_ClosePopupButton = 1U << 14,
 };
 
 using OverlayScrollFlags = u16;
@@ -495,8 +492,6 @@ struct UserInterfaceSpecs
 };
 
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
-// TODO(Isma): Fix modals
-// TODO(Isma): Add close button to both windows and popups
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -521,7 +516,11 @@ class Overlay
 
     // windows //
     // TODO(Isma): Should return id
-    bool BeginWindow(TKit::StringView title, OverlayWindowFlags flags = 0);
+    bool BeginWindow(TKit::StringView title, bool *opened, OverlayWindowFlags flags = 0);
+    bool BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags = 0)
+    {
+        return BeginWindow(title, nullptr, flags);
+    }
     void EndWindow();
 
     // /windows //
@@ -1249,8 +1248,7 @@ class Overlay
         return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
     }
 
-    // TODO(Isma): Standardize this a bit more. Maybe a prameter struct
-    bool collapseButton(bool collapsed);
+    bool headerButton(LayoutId id, CodePoint code);
     template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;
