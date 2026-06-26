@@ -97,7 +97,8 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_AutoResize = 1U << 11,
     OverlayWindowFlag_BringToTop = 1U << 12,
     OverlayWindowFlag_Modal = 1U << 13,
-    WindowInternalFlag_ClosePopupButton = 1U << 14,
+    OverlayWindowFlag_NoCloseButton = 1U << 14,
+    WindowInternalFlag_ClosePopupButton = 1U << 15,
 };
 
 using OverlayScrollFlags = u16;

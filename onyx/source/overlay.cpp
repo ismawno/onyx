@@ -576,10 +576,13 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
         ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
         ly.EndPanel();
 
-        if (opened && headerButton("Close button", CrossIcon))
-            *opened = false;
-        else if ((flags & WindowInternalFlag_ClosePopupButton) && headerButton("Close button", CrossIcon))
-            CloseCurrentPopup();
+        if (!(flags & OverlayWindowFlag_NoCloseButton))
+        {
+            if (opened && headerButton("Close button", CrossIcon))
+                *opened = false;
+            else if ((flags & WindowInternalFlag_ClosePopupButton) && headerButton("Close button", CrossIcon))
+                CloseCurrentPopup();
+        }
 
         ly.EndPanel();
     }
