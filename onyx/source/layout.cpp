@@ -70,8 +70,6 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     if (p != TKIT_U32_MAX)
     {
         LayoutElement &parent = m_Elements[current.Parent];
-        if (parent.Children.IsEmpty())
-            m_Breadth.Append(current.Parent);
         parent.Children.Append(c);
 
         if (!params.Floating.Enable)
@@ -159,10 +157,6 @@ void Layout::EndPanel()
     TKIT_ASSERT(!m_ElementStack.IsEmpty(),
                 "[ONYX][LAYOUT] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
-    const u32 c = m_ElementStack.GetBack();
-    if (m_Elements[c].NonFloatChildCount != 0)
-        m_ReversedBreadth.Append(c);
-
     m_ElementStack.Pop();
 }
 
@@ -182,9 +176,6 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.Parent = p;
 
     LayoutElement &parent = m_Elements[current.Parent];
-    if (parent.Children.IsEmpty())
-        m_Breadth.Append(current.Parent);
-
     parent.Children.Append(c);
     ++parent.NonFloatChildCount;
 
@@ -243,9 +234,6 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.Parent = p;
 
     LayoutElement &parent = m_Elements[current.Parent];
-    if (parent.Children.IsEmpty())
-        m_Breadth.Append(current.Parent);
-
     parent.Children.Append(c);
     ++parent.NonFloatChildCount;
 
@@ -311,9 +299,9 @@ const LayoutElement *Layout::QueryElement(const LayoutId id) const
     return &it->Value;
 }
 
-void Layout::fitPass(const LayoutAxis axis)
+void Layout::fitPass(const TKit::StackArray<u32> &rbreadth, const LayoutAxis axis)
 {
-    for (const u32 p : m_ReversedBreadth)
+    for (const u32 p : rbreadth)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(parent.Type != LayoutElement_Text && parent.Type != LayoutElement_Unicode,
@@ -361,9 +349,9 @@ void Layout::fitPass(const LayoutAxis axis)
     }
 }
 
-void Layout::growShrinkPass(const LayoutAxis axis)
+void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAxis axis)
 {
-    for (const u32 p : m_Breadth)
+    for (const u32 p : breadth)
     {
         const LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
@@ -510,7 +498,7 @@ void Layout::wrapText()
     }
 }
 
-void Layout::positionPass()
+void Layout::positionPass(const TKit::StackArray<u32> &breadth)
 {
     if (m_Elements.IsEmpty())
         return;
@@ -523,7 +511,7 @@ void Layout::positionPass()
             root.Position[axis] -= 0.5f * root.Size[axis];
 
     root.Position += root.SelfOffset;
-    for (const u32 p : m_Breadth)
+    for (const u32 p : breadth)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
@@ -678,12 +666,27 @@ void Layout::Compile()
 {
     TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_ElementStack.GetSize());
-    fitPass(LayoutAxis_Horizontal);
-    growShrinkPass(LayoutAxis_Horizontal);
+
+    TKit::StackArray<u32> breadth{};
+    breadth.Reserve(m_Elements.GetSize());
+
+    TKit::StackArray<u32> rbreadth{};
+    rbreadth.Reserve(m_Elements.GetSize());
+
+    for (u32 i = 0; i < m_Elements.GetSize(); ++i)
+        if (m_Elements[i].NonFloatChildCount != 0)
+        {
+            breadth.Append(i);
+            rbreadth.Append(i);
+        }
+    std::reverse(rbreadth.begin(), rbreadth.end());
+
+    fitPass(rbreadth, LayoutAxis_Horizontal);
+    growShrinkPass(breadth, LayoutAxis_Horizontal);
     wrapText();
-    fitPass(LayoutAxis_Vertical);
-    growShrinkPass(LayoutAxis_Vertical);
-    positionPass();
+    fitPass(rbreadth, LayoutAxis_Vertical);
+    growShrinkPass(breadth, LayoutAxis_Vertical);
+    positionPass(breadth);
 
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
@@ -758,8 +761,6 @@ void Layout::Compile()
     m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 
     m_Elements.Clear();
-    m_Breadth.Clear();
-    m_ReversedBreadth.Clear();
     m_AutoId = 0;
 #ifdef TKIT_ENABLE_ASSERTS
     m_InsertedElements.Clear();

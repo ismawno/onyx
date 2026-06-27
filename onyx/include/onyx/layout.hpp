@@ -467,17 +467,15 @@ class Layout
     }
 
   private:
-    void fitPass(LayoutAxis axis);
-    void growShrinkPass(LayoutAxis axis);
+    void fitPass(const TKit::StackArray<u32> &rbreadth, LayoutAxis axis);
+    void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
     void wrapText();
-    void positionPass();
+    void positionPass(const TKit::StackArray<u32> &breadth);
 
     void applySpecDefaults();
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_ElementStack{};
-    TKit::TierArray<u32> m_Breadth{};
-    TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
     TKit::TierHashMap<usz, LayoutElement> m_ElementMap{};
