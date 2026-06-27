@@ -410,6 +410,8 @@ class Layout
 
     void EndPanel();
 
+    usz OpenPanel(LayoutId id);
+
     usz Text(LayoutId id, TKit::StringView text, const LayoutTextParameters &params = {});
     usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
@@ -467,6 +469,7 @@ class Layout
     }
 
   private:
+    void insertId(LayoutId id, u32 idx);
     void fitPass(const TKit::StackArray<u32> &rbreadth, LayoutAxis axis);
     void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
     void wrapText();
@@ -478,11 +481,8 @@ class Layout
     TKit::TierArray<u32> m_ElementStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
+    TKit::TierHashMap<usz, u32> m_InsertedElements{};
     TKit::TierHashMap<usz, LayoutElement> m_ElementMap{};
-
-#ifdef TKIT_ENABLE_ASSERTS
-    TKit::TierHashSet<usz> m_InsertedElements{};
-#endif
 
     LayoutSpecs m_Specs{};
     usz m_AutoId = 0;

@@ -15,40 +15,37 @@ Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
     applySpecDefaults();
 }
 
-#ifdef TKIT_ENABLE_ASSERTS
-static void checkId(TKit::TierHashSet<usz> &elements, const LayoutId id)
+void Layout::insertId(const LayoutId id, const u32 idx)
 {
+#ifdef TKIT_ENABLE_ASSERTS
     if (id.__DebugName.IsEmpty())
     {
-        TKIT_ASSERT(!elements.Contains(id.Id),
+        TKIT_ASSERT(!m_InsertedElements.Contains(id.Id),
                     "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
                     "already exists in the layout (id name not available)",
                     id.Id);
     }
     else
     {
-        TKIT_ASSERT(!elements.Contains(id.Id),
+        TKIT_ASSERT(!m_InsertedElements.Contains(id.Id),
                     "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
                     "already exists in the layout. Debug name: {}",
                     id.Id, id.__DebugName);
     }
-    elements.Insert(id.Id);
-}
-#    define CHECK_ID(id) checkId(m_InsertedElements, id)
-#else
-#    define CHECK_ID(id)
 #endif
+    m_InsertedElements.Insert(id, idx);
+}
 
 usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
 
-    CHECK_ID(id);
-
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = id.Id;
+
+    insertId(id, c);
 
     if (params.Floating.Enable)
     {
@@ -152,6 +149,15 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     return current.Id;
 }
 
+usz Layout::OpenPanel(const LayoutId id)
+{
+    TKIT_ASSERT(m_InsertedElements.Contains(id),
+                "[ONYX][LAYOUT] Can only open a panel that was previously inserted into the layout");
+
+    m_ElementStack.Append(m_InsertedElements[id]);
+    return id;
+}
+
 void Layout::EndPanel()
 {
     TKIT_ASSERT(!m_ElementStack.IsEmpty(),
@@ -164,12 +170,13 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
-    CHECK_ID(id);
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
     current.Id = id.Id;
     current.Type = LayoutElement_Text;
     current.Shape.Type = LayoutShape_Text;
+
+    insertId(id, c);
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
@@ -220,7 +227,6 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
-    CHECK_ID(id);
 
     const u32 c = m_Elements.GetSize();
 
@@ -228,6 +234,8 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.Id = id.Id;
     current.Type = LayoutElement_Unicode;
     current.Shape.Type = LayoutShape_Unicode;
+
+    insertId(id, c);
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A unicode element cannot be a root ui element");
