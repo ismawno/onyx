@@ -24,6 +24,7 @@ int main()
     {
         static Onyx::OverlayWindowFlags wflags = 0;
         static bool enableSettings = false;
+        static bool enableMainMenu = false;
 
         const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
 
@@ -41,6 +42,51 @@ int main()
             ui.CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
             ui.CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
             ui.CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
+        };
+        const auto drawMenus = [&] {
+            if (ui.BeginMenu("Options"))
+            {
+                ui.MenuItem("Window settings", &enableSettings);
+                ui.MenuItem("Main menu bar", &enableMainMenu);
+                ui.EndMenu();
+            }
+            if (ui.BeginMenu("Menu"))
+            {
+                static bool selected = false;
+                ui.HorizontalSeparator("This is a demo menu");
+                ui.MenuItem("New");
+                ui.MenuItem("Open");
+                if (ui.BeginMenu("Open as..."))
+                {
+                    ui.MenuItem("File 1");
+                    ui.MenuItem("File 2");
+                    ui.MenuItem("File 3");
+                    ui.MenuItem("File 4");
+                    if (ui.BeginMenu("More..."))
+                    {
+                        ui.MenuItem("Nothing to see here");
+                        ui.EndMenu();
+                    }
+                    ui.EndMenu();
+                }
+                if (ui.BeginMenu("Options"))
+                {
+                    static f32 val = 3.f;
+                    ui.HorizontalSlider("Slider", &val, -10.f, 10.f);
+                    ui.Button("Press me");
+
+                    ui.BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
+                    for (u32 i = 0; i < 10; ++i)
+                        ui.Text("Bla bla");
+                    ui.EndScroll();
+
+                    static u32 element = 0;
+                    ui.DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
+                    ui.EndMenu();
+                }
+                ui.MenuItem("Select", &selected);
+                ui.EndMenu();
+            }
         };
 
         if (ui.BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
@@ -60,49 +106,15 @@ int main()
 
             if (ui.BeginMenuBar())
             {
-                if (ui.BeginMenu("Windows"))
-                {
-                    ui.MenuItem("Window settings", &enableSettings);
-                    ui.EndMenu();
-                }
-                if (ui.BeginMenu("Menu"))
-                {
-                    static bool selected = false;
-                    ui.HorizontalSeparator("This is a demo menu");
-                    ui.MenuItem("New");
-                    ui.MenuItem("Open");
-                    if (ui.BeginMenu("Open as..."))
-                    {
-                        ui.MenuItem("File 1");
-                        ui.MenuItem("File 2");
-                        ui.MenuItem("File 3");
-                        ui.MenuItem("File 4");
-                        if (ui.BeginMenu("More..."))
-                        {
-                            ui.MenuItem("Nothing to see here");
-                            ui.EndMenu();
-                        }
-                        ui.EndMenu();
-                    }
-                    if (ui.BeginMenu("Options"))
-                    {
-                        static f32 val = 3.f;
-                        ui.HorizontalSlider("Slider", &val, -10.f, 10.f);
-                        ui.Button("Press me");
-
-                        ui.BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
-                        for (u32 i = 0; i < 10; ++i)
-                            ui.Text("Bla bla");
-                        ui.EndScroll();
-
-                        static u32 element = 0;
-                        ui.DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
-                        ui.EndMenu();
-                    }
-                    ui.MenuItem("Select", &selected);
-                    ui.EndMenu();
-                }
+                drawMenus();
                 ui.EndMenuBar();
+            }
+
+            if (enableMainMenu)
+            {
+                ui.BeginMainMenuBar();
+                drawMenus();
+                ui.EndMainMenuBar();
             }
 
             if (ui.PushTree("Buttons", drawLines))
@@ -498,11 +510,16 @@ int main()
 
         if (ui.BeginWindow("Overlay demo"))
         {
-            if (ui.PushTree("Extra content", drawLines))
+            if (ui.PushTree("Miscellaneous", drawLines))
             {
                 ui.TextRaw(Onyx::TextMode_Wrapped, "Nothing to see here! This is extra content to demonstrate "
                                                    "appending multiple times to a window after it has "
                                                    "been closed");
+                if (ui.BeginMenu("A rogue menu item"))
+                {
+                    drawMenus();
+                    ui.EndMenu();
+                }
                 ui.PopTree();
             }
             ui.EndWindow();

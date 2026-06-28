@@ -782,11 +782,19 @@ void Layout::Compile()
     m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 
     m_Elements.Clear();
-    m_AutoId = 0;
-#ifdef TKIT_ENABLE_ASSERTS
     m_InsertedElements.Clear();
-#endif
+    m_AutoId = 0;
 }
+
+void Layout::Reset()
+{
+    m_ElementStack.Clear();
+    m_Elements.Clear();
+    m_InsertedElements.Clear();
+    m_DrawInfo.Clear();
+    m_AutoId = 0;
+}
+
 void Layout::applySpecDefaults()
 {
     const DefaultResources &def = Resources::GetDefaultResources();

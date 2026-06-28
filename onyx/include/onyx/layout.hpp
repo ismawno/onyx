@@ -445,6 +445,7 @@ class Layout
         return elm ? elm->IsHovered(point, padding, applyPaddingToClip) : false;
     }
 
+    void Reset();
     void Compile();
 
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const

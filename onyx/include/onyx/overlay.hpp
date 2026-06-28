@@ -259,6 +259,16 @@ struct ScrollParameterSpecs
     OverlayScrollFlags Flags;
 };
 
+using FloatingLayoutFlags = u8;
+using OverlayTooltipFlags = u8;
+enum FloatingLayoutFlagBit : FloatingLayoutFlags
+{
+    OverlayTooltipFlag_Reset = 1U << 0,
+
+    FloatingLayoutFlag_Drawn = 1U << 1,
+    FloatingLayoutFlag_Active = 1U << 2,
+};
+
 struct Tooltip
 {
     Tooltip(const LayoutSpecs &spc) : Layout(spc)
@@ -266,8 +276,16 @@ struct Tooltip
     }
     Layout Layout;
     f32v2 Position{0.f};
-    bool Drawn = false;
-    bool Active = false;
+    FloatingLayoutFlags Flags = 0;
+};
+
+struct MainMenuBar
+{
+    MainMenuBar(const LayoutSpecs &spc) : Layout(spc)
+    {
+    }
+    Layout Layout;
+    FloatingLayoutFlags Flags = 0;
 };
 
 struct OverlayWindow
@@ -416,6 +434,8 @@ enum OverlayStyleType : u8
     OverlayStyle_TooltipOffset,
     OverlayStyle_TooltipPadding,
 
+    OverlayStyle_MainMenuBarPadding,
+
     OverlayStyle_WindowPadding,
     OverlayStyle_WindowBorderWidth,
     OverlayStyle_WindowSpawnDelta,
@@ -508,6 +528,10 @@ struct UserInterfaceSpecs
 };
 
 // TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
+// TODO(Isma): Implement a good BeginPanel/layout api and helpers for panel parameters
+// TODO(Isma): Implement selectable hints
+// TODO(Isma): Implement disabled
+// TODO(Isma): Implement color pickers
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -541,6 +565,9 @@ class Overlay
 
     bool BeginMenuBar();
     void EndMenuBar();
+
+    void BeginMainMenuBar();
+    void EndMainMenuBar();
 
     bool BeginMenu(TKit::StringView label);
     void EndMenu()
@@ -814,11 +841,11 @@ class Overlay
     // /popups
 
     // tooltips //
-    void BeginTooltip();
+    void BeginTooltip(OverlayTooltipFlags flags = 0);
     void EndTooltip();
     template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
     {
-        BeginTooltip();
+        BeginTooltip(OverlayTooltipFlag_Reset);
         Text(str, std::forward<Args>(args)...);
         EndTooltip();
     }
@@ -1301,11 +1328,15 @@ class Overlay
 
     Layout &getCurrentLayout()
     {
-        return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
+        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
+            return m_Tooltip.Layout;
+        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
     }
     const Layout &getCurrentLayout() const
     {
-        return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
+        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
+            return m_Tooltip.Layout;
+        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
     }
 
     void closePopup(u32 depth);
@@ -1494,6 +1525,7 @@ class Overlay
 
     u64 m_LayerCount = 0;
 
+    MainMenuBar m_MainMenuBar;
     Tooltip m_Tooltip;
 };
 } // namespace Onyx
