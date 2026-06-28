@@ -414,6 +414,7 @@ int main()
                 ui.CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
                 ui.CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
                 ui.CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
+                ui.CheckBoxFlags("OverlaySliderFlag_ColorMarkers", &sflags, Onyx::OverlaySliderFlag_ColorMarkers);
 
                 ui.HorizontalSeparator("Sliders");
                 static f32 fval[2] = {4, 7};

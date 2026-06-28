@@ -204,6 +204,7 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_Logarithmic = 1U << 1,
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
     OverlaySliderFlag_NoInput = 1U << 3,
+    OverlaySliderFlag_ColorMarkers = 1U << 4,
 };
 
 using OverlayPopupFlags = OverlayFocusQueryFlags;
@@ -532,6 +533,7 @@ struct UserInterfaceSpecs
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
 // TODO(Isma): Implement color pickers
+// TODO(Isma): Menu item repositioning
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -550,7 +552,7 @@ class Overlay
     using LyAtt2 = vec2<LyAtt>;
 
     static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
-    static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Top};
+    static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Center};
 
     Overlay(Window *win, const UserInterfaceSpecs &specs = {});
 
@@ -722,13 +724,24 @@ class Overlay
                         const OverlaySliderFlags flags = 0)
     {
         beginHorizontalWidget(PushId(label));
+        Layout &ly = GetCurrentLayout();
 
         bool pressed = false;
+        const bool markers = flags & OverlaySliderFlag_ColorMarkers;
+
+        const TKit::FixedArray<Color, 4> colors{Color_Red, Color_Green, Color_Blue, Color_White * 0.4f};
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
             PushId(&val);
+            if (markers)
+            {
+                ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
+                ly.Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
+            }
             pressed |= horizontalDragBox(&val, speed, mn, mx, format, flags);
+            if (markers)
+                ly.EndPanel();
             PopId();
         }
 
