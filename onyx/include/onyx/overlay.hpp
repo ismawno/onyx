@@ -485,6 +485,7 @@ using OverlayStyleVariables = TKit::FixedArray<f32, OverlayStyle_Count>;
 OverlayStyleVariables CreateDefaultOverlayVariables();
 OverlayPalette CreateSlateOverlayPalette();
 OverlayPalette CreateEmberOverlayPalette();
+OverlayPalette CreateBabyBlueOverlayPalette();
 
 OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette);
 
@@ -503,7 +504,7 @@ struct StyleBackup
 struct OverlayStyle
 {
     OverlayStyleVariables Variables = CreateDefaultOverlayVariables();
-    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateEmberOverlayPalette());
+    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateBabyBlueOverlayPalette());
 
     constexpr f32 operator[](const OverlayStyleType idx) const
     {
