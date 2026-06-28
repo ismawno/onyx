@@ -125,6 +125,7 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_AutoSelectAll = 1U << 3,
     OverlayInputFlag_NoHorizontalScroll = 1U << 4,
     OverlayInputFlag_ElideLeft = 1U << 5,
+    OverlayInputFlag_StepButtons = 1U << 6,
 };
 
 using OverlaySelectableFlags = u8;
@@ -180,6 +181,7 @@ enum OverlayButtonFlagBit : OverlayButtonFlags
 {
     OverlayButtonFlag_SpanFullWidth = 1U << 0,
     OverlayButtonFlag_Small = 1U << 1,
+    OverlayButtonFlag_TryKeepSquare = 1U << 2,
 };
 
 using OverlayTreeFlags = u8;
@@ -648,6 +650,13 @@ class Overlay
     {
         beginHorizontalWidget(PushId(label));
         const bool updated = inputNumericBox(value, format, hint, flags);
+        if (flags & OverlayInputFlag_StepButtons)
+        {
+            if (Button("-", OverlayButtonFlag_TryKeepSquare))
+                --(*value);
+            if (Button("+", OverlayButtonFlag_TryKeepSquare))
+                ++(*value);
+        }
         endHorizontalWidget(label, OverlayColor_InputText);
         PopId();
         return updated;

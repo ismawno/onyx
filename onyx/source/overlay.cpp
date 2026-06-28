@@ -1629,10 +1629,20 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
 
-    const vec2<LayoutSizing> sizing = spanFull ? vec2<LayoutSizing>{flex(), fit()} : vec2<LayoutSizing>{fit()};
-
     const bool small = flags & OverlayButtonFlag_Small;
     const f32 padding = m_Style[small ? OverlayStyle_SmallButtonPadding : OverlayStyle_WidgetPadding];
+
+    f32 mnSize = 0.f;
+    if (flags & OverlayButtonFlag_TryKeepSquare)
+    {
+        const FontData &fdata = getFontData();
+        const f32 fsize = m_Style[OverlayStyle_FontSize];
+        mnSize = fdata.LineHeight * fsize + 2.f * padding;
+    }
+
+    const vec2<LayoutSizing> sizing =
+        spanFull ? vec2<LayoutSizing>{flex(mnSize), fit()} : vec2<LayoutSizing>{fit(mnSize), fit()};
+
     m_LastItem = ly.BeginPanel(
         id,
         LayoutPanelParameters{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = padding});

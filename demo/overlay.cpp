@@ -199,6 +199,7 @@ int main()
                 ui.CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags,
                                  Onyx::OverlayInputFlag_NoHorizontalScroll);
                 ui.CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
+                ui.CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
 
                 static char buf1[32] = "This is some nice text";
                 ui.InputText("Text 1", buf1, 32, "I am a little hint", iflags);
