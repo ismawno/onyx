@@ -529,8 +529,6 @@ struct UserInterfaceSpecs
     OverlayStyle Style{};
 };
 
-// TODO(Isma): Implement little +/- buttons in input numeric (should be easy)
-// TODO(Isma): Implement a good BeginPanel/layout api and helpers for panel parameters
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
 // TODO(Isma): Implement color pickers
@@ -539,6 +537,21 @@ class Overlay
     TKIT_NON_COPYABLE(Overlay)
 
   public:
+    using LyPnPar = LayoutPanelParameters;
+    using LyTxPar = LayoutTextParameters;
+    using LyUnPar = LayoutUnicodeParameters;
+
+    using LySz = LayoutSizing;
+    using LyOf = LayoutOffset;
+    using LyAtt = LayoutAttachment;
+
+    using LySz2 = vec2<LySz>;
+    using LyOf2 = vec2<LyOf>;
+    using LyAtt2 = vec2<LyAtt>;
+
+    static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
+    static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Top};
+
     Overlay(Window *win, const UserInterfaceSpecs &specs = {});
 
     void SetNextWindowPosition(const f32v2 &pos)
@@ -577,7 +590,7 @@ class Overlay
         PopStyleVar();
         PopId();
         --m_CurrentPopupDepth;
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
         ly.EndPanel();
         ly.EndPanel();
     }
@@ -629,11 +642,11 @@ class Overlay
 
     bool BeginSelectable(const bool enabled = false, const OverlaySelectableFlags flags = 0)
     {
-        return BeginSelectable(getCurrentLayout().GenerateNextId(), enabled, flags);
+        return BeginSelectable(GetCurrentLayout().GenerateNextId(), enabled, flags);
     }
     bool BeginSelectable(bool *enabled, const OverlaySelectableFlags flags = 0)
     {
-        return BeginSelectable(getCurrentLayout().GenerateNextId(), enabled, flags);
+        return BeginSelectable(GetCurrentLayout().GenerateNextId(), enabled, flags);
     }
 
     void EndSelectable();
@@ -773,11 +786,11 @@ class Overlay
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
                const f32v2 &scale = f32v2{1.f})
     {
-        getCurrentLayout().Panel(LayoutPanelParameters{.FillColor = Color_White,
-                                                       .Sizing = sabs(size),
-                                                       .Texture = texture,
-                                                       .TexOffset = offset,
-                                                       .TexScale = scale});
+        GetCurrentLayout().Panel(LyPnPar{.FillColor = Color_White,
+                                         .Sizing = sabs(size),
+                                         .Texture = texture,
+                                         .TexOffset = offset,
+                                         .TexScale = scale});
     }
 
     // /display //
@@ -809,7 +822,7 @@ class Overlay
     {
         endScroll();
         PopStyleVar();
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
         ly.EndPanel();
         ly.EndPanel();
         PopId();
@@ -894,7 +907,7 @@ class Overlay
 
     void Separator(const f32 width = 4.f)
     {
-        const LayoutElement &elm = getCurrentLayout().GetCurrentElement();
+        const LayoutElement &elm = GetCurrentLayout().GetCurrentElement();
         if (elm.Direction == LayoutDirection_LeftToRight || elm.Direction == LayoutDirection_RightToLeft)
             VerticalLine(width);
         else
@@ -903,24 +916,28 @@ class Overlay
     void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
     void HorizontalLine(const f32 width = 4.f)
     {
-        getCurrentLayout().Panel(
-            LayoutPanelParameters{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}});
+        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}});
     }
     void VerticalLine(const f32 width = 4.f)
     {
-        getCurrentLayout().Panel(
-            LayoutPanelParameters{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}});
+        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}});
     }
 
-    Layout *BeginPanel(const LayoutPanelParameters &params = {})
+    Layout &BeginPanel(const LayoutId id, const LyPnPar &params = {})
     {
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
+        ly.BeginPanel(id, params);
+        return ly;
+    }
+    Layout &BeginPanel(const LyPnPar &params = {})
+    {
+        Layout &ly = GetCurrentLayout();
         ly.BeginPanel(params);
-        return &ly;
+        return ly;
     }
     void EndPanel()
     {
-        getCurrentLayout().EndPanel();
+        GetCurrentLayout().EndPanel();
     }
 
     bool PushTree(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
@@ -935,7 +952,7 @@ class Overlay
     }
     void PopTree()
     {
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
         ly.EndPanel();
         ly.EndPanel();
         PopId();
@@ -943,8 +960,7 @@ class Overlay
 
     void PushDirection(const LayoutDirection dir, const f32 childGap)
     {
-        BeginPanel(
-            {.Direction = dir, .Alignment = {Alignment_Left, Alignment_Top}, .Sizing = fit(), .ChildGap = childGap});
+        BeginPanel({.Direction = dir, .Alignment = TopLeft, .Sizing = fit(), .ChildGap = childGap});
     }
     void PushDirection(const LayoutDirection dir)
     {
@@ -957,7 +973,7 @@ class Overlay
     void PushIndent(const f32 indent)
     {
         BeginPanel({.Direction = LayoutDirection_TopToBottom,
-                    .Alignment = {Alignment_Left, Alignment_Top},
+                    .Alignment = TopLeft,
                     .Sizing = fit(),
                     .ChildOffset = oabs({indent, 0.f}),
                     .ChildGap = m_Style[OverlayStyle_ChildGap]});
@@ -967,9 +983,17 @@ class Overlay
         EndPanel();
     }
 
-    Layout *GetCurrentLayout()
+    const Layout &GetCurrentLayout() const
     {
-        return m_Current ? &m_Current->Layout : nullptr;
+        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
+            return m_Tooltip.Layout;
+        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
+    }
+    Layout &GetCurrentLayout()
+    {
+        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
+            return m_Tooltip.Layout;
+        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
     }
 
     LayoutId AsStackedId(LayoutId id)
@@ -1023,15 +1047,15 @@ class Overlay
     // query //
     OverlayHoverQueryFlags QueryItemHoverStatus() const
     {
-        return queryHoverStatus(getCurrentLayout().QueryElement(m_LastItem));
+        return queryHoverStatus(GetCurrentLayout().QueryElement(m_LastItem));
     }
     OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
     {
-        return queryAndSetFocusStatus(getCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
+        return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
     }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0)
     {
-        return isElementHovered(getCurrentLayout().QueryElement(m_LastItem), flags);
+        return isElementHovered(GetCurrentLayout().QueryElement(m_LastItem), flags);
     }
     bool IsItemPressed(const OverlayFocusFlags flags = 0)
     {
@@ -1105,7 +1129,7 @@ class Overlay
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
     {
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
@@ -1177,10 +1201,10 @@ class Overlay
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
 
-        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
-                                                .Alignment = {Alignment_Left, Alignment_Center},
-                                                .Sizing = {grow(), fit()},
-                                                .Padding = padding});
+        ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+                                  .Alignment = {Alignment_Left, Alignment_Center},
+                                  .Sizing = {grow(), fit()},
+                                  .Padding = padding});
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text
         // length cannot interfere with slider button positioning in layout calculation
@@ -1190,16 +1214,16 @@ class Overlay
         // so, we offset text slot by 1 parent to align it correctly
 
         ly.BeginPanel(AsStackedId("Slider slot"),
-                      LayoutPanelParameters{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
+                      LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
-        ly.Panel(AsStackedId("Slider button"), LayoutPanelParameters{.FillColor = m_Style[OverlayColor_SliderInner],
-                                                                     .Sizing = {sabs(innerWidth), grow()},
-                                                                     .SelfOffset = oabs({offset, 0.f})});
+        ly.Panel(AsStackedId("Slider button"), LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                                                       .Sizing = {sabs(innerWidth), grow()},
+                                                       .SelfOffset = oabs({offset, 0.f})});
 
         ly.EndPanel();
-        ly.BeginPanel(AsStackedId("Text slot"), LayoutPanelParameters{.Alignment = Alignment_Center,
-                                                                      .Sizing = {snorm(1.f), fit()},
-                                                                      .SelfOffset = onorm({-1.f, 0.f})});
+        ly.BeginPanel(
+            AsStackedId("Text slot"),
+            LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}, .SelfOffset = onorm({-1.f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_SliderText));
@@ -1212,7 +1236,7 @@ class Overlay
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
-        Layout &ly = getCurrentLayout();
+        Layout &ly = GetCurrentLayout();
         const LayoutId id = AsStackedId("Drag/Slider box");
 
         const LayoutElement *elm = ly.QueryElement(id);
@@ -1263,10 +1287,10 @@ class Overlay
             *value = roundToFormat(T(nval), decimals);
         }
 
-        ly.BeginPanel(id, LayoutPanelParameters{.FillColor = *col,
-                                                .Alignment = Alignment_Center,
-                                                .Sizing = {flex(), fit()},
-                                                .Padding = m_Style[OverlayStyle_WidgetPadding]});
+        ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+                                  .Alignment = Alignment_Center,
+                                  .Sizing = {flex(), fit()},
+                                  .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_DragText));
@@ -1335,19 +1359,6 @@ class Overlay
         return roundToFormat(value, getFormatDecimals(format));
     }
 
-    Layout &getCurrentLayout()
-    {
-        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
-            return m_Tooltip.Layout;
-        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
-    }
-    const Layout &getCurrentLayout() const
-    {
-        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
-            return m_Tooltip.Layout;
-        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
-    }
-
     void closePopup(u32 depth);
     void requestCollapsePopups();
     bool headerButton(LayoutId id, CodePoint code);
@@ -1397,11 +1408,11 @@ class Overlay
     const FontData &getFontData() const;
     f32 computeWindowMinSize() const;
 
-    LayoutTextParameters getTextParams(const OverlayColor color) const
+    LyTxPar getTextParams(const OverlayColor color) const
     {
         return {.FillColor = m_Style[color], .FontSize = m_Style[OverlayStyle_FontSize]};
     }
-    LayoutUnicodeParameters getUnicodeParams(const OverlayColor color) const
+    LyUnPar getUnicodeParams(const OverlayColor color) const
     {
         return {.FillColor = m_Style[color], .Size = m_Style[OverlayStyle_FontSize]};
     }
@@ -1422,7 +1433,7 @@ class Overlay
     {
         return LayoutSizing::Absolute(size);
     }
-    static constexpr vec2<LayoutSizing> sabs(const f32v2 &size)
+    static constexpr LySz2 sabs(const f32v2 &size)
     {
         return LayoutSizing::Absolute(size);
     }
@@ -1430,7 +1441,7 @@ class Overlay
     {
         return LayoutSizing::Normalized(size);
     }
-    static constexpr vec2<LayoutSizing> snorm(const f32v2 &size)
+    static constexpr LySz2 snorm(const f32v2 &size)
     {
         return LayoutSizing::Normalized(size);
     }
@@ -1438,7 +1449,7 @@ class Overlay
     {
         return LayoutOffset::Absolute(size);
     }
-    static constexpr vec2<LayoutOffset> oabs(const f32v2 &size)
+    static constexpr LyOf2 oabs(const f32v2 &size)
     {
         return LayoutOffset::Absolute(size);
     }
@@ -1446,7 +1457,7 @@ class Overlay
     {
         return LayoutOffset::Normalized(size);
     }
-    static constexpr vec2<LayoutOffset> onorm(const f32v2 &size)
+    static constexpr LyOf2 onorm(const f32v2 &size)
     {
         return LayoutOffset::Normalized(size);
     }
