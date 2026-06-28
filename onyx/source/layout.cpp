@@ -62,11 +62,10 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     }
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
-    current.Parent = p;
     m_ElementStack.Append(c);
     if (p != TKIT_U32_MAX)
     {
-        LayoutElement &parent = m_Elements[current.Parent];
+        LayoutElement &parent = m_Elements[p];
         parent.Children.Append(c);
 
         if (!params.Floating.Enable)
@@ -180,9 +179,8 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
-    current.Parent = p;
 
-    LayoutElement &parent = m_Elements[current.Parent];
+    LayoutElement &parent = m_Elements[p];
     parent.Children.Append(c);
     ++parent.NonFloatChildCount;
 
@@ -239,9 +237,8 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A unicode element cannot be a root ui element");
-    current.Parent = p;
 
-    LayoutElement &parent = m_Elements[current.Parent];
+    LayoutElement &parent = m_Elements[p];
     parent.Children.Append(c);
     ++parent.NonFloatChildCount;
 
@@ -307,16 +304,13 @@ const LayoutElement *Layout::QueryElement(const LayoutId id) const
     return &it->Value;
 }
 
-void Layout::fitPass(const TKit::StackArray<u32> &rbreadth, const LayoutAxis axis)
+void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
 {
-    for (const u32 p : rbreadth)
+    for (const u32 p : fits)
     {
         LayoutElement &parent = m_Elements[p];
-        TKIT_ASSERT(parent.Type != LayoutElement_Text && parent.Type != LayoutElement_Unicode,
-                    "[ONYX][LAYOUT] A parent node cannot be text or unicode");
-
-        if (parent.Sizing[axis] != LayoutSizing_Fit && parent.Sizing[axis] != LayoutSizing_Flex)
-            continue;
+        TKIT_ASSERT(parent.Sizing[axis] == LayoutSizing_Fit || parent.Sizing[axis] == LayoutSizing_Flex,
+                    "[ONYX][LAYOUT] Only fit or flex elements allowed in fit pass");
 
         const LayoutAxis paxis = getAxis(parent.Direction);
 
@@ -334,7 +328,6 @@ void Layout::fitPass(const TKit::StackArray<u32> &rbreadth, const LayoutAxis axi
             const f32 csize = child.Size[axis];
             const f32 cmnsize = child.MinSize[axis];
 
-            TKIT_ASSERT(child.Parent != TKIT_U32_MAX, "[ONYX][LAYOUT] Only the root node can have no parent");
             if (paxis == axis)
             {
                 psize += csize;
@@ -346,8 +339,9 @@ void Layout::fitPass(const TKit::StackArray<u32> &rbreadth, const LayoutAxis axi
                 childMinSizeTotal = Math::Max(childMinSizeTotal, cmnsize);
             }
         }
+        const bool hasGap = paxis == axis && parent.NonFloatChildCount != 0;
+        const f32 cgap = hasGap ? (parent.ChildGap * (parent.NonFloatChildCount - 1)) : 0.f;
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
-        const f32 cgap = paxis == axis ? (parent.ChildGap * (parent.NonFloatChildCount - 1)) : 0.f;
 
         pmnsize = Math::Max(pmnsize, childMinSizeTotal + padding + cgap);
         pmnsize = Math::Min(pmnsize, pmxsize);
@@ -489,12 +483,13 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
     }
 }
 
-void Layout::wrapText()
+void Layout::wrapText(const TKit::StackArray<u32> &textElms)
 {
-    for (LayoutElement &elm : m_Elements)
+    for (const u32 c : textElms)
     {
-        if (elm.Type != LayoutElement_Text && elm.Type != LayoutElement_Unicode)
-            continue;
+        LayoutElement &elm = m_Elements[c];
+        TKIT_ASSERT(elm.Type == LayoutElement_Text || elm.Type == LayoutElement_Unicode,
+                    "[ONYX][LAYOUT] Only text elements allowed in wrap text");
 
         const FontData &fdata = Resources::GetFontData(elm.Font);
         const f32 fs = elm.FontSize;
@@ -675,24 +670,42 @@ void Layout::Compile()
     TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_ElementStack.GetSize());
 
+    const u32 count = m_Elements.GetSize();
     TKit::StackArray<u32> breadth{};
-    breadth.Reserve(m_Elements.GetSize());
+    breadth.Reserve(count);
 
-    TKit::StackArray<u32> rbreadth{};
-    rbreadth.Reserve(m_Elements.GetSize());
+    TKit::StackArray<u32> xfits{};
+    xfits.Reserve(count);
 
-    for (u32 i = 0; i < m_Elements.GetSize(); ++i)
-        if (m_Elements[i].NonFloatChildCount != 0)
-        {
-            breadth.Append(i);
-            rbreadth.Append(i);
-        }
-    std::reverse(rbreadth.begin(), rbreadth.end());
+    TKit::StackArray<u32> yfits{};
+    yfits.Reserve(count);
 
-    fitPass(rbreadth, LayoutAxis_Horizontal);
+    TKit::StackArray<u32> textElms{};
+    textElms.Reserve(count);
+
+    for (u32 i = 0; i < count; ++i)
+    {
+        const u32 fidx = i;
+        const u32 bidx = count - i - 1;
+        const LayoutElement &forward = m_Elements[fidx];
+        const LayoutElement &backward = m_Elements[bidx];
+
+        if (!forward.Children.IsEmpty())
+            breadth.Append(fidx);
+
+        if (backward.Sizing[0] == LayoutSizing_Fit || backward.Sizing[0] == LayoutSizing_Flex)
+            xfits.Append(bidx);
+        if (backward.Sizing[1] == LayoutSizing_Fit || backward.Sizing[1] == LayoutSizing_Flex)
+            yfits.Append(bidx);
+
+        if (forward.Type == LayoutElement_Text || forward.Type == LayoutElement_Unicode)
+            textElms.Append(fidx);
+    }
+
+    fitPass(xfits, LayoutAxis_Horizontal);
     growShrinkPass(breadth, LayoutAxis_Horizontal);
-    wrapText();
-    fitPass(rbreadth, LayoutAxis_Vertical);
+    wrapText(textElms);
+    fitPass(yfits, LayoutAxis_Vertical);
     growShrinkPass(breadth, LayoutAxis_Vertical);
     positionPass(breadth);
 

@@ -40,9 +40,10 @@ int main()
             ui.CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
             ui.CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
             ui.CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
+            ui.CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
         };
 
-        if (ui.BeginWindow("Overlay demo", wflags))
+        if (ui.BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
             if (ui.PushTree("General", drawLines))
@@ -54,9 +55,54 @@ int main()
                     ui.Text("And this is the time that passes between frames");
                     ui.EndTooltip();
                 }
-
-                ui.CheckBox("Open widow settings", &enableSettings);
                 ui.PopTree();
+            }
+
+            if (ui.BeginMenuBar())
+            {
+                if (ui.BeginMenu("Windows"))
+                {
+                    ui.MenuItem("Window settings", &enableSettings);
+                    ui.EndMenu();
+                }
+                if (ui.BeginMenu("Menu"))
+                {
+                    static bool selected = false;
+                    ui.HorizontalSeparator("This is a demo menu");
+                    ui.MenuItem("New");
+                    ui.MenuItem("Open");
+                    if (ui.BeginMenu("Open as..."))
+                    {
+                        ui.MenuItem("File 1");
+                        ui.MenuItem("File 2");
+                        ui.MenuItem("File 3");
+                        ui.MenuItem("File 4");
+                        if (ui.BeginMenu("More..."))
+                        {
+                            ui.MenuItem("Nothing to see here");
+                            ui.EndMenu();
+                        }
+                        ui.EndMenu();
+                    }
+                    if (ui.BeginMenu("Options"))
+                    {
+                        static f32 val = 3.f;
+                        ui.HorizontalSlider("Slider", &val, -10.f, 10.f);
+                        ui.Button("Press me");
+
+                        ui.BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
+                        for (u32 i = 0; i < 10; ++i)
+                            ui.Text("Bla bla");
+                        ui.EndScroll();
+
+                        static u32 element = 0;
+                        ui.DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
+                        ui.EndMenu();
+                    }
+                    ui.MenuItem("Select", &selected);
+                    ui.EndMenu();
+                }
+                ui.EndMenuBar();
             }
 
             if (ui.PushTree("Buttons", drawLines))
@@ -100,7 +146,7 @@ int main()
                 {
                     static bool dummy = false;
                     ui.TextRaw("Some text");
-                    ui.Button("Im a button in a drop down!");
+                    ui.Button("I am a button in a drop down!");
                     ui.CheckBox("You can pretty much put whatever you want in here...", &dummy);
 
                     if (ui.BeginDropDown("Even another dropdown!", "I am another preview", dflags))
@@ -177,7 +223,8 @@ int main()
                         static u32 value = 3;
                         ui.SetNextTextId("Text id");
                         ui.Text("Right click me and change the value!: {}", value);
-                        if (ui.BeginPopupContextItem("Value edit", pflags))
+                        if (ui.BeginPopupContextItem("Value edit", Onyx::OverlayWindowFlag_AutoResize |
+                                                                       Onyx::OverlayWindowFlag_BringToTop))
                         {
                             ui.InputNumeric("Value", &value);
                             ui.EndPopup();
@@ -277,6 +324,7 @@ int main()
                 ui.CheckBoxFlags("OverlaySelectableFlag_SelectOnDoubleClick", &sflags,
                                  Onyx::OverlaySelectableFlag_SelectOnDoubleClick);
                 ui.CheckBoxFlags("OverlaySelectableFlag_Highlight", &sflags, Onyx::OverlaySelectableFlag_Highlight);
+                ui.CheckBoxFlags("OverlaySelectableFlag_CheckBox", &sflags, Onyx::OverlaySelectableFlag_CheckBox);
 
                 ui.Selectable("I am not selected at all##One", false, sflags);
                 ui.Selectable("I am permanently selected", true, sflags);

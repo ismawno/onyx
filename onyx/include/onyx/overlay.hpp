@@ -22,14 +22,15 @@ enum ResizeEdge : u8
     ResizeEdge_Count
 };
 using ResizeFlags = u8;
-using EventFlags = u16;
+using StateFlags = u16;
 
 // NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
 using WidgetStateFlags = u8;
 enum WidgetStateFlagBit : WidgetStateFlags
 {
     WidgetStateFlag_Opened = 1U << 0,
-    WidgetStateFlag_ConvertedToInput = 1U << 1,
+    // only used if OnHover focus flags are used
+    WidgetStateFlag_Hovering = 1U << 1,
 };
 
 // public focus query flags -> these flags are given to the user/dev by queries
@@ -59,16 +60,18 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_ActiveAllowsInteraction = 1U << 14,
     FocusFlag_LeftClickOpensPopup = 1U << 15,
     FocusFlag_RightClickOpensPopup = 1U << 16,
-    FocusFlag_DoNotSetHoveredId = 1U << 17,
-    FocusFlag_DoNotSetPressedId = 1U << 18,
-    FocusFlag_DoNotSetActiveId = 1U << 19,
-    FocusFlag_DoNotProtectPopup = 1U << 20,
+    FocusFlag_HoverOpensPopup = 1U << 17,
+    FocusFlag_HoverRequestsPopupCollapse = 1U << 18,
+    FocusFlag_DoNotSetHoveredId = 1U << 19,
+    FocusFlag_DoNotSetPressedId = 1U << 20,
+    FocusFlag_DoNotSetActiveId = 1U << 21,
+    FocusFlag_DoNotProtectPopup = 1U << 22,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
                          FocusFlag_DoNotProtectPopup
 };
 
 // same as above, but public
-using OverlayFocusFlags = u32;
+using OverlayFocusFlags = FocusFlags;
 enum OverlayFocusFlagBit : OverlayFocusFlags
 {
     OverlayFocusFlag_PressedEvenWhenAwayFromHover = FocusFlag_PressedEvenWhenAwayFromHover
@@ -83,7 +86,7 @@ enum InputConvertFlagBit : InputConvertInfoFlags
     InputConvertFlag_AllowDoubleClick = 1U << 3,
 };
 
-using OverlayWindowFlags = u16;
+using OverlayWindowFlags = u32;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
     OverlayWindowFlag_NoScrollBar = 1U << 3,
@@ -98,10 +101,11 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_BringToTop = 1U << 12,
     OverlayWindowFlag_Modal = 1U << 13,
     OverlayWindowFlag_NoCloseButton = 1U << 14,
-    WindowInternalFlag_ClosePopupButton = 1U << 15,
+    OverlayWindowFlag_MenuBar = 1U << 15,
+    WindowInternalFlag_ClosePopupButton = 1U << 16,
 };
 
-using OverlayScrollFlags = u16;
+using OverlayScrollFlags = OverlayWindowFlags;
 enum OverlayScrollFlagBit : OverlayScrollFlags
 {
     OverlayScrollFlag_Borders = 1U << 0,
@@ -129,6 +133,8 @@ enum OverlaySelectableFlagBit : OverlaySelectableFlags
     OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
     OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
     OverlaySelectableFlag_Highlight = 1U << 2,
+    OverlaySelectableFlag_CheckBox = 1U << 3,
+    OverlaySelectableFlag_MenuItem = 1U << 4,
 };
 
 using OverlayDropDownFlags = u8;
@@ -157,7 +163,7 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
     OverlayHoveredFlag_Stationary = 1U << 9,
 };
 
-using OverlayHoverQueryFlags = u16;
+using OverlayHoverQueryFlags = OverlayHoveredFlags;
 enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
 {
     OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
@@ -198,7 +204,7 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_NoInput = 1U << 3,
 };
 
-using OverlayPopupFlags = u8;
+using OverlayPopupFlags = OverlayFocusQueryFlags;
 enum OverlayPopupFlagBit : OverlayPopupFlags
 {
     OverlayPopupFlag_LeftClick = OverlayFocusQueryFlag_LeftClicked,
@@ -314,7 +320,6 @@ enum OverlayPaletteType : u8
     OverlayPalette_Pressed2,
 
     OverlayPalette_Text0,
-    OverlayPalette_Text1,
 
     OverlayPalette_Inner0,
     OverlayPalette_Inner1,
@@ -379,6 +384,12 @@ enum OverlayColor : u8
     OverlayColor_SelectablePressed,
     OverlayColor_SelectableText,
 
+    OverlayColor_MenuItemIdle,
+    OverlayColor_MenuItemHovered,
+    OverlayColor_MenuItemPressed,
+    OverlayColor_MenuItemText,
+    OverlayColor_MenuBoxBackground,
+
     OverlayColor_ScrollBarIdle,
     OverlayColor_ScrollBarHovered,
     OverlayColor_ScrollBarPressed,
@@ -391,6 +402,8 @@ enum OverlayColor : u8
 
     OverlayColor_HeaderBackgroundExpanded,
     OverlayColor_HeaderBackgroundCollapsed,
+
+    OverlayColor_MenuBarBackground,
 
     OverlayColor_Count,
 };
@@ -422,6 +435,8 @@ enum OverlayStyleType : u8
     OverlayStyle_WidgetMinimumWidth,
     OverlayStyle_SmallButtonPadding,
 
+    OverlayStyle_MenuPadding,
+
     OverlayStyle_TreeLineWidth,
 
     OverlayStyle_ClickMilliseconds,
@@ -434,8 +449,8 @@ enum OverlayStyleType : u8
     OverlayStyle_DropDownHeightSmall,
     OverlayStyle_DropDownHeightRegular,
 
-    OverlayStyle_InputHintAlpha,
-    OverlayStyle_InputCursorAlpha,
+    OverlayStyle_HintOpacity,
+    OverlayStyle_CursorOpacity,
 
     OverlayStyle_Count
 };
@@ -523,6 +538,42 @@ class Overlay
         return BeginWindow(title, nullptr, flags);
     }
     void EndWindow();
+
+    bool BeginMenuBar();
+    void EndMenuBar();
+
+    bool BeginMenu(TKit::StringView label);
+    void EndMenu()
+    {
+        PopStyleVar();
+        PopId();
+        --m_CurrentPopupDepth;
+        Layout &ly = getCurrentLayout();
+        ly.EndPanel();
+        ly.EndPanel();
+    }
+
+    bool MenuItem(const TKit::StringView label, const bool enabled = false)
+    {
+        PushStyleColor(OverlayColor_SelectableIdle, Color_Transparent);
+        if (Selectable(label, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_MenuItem))
+        {
+            CollapsePopups();
+            PopStyleColor();
+            return true;
+        }
+        PopStyleColor();
+        return false;
+    }
+    bool MenuItem(const TKit::StringView label, bool *enabled)
+    {
+        if (MenuItem(label, *enabled))
+        {
+            *enabled = !*enabled;
+            return true;
+        }
+        return false;
+    }
 
     // /windows //
 
@@ -702,6 +753,8 @@ class Overlay
         m_PopupStack.Append(id);
     }
     void CloseCurrentPopup();
+    void CloseChildPopup();
+    void CollapsePopups();
 
     bool BeginPopup(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndPopup();
@@ -791,7 +844,11 @@ class Overlay
 
     // layout //
 
-    bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth = TKIT_F32_MAX, OverlayScrollFlags flags = 0);
+    bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
+    bool BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
+    {
+        return BeginScroll(label, maxHeight, TKIT_F32_MAX, flags);
+    }
     void EndScroll()
     {
         PopId();
@@ -909,6 +966,7 @@ class Overlay
     {
         const StyleBackup &b = m_StyleStack.GetBack();
         m_Style[b.Index] = b.Old;
+        m_StyleStack.Pop();
     }
 
     void PushStyleColor(const OverlayColor color, const Color &col)
@@ -921,6 +979,7 @@ class Overlay
     {
         const ColorBackup &b = m_ColorStack.GetBack();
         m_Style[b.Index] = b.Old;
+        m_ColorStack.Pop();
     }
 
     // /style //
@@ -996,7 +1055,7 @@ class Overlay
   private:
     bool checkFlags(const OverlayWindowFlags flags) const
     {
-        return flags & m_EventFlags;
+        return flags & m_StateFlags;
     }
 
     static TKit::StringView trimLabel(TKit::StringView label);
@@ -1249,6 +1308,8 @@ class Overlay
         return m_Tooltip.Active ? m_Tooltip.Layout : m_Current->Layout;
     }
 
+    void closePopup(u32 depth);
+    void requestCollapsePopups();
     bool headerButton(LayoutId id, CodePoint code);
     template <typename F> void iterateReverseWindows(F func);
 
@@ -1368,7 +1429,7 @@ class Overlay
     TKit::TierArray<ColorBackup> m_ColorStack{};
     TKit::TierArray<StyleBackup> m_StyleStack{};
 
-    EventFlags m_EventFlags = 0;
+    StateFlags m_StateFlags = 0;
 
     // interaction info
     usz m_HoveredId = NullLayoutId;

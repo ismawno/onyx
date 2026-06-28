@@ -225,7 +225,6 @@ struct LayoutElement
 
     f32v4 Padding; // left right bottom top
 
-    u32 Parent;
     Resource Font;
     Resource Texture;
     Resource Material;
@@ -470,9 +469,9 @@ class Layout
 
   private:
     void insertId(LayoutId id, u32 idx);
-    void fitPass(const TKit::StackArray<u32> &rbreadth, LayoutAxis axis);
+    void fitPass(const TKit::StackArray<u32> &fits, LayoutAxis axis);
     void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
-    void wrapText();
+    void wrapText(const TKit::StackArray<u32> &textElms);
     void positionPass(const TKit::StackArray<u32> &breadth);
 
     void applySpecDefaults();
