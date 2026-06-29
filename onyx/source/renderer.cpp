@@ -2792,7 +2792,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         return !drawCmds[CullMode_None].IsEmpty() || !drawCmds[CullMode_Back].IsEmpty();
     };
 
-    const auto drawCulledMeshes = [&](const Geometry geo, const PerCullPerCmd &drawCmds) {
+    const auto drawCulledMeshes = [&]([[maybe_unused]] const Geometry geo, const PerCullPerCmd &drawCmds) {
         const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds1 = drawCmds[CullMode_None];
         const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds2 = drawCmds[CullMode_Back];
 
