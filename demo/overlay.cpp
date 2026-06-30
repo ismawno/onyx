@@ -145,6 +145,16 @@ int main()
                 ui.PopTree();
             }
 
+            if (ui.PushTree("Color editor"))
+            {
+                static Onyx::OverlayDropDownFlags cflags = 0;
+                ui.CheckBoxFlags("OverlayColorEditorFlag_NoAlpha", &cflags, Onyx::OverlayColorEditorFlag_NoAlpha);
+
+                static Onyx::Color col = Onyx::Color_Red;
+                ui.ColorEditor("Color", &col, cflags);
+                ui.PopTree();
+            }
+
             if (ui.PushTree("Dropdowns", drawLines))
             {
                 static Onyx::OverlayDropDownFlags dflags = 0;
@@ -414,7 +424,6 @@ int main()
                 ui.CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
                 ui.CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
                 ui.CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
-                ui.CheckBoxFlags("OverlaySliderFlag_ColorMarkers", &sflags, Onyx::OverlaySliderFlag_ColorMarkers);
 
                 ui.HorizontalSeparator("Sliders");
                 static f32 fval[2] = {4, 7};

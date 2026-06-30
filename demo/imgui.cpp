@@ -16,7 +16,7 @@ int main()
             ImGui::Begin("Im a test window");
             ImGui::Text("Some text %f", Onyx::GetDeltaTime(win).AsMilliseconds());
             ImGui::SetItemTooltip("Hey!");
-            ImGui::End();
+            ImGui::ColorEdit3() ImGui::End();
         }
         Onyx::Render();
     }

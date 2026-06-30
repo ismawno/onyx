@@ -623,10 +623,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
             }
         }
 
-        LyTxPar tparams = getTextParams(OverlayColor_Header);
-        if (collapsed)
-            tparams.FillColor.rgba[3] = 0.8f;
-
         ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
         ly.EndPanel();
 
@@ -855,9 +851,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     ly.BeginPanel(id, LyPnPar{.FillColor = *boxCol,
                               .Alignment = CenterLeft,
                               .Sizing = {m_CurrentPopupDepth == 0 ? snorm(0.7f) : flex(),
-                                         hasPreview ? fit()
-                                                    : sabs(getFontData().LineHeight * m_Style[OverlayStyle_FontSize] +
-                                                           2.f * padding)}});
+                                         hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)}});
 
     if (hasPreview)
     {
@@ -1327,8 +1321,8 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         const bool useHint = str.IsEmpty() && !hint.IsEmpty();
         if (useHint)
         {
-            // tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
-            tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
+            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
             ly.Text(ly.GenerateNextId(), hint, tparams);
         }
         else
@@ -1415,8 +1409,8 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         tparams.Offset[0] = oabs(textOffset);
         if (useHint)
         {
-            // tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
-            tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
+            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
             ly.Text(ly.GenerateNextId(), hint, tparams);
         }
         else
@@ -1657,11 +1651,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     f32 mnSize = 0.f;
     if (flags & OverlayButtonFlag_TryKeepSquare)
-    {
-        const FontData &fdata = getFontData();
-        const f32 fsize = m_Style[OverlayStyle_FontSize];
-        mnSize = fdata.LineHeight * fsize + 2.f * padding;
-    }
+        mnSize = getLineHeight() + 2.f * padding;
 
     const LySz2 sizing = spanFull ? LySz2{flex(mnSize), fit()} : LySz2{fit(mnSize), fit()};
 
@@ -1925,6 +1915,66 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
     endHorizontalWidget(label, OverlayColor_InputText);
     PopId();
     return updated;
+}
+
+bool Overlay::ColorEditor(const TKit::StringView label, f32 *value, const OverlayColorEditorFlags flags)
+{
+    beginHorizontalWidget(PushId(label));
+    Layout &ly = GetCurrentLayout();
+
+    const bool alpha = !(flags & OverlayColorEditorFlag_NoAlpha);
+    const u32 count = alpha ? 4 : 3;
+    bool changed = false;
+
+    const TKit::FixedArray<Color, 4> colors{Color_Red, Color_Green, Color_Blue, Color_White * 0.4f};
+    for (u32 i = 0; i < count; ++i)
+    {
+        u32 uval = u32(value[i] * 255.f);
+        PushId(i);
+
+        ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
+        ly.Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
+        if (horizontalDragBox(&uval, 0.6f, 0, 255, nullptr, OverlaySliderFlag_ClampOnInput))
+        {
+            changed = true;
+            value[i] = f32(uval) / 255.f;
+        }
+        ly.EndPanel();
+
+        PopId();
+    }
+
+    const Color col = alpha ? Color{value[0], value[1], value[2], value[3]} : Color{value[0], value[1], value[2]};
+    const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
+    if (alpha)
+    {
+        const f32 hlh = 0.5f * lh;
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(lh)});
+
+        ly.BeginPanel(LyPnPar{.Sizing = sabs({lh, hlh})});
+
+        ly.Panel(LyPnPar{.FillColor = Color{0.5f}, .Sizing = sabs(hlh)});
+        ly.Panel(LyPnPar{.FillColor = Color{0.3f}, .Sizing = sabs(hlh)});
+
+        ly.EndPanel();
+
+        ly.BeginPanel(LyPnPar{.Sizing = sabs({lh, hlh})});
+
+        ly.Panel(LyPnPar{.FillColor = Color{0.3f}, .Sizing = sabs(hlh)});
+        ly.Panel(LyPnPar{.FillColor = Color{0.5f}, .Sizing = sabs(hlh)});
+
+        ly.EndPanel();
+
+        ly.Panel(AsStackedId("Preview"), {.FillColor = col, .Sizing = sabs(lh), .SelfOffset = oabs({0.f, lh})});
+
+        ly.EndPanel();
+    }
+    else
+        ly.Panel(AsStackedId("Preview"), {.FillColor = col, .Sizing = sabs(lh)});
+
+    endHorizontalWidget(label, OverlayColor_DragText);
+    PopId();
+    return changed;
 }
 
 void Overlay::Draw()
@@ -2306,11 +2356,13 @@ const FontData &Overlay::getFontData() const
     const Resource font = m_Context->GetState().Font;
     return Resources::GetFontData(font);
 }
+f32 Overlay::getLineHeight() const
+{
+    return m_Style[OverlayStyle_FontSize] * getFontData().LineHeight;
+}
 f32 Overlay::computeWindowMinSize() const
 {
-    const FontData &fdata = getFontData();
-    return m_Style[OverlayStyle_FontSize] * fdata.LineHeight +
-           2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
+    return getLineHeight() + 2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
 }
 
 f32v2 Overlay::getMousePos() const

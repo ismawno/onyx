@@ -175,6 +175,12 @@ enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
     OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
+using OverlayColorEditorFlags = u8;
+enum OverlayColorEditorFlagBit : OverlayColorEditorFlags
+{
+    OverlayColorEditorFlag_NoAlpha = 1U << 0,
+};
+
 using OverlayButtonFlags = u8;
 enum OverlayButtonFlagBit : OverlayButtonFlags
 {
@@ -202,7 +208,6 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_Logarithmic = 1U << 1,
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
     OverlaySliderFlag_NoInput = 1U << 3,
-    OverlaySliderFlag_ColorMarkers = 1U << 4,
 };
 
 using OverlayPopupFlags = OverlayFocusQueryFlags;
@@ -507,12 +512,11 @@ struct UserInterfaceSpecs
     OverlayStyle Style{};
 };
 
-// TODO(Isma): Tooltip and menu bar must now be windows. To not have to handle the active window stuff, add an internal
-// flag, _WasOpened or something like that to signal it was already opened. On reset, we clear it
-// TODO(Isma): Remove the main menu checks then
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
-// TODO(Isma): Implement color pickers
+// TODO(Isma): Implement color editors
+// TODO(Isma): Implement color editor tooltips
+// TODO(Isma): Implement image tooltips
 // TODO(Isma): Menu item repositioning
 // TODO(Isma): Dont allow window to go out of os window bounds
 // TODO(Isma): Add layer reordering to main menu bar
@@ -638,7 +642,6 @@ class Overlay
     bool Selectable(TKit::StringView label, bool enabled = false, OverlaySelectableFlags flags = 0);
     bool Selectable(TKit::StringView label, bool *enabled, OverlaySelectableFlags flags = 0);
 
-    // TODO(Isma): Implement hint
     bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
                    OverlayInputFlags flags = 0);
     template <TKit::Numeric T>
@@ -673,24 +676,23 @@ class Overlay
         return false;
     }
 
-    // TODO(Isma): Implement format rounding
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
                           const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
         beginHorizontalWidget(PushId(label));
-        bool pressed = false;
+        bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
             PushId(&val);
-            pressed |= horizontalSliderBox(&val, mn, mx, format, flags);
+            changed |= horizontalSliderBox(&val, mn, mx, format, flags);
             PopId();
         }
         endHorizontalWidget(label, OverlayColor_SliderText);
         PopId();
-        return pressed;
+        return changed;
     }
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
@@ -706,30 +708,18 @@ class Overlay
                         const OverlaySliderFlags flags = 0)
     {
         beginHorizontalWidget(PushId(label));
-        Layout &ly = GetCurrentLayout();
-
-        bool pressed = false;
-        const bool markers = flags & OverlaySliderFlag_ColorMarkers;
-
-        const TKit::FixedArray<Color, 4> colors{Color_Red, Color_Green, Color_Blue, Color_White * 0.4f};
+        bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
-            PushId(&val);
-            if (markers)
-            {
-                ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
-                ly.Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
-            }
-            pressed |= horizontalDragBox(&val, speed, mn, mx, format, flags);
-            if (markers)
-                ly.EndPanel();
+            PushId(i);
+            changed |= horizontalDragBox(&val, speed, mn, mx, format, flags);
             PopId();
         }
 
         endHorizontalWidget(label, OverlayColor_DragText);
         PopId();
-        return pressed;
+        return changed;
     }
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
@@ -737,6 +727,20 @@ class Overlay
                         const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
+    }
+
+    bool ColorEditor(TKit::StringView label, f32 *value, OverlayColorEditorFlags flags = 0);
+    bool ColorEditor(const TKit::StringView label, f32v4 *value, const OverlayColorEditorFlags flags = 0)
+    {
+        return ColorEditor(label, &value->At(0), flags);
+    }
+    bool ColorEditor(const TKit::StringView label, f32v3 *value, const OverlayColorEditorFlags flags = 0)
+    {
+        return ColorEditor(label, &value->At(0), flags | OverlayColorEditorFlag_NoAlpha);
+    }
+    bool ColorEditor(const TKit::StringView label, Color *col, const OverlayColorEditorFlags flags = 0)
+    {
+        return ColorEditor(label, &col->rgba, flags);
     }
 
     // /widgets //
@@ -1399,7 +1403,10 @@ class Overlay
 
     // TODO(Isma): Replace with hash map [] operator
     OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
+
     const FontData &getFontData() const;
+    f32 getLineHeight() const;
+
     f32 computeWindowMinSize() const;
 
     LyTxPar getTextParams(const OverlayColor color) const
