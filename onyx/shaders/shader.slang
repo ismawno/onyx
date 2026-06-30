@@ -442,7 +442,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 
-#elif defined(ONYX_PASS_SHADED)
+#elif !defined(ONYX_PASS_SHADOW)
     const f32 alpha = 1.f;
 #endif
 
@@ -498,11 +498,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 
 #    endif
 #else
-#    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, f32v4(fill.rgb, alpha), input.TexCoord, data.TexOffset, data.TexScale);
-#    else
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale);
-#    endif
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale, alpha);
     return out;
 #endif
 }

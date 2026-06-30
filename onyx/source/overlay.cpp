@@ -97,9 +97,9 @@ static Color hex(const TKit::StringView h)
 {
     return Color::FromHexadecimal(h);
 }
-static Color rgb(const f32 r, const f32 g, const f32 b)
+static Color rgba(const f32 r, const f32 g, const f32 b, const f32 a = 1.f)
 {
-    return Color{r, g, b};
+    return Color{r, g, b, a};
 }
 
 OverlayPalette CreateSlateOverlayPalette()
@@ -161,27 +161,27 @@ OverlayPalette CreateEmberOverlayPalette()
 OverlayPalette CreateBabyBlueOverlayPalette()
 {
     OverlayPalette palette;
-    palette[OverlayPalette_Idle0] = rgb(0.20f, 0.22f, 0.27f);
-    palette[OverlayPalette_Idle1] = rgb(0.25f, 0.28f, 0.35f);
-    palette[OverlayPalette_Idle2] = rgb(0.22f, 0.24f, 0.30f);
+    palette[OverlayPalette_Idle0] = rgba(0.20f, 0.22f, 0.27f);
+    palette[OverlayPalette_Idle1] = rgba(0.25f, 0.28f, 0.35f);
+    palette[OverlayPalette_Idle2] = rgba(0.22f, 0.24f, 0.30f);
 
-    palette[OverlayPalette_Hovered0] = rgb(0.30f, 0.33f, 0.40f);
-    palette[OverlayPalette_Hovered1] = rgb(0.36f, 0.40f, 0.48f);
-    palette[OverlayPalette_Hovered2] = rgb(0.26f, 0.29f, 0.36f);
-    palette[OverlayPalette_Hovered3] = rgb(0.33f, 0.37f, 0.45f);
+    palette[OverlayPalette_Hovered0] = rgba(0.30f, 0.33f, 0.40f);
+    palette[OverlayPalette_Hovered1] = rgba(0.36f, 0.40f, 0.48f);
+    palette[OverlayPalette_Hovered2] = rgba(0.26f, 0.29f, 0.36f);
+    palette[OverlayPalette_Hovered3] = rgba(0.33f, 0.37f, 0.45f);
 
-    palette[OverlayPalette_Pressed0] = rgb(0.20f, 0.38f, 0.58f);
-    palette[OverlayPalette_Pressed1] = rgb(0.18f, 0.34f, 0.52f);
-    palette[OverlayPalette_Pressed2] = rgb(0.23f, 0.42f, 0.62f);
+    palette[OverlayPalette_Pressed0] = rgba(0.20f, 0.38f, 0.58f);
+    palette[OverlayPalette_Pressed1] = rgba(0.18f, 0.34f, 0.52f);
+    palette[OverlayPalette_Pressed2] = rgba(0.23f, 0.42f, 0.62f);
 
-    palette[OverlayPalette_Text0] = rgb(0.86f, 0.93f, 0.89f);
+    palette[OverlayPalette_Text0] = rgba(0.86f, 0.93f, 0.89f);
 
-    palette[OverlayPalette_Inner0] = rgb(0.26f, 0.54f, 0.85f);
-    palette[OverlayPalette_Inner1] = rgb(0.32f, 0.60f, 0.90f);
+    palette[OverlayPalette_Inner0] = rgba(0.26f, 0.54f, 0.85f);
+    palette[OverlayPalette_Inner1] = rgba(0.32f, 0.60f, 0.90f);
 
-    palette[OverlayPalette_Background0] = rgb(0.13f, 0.14f, 0.17f);
-    palette[OverlayPalette_Background1] = rgb(0.20f, 0.22f, 0.27f);
-    palette[OverlayPalette_Background2] = rgb(0.10f, 0.11f, 0.14f);
+    palette[OverlayPalette_Background0] = rgba(0.13f, 0.14f, 0.17f);
+    palette[OverlayPalette_Background1] = rgba(0.20f, 0.22f, 0.27f);
+    palette[OverlayPalette_Background2] = rgba(0.10f, 0.11f, 0.14f);
 
     return palette;
 }

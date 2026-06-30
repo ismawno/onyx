@@ -234,16 +234,17 @@ SamplerTexId GetSamplerTexId(const TextureOffsets offsets, const u32 id)
     return combined;
 }
 
-f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const TextureOffsets offsets, const u32 id, const f32v4 fill, const f32v2 uv0, const u32 offset, const u32 scale)
+f32v4 ComputeFlatColor(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const TextureOffsets offsets, const u32 id, const f32v4 fill, const f32v2 uv0, const u32 offset, const u32 scale, const f32 alpha)
 {
     const SamplerTexId stid = GetSamplerTexId(offsets, id);
     if (stid.IsNull())
-        return fill;
+        return f32v4(fill.rgb, fill.a * alpha);
 
     const f32v2 uv = ComputeTexCoord(uv0, offset, scale);
     const SamplerState samp = samplers[stid.Sampler];
     const Texture2D tex = textures[stid.Texture];
 
-    return fill * tex.Sample(samp, uv);
+    const f32v4 col = fill * tex.Sample(samp, uv);
+    return f32v4(col.rgb, col.a * alpha);
 }
 

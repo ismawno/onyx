@@ -394,14 +394,13 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
 
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
     const bool opaque = renderInfo.colorAttachmentCount == 2;
+    const bool opaqueParams = opaque && geo == Geometry_Glyph;
 
-    const VkBlendFactor csrc = opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
-    const VkBlendFactor cdst =
-        opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    const VkBlendFactor csrc = opaqueParams ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    const VkBlendFactor cdst = opaqueParams ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
 
     const VkBlendFactor asrc = VK_BLEND_FACTOR_ONE;
-    const VkBlendFactor adst =
-        opaque && geo == Geometry_Glyph ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
+    const VkBlendFactor adst = opaqueParams ? VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
 
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
