@@ -1125,7 +1125,7 @@ class Overlay
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = AsStackedId("Drag/Slider box");
+        const LayoutId id = AsStackedId("__onyx_id_Drag/Slider_box");
 
         const LayoutElement *elm = ly.QueryElement(id);
 
@@ -1208,16 +1208,16 @@ class Overlay
         // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
         // so, we offset text slot by 1 parent to align it correctly
 
-        ly.BeginPanel(AsStackedId("Slider slot"),
+        ly.BeginPanel(AsStackedId("__onyx_id_Slider_slot"),
                       LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
-        ly.Panel(AsStackedId("Slider button"), LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                                                       .Sizing = {sabs(innerWidth), grow()},
-                                                       .SelfOffset = oabs({offset, 0.f})});
+        ly.Panel(AsStackedId("__onyx_id_Slider_button"), LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                                                                 .Sizing = {sabs(innerWidth), grow()},
+                                                                 .SelfOffset = oabs({offset, 0.f})});
 
         ly.EndPanel();
         ly.BeginPanel(
-            AsStackedId("Text slot"),
+            AsStackedId("__onyx_id_Text_slot"),
             LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}, .SelfOffset = onorm({-1.f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
@@ -1232,7 +1232,7 @@ class Overlay
                            const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = AsStackedId("Drag/Slider box");
+        const LayoutId id = AsStackedId("__onyx_id_Drag/Slider_box");
 
         const LayoutElement *elm = ly.QueryElement(id);
         const T pval = *value;
@@ -1381,15 +1381,15 @@ class Overlay
     }
     bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0);
 
-    WidgetStateFlags getWidgetState(const usz id, const WidgetStateFlags fallback = 0)
+    WidgetStateFlags getWidgetState(const LayoutId id, const WidgetStateFlags fallback = 0)
     {
         return m_WidgetStates.TryInsert(id, fallback);
     }
-    bool checkWidgetState(const usz id, const WidgetStateFlags flags, const WidgetStateFlags fallback = 0)
+    bool checkWidgetState(const LayoutId id, const WidgetStateFlags flags, const WidgetStateFlags fallback = 0)
     {
         return getWidgetState(id, fallback) & flags;
     }
-    void toggleWidgetState(const usz id, const WidgetStateFlags bit)
+    void toggleWidgetState(const LayoutId id, const WidgetStateFlags bit)
     {
         const WidgetStateFlags flags = getWidgetState(id);
         if (flags & bit)
