@@ -89,6 +89,13 @@ int main()
             }
         };
 
+        if (enableMainMenu)
+        {
+            ui.BeginMainMenuBar();
+            drawMenus();
+            ui.EndMainMenuBar();
+        }
+
         if (ui.BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
@@ -108,13 +115,6 @@ int main()
             {
                 drawMenus();
                 ui.EndMenuBar();
-            }
-
-            if (enableMainMenu)
-            {
-                ui.BeginMainMenuBar();
-                drawMenus();
-                ui.EndMainMenuBar();
             }
 
             if (ui.PushTree("Buttons", drawLines))

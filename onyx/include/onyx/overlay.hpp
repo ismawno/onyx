@@ -89,20 +89,19 @@ enum InputConvertFlagBit : InputConvertInfoFlags
 using OverlayWindowFlags = u32;
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoScrollBar = 1U << 3,
-    OverlayWindowFlag_NoVerticalScroll = 1U << 4,
-    OverlayWindowFlag_HorizontalScroll = 1U << 5,
-    OverlayWindowFlag_NoResize = 1U << 6,
-    OverlayWindowFlag_NoMove = 1U << 7,
-    OverlayWindowFlag_NoCollapse = 1U << 8,
-    OverlayWindowFlag_NoHeaderBar = 1U << 9,
-    OverlayWindowFlag_NoBringToFocus = 1U << 10,
-    OverlayWindowFlag_AutoResize = 1U << 11,
-    OverlayWindowFlag_BringToTop = 1U << 12,
-    OverlayWindowFlag_Modal = 1U << 13,
-    OverlayWindowFlag_NoCloseButton = 1U << 14,
-    OverlayWindowFlag_MenuBar = 1U << 15,
-    WindowInternalFlag_ClosePopupButton = 1U << 16,
+    OverlayWindowFlag_NoScrollBar = 1U << 8,
+    OverlayWindowFlag_NoVerticalScroll = 1U << 9,
+    OverlayWindowFlag_HorizontalScroll = 1U << 10,
+    OverlayWindowFlag_NoResize = 1U << 11,
+    OverlayWindowFlag_NoMove = 1U << 12,
+    OverlayWindowFlag_NoCollapse = 1U << 13,
+    OverlayWindowFlag_NoHeaderBar = 1U << 14,
+    OverlayWindowFlag_NoBringToFocus = 1U << 15,
+    OverlayWindowFlag_AutoResize = 1U << 16,
+    OverlayWindowFlag_BringToTop = 1U << 17,
+    OverlayWindowFlag_Modal = 1U << 18,
+    OverlayWindowFlag_NoCloseButton = 1U << 19,
+    OverlayWindowFlag_MenuBar = 1U << 20,
 };
 
 using OverlayScrollFlags = OverlayWindowFlags;
@@ -189,7 +188,6 @@ enum OverlayTreeFlagBit : OverlayTreeFlags
 {
     OverlayTreeFlag_DrawLines = 1U << 0,
     OverlayTreeFlag_ToggleOnArrow = 1U << 1,
-    // TODO(Isma): Make this only on open. Add CloseOnDoubleClick
     OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
     OverlayTreeFlag_SpanLabelWidth = 1U << 3,
     OverlayTreeFlag_Framed = 1U << 4,
@@ -262,33 +260,10 @@ struct ScrollParameterSpecs
     OverlayScrollFlags Flags;
 };
 
-using FloatingLayoutFlags = u8;
 using OverlayTooltipFlags = u8;
-enum FloatingLayoutFlagBit : FloatingLayoutFlags
+enum OverlayTooltipFlagBit : OverlayTooltipFlags
 {
     OverlayTooltipFlag_Reset = 1U << 0,
-
-    FloatingLayoutFlag_Drawn = 1U << 1,
-    FloatingLayoutFlag_Active = 1U << 2,
-};
-
-struct Tooltip
-{
-    Tooltip(const LayoutSpecs &spc) : Layout(spc)
-    {
-    }
-    Layout Layout;
-    f32v2 Position{0.f};
-    FloatingLayoutFlags Flags = 0;
-};
-
-struct MainMenuBar
-{
-    MainMenuBar(const LayoutSpecs &spc) : Layout(spc)
-    {
-    }
-    Layout Layout;
-    FloatingLayoutFlags Flags = 0;
 };
 
 struct OverlayWindow
@@ -438,6 +413,7 @@ enum OverlayStyleType : u8
     OverlayStyle_TooltipPadding,
 
     OverlayStyle_MainMenuBarPadding,
+    OverlayStyle_MinimumMenuWidth,
 
     OverlayStyle_WindowPadding,
     OverlayStyle_WindowBorderWidth,
@@ -531,10 +507,15 @@ struct UserInterfaceSpecs
     OverlayStyle Style{};
 };
 
+// TODO(Isma): Tooltip and menu bar must now be windows. To not have to handle the active window stuff, add an internal
+// flag, _WasOpened or something like that to signal it was already opened. On reset, we clear it
+// TODO(Isma): Remove the main menu checks then
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
 // TODO(Isma): Implement color pickers
 // TODO(Isma): Menu item repositioning
+// TODO(Isma): Dont allow window to go out of os window bounds
+// TODO(Isma): Add layer reordering to main menu bar
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -999,15 +980,11 @@ class Overlay
 
     const Layout &GetCurrentLayout() const
     {
-        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
-            return m_Tooltip.Layout;
-        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
+        return m_Current->Layout;
     }
     Layout &GetCurrentLayout()
     {
-        if (m_Tooltip.Flags & FloatingLayoutFlag_Active)
-            return m_Tooltip.Layout;
-        return (m_MainMenuBar.Flags & FloatingLayoutFlag_Active) ? m_MainMenuBar.Layout : m_Current->Layout;
+        return m_Current->Layout;
     }
 
     LayoutId AsStackedId(LayoutId id)
@@ -1384,11 +1361,14 @@ class Overlay
 
     void drawWindowBorders();
     void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
-    bool addActiveWindow(OverlayWindow *win);
+    void addActiveWindow(OverlayWindow *win);
+    void popWindowStack();
     u64 toTop()
     {
         return m_LayerCount++;
     }
+
+    void updateMainWindowBorders();
 
     OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
@@ -1554,12 +1534,16 @@ class Overlay
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
 
+    OverlayWindow *m_Tooltip = nullptr;
+
+    f32v2 m_TopLeftBorder;
+    f32v2 m_TopRightBorder;
+    f32v2 m_BottomLeftBorder;
+    f32v2 m_BottomRightBorder;
+
     NextWindowData m_NextWindow{};
     LayoutId m_TextId = NullLayoutId;
 
     u64 m_LayerCount = 0;
-
-    MainMenuBar m_MainMenuBar;
-    Tooltip m_Tooltip;
 };
 } // namespace Onyx

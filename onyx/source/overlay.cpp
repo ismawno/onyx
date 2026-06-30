@@ -26,6 +26,7 @@ enum StateFlagBit : StateFlags
     StateFlag_MustCollapsePopups = 1U << 7,
     StateFlag_FocusBlockByPopupCollapse = 1U << 8,
     StateFlag_PopupProtectionForbidden = 1U << 9,
+    StateFlag_MainMenuBarActive = 1U << 10,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse
 };
@@ -35,8 +36,12 @@ enum WindowInternalFlagBit : OverlayWindowFlags
     WindowInternalFlag_Focused = 1U << 1,
     WindowInternalFlag_InputHovered = 1U << 2,
     WindowInternalFlag_MenuBarOpened = 1U << 3,
-    WindowInternalFlagPersist =
-        WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_InputHovered,
+    WindowInternalFlag_ClosePopupButton = 1U << 4,
+    WindowInternalFlag_Active = 1U << 5,
+    WindowInternalFlag_MainMenuBar = 1U << 6,
+    WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
+                                WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
+                                WindowInternalFlag_MainMenuBar,
 };
 
 OverlayStyleVariables CreateDefaultOverlayVariables()
@@ -49,6 +54,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_TooltipPadding] = 4.f;
 
     vars[OverlayStyle_MainMenuBarPadding] = 4.f;
+    vars[OverlayStyle_MinimumMenuWidth] = 150.f;
 
     vars[OverlayStyle_WindowPadding] = 8.f;
     vars[OverlayStyle_WindowBorderWidth] = 4.f;
@@ -259,8 +265,7 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
 }
 
 Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
-    : m_LayoutSpecs(specs.Layout), m_Window(win), m_Style(specs.Style), m_MainMenuBar(specs.Layout),
-      m_Tooltip(specs.Layout)
+    : m_LayoutSpecs(specs.Layout), m_Window(win), m_Style(specs.Style)
 {
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
@@ -271,6 +276,7 @@ Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
+    updateMainWindowBorders();
 }
 
 void Overlay::drawWindowBorders()
@@ -417,19 +423,31 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     sinfo.WheelOffset = 0.f;
 }
 
-bool Overlay::addActiveWindow(OverlayWindow *win)
+void Overlay::addActiveWindow(OverlayWindow *win)
 {
-    for (const OverlayWindow *w : m_ActiveWindows)
-        if (w == win)
-            return false;
     for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
         if (win->Layer <= m_ActiveWindows[i]->Layer)
         {
             m_ActiveWindows.Insert(m_ActiveWindows.begin() + i, win);
-            return true;
+            win->Flags |= WindowInternalFlag_Active;
+            return;
         }
     m_ActiveWindows.Append(win);
-    return true;
+    win->Flags |= WindowInternalFlag_Active;
+    return;
+}
+void Overlay::popWindowStack()
+{
+    m_WindowStack.Pop();
+    m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
+}
+
+void Overlay::updateMainWindowBorders()
+{
+    m_TopLeftBorder = m_View->ScreenToWorld(f32v2{0.f});
+    m_TopRightBorder = m_View->ScreenToWorld(f32v2{1.f, 0.f});
+    m_BottomLeftBorder = m_View->ScreenToWorld(f32v2{0.f, 1.f});
+    m_BottomRightBorder = m_View->ScreenToWorld(f32v2{1.f});
 }
 
 OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
@@ -513,6 +531,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->PopupDepth = m_CurrentPopupDepth;
+
     if (flags & OverlayWindowFlag_BringToTop)
         m_Current->Layer = toTop();
     if (flags & OverlayWindowFlag_Modal)
@@ -523,13 +542,14 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
     const bool collapsed = !noCollapse && !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
 
     m_WindowStack.Append(m_Current);
-    if (!addActiveWindow(m_Current))
+    if (m_Current->Flags & WindowInternalFlag_Active)
     {
         // window is still active. user can still append to it
         if (collapsed)
             EndWindow();
         return !collapsed;
     }
+    addActiveWindow(m_Current);
 
     if (m_NextWindow.Flags & NextWindowFlag_Position)
         m_Current->Position = m_NextWindow.Position;
@@ -651,8 +671,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 void Overlay::EndWindow()
 {
     TKIT_ASSERT(m_Current, "[ONYX][OVERLAY] Cannot end a window without having started one");
-    m_WindowStack.Pop();
-    m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
+    popWindowStack();
     PopId();
 }
 
@@ -674,38 +693,39 @@ void Overlay::EndMenuBar()
 
 void Overlay::BeginMainMenuBar()
 {
-    TKIT_ASSERT(!(m_MainMenuBar.Flags & FloatingLayoutFlag_Active),
-                "[ONYX][OVERLAY] Cannot begin a main menu bar twice without ending");
+    const f32v2 &tl = m_TopLeftBorder;
+    const f32v2 &tr = m_TopRightBorder;
+    const f32 xsize = tr[0] - tl[0];
 
-    m_MainMenuBar.Flags |= FloatingLayoutFlag_Active;
-    if (m_MainMenuBar.Flags & FloatingLayoutFlag_Drawn)
+    m_Current = getOrCreateOverlayWindow("Main menu bar");
+    m_Current->Flags |= WindowInternalFlag_MainMenuBar;
+
+    m_StateFlags |= StateFlag_MainMenuBarActive;
+    m_WindowStack.Append(m_Current);
+
+    if (m_Current->Flags & WindowInternalFlag_Active)
         return;
 
-    m_MainMenuBar.Flags |= FloatingLayoutFlag_Drawn;
-    const f32v2 tl = m_View->ScreenToWorld(f32v2{0.f});
-    const f32v2 tr = m_View->ScreenToWorld(f32v2{1.f, 0.f});
-    const f32 xsize = tr[0] - tl[0];
-    m_MainMenuBar.Layout.BeginPanel("Background", LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
-                                                          .Alignment = TopLeft,
-                                                          .Sizing = {sabs(xsize), fit()},
-                                                          .SelfOffset = oabs(tl),
-                                                          .Padding = m_Style[OverlayStyle_MainMenuBarPadding]});
+    addActiveWindow(m_Current);
+    Layout &ly = GetCurrentLayout();
 
-    m_MainMenuBar.Layout.BeginPanel(PushId("Main menu bar"),
-                                    LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
-                                            .Direction = LayoutDirection_LeftToRight,
-                                            .Alignment = CenterLeft,
-                                            .Sizing = {grow(), fit()}});
+    m_Current->Id = ly.BeginPanel("Background", LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
+                                                        .Alignment = TopLeft,
+                                                        .Sizing = {sabs(xsize), fit()},
+                                                        .SelfOffset = oabs(tl),
+                                                        .Padding = m_Style[OverlayStyle_MainMenuBarPadding]});
+
+    ly.BeginPanel(PushId("Main menu bar"), LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
+                                                   .Direction = LayoutDirection_LeftToRight,
+                                                   .Alignment = CenterLeft,
+                                                   .Sizing = {grow(), fit()}});
 }
 
 void Overlay::EndMainMenuBar()
 {
-    TKIT_ASSERT(m_MainMenuBar.Flags & FloatingLayoutFlag_Active,
-                "[ONYX][OVERLAY] Cannot end a main menu bar that has not started");
-    m_MainMenuBar.Flags &= ~FloatingLayoutFlag_Active;
-    m_MainMenuBar.Layout.EndPanel();
-    m_MainMenuBar.Layout.EndPanel();
+    m_StateFlags &= ~StateFlag_MainMenuBarActive;
     PopId();
+    popWindowStack();
 }
 
 bool Overlay::BeginMenu(const TKit::StringView label)
@@ -714,7 +734,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     const LayoutId id = PushId(label);
     const LayoutElement *elm = ly.QueryElement(id);
 
-    const bool mmnActive = m_MainMenuBar.Flags & FloatingLayoutFlag_Active;
+    const bool mmnActive = m_StateFlags & StateFlag_MainMenuBarActive;
     const bool verticalLayout =
         (mmnActive && m_CurrentPopupDepth != 0) ||
         (!mmnActive && (!m_Current->CheckFlags(WindowInternalFlag_MenuBarOpened) || m_CurrentPopupDepth != 0));
@@ -753,7 +773,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         ly.BeginPanel(bid, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBoxBackground],
                                    .Direction = LayoutDirection_TopToBottom,
                                    .Alignment = TopLeft,
-                                   .Sizing = {fit(150.f), fit()},
+                                   .Sizing = {fit(m_Style[OverlayStyle_MinimumMenuWidth]), fit()},
                                    .SelfOffset = oabs({-4.f, 0.f}),
                                    .Floating = {.Enable = true, .Attachment = att, .Alignment = TopLeft},
                                    .Padding = padding});
@@ -1846,31 +1866,40 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
 
 void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 {
-    TKIT_ASSERT(m_Current, "[ONYX][OVERLAY] Cannot begin a tooltip outside of a window");
-    TKIT_ASSERT(!(m_Tooltip.Flags & FloatingLayoutFlag_Active),
-                "[ONYX][OVERLAY] Cannot begin a tooltip twice without ending");
-    m_Tooltip.Flags |= FloatingLayoutFlag_Active | FloatingLayoutFlag_Drawn;
-
-    if (flags & OverlayTooltipFlag_Reset)
-        m_Tooltip.Layout.Reset();
+    if (m_Tooltip && (flags & OverlayTooltipFlag_Reset))
+    {
+        m_Tooltip->Layout.Reset();
+        m_Tooltip->Flags &= ~WindowInternalFlag_Active;
+    }
 
     const LayoutId id = "Tooltip";
-    const LayoutElement *elm = m_Tooltip.Layout.QueryElement(id);
+    m_Current = getOrCreateOverlayWindow(id);
+    PushId(id);
+
+    m_Tooltip = m_Current;
+    m_WindowStack.Append(m_Current);
+
+    if (m_Current->Flags & WindowInternalFlag_Active)
+        return;
+
+    Layout &ly = GetCurrentLayout();
+
+    const LayoutElement *elm = ly.QueryElement(id);
     const f32v2 size = elm ? elm->Size : f32v2{0.f};
 
     const f32v2 pos = computeMouseAlignedPosition(size);
 
-    m_Tooltip.Layout.BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
-                                            .Sizing = fit(),
-                                            .SelfOffset = oabs(pos),
-                                            .Padding = m_Style[OverlayStyle_TooltipPadding]});
+    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
+                              .Sizing = fit(),
+                              .SelfOffset = oabs(pos),
+                              .Padding = m_Style[OverlayStyle_TooltipPadding]});
 
-    m_Tooltip.Layout.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
-                                        .Direction = LayoutDirection_TopToBottom,
-                                        .Alignment = TopLeft,
-                                        .Sizing = fit(),
-                                        .Padding = m_Style[OverlayStyle_ContentAreaPadding],
-                                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    ly.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
+                          .Direction = LayoutDirection_TopToBottom,
+                          .Alignment = TopLeft,
+                          .Sizing = fit(),
+                          .Padding = m_Style[OverlayStyle_ContentAreaPadding],
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
 
 bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
@@ -1884,12 +1913,8 @@ bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
 
 void Overlay::EndTooltip()
 {
-    TKIT_ASSERT(m_Tooltip.Flags & FloatingLayoutFlag_Active,
-                "[ONYX][OVERLAY] Cannot end a tooltip that has not started");
-
-    m_Tooltip.Flags &= ~FloatingLayoutFlag_Active;
-    m_Tooltip.Layout.EndPanel();
-    m_Tooltip.Layout.EndPanel();
+    PopId();
+    popWindowStack();
 }
 
 bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
@@ -1922,7 +1947,7 @@ void Overlay::Draw()
         if (++idx == modalWindow)
         {
             m_Context->Push();
-            m_Context->Scale(2.f * m_View->ScreenToWorld(f32v2{1.f}));
+            m_Context->Scale(m_TopRightBorder - m_BottomLeftBorder);
             m_Context->Alpha(0.2f);
             m_Context->Quad();
             m_Context->Pop();
@@ -1930,21 +1955,17 @@ void Overlay::Draw()
         win->Layout.Compile();
         m_Context->Layout(win->Layout);
     }
-    TKIT_ASSERT(!(m_Tooltip.Flags & FloatingLayoutFlag_Active),
-                "[ONYX][OVERLAY] Found a tooltip that has not been finished");
 
-    if (m_MainMenuBar.Flags & FloatingLayoutFlag_Drawn)
+    if (m_Tooltip)
     {
-        m_MainMenuBar.Layout.Compile();
-        m_Context->Layout(m_MainMenuBar.Layout);
-        m_MainMenuBar.Flags &= ~FloatingLayoutFlag_Drawn;
+        m_Tooltip->Layout.EndPanel();
+        m_Tooltip->Layout.EndPanel();
+        m_Tooltip->Layout.Compile();
+
+        m_Context->Layout(m_Tooltip->Layout);
+        m_Tooltip = nullptr;
     }
-    if (m_Tooltip.Flags & FloatingLayoutFlag_Drawn)
-    {
-        m_Tooltip.Layout.Compile();
-        m_Context->Layout(m_Tooltip.Layout);
-        m_Tooltip.Flags &= ~FloatingLayoutFlag_Drawn;
-    }
+
     m_ActiveWindows.Clear();
 }
 
@@ -1957,15 +1978,31 @@ template <typename F> void Overlay::iterateReverseWindows(const F func)
 
 u32 Overlay::processWindows()
 {
+    TKIT_ASSERT(!m_Current, "[ONYX][OVERLAY] Window stack not properly closed! Current window pointer is not null");
+    TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
+                m_CurrentPopupDepth);
+    TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
+                m_WindowStack.GetSize());
+
+    updateMainWindowBorders();
     u32 modalWindow = 0;
     for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
     {
         m_Current = m_ActiveWindows[i];
-        endScroll();
-        m_Current->Layout.EndPanel();
-        if (m_Current->Flags & OverlayWindowFlag_Modal)
-            modalWindow = i + 1;
+        if (m_Current->Flags & WindowInternalFlag_MainMenuBar)
+        {
+            m_Current->Layout.EndPanel();
+            m_Current->Layout.EndPanel();
+        }
+        else
+        {
+            endScroll();
+            m_Current->Layout.EndPanel();
+            if (m_Current->Flags & OverlayWindowFlag_Modal)
+                modalWindow = i + 1;
+        }
     }
+    m_Current = nullptr;
 
     const f32v2 mpos = getMousePos();
 
@@ -2062,7 +2099,7 @@ u32 Overlay::processWindows()
         const bool collapsed =
             !(win->Flags & OverlayWindowFlag_NoCollapse) && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
         win->HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
-        win->RemoveFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
+        win->RemoveFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_Active);
     };
 
     // check for mouse events
@@ -2126,6 +2163,7 @@ u32 Overlay::processWindows()
         const bool winHovered =
             !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
             win->Layout.IsHovered(win->Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
+
         const bool inputHovered = win->CheckFlags(WindowInternalFlag_InputHovered);
 
         win->Flags |= wflags;
@@ -2148,13 +2186,13 @@ u32 Overlay::processWindows()
             const bool noFocus = win->Flags & OverlayWindowFlag_NoBringToFocus;
             if (!noFocus)
                 win->Layer = toTop();
-            // because we just moved the current window to the front (back of the array)
             return false;
         }
         return true;
     });
 
-    m_ActiveWindows.GetBack()->AddFlags(WindowInternalFlag_Focused);
+    if (!m_ActiveWindows.IsEmpty())
+        m_ActiveWindows.GetBack()->AddFlags(WindowInternalFlag_Focused);
 
     // now just handle grabbing, which is straightforward
     if (!m_PressingLeftMouse)
@@ -2233,10 +2271,6 @@ u32 Overlay::processWindows()
         hinfo->WheelOffset += scroll[0];
 
     m_ScrollStack.Clear();
-    TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
-                m_CurrentPopupDepth);
-    TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
-                m_WindowStack.GetSize());
     return modalWindow;
 }
 
@@ -2289,16 +2323,16 @@ f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
     const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
     const f32v2 offset = f32v2{toffset, -2.f * toffset};
 
-    const f32v2 border = m_View->ScreenToWorld(f32v2{1.f});
+    const f32v2 &br = m_BottomRightBorder;
 
     const f32 rt = m_MousePos[0] + offset[0] + size[0];
     const f32 rb = m_MousePos[1] + offset[1] - size[1];
 
     f32v2 pos = m_MousePos + offset;
-    if (rt > border[0])
-        pos[0] -= rt - border[0];
-    if (rb < border[1])
-        pos[1] -= rb - border[1];
+    if (rt > br[0])
+        pos[0] -= rt - br[0];
+    if (rb < br[1])
+        pos[1] -= rb - br[1];
 
     return pos;
 }
