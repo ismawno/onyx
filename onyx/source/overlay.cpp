@@ -378,13 +378,17 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
             if (pressed || Math::Absolute(sinfo.WheelOffset) > 0.f)
             {
                 if (pressed)
+                {
                     col = &m_Style[OverlayColor_ScrollBarPressed];
+                    sinfo.CursorOffset += sign * m_MouseDelta[axis];
+                }
 
                 const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
                 const f32 unbounded = sinfo.CursorOffset + wheel;
+                const f32 bounded = Math::Clamp(unbounded, -maxBarTravel, 0.f);
+                sinfo.WheelOffset = barToElement * (bounded - sinfo.CursorOffset);
 
-                sinfo.CursorOffset += sign * m_MouseDelta[axis];
-                sinfo.BarOffset = sign * Math::Clamp(unbounded, -maxBarTravel, 0.f);
+                sinfo.BarOffset = sign * bounded;
                 sinfo.ElementOffset = barToElement * sinfo.BarOffset;
             }
             else
@@ -418,7 +422,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     else
         sinfo = ScrollBarInfo{};
 
-    sinfo.WheelOffset = 0.f;
+    // sinfo.WheelOffset = 0.f;
 }
 
 void Overlay::addActiveWindow(OverlayWindow *win)
@@ -2196,7 +2200,7 @@ u32 Overlay::processWindows()
                 m_StateFlags |= StateFlag_RightMouseReleased;
         }
         else if (ev.Type == Event_Scrolled)
-            scroll = m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
+            scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
         else if (ev.Type == Event_CharInput)
         {
             char buf[4];
