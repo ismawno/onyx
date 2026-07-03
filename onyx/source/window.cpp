@@ -1,12 +1,13 @@
 #include "pch.hpp"
 #include "onyx/window.hpp"
 #include "onyx/input.hpp"
+#include "onyx/overlay.hpp"
+#include "onyx/camera.hpp"
 #include "core.hpp"
 #include "execution.hpp"
 #include "platform.hpp"
 #include "glfw.hpp"
 #include "conversion.hpp"
-#include "onyx/camera.hpp"
 #include "vkit/presentation/swap_chain.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -373,6 +374,9 @@ Window::~Window()
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(m_Swapchain);
 
+    for (Overlay *ov : m_Overlays)
+        tier->Destroy(ov);
+
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -731,6 +735,29 @@ void Window::PushEvent(const Event &event)
 void Window::FlushEvents()
 {
     m_Events.Clear();
+}
+
+Overlay *Window::CreateOverlay(const OverlaySpecs *specs)
+{
+    TKit::TierAllocator *tier = GetTier();
+    Overlay *ov = tier->Create<Overlay>(this, specs ? *specs : OverlaySpecs{});
+    return m_Overlays.Append(ov);
+}
+void Window::DestroyOverlay(Overlay *overlay)
+{
+    for (u32 i = 0; i < m_Overlays.GetSize(); ++i)
+    {
+        Overlay *ov = m_Overlays[i];
+        if (ov == overlay)
+        {
+            TKit::TierAllocator *tier = GetTier();
+            tier->Destroy(ov);
+            m_Overlays.RemoveUnordered(m_Overlays.begin() + i);
+            return;
+        }
+    }
+    TKIT_FATAL("[ONYX][WINDOW] Failed to find overlay to destroy. Ensure the overlay was created with the "
+               "CreateOverlay() window function");
 }
 
 static i32 toGlfw(const Key key)

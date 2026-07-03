@@ -65,18 +65,6 @@ struct ApiData
 
 static TKit::Storage<ApiData> s_Data{};
 
-void InitializeApi()
-{
-    s_Data.Construct();
-}
-void TerminateApi()
-{
-    TKit::TierAllocator *tier = GetTier();
-    for (RenderTexture *rtex : s_Data->RenderTextures)
-        tier->Destroy(rtex);
-    s_Data.Destruct();
-}
-
 #ifdef ONYX_ENABLE_IMGUI
 static void initializeImGui(WindowData &wdata)
 {
@@ -126,6 +114,22 @@ static void shutdownImGui(WindowData &wdata)
 #    endif
 }
 #endif
+
+void InitializeApi()
+{
+    s_Data.Construct();
+}
+void TerminateApi()
+{
+    TKit::TierAllocator *tier = GetTier();
+#ifdef ONYX_ENABLE_IMGUI
+    for (WindowData &wdata : s_Data->Windows)
+        shutdownImGui(wdata);
+#endif
+    for (RenderTexture *rtex : s_Data->RenderTextures)
+        tier->Destroy(rtex);
+    s_Data.Destruct();
+}
 
 static u32 getWindowIndex(const Window *window)
 {

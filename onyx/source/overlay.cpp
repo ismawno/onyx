@@ -4,6 +4,10 @@
 
 namespace Onyx
 {
+
+static constexpr f32 s_CheckboardLight = 0.5f;
+static constexpr f32 s_CheckboardDark = 0.3f;
+
 enum ResizeFlagBit : ResizeFlags
 {
     ResizeFlag_Left = 1U << 0,
@@ -264,7 +268,7 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     return colors;
 }
 
-Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
+Overlay::Overlay(Window *win, const OverlaySpecs &specs)
     : m_LayoutSpecs(specs.Layout), m_Window(win), m_Style(specs.Style)
 {
     TKIT_ASSERT(
@@ -272,11 +276,24 @@ Overlay::Overlay(Window *win, const UserInterfaceSpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    m_View = win->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
+    m_View =
+        m_Window->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
     updateMainWindowBorders();
+
+    for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
+        m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
+
+    Resources::Sync(SyncFlag_DynamicMeshes);
+}
+
+Overlay::~Overlay()
+{
+    for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
+        if (Resources::IsResourceValid<D2>(m_DynamicMeshes[i].Handle, Resource_DynamicMesh))
+            Resources::DestroyDynamicMesh<D2>(m_DynamicMeshes[i].Handle);
 }
 
 void Overlay::drawWindowBorders()
@@ -771,7 +788,8 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
     if (popupOpen)
     {
-        m_WidgetStates[barId] = WidgetStateFlag_Opened;
+        if (!verticalLayout)
+            m_WidgetStates[barId] = WidgetStateFlag_Opened;
         const usz bid = AsStackedId("__onyx_id_Menu_box");
         const LyAtt2 att = verticalLayout ? LyAtt2{LayoutAttachment_Right, LayoutAttachment_Top}
                                           : LyAtt2{LayoutAttachment_Left, LayoutAttachment_Bottom};
@@ -865,9 +883,8 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
     if (hasPreview)
     {
-        ly.BeginPanel(
-            AsStackedId("__onyx_id_Parent"),
-            LyPnPar{.Alignment = Alignment_Center, .Sizing = fit(), .Padding = m_Style[OverlayStyle_WidgetPadding]});
+        ly.BeginPanel(AsStackedId("__onyx_id_Parent"),
+                      LyPnPar{.Alignment = Center, .Sizing = fit(), .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         ly.Text(ly.GenerateNextId(), preview, getTextParams(OverlayColor_DropDownText));
         ly.EndPanel();
@@ -882,7 +899,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
             dropDownActive ? &m_Style[OverlayColor_DropDownButton] : &m_Style[OverlayColor_DropDownHovered];
         ly.BeginPanel(AsStackedId("__onyx_id_Button_box"),
                       LyPnPar{.FillColor = *buttonCol,
-                              .Alignment = Alignment_Center,
+                              .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
         ly.Unicode(ly.GenerateNextId(), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
         ly.EndPanel();
@@ -890,7 +907,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
     if (dropDownActive)
     {
-        endHorizontalWidget(label, OverlayColor_Text);
+        endHorizontalWidget(OverlayColor_Text, label);
 
         const f32 size = elm ? elm->Size[0] : 0.f;
         const usz did = AsStackedId("__onyx_id_Drop_down");
@@ -925,7 +942,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
         queryAndSetFocusStatus(ly.QueryElement(did), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
         return true;
     }
-    endHorizontalWidget(label, OverlayColor_Text);
+    endHorizontalWidget(OverlayColor_Text, label);
     ly.EndPanel();
     PopId();
     return false;
@@ -1020,24 +1037,21 @@ void Overlay::endScroll()
     ly.EndPanel();
 }
 
-void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
+void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, const LySz2 &innerSizing)
 {
     Layout &ly = GetCurrentLayout();
-    const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
-    const f32 mw = m_Style[OverlayStyle_WidgetMinimumWidth];
-    m_LastItem = ly.BeginPanel(id, LyPnPar{.Alignment = CenterLeft,
-                                           .Sizing = {autoResize ? fit(mw) : flex(mw), fit()},
-                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    m_LastItem = ly.BeginPanel(
+        id, LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.BeginPanel(AsStackedId("__onyx_id_Container"), LyPnPar{.Alignment = CenterLeft,
-                                                              .Sizing = {autoResize ? fit(mw) : snorm(normSize), fit()},
-                                                              .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    ly.BeginPanel(AsStackedId("__onyx_id_Container"),
+                  LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
-void Overlay::endHorizontalWidget(const TKit::StringView label, const OverlayColor labelColor)
+void Overlay::endHorizontalWidget(const OverlayColor labelColor, const TKit::StringView label)
 {
     Layout &ly = GetCurrentLayout();
     ly.EndPanel();
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(labelColor));
+    if (!label.IsEmpty())
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(labelColor));
     ly.EndPanel();
 }
 
@@ -1088,7 +1102,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 
     const usz buttonId =
         ly.BeginPanel(AsStackedId("__onyx_id_Tree_collapse"),
-                      LyPnPar{.Alignment = Alignment_Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+                      LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     bool toggleOpen = focusFlags & OverlayFocusQueryFlag_LeftClicked;
     if (toggleOpen)
@@ -1132,9 +1146,8 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
 
     if (indent)
     {
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                              .Alignment = Alignment_Center,
-                              .Sizing = {sabs(treeIndent), flex()}});
+        ly.BeginPanel(LyPnPar{
+            .Direction = LayoutDirection_TopToBottom, .Alignment = Center, .Sizing = {sabs(treeIndent), flex()}});
 
         if (lines)
             VerticalLine();
@@ -1156,8 +1169,10 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     TKIT_ASSERT(size != 0, "[ONYX][OVERLAY] Buffer size for text input cannot be zero");
     Layout &ly = GetCurrentLayout();
     const u32 strSize = u32(std::strlen(buf));
-    TKIT_ASSERT(strSize < size, "[ONYX][OVERLAY] The input character length ({}) exceeds buffer size ({})", strSize,
-                size);
+    TKIT_ASSERT(strSize < size,
+                "[ONYX][OVERLAY] The input character length ({}) must be lower than buffer size ({}) as the latter "
+                "must to account for the null terminator",
+                strSize, size);
 
     const LayoutId iboxId = AsStackedId("__onyx_id_Input_box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
@@ -1490,9 +1505,8 @@ bool Overlay::headerButton(const LayoutId id, const CodePoint code)
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
         col = &m_Style[OverlayColor_ButtonHovered];
 
-    ly.BeginPanel(id, LyPnPar{.FillColor = *col,
-                              .Alignment = Alignment_Center,
-                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+    ly.BeginPanel(
+        id, LyPnPar{.FillColor = *col, .Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams(OverlayColor_Header));
     ly.EndPanel();
@@ -1669,8 +1683,8 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const LySz2 sizing = spanFull ? LySz2{flex(mnSize), fit()} : LySz2{fit(mnSize), fit()};
 
-    m_LastItem = ly.BeginPanel(
-        id, LyPnPar{.FillColor = *col, .Alignment = Alignment_Center, .Sizing = sizing, .Padding = padding});
+    m_LastItem =
+        ly.BeginPanel(id, LyPnPar{.FillColor = *col, .Alignment = Center, .Sizing = sizing, .Padding = padding});
 
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
@@ -1695,7 +1709,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly.BeginPanel(AsStackedId("__onyx_id_Outer_radio"), LyPnPar{.FillColor = *col,
-                                                                .Alignment = Alignment_Center,
+                                                                .Alignment = Center,
                                                                 .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
                                                                 .Shape = LayoutShape::Circle(),
                                                                 .Padding = 6.f});
@@ -1734,7 +1748,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly.BeginPanel(AsStackedId("__onyx_id_Outer_checkbox"), LyPnPar{.FillColor = *col,
-                                                                   .Alignment = Alignment_Center,
+                                                                   .Alignment = Center,
                                                                    .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
                                                                    .Padding = 6.f});
 
@@ -1784,7 +1798,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     {
         ly.BeginPanel(AsStackedId("__onyx_id_Outer_checkbox"),
                       LyPnPar{.FillColor = *col,
-                              .Alignment = Alignment_Center,
+                              .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_WidgetSize]), flex()},
                               .Padding = 6.f});
 
@@ -1927,68 +1941,560 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
 {
     beginHorizontalWidget(PushId(label));
     const bool updated = inputTextBox(buf, size, hint, flags);
-    endHorizontalWidget(label, OverlayColor_InputText);
+    endHorizontalWidget(OverlayColor_InputText, label);
     PopId();
     return updated;
 }
 
-bool Overlay::ColorEditor(const TKit::StringView label, f32 *value, const OverlayColorEditorFlags flags)
+void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const f32 previewSize, const f32 tooltipSize,
+                           const OverlayColorFlags flags)
 {
-    beginHorizontalWidget(PushId(label));
+    PushId(label);
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const auto drawPreview = [&](Layout &ly, const f32 size) {
+        if (alpha)
+        {
+            const f32 hsize = 0.5f * size;
+            ly.BeginPanel(
+                LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(size)});
+
+            // top horizontal checkboard strip
+            ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+
+            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
+            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
+
+            ly.EndPanel();
+
+            // bottom horizontal checkboard strip
+            ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+
+            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
+            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
+
+            ly.EndPanel();
+
+            const usz id = ly.Panel(AsStackedId("__onyx_id_Preview"),
+                                    {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
+
+            ly.EndPanel();
+            return id;
+        }
+        return ly.Panel(AsStackedId("__onyx_id_Preview"), {.FillColor = col, .Sizing = sabs(size)});
+    };
+
+    const usz id = drawPreview(GetCurrentLayout(), previewSize);
+    m_LastItem = id;
+
+    const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
+    if (tooltip && BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
+    {
+        const bool tlabel = !(flags & OverlayColorFlag_NoTooltipLabel);
+        Layout &tly = GetCurrentLayout();
+        if (tlabel)
+        {
+            tly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                            .Alignment = CenterLeft,
+                            .Sizing = fit(),
+                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+            tly.Text(tly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
+            HorizontalLine();
+        }
+
+        tly.BeginPanel({.Direction = LayoutDirection_LeftToRight,
+                        .Alignment = CenterLeft,
+                        .Sizing = fit(),
+                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        drawPreview(tly, tooltipSize);
+
+        tly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                        .Alignment = CenterLeft,
+                        .Sizing = fit(),
+                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+        const f32v4 hsv = col.ToHSV();
+        if (flags & OverlayColorFlag_Float)
+        {
+            if (alpha)
+            {
+                Text("RGB: {:.2f}, {:.2f}, {:.2f}, {:.2f}", col.rgba[0], col.rgba[1], col.rgba[2], col.rgba[3]);
+                Text("HSV: {:.2f}, {:.2f}, {:.2f}, {:.2f}", hsv[0], hsv[1], hsv[2], hsv[3]);
+            }
+            else
+            {
+                Text("RGB: {:.2f}, {:.2f}, {:.2f}", col.rgb[0], col.rgb[1], col.rgb[2]);
+                Text("HSV: {:.2f}, {:.2f}, {:.2f}", hsv[0], hsv[1], hsv[2]);
+            }
+        }
+        else
+        {
+            if (alpha)
+            {
+                Text("RGB: {}, {}, {}, {}", col.r<u32>(), col.g<u32>(), col.b<u32>(), col.a<u32>());
+                Text("HSV: {}, {}, {}, {}", u32(360.f * hsv[0]), u32(100.f * hsv[1]), u32(100.f * hsv[2]),
+                     u32(255.f * hsv[3]));
+            }
+            else
+            {
+                Text("RGB: {}, {}, {}", col.r<u32>(), col.g<u32>(), col.b<u32>());
+                Text("HSV: {}, {}, {}", u32(360.f * hsv[0]), u32(100.f * hsv[1]), u32(100.f * hsv[2]));
+            }
+        }
+        if (alpha)
+            Text("Hex: #{:08X}", col.ToHexadecimal<u32>(true));
+        else
+            Text("Hex: #{:06X}", col.ToHexadecimal<u32>(false));
+
+        tly.EndPanel();
+        tly.EndPanel();
+        if (tlabel)
+            tly.EndPanel();
+        EndTooltip();
+    }
+
+    m_LastItem = id;
+    PopId();
+}
+
+bool Overlay::colorHexInput(f32 *colPtr, const Color &col, const OverlayColorFlags flags)
+{
+    constexpr u32 bsize = 16;
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+
+    TKit::StaticString<bsize> strBuf = col.ToHexadecimal<TKit::StaticString<bsize>>(alpha);
+    char *buf = strBuf.CString();
+
+    const u32 count = 3 + alpha;
+
+    if (inputTextBox(buf, bsize, {}, OverlayInputFlag_AutoSelectAll))
+    {
+        TKit::StaticString<bsize> hex = buf;
+        if (hex[0] == '#')
+            hex = hex.SubString(1);
+
+        const u32 hexSize = 6 + 2 * alpha;
+        while (hex.GetSize() < hexSize)
+            hex.Append('0');
+
+        const Color fhex = Color::FromHexadecimal(hex);
+        for (u32 i = 0; i < count; ++i)
+            colPtr[i] = fhex.rgba[i];
+
+        return true;
+    }
+    return false;
+}
+bool Overlay::colorDrag(f32 *colPtr, const Color &col, const OverlayColorFlags flags)
+{
+    const TKit::FixedArray4<Color> colors{Color_Red, Color_Green, Color_Blue, Color_White * 0.4f};
+
+    const bool markers = !(flags & OverlayColorFlag_NoColorMarkers) && !(flags & OverlayColorFlag_HSV);
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const u32 count = 3 + alpha;
+
+    constexpr TKit::FixedArray8<const char *> rgbFormats = {"R: {:.2f}", "G: {:.2f}", "B: {:.2f}", "A: {:.2f}",
+                                                            "R: {}",     "G: {}",     "B: {}",     "A: {}"};
+
+    constexpr TKit::FixedArray8<const char *> hsvFormats = {"H: {:.2f}", "S: {:.2f}", "V: {:.2f}", "A: {:.2f}",
+                                                            "H: {}",     "S: {}",     "V: {}",     "A: {}"};
+
+    constexpr TKit::FixedArray4<f32> rgbNorm = {255.f, 255.f, 255.f, 255.f};
+    constexpr TKit::FixedArray4<f32> hsvNorm = {360.f, 100.f, 100.f, 255.f};
+
+    const bool hsv = flags & OverlayColorFlag_HSV;
+
+    f32v4 colVals = hsv ? col.ToHSV() : col.rgba;
+
+    const TKit::FixedArray8<const char *> *formats = hsv ? &hsvFormats : &rgbFormats;
+    const TKit::FixedArray4<f32> *norms = hsv ? &hsvNorm : &rgbNorm;
+
     Layout &ly = GetCurrentLayout();
-
-    const bool alpha = !(flags & OverlayColorEditorFlag_NoAlpha);
-    const u32 count = alpha ? 4 : 3;
     bool changed = false;
-
-    const TKit::FixedArray<Color, 4> colors{Color_Red, Color_Green, Color_Blue, Color_White * 0.4f};
     for (u32 i = 0; i < count; ++i)
     {
-        u32 uval = u32(value[i] * 255.f);
         PushId(i);
 
-        ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
-        ly.Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
-        if (horizontalDragBox(&uval, 0.6f, 0, 255, nullptr, OverlaySliderFlag_ClampOnInput))
+        if (markers)
         {
-            changed = true;
-            value[i] = f32(uval) / 255.f;
+            ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
+            ly.Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
         }
-        ly.EndPanel();
+        if (flags & OverlayColorFlag_Float)
+            changed |= horizontalDragBox(&colVals[i], 0.01f, 0.f, 1.f, formats->At(i), OverlaySliderFlag_ClampOnInput);
+        else
+        {
+            u32 uval = u32(colVals[i] * norms->At(i));
+            if (horizontalDragBox(&uval, 0.5f, 0u, u32(norms->At(i)), formats->At(i + 4),
+                                  OverlaySliderFlag_ClampOnInput))
+            {
+                changed = true;
+                colVals[i] = f32(uval) / norms->At(i);
+            }
+        }
+
+        if (markers)
+            ly.EndPanel();
 
         PopId();
     }
-
-    const Color col = alpha ? Color{value[0], value[1], value[2], value[3]} : Color{value[0], value[1], value[2]};
-    const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
-    if (alpha)
+    if (changed)
     {
-        const f32 hlh = 0.5f * lh;
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(lh)});
+        const f32v4 rgba = hsv ? Color::FromHSV(colVals).rgba : colVals;
+        for (u32 i = 0; i < count; ++i)
+            colPtr[i] = rgba[i];
+    }
+    return changed;
+}
+bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color &col, OverlayColorFlags flags)
+{
+    TKIT_UNUSED(colPtr);
+    Layout &ly = GetCurrentLayout();
 
-        ly.BeginPanel(LyPnPar{.Sizing = sabs({lh, hlh})});
+    const usz outerId = AsStackedId("__onyx_id_Outer_picker");
+    const auto it = m_PickerMeshes.Find(outerId);
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
 
-        ly.Panel(LyPnPar{.FillColor = Color{0.5f}, .Sizing = sabs(hlh)});
-        ly.Panel(LyPnPar{.FillColor = Color{0.3f}, .Sizing = sabs(hlh)});
+    PickerData *pdata;
 
-        ly.EndPanel();
+    constexpr u32 pickerDivs = 10;
+    constexpr u32 hueDivs = 32;
 
-        ly.BeginPanel(LyPnPar{.Sizing = sabs({lh, hlh})});
+    const auto updatePickerGradient = [&](DynamicMeshData<D2> *data, const f32 hue) {
+        data->Vertices.Clear();
 
-        ly.Panel(LyPnPar{.FillColor = Color{0.3f}, .Sizing = sabs(hlh)});
-        ly.Panel(LyPnPar{.FillColor = Color{0.5f}, .Sizing = sabs(hlh)});
+        for (u32 y = 0; y <= pickerDivs; ++y)
+            for (u32 x = 0; x <= pickerDivs; ++x)
+            {
+                const f32 s = 1.f - f32(x) / f32(pickerDivs);
+                const f32 v = f32(y) / f32(pickerDivs);
+                const f32v4 hsva{hue, s, v, 1.f};
+                const u32 color = Color::FromHSV(hsva).ToLinear().Pack();
+                data->Vertices.Append(f32v2{s, f32(y) / f32(pickerDivs)}, 0.f, color);
+            }
+    };
 
-        ly.EndPanel();
+    const auto updateAlphaBarGradient = [&](DynamicMeshData<D2> *data) {
+        data->Vertices.Clear();
 
-        ly.Panel(AsStackedId("__onyx_id_Preview"),
-                 {.FillColor = col, .Sizing = sabs(lh), .SelfOffset = oabs({0.f, lh})});
+        const u32 opaque = Color{col, 1.f}.ToLinear().Pack();
+        const u32 transparent = Color{col, 0.f}.ToLinear().Pack();
 
-        ly.EndPanel();
+        data->Vertices.Append(f32v2{0.f, 0.f}, 0.f, transparent);
+        data->Vertices.Append(f32v2{1.f, 0.f}, 0.f, transparent);
+        data->Vertices.Append(f32v2{0.f, 1.f}, 0.f, opaque);
+        data->Vertices.Append(f32v2{1.f, 1.f}, 0.f, opaque);
+    };
+
+    bool changed = false;
+    f32v4 hsv;
+    if (it == m_PickerMeshes.end())
+    {
+        hsv = col.ToHSV();
+        const auto updateHueBarGradient = [&](DynamicMeshData<D2> *data) {
+            data->Vertices.Clear();
+
+            for (u32 y = 0; y <= hueDivs; ++y)
+            {
+                const f32 h = f32(y) / f32(hueDivs);
+                const u32 color = Color::FromHSV({1.f - h, 1.f, 1.f, 1.f}).ToLinear().Pack();
+                data->Vertices.Append(f32v2{0.f, h}, 0.f, color);
+                data->Vertices.Append(f32v2{1.f, h}, 0.f, color);
+            }
+        };
+
+        PickerData ndata;
+        ndata.PickerQuad = &m_DynamicMeshes[m_DynamicMeshIndex++];
+        ndata.HueBar = &m_DynamicMeshes[m_DynamicMeshIndex++];
+        ndata.AlphaBar = &m_DynamicMeshes[m_DynamicMeshIndex++];
+
+        updatePickerGradient(ndata.PickerQuad->Data, hsv[0]);
+        updateHueBarGradient(ndata.HueBar->Data);
+        updateAlphaBarGradient(ndata.AlphaBar->Data);
+
+        for (u32 y = 0; y < pickerDivs; ++y)
+            for (u32 x = 0; x < pickerDivs; ++x)
+            {
+                const u32 tl = y * (pickerDivs + 1) + x;
+                const u32 tr = tl + 1;
+                const u32 bl = tl + (pickerDivs + 1);
+                const u32 br = bl + 1;
+
+                ndata.PickerQuad->Data->Indices.Append(tl);
+                ndata.PickerQuad->Data->Indices.Append(tr);
+                ndata.PickerQuad->Data->Indices.Append(bl);
+                ndata.PickerQuad->Data->Indices.Append(tr);
+                ndata.PickerQuad->Data->Indices.Append(br);
+                ndata.PickerQuad->Data->Indices.Append(bl);
+            }
+
+        for (u32 y = 0; y < hueDivs; ++y)
+        {
+            const u32 tl = y * 2;
+            const u32 tr = tl + 1;
+            const u32 bl = tl + 2;
+            const u32 br = tl + 3;
+            ndata.HueBar->Data->Indices.Append(tl);
+            ndata.HueBar->Data->Indices.Append(tr);
+            ndata.HueBar->Data->Indices.Append(bl);
+            ndata.HueBar->Data->Indices.Append(tr);
+            ndata.HueBar->Data->Indices.Append(br);
+            ndata.HueBar->Data->Indices.Append(bl);
+        }
+
+        ndata.AlphaBar->Data->Indices.Append(0);
+        ndata.AlphaBar->Data->Indices.Append(1);
+        ndata.AlphaBar->Data->Indices.Append(2);
+        ndata.AlphaBar->Data->Indices.Append(1);
+        ndata.AlphaBar->Data->Indices.Append(3);
+        ndata.AlphaBar->Data->Indices.Append(2);
+
+        pdata = &m_PickerMeshes.Insert(outerId, ndata);
+        pdata->Hsv = hsv;
+        pdata->Rgb = col.rgb;
     }
     else
-        ly.Panel(AsStackedId("__onyx_id_Preview"), {.FillColor = col, .Sizing = sabs(lh)});
+    {
+        pdata = &it->Value;
+        if (col.rgb != pdata->Rgb)
+        {
+            hsv = col.ToHSV();
+            pdata->Rgb = col.rgb;
+            pdata->Hsv = f32v3{hsv};
+            updatePickerGradient(pdata->PickerQuad->Data, hsv[0]);
+            updateAlphaBarGradient(pdata->AlphaBar->Data);
+        }
+        else
+            hsv = {pdata->Hsv, col.rgba[3]};
+    }
 
-    endHorizontalWidget(label, OverlayColor_DragText);
+    const LayoutId pickerId = AsStackedId("__onyx_id_Picker");
+    const LayoutId hueBarId = AsStackedId("__onyx_id_Hue_bar");
+    const LayoutId alphaBarId = AsStackedId("__onyx_id_Alpha_bar");
+
+    const LayoutElement *pickerElm = ly.QueryElement(pickerId);
+    const LayoutElement *hueBarElm = ly.QueryElement(hueBarId);
+    const LayoutElement *alphaBarElm = ly.QueryElement(alphaBarId);
+
+    const FocusFlags pickerFlags = queryAndSetFocusStatus(pickerElm, FocusFlag_PressedEvenWhenAwayFromHover);
+    const FocusFlags hueBarFlags = queryAndSetFocusStatus(hueBarElm, FocusFlag_PressedEvenWhenAwayFromHover);
+    const FocusFlags alphaBarFlags = queryAndSetFocusStatus(alphaBarElm, FocusFlag_PressedEvenWhenAwayFromHover);
+
+    f32 circleSize = 32.f;
+
+    constexpr f32 barWidth = 32.f;
+    const f32 pickerSize = 0.6f * m_Current->Size[0];
+
+    const f32 rodHeight = 4.f;
+
+    const f32 posOffset = 0.5f * pickerSize;
+
+    if (pickerFlags & OverlayFocusQueryFlag_Pressed)
+    {
+        circleSize *= 1.2f;
+        pdata->CirclePos = m_MousePos - pickerElm->Position - posOffset;
+        pdata->CirclePos = Math::Clamp(pdata->CirclePos, -posOffset, posOffset);
+
+        hsv[1] = 0.5f + pdata->CirclePos[0] / pickerSize;
+        hsv[2] = 0.5f + pdata->CirclePos[1] / pickerSize;
+        updateAlphaBarGradient(pdata->AlphaBar->Data);
+
+        changed = true;
+    }
+    else
+    {
+        pdata->CirclePos[0] = pickerSize * (hsv[1] - 0.5f);
+        pdata->CirclePos[1] = pickerSize * (hsv[2] - 0.5f);
+    }
+
+    if (hueBarFlags & OverlayFocusQueryFlag_Pressed)
+    {
+        pdata->HueRodPos = m_MousePos[1] - hueBarElm->Position[1] - posOffset;
+        pdata->HueRodPos = Math::Clamp(pdata->HueRodPos, -posOffset, posOffset);
+
+        hsv[0] = 0.5f - pdata->HueRodPos / pickerSize;
+        updatePickerGradient(pdata->PickerQuad->Data, hsv[0]);
+        updateAlphaBarGradient(pdata->AlphaBar->Data);
+
+        changed = true;
+    }
+    else
+        pdata->HueRodPos = pickerSize * (0.5f - hsv[0]);
+
+    if (alphaBarFlags & OverlayFocusQueryFlag_Pressed)
+    {
+        pdata->AlphaRodPos = m_MousePos[1] - alphaBarElm->Position[1] - posOffset;
+        pdata->AlphaRodPos = Math::Clamp(pdata->AlphaRodPos, -posOffset, posOffset);
+
+        hsv[3] = 0.5f + pdata->AlphaRodPos / pickerSize;
+        changed = true;
+    }
+    else
+        pdata->AlphaRodPos = pickerSize * (hsv[3] - 0.5f);
+
+    ly.BeginPanel(outerId, LyPnPar{.Direction = LayoutDirection_LeftToRight,
+                                   .Alignment = TopLeft,
+                                   .Sizing = fit(),
+                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    ly.BeginPanel(pickerId, LyPnPar{.FillColor = Color_White,
+                                    .Alignment = Center,
+                                    .Sizing = sabs(pickerSize),
+                                    .Shape = LayoutShape::Dynamic(pdata->PickerQuad->Handle)});
+
+    ly.BeginPanel(LyPnPar{.FillColor = Color_White,
+                          .Alignment = Center,
+                          .Sizing = sabs(circleSize),
+                          .SelfOffset = oabs(pdata->CirclePos),
+                          .Shape = LayoutShape::Circle()});
+
+    ly.Panel(LyPnPar{.FillColor = Color{col, 1.f}, .Sizing = sabs(circleSize - 4.f), .Shape = LayoutShape::Circle()});
+
+    ly.EndPanel();
+
+    ly.EndPanel();
+
+    ly.BeginPanel(hueBarId, LyPnPar{.FillColor = Color_White,
+                                    .Alignment = Center,
+                                    .Sizing = sabs({barWidth, pickerSize}),
+                                    .Shape = LayoutShape::Dynamic(pdata->HueBar->Handle),
+                                    .Overflow = LayoutOverflow_Spill});
+
+    ly.Panel(LyPnPar{.FillColor = Color_White,
+                     .Sizing = {snorm(1.2f), sabs(rodHeight)},
+                     .SelfOffset = oabs({0.f, pdata->HueRodPos})});
+
+    ly.EndPanel();
+
+    if (alpha)
+    {
+        constexpr u32 tileCount = 16;
+        const f32 hsize = 0.5f * barWidth;
+        const f32 vsize = pickerSize / f32(tileCount);
+
+        const LySz2 barSizing = sabs({barWidth, pickerSize});
+        const LySz2 stripSizing = sabs({hsize, pickerSize});
+        const LySz2 tileSizing = sabs({hsize, vsize});
+
+        constexpr TKit::FixedArray<f32, 2> checkboard = {s_CheckboardLight, s_CheckboardDark};
+
+        ly.BeginPanel(
+            LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = barSizing, .Overflow = LayoutOverflow_Spill});
+
+        // left horizontal checkboard strip
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Sizing = stripSizing});
+
+        for (u32 i = 0; i < tileCount; ++i)
+            ly.Panel(LyPnPar{.FillColor = Color{checkboard[i & 1]}, .Sizing = tileSizing});
+
+        ly.EndPanel();
+
+        // right horizontal checkboard strip
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Sizing = stripSizing});
+
+        for (u32 i = 0; i < tileCount; ++i)
+            ly.Panel(LyPnPar{.FillColor = Color{checkboard[(i + 1) & 1]}, .Sizing = tileSizing});
+
+        ly.EndPanel();
+
+        ly.BeginPanel(alphaBarId, LyPnPar{.FillColor = Color_White,
+                                          .Alignment = Center,
+                                          .Sizing = barSizing,
+                                          .SelfOffset = oabs({-barWidth, 0.f}),
+                                          .Shape = LayoutShape::Dynamic(pdata->AlphaBar->Handle),
+                                          .Overflow = LayoutOverflow_Spill,
+                                          .ForceBlend = true});
+
+        ly.Panel(LyPnPar{.FillColor = Color_White,
+                         .Sizing = {snorm(1.2f), sabs(rodHeight)},
+                         .SelfOffset = oabs({0.f, pdata->AlphaRodPos})});
+
+        ly.EndPanel();
+        ly.EndPanel();
+    }
+
+    ColorPreview(label, col, flags);
+    ly.EndPanel();
+
+    if (changed)
+    {
+        const u32 count = 3 + alpha;
+        const f32v4 rgba = Color::FromHSV(hsv).rgba;
+        for (u32 i = 0; i < count; ++i)
+            colPtr[i] = rgba[i];
+        pdata->Hsv = hsv;
+        pdata->Rgb = f32v3{rgba};
+    }
+
+    return changed;
+}
+
+bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+{
+    PushId(label);
+    f32 *colPtr = color.Data;
+
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+    bool changed = colorPicker(label, colPtr, col, flags);
+
+    const bool inputs = !(flags & OverlayColorFlag_NoInput);
+    if (inputs)
+    {
+        beginHorizontalWidget(PushId("__onyx_id_RGB"), 1.f);
+        changed |= colorDrag(colPtr, col, flags);
+        endHorizontalWidget(OverlayColor_DragText);
+        PopId();
+
+        beginHorizontalWidget(PushId("__onyx_id_HSV"), 1.f);
+        changed |= colorDrag(colPtr, col, flags | OverlayColorFlag_HSV);
+        endHorizontalWidget(OverlayColor_DragText);
+        PopId();
+
+        changed |= colorHexInput(colPtr, col, flags);
+    }
+    PopId();
+    return changed;
+}
+
+bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+{
+    f32 *colPtr = color.Data;
+    const bool inputs = !(flags & OverlayColorFlag_NoInput);
+
+    if (inputs)
+        beginHorizontalWidget(PushId(label), 0.85f);
+    else
+        beginHorizontalWidget(PushId(label), fit(), fit());
+
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    TKIT_ASSERT(3 + alpha <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
+                                         "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
+
+    bool changed = false;
+
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+
+    if (inputs)
+    {
+        if (flags & OverlayColorFlag_Hex)
+            colorHexInput(colPtr, col, flags);
+        else
+            colorDrag(colPtr, col, flags);
+    }
+
+    const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
+    const usz oldItem = m_LastItem;
+
+    if (!(flags & OverlayColorFlag_NoPreview))
+        ColorPreview(label, col, lh, 2.f * lh, flags);
+
+    m_LastItem = oldItem;
+
+    endHorizontalWidget(OverlayColor_DragText, label);
     PopId();
     return changed;
 }
@@ -2405,5 +2911,4 @@ f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
 
     return pos;
 }
-
 } // namespace Onyx

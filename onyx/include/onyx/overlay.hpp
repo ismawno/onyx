@@ -175,10 +175,19 @@ enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
     OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
-using OverlayColorEditorFlags = u8;
-enum OverlayColorEditorFlagBit : OverlayColorEditorFlags
+using OverlayColorFlags = u16;
+enum OverlayColorFlagBit : OverlayColorFlags
 {
-    OverlayColorEditorFlag_NoAlpha = 1U << 0,
+    OverlayColorFlag_NoAlpha = 1U << 0,
+    OverlayColorFlag_NoInput = 1U << 1,
+    OverlayColorFlag_NoColorMarkers = 1U << 2,
+    OverlayColorFlag_NoPicker = 1U << 3,
+    OverlayColorFlag_NoTooltip = 1U << 4,
+    OverlayColorFlag_NoPreview = 1U << 5,
+    OverlayColorFlag_NoTooltipLabel = 1U << 6,
+    OverlayColorFlag_HSV = 1U << 7,
+    OverlayColorFlag_Hex = 1U << 8,
+    OverlayColorFlag_Float = 1U << 9,
 };
 
 using OverlayButtonFlags = u8;
@@ -222,6 +231,30 @@ enum NextWindowFlagBit : NextWindowFlags
 {
     NextWindowFlag_Position = 1U << 0,
     NextWindowFlag_Size = 1U << 1,
+};
+
+struct OverlayColorHandle
+{
+    OverlayColorHandle() = default;
+    OverlayColorHandle(f32 *data) : Data(data)
+    {
+    }
+    OverlayColorHandle(f32v3 *data) : Data(&data->At(0))
+    {
+#ifdef TKIT_ENABLE_ASSERTS
+        Size = 3;
+#endif
+    }
+    OverlayColorHandle(f32v4 *data) : Data(&data->At(0))
+    {
+    }
+    OverlayColorHandle(Color *data) : Data(&data->rgba.At(0))
+    {
+    }
+    f32 *Data;
+#ifdef TKIT_ENABLE_ASSERTS
+    u32 Size = 4;
+#endif
 };
 
 struct NextWindowData
@@ -506,20 +539,32 @@ struct OverlayStyle
     }
 };
 
-struct UserInterfaceSpecs
+struct OverlaySpecs
 {
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
     OverlayStyle Style{};
 };
 
+struct PickerData
+{
+    const DynamicMeshInfo<D2> *PickerQuad;
+    const DynamicMeshInfo<D2> *HueBar;
+    const DynamicMeshInfo<D2> *AlphaBar;
+    f32v2 CirclePos{0.f};
+    f32v3 Hsv{0.f};
+    f32v3 Rgb{0.f};
+    f32 HueRodPos = 0.f;
+    f32 AlphaRodPos = 0.f;
+};
+
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
 // TODO(Isma): Implement color editors
-// TODO(Isma): Implement color editor tooltips
-// TODO(Isma): Implement image tooltips
 // TODO(Isma): Menu item repositioning
 // TODO(Isma): Dont allow window to go out of os window bounds
-// TODO(Isma): Add layer reordering to main menu bar
+// TODO(Isma): Fix touchpad scroll
+// TODO(Isma): Add want capture mouse/keyboard
+// TODO(Isma): Adapt renderer visualization
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -539,8 +584,11 @@ class Overlay
 
     static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
     static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Center};
+    static constexpr vec2<Alignment> TopCenter = {Alignment_Center, Alignment_Left};
+    static constexpr vec2<Alignment> Center = Alignment_Center;
 
-    Overlay(Window *win, const UserInterfaceSpecs &specs = {});
+    Overlay(Window *win, const OverlaySpecs &specs);
+    ~Overlay();
 
     void SetNextWindowPosition(const f32v2 &pos)
     {
@@ -657,7 +705,7 @@ class Overlay
             if (Button("+", OverlayButtonFlag_TryKeepSquare))
                 ++(*value);
         }
-        endHorizontalWidget(label, OverlayColor_InputText);
+        endHorizontalWidget(OverlayColor_InputText, label);
         PopId();
         return updated;
     }
@@ -690,7 +738,7 @@ class Overlay
             changed |= horizontalSliderBox(&val, mn, mx, format, flags);
             PopId();
         }
-        endHorizontalWidget(label, OverlayColor_SliderText);
+        endHorizontalWidget(OverlayColor_SliderText, label);
         PopId();
         return changed;
     }
@@ -717,7 +765,7 @@ class Overlay
             PopId();
         }
 
-        endHorizontalWidget(label, OverlayColor_DragText);
+        endHorizontalWidget(OverlayColor_DragText, label);
         PopId();
         return changed;
     }
@@ -729,19 +777,15 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    bool ColorEditor(TKit::StringView label, f32 *value, OverlayColorEditorFlags flags = 0);
-    bool ColorEditor(const TKit::StringView label, f32v4 *value, const OverlayColorEditorFlags flags = 0)
+    void ColorPreview(TKit::StringView label, const Color &col, f32 previewSize, f32 tooltipSize,
+                      OverlayColorFlags flags = 0);
+
+    void ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags = 0)
     {
-        return ColorEditor(label, &value->At(0), flags);
+        ColorPreview(label, col, 64.f, 96.f, flags);
     }
-    bool ColorEditor(const TKit::StringView label, f32v3 *value, const OverlayColorEditorFlags flags = 0)
-    {
-        return ColorEditor(label, &value->At(0), flags | OverlayColorEditorFlag_NoAlpha);
-    }
-    bool ColorEditor(const TKit::StringView label, Color *col, const OverlayColorEditorFlags flags = 0)
-    {
-        return ColorEditor(label, &col->rgba, flags);
-    }
+    bool ColorPicker(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
+    bool ColorEditor(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
 
     // /widgets //
 
@@ -946,8 +990,14 @@ class Overlay
     }
     template <typename... Args> bool PushTree(const LayoutId id, const fmt::format_string<Args...> str, Args &&...args)
     {
+        return PushTree(id, 0, str, std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    bool PushTree(const LayoutId id, const OverlayTreeFlags flags, const fmt::format_string<Args...> str,
+                  Args &&...args)
+    {
         const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        return PushTree(id, txt);
+        return PushTree(id, txt, flags);
     }
     void PopTree()
     {
@@ -1118,8 +1168,18 @@ class Overlay
     bool beginScroll(const ScrollParameterSpecs &specs);
     void endScroll();
 
-    void beginHorizontalWidget(usz id, f32 normSize = 0.7f);
-    void endHorizontalWidget(TKit::StringView label, OverlayColor labelColor);
+    void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
+    void beginHorizontalWidget(const usz id, f32 normSize = 0.7f)
+    {
+        const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
+        const f32 mw = m_Style[OverlayStyle_WidgetMinimumWidth];
+
+        const LySz2 outerSizing = {autoResize ? fit(mw) : flex(mw), fit()};
+        const LySz2 innerSizing = {autoResize ? fit(mw) : snorm(normSize), fit()};
+
+        return beginHorizontalWidget(id, outerSizing, innerSizing);
+    }
+    void endHorizontalWidget(OverlayColor labelColor, TKit::StringView label = {});
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
@@ -1354,6 +1414,10 @@ class Overlay
         return roundToFormat(value, getFormatDecimals(format));
     }
 
+    bool colorHexInput(f32 *colPtr, const Color &col, OverlayColorFlags flags);
+    bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
+    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, OverlayColorFlags flags);
+
     void closePopup(u32 depth);
     void requestCollapsePopups();
     bool headerButton(LayoutId id, CodePoint code);
@@ -1531,8 +1595,11 @@ class Overlay
 
     // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
     // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
-    // time, so 256 should be plenty
-    TKit::StaticArray256<OverlayWindow> m_OverlayWindows{};
+    // time, so 32 should be plenty
+    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
+    TKit::FixedArray<DynamicMeshInfo<D2>, 3 * 32> m_DynamicMeshes{};
+    u32 m_DynamicMeshIndex = 0;
+
     TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
     TKit::TierArray<OverlayWindow *> m_WindowStack{};
 
@@ -1540,6 +1607,7 @@ class Overlay
     TKit::TierArray<usz> m_IdStack{};
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
+    TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
 
     OverlayWindow *m_Tooltip = nullptr;
 

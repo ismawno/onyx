@@ -789,6 +789,8 @@ template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout
         FillColor(info.FillColor);
         OutlineColor(info.OutlineColor);
         OutlineWidth(info.OutlineWidth);
+        if (info.ForceBlend)
+            Blend();
 
         ClipRect<D> rect;
         if constexpr (D == D2)
@@ -812,10 +814,17 @@ template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout
             Circle();
             break;
 
+        case LayoutShape_Static:
         case LayoutShape_Rectangle:
             translate(info);
             scale(info);
             StaticMesh(info.Handle);
+            break;
+
+        case LayoutShape_Dynamic:
+            translate(info);
+            scale(info);
+            DynamicMesh(info.Handle);
             break;
 
         case LayoutShape_RoundedRectangle:

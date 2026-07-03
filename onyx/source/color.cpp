@@ -3,39 +3,73 @@
 #include "tkit/utils/debug.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/container/hash_map.hpp"
-#include <sstream>
 
 namespace Onyx
 {
-
-template <> u32 Color::ToHexadecimal<u32>(const bool alpha) const
+f32v4 Color::ToHSV(const f32v4 &rgba)
 {
-    if (alpha)
-        return r() << 24 | g() << 16 | b() << 8 | a();
-    return r() << 16 | g() << 8 | b();
+    const f32 r = rgba[0];
+    const f32 g = rgba[1];
+    const f32 b = rgba[2];
+    const f32 a = rgba[3];
+
+    const f32 cmax = Math::Max(r, Math::Max(g, b));
+    const f32 cmin = Math::Min(r, Math::Min(g, b));
+    const f32 delta = cmax - cmin;
+
+    const f32 v = cmax;
+    const f32 s = Math::ApproachesZero(cmax) ? 0.f : delta / cmax;
+
+    f32 h;
+    if (Math::ApproachesZero(delta))
+        h = 0.f;
+    else if (cmax == r)
+        h = (g - b) / (6.f * delta);
+    else if (cmax == g)
+        h = (2.f + (b - r) / delta) / 6.f;
+    else
+        h = (4.f + (r - g) / delta) / 6.f;
+
+    if (h < 0.f)
+        ++h;
+
+    return f32v4{h, s, v, a};
 }
 
-template <> std::string Color::ToHexadecimal<std::string>(const bool alpha) const
+Color Color::FromHSV(const f32v4 &rgba)
 {
-    std::stringstream ss;
-    ss << std::hex << ToHexadecimal<u32>(alpha);
-    std::string hex = ss.str();
-    const u32 size = alpha ? 8 : 6;
-    while (hex.size() < size)
-        hex = "0" + hex;
+    const f32 h = rgba[0];
+    const f32 s = rgba[1];
+    const f32 v = rgba[2];
+    const f32 a = rgba[3];
 
-    return hex;
-}
-template <> TKit::String Color::ToHexadecimal<TKit::String>(const bool alpha) const
-{
-    std::stringstream ss;
-    ss << std::hex << ToHexadecimal<u32>(alpha);
-    TKit::String hex = ss.view();
-    const u32 size = alpha ? 8 : 6;
-    while (hex.GetSize() < size)
-        hex = "0" + hex;
+    const f32 c = v * s;
+    const f32 h6 = 6.f * h;
+    const f32 x = c * (1.f - Math::Absolute(Math::Modulo(h6, 2.f) - 1.f));
+    const f32 m = v - c;
 
-    return hex;
+    const f32 c0 = c + m;
+    const f32 c1 = x + m;
+    const f32 c2 = m;
+
+    const u32 sector = u32(h6);
+    switch (sector)
+    {
+    case 0:
+        return f32v4{c0, c1, c2, a};
+    case 1:
+        return f32v4{c1, c0, c2, a};
+    case 2:
+        return f32v4{c2, c0, c1, a};
+    case 3:
+        return f32v4{c2, c1, c0, a};
+    case 4:
+        return f32v4{c1, c2, c0, a};
+    case 5:
+        return f32v4{c0, c2, c1, a};
+    default:
+        return f32v4{c0, c1, c2, a};
+    }
 }
 
 Color Color::FromHexadecimal(const u32 hex, const bool alpha)
@@ -44,15 +78,13 @@ Color Color::FromHexadecimal(const u32 hex, const bool alpha)
         return {hex >> 24, (hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF};
     return {hex >> 16, (hex >> 8) & 0xFF, hex & 0xFF};
 }
-Color Color::FromHexadecimal(const TKit::StringView hex)
+Color Color::FromHexadecimal(TKit::StringView hex)
 {
-    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8,
-                "[ONYX][COLOR] Invalid hexadecimal color (the '#' at the beginning is not supported)");
-    u32 val;
-    std::stringstream ss;
-    ss << std::hex << hex;
-    ss >> val;
-    return FromHexadecimal(val, hex.GetSize() == 8);
+    if (hex[0] == '#')
+        hex = hex.SubString(1);
+
+    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8, "[ONYX][COLOR] Invalid hexadecimal color {}", hex);
+    return FromHexadecimal(u32(std::strtoul(hex.begin(), nullptr, 16)), hex.GetSize() == 8);
 }
 
 Color Color::FromString(const TKit::String &color)

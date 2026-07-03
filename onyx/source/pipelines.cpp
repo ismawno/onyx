@@ -394,6 +394,7 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
 
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
     const bool opaque = renderInfo.colorAttachmentCount == 2;
+    // const bool opaqueParams = opaque;
     const bool opaqueParams = opaque && geo == Geometry_Glyph;
 
     const VkBlendFactor csrc = opaqueParams ? VK_BLEND_FACTOR_SRC_ALPHA : VK_BLEND_FACTOR_ONE;
@@ -410,6 +411,7 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
                         VK_SHADER_STAGE_FRAGMENT_BIT, 0, needsConstant ? &spInfo : nullptr)
         .BeginColorAttachment()
         .EnableBlending(!opaque || geo == Geometry_Glyph)
+        // .EnableBlending(!opaque)
         .SetColorBlendFactors(csrc, cdst)
         .SetAlphaBlendFactors(asrc, adst)
         .SetColorWriteMask(pass != PipelinePass_Outlined ? full : 0)

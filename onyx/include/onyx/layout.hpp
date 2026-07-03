@@ -127,7 +127,8 @@ enum LayoutShapeType : u8
     LayoutShape_Glyph,
     LayoutShape_Text,
     LayoutShape_Unicode,
-    LayoutShape_Custom
+    LayoutShape_Static,
+    LayoutShape_Dynamic,
 };
 
 struct LayoutShape
@@ -152,9 +153,13 @@ struct LayoutShape
     {
         return {handle, 0.f, LayoutShape_Glyph};
     }
-    static constexpr LayoutShape Custom(const Resource handle)
+    static constexpr LayoutShape Static(const Resource handle)
     {
-        return {handle, 0.f, LayoutShape_Custom};
+        return {handle, 0.f, LayoutShape_Static};
+    }
+    static constexpr LayoutShape Dynamic(const Resource handle)
+    {
+        return {handle, 0.f, LayoutShape_Dynamic};
     }
 };
 
@@ -248,6 +253,7 @@ struct LayoutElement
     LayoutTextMode TextMode;
     LayoutOverflowMode SelfOverflow;
     LayoutOverflowMode ChildOverflow;
+    bool ForceBlend;
 
     // NOTE(Isma, 25/06/06): Bool arg. not very nice but a bit overkill setting up flags for an option
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
@@ -272,6 +278,7 @@ struct LayoutDrawInfo
     f32v2 TexScale;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
+    bool ForceBlend;
 };
 
 // TODO(Isma): Add texture handle as well, next to material. Trigger an assert if both are provided
@@ -299,6 +306,7 @@ struct LayoutPanelParameters
     f32v4 Padding{0.f};
     f32 ChildGap = 0.f;
     f32 OutlineWidth = 0.f;
+    bool ForceBlend = false;
 };
 
 struct LayoutTextParameters
@@ -316,6 +324,7 @@ struct LayoutTextParameters
 
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
+    bool ForceBlend = false;
 };
 
 struct LayoutUnicodeParameters
@@ -332,6 +341,7 @@ struct LayoutUnicodeParameters
 
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
+    bool ForceBlend = false;
 };
 
 struct LayoutSpecs

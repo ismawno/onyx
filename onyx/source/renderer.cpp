@@ -1660,10 +1660,10 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
     return cascades;
 }
 
-static TKit::FixedArray<f32v4, 8> getCameraCorners(const f32m4 &pv)
+static TKit::FixedArray8<f32v4> getCameraCorners(const f32m4 &pv)
 {
     const f32m4 ipv = Math::Inverse(pv);
-    TKit::FixedArray<f32v4, 8> corners;
+    TKit::FixedArray8<f32v4> corners;
     u32 idx = 0;
     for (u32 i = 0; i < 2; ++i)
         for (u32 j = 0; j < 2; ++j)
@@ -1682,7 +1682,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
                                                                        const f32 lambda, const f32 overlap,
                                                                        u32 &enableFlags)
 {
-    const TKit::FixedArray<f32v4, 8> globalCorners = getCameraCorners(rview->GetProjectionView());
+    const TKit::FixedArray8<f32v4> globalCorners = getCameraCorners(rview->GetProjectionView());
 
     TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades;
     f32 cnear;
@@ -1712,7 +1712,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
         const f32 t0 = (split0 - cnear) / range;
         const f32 t1 = (split1 - cnear) / range;
 
-        TKit::FixedArray<f32v4, 8> corners;
+        TKit::FixedArray8<f32v4> corners;
         for (u32 j = 0; j < 4; ++j)
         {
             corners[2 * j] = Math::LinearLerp(globalCorners[2 * j], globalCorners[2 * j + 1], t0);

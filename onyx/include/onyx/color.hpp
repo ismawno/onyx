@@ -31,6 +31,8 @@ constexpr f32 ToSrgb(const f32 c)
 {
     return c <= 0.0031308f ? c * 12.92f : 1.055f * Math::Power(c, 1.0f / 2.4f) - 0.055f;
 }
+
+// TODO(Isma, 02/07/26): If we end up supporting HDR, this will have to go
 #ifdef TKIT_ENABLE_ASSERTS
 inline void CheckRgba(const f32v4 &rgba)
 {
@@ -138,7 +140,40 @@ struct Color
         return Color{packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF, (packed >> 24) & 0xFF};
     }
 
-    template <typename T> T ToHexadecimal(bool alpha = true) const;
+    static f32v4 ToHSV(const f32v4 &rgba);
+    static f32v3 ToHSV(const f32v3 &rgb)
+    {
+        return f32v3{ToHSV(f32v4{rgb, 1.f})};
+    }
+
+    f32v4 ToHSV() const
+    {
+        return ToHSV(rgba);
+    }
+
+    static Color FromHSV(const f32v4 &rgba);
+    static Color FromHSV(const f32v3 &rgb)
+    {
+        return FromHSV(f32v4{rgb, 1.f});
+    }
+
+    template <typename T> T ToHexadecimal(bool alpha = true) const
+    {
+        if constexpr (std::is_same_v<T, u32>)
+        {
+            if (alpha)
+                return r() << 24 | g() << 16 | b() << 8 | a();
+            return r() << 16 | g() << 8 | b();
+        }
+        else
+        {
+            const u32 hex = ToHexadecimal<u32>(alpha);
+            if constexpr (std::is_same_v<T, std::string>)
+                return alpha ? TKit::Format("{:08X}", hex) : TKit::Format("{:06X}", hex);
+            else
+                return alpha ? T::Format("{:08X}", hex) : T::Format("{:06X}", hex);
+        }
+    }
 
     static Color FromHexadecimal(u32 hex, bool alpha = true);
     static Color FromHexadecimal(TKit::StringView hex);

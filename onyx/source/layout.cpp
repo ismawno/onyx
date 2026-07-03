@@ -100,6 +100,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     current.Alignment = params.Alignment;
     current.ChildOverflow = params.Overflow;
     current.Shape = params.Shape;
+    current.ForceBlend = params.ForceBlend;
 
     if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
     {
@@ -204,6 +205,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.TexScale = params.TexScale;
     current.Material = params.Material;
     current.TextMode = params.Mode;
+    current.ForceBlend = params.ForceBlend;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
 
@@ -259,6 +261,7 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.TexOffset = params.TexOffset;
     current.TexScale = params.TexScale;
     current.Material = params.Material;
+    current.ForceBlend = params.ForceBlend;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
     const Resource glyph = Resources::GetGlyph(current.Font, code);
@@ -745,12 +748,14 @@ void Layout::Compile()
         info.ClipMin = elm.ClipMin;
         info.ClipMax = elm.ClipMax;
         info.ShapeType = elm.Shape.Type;
+        info.ForceBlend = elm.ForceBlend;
         switch (elm.Shape.Type)
         {
         case LayoutShape_Circle:
         case LayoutShape_Rectangle:
         case LayoutShape_Glyph:
-        case LayoutShape_Custom:
+        case LayoutShape_Static:
+        case LayoutShape_Dynamic:
             info.Handle = elm.Shape.Handle;
             info.Size = elm.Size;
             break;

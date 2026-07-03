@@ -19,6 +19,8 @@ class Queue;
 
 namespace Onyx
 {
+class Overlay;
+struct OverlaySpecs;
 enum MouseCursor : u8
 {
     MouseCursor_Default,
@@ -207,6 +209,9 @@ class Window final : public RenderTarget
         return info;
     }
 
+    Overlay *CreateOverlay(const OverlaySpecs *specs = nullptr);
+    void DestroyOverlay(Overlay *overlay);
+
     template <Dimension D>
     void ControlCamera(TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls = {}) const;
 
@@ -268,6 +273,9 @@ class Window final : public RenderTarget
     VKit::Swapchain *m_Swapchain = nullptr;
     TKit::TierArray<VKit::DeviceImage *> m_Presentation{};
     TKit::TierArray<WindowSyncData *> m_SyncData{};
+    // NOTE(Isma, 03/07/26): Overlays create their own views so as of right now they are bound by that limit. overlays
+    // could share the same view if allocated the same window, so the limit is not very accurate
+    TKit::StaticArray<Overlay *, ONYX_MAX_VIEWS> m_Overlays{};
 
     VKit::Queue *m_Present;
 
