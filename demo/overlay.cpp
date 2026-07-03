@@ -162,6 +162,7 @@ int main()
                 static Onyx::Color col = Onyx::Color_Red;
                 ui->ColorEditor("Color", &col, cflags);
                 ui->ColorPreview("Preview", col, cflags);
+                ui->ColorButton("Button", &col, cflags);
                 ui->ColorPicker("Picker", &col, cflags);
                 ui->PopTree();
             }

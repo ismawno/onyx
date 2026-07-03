@@ -94,6 +94,11 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_HintOpacity] = 0.6f;
     vars[OverlayStyle_CursorOpacity] = 0.6f;
+
+    vars[OverlayStyle_ColorPreviewSize] = 64.f;
+    vars[OverlayStyle_ColorTooltipSize] = 96.f;
+    vars[OverlayStyle_ColorPickerSize] = 256.f;
+
     return vars;
 }
 
@@ -392,14 +397,8 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
             const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
             const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
-            if (pressed || Math::Absolute(sinfo.WheelOffset) > 0.f)
+            if (pressed || !Math::ApproachesZero(sinfo.WheelOffset))
             {
-                if (pressed)
-                {
-                    col = &m_Style[OverlayColor_ScrollBarPressed];
-                    sinfo.CursorOffset += sign * m_MouseDelta[axis];
-                }
-
                 const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
                 const f32 unbounded = sinfo.CursorOffset + wheel;
                 const f32 bounded = Math::Clamp(unbounded, -maxBarTravel, 0.f);
@@ -407,6 +406,17 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
                 sinfo.BarOffset = sign * bounded;
                 sinfo.ElementOffset = barToElement * sinfo.BarOffset;
+
+                if (pressed)
+                {
+                    col = &m_Style[OverlayColor_ScrollBarPressed];
+                    sinfo.CursorOffset += sign * m_MouseDelta[axis];
+                }
+                else
+                {
+                    sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
+                    sinfo.WheelOffset = 0.f;
+                }
             }
             else
             {
@@ -1542,7 +1552,10 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     if (flags & FocusFlag_ClickedOnMousePress)
         lclicked &= lmpressed;
     else
-        lclicked &= lmreleased && m_PressedId == elm->Id;
+        // NOTE(Isma, 03/07/25): If we are not allowed to set pressed id, there is no way we can report left clicks on
+        // release. thats why we allow setting a click event even if pressed id is not set. should not break any widget
+        // focus related deal. this is mostly done for user facing read only queries
+        lclicked &= lmreleased && (!setPressed || m_PressedId == elm->Id);
 
     // we leniently allow setting hovered id even when blocked by popups, so that windows dont eat into widget hover
     // signals
@@ -1946,9 +1959,11 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
     return updated;
 }
 
-void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const f32 previewSize, const f32 tooltipSize,
-                           const OverlayColorFlags flags)
+void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
 {
+    const f32 previewSize = m_Style[OverlayStyle_ColorPreviewSize];
+    const f32 tooltipSize = m_Style[OverlayStyle_ColorTooltipSize];
+
     PushId(label);
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const auto drawPreview = [&](Layout &ly, const f32 size) {
@@ -2147,9 +2162,9 @@ bool Overlay::colorDrag(f32 *colPtr, const Color &col, const OverlayColorFlags f
     }
     return changed;
 }
-bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color &col, OverlayColorFlags flags)
+bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
+                          const OverlayColorFlags flags, const f32 pickerSize)
 {
-    TKIT_UNUSED(colPtr);
     Layout &ly = GetCurrentLayout();
 
     const usz outerId = AsStackedId("__onyx_id_Outer_picker");
@@ -2284,8 +2299,6 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     f32 circleSize = 32.f;
 
     constexpr f32 barWidth = 32.f;
-    const f32 pickerSize = 0.6f * m_Current->Size[0];
-
     const f32 rodHeight = 4.f;
 
     const f32 posOffset = 0.5f * pickerSize;
@@ -2414,7 +2427,26 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
         ly.EndPanel();
     }
 
-    ColorPreview(label, col, flags);
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                          .Alignment = TopLeft,
+                          .Sizing = fit(),
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    ly.Text(ly.GenerateNextId(), original ? "Current" : trimLabel(label), getTextParams(OverlayColor_Text));
+    if (!(flags & OverlayColorFlag_NoPreview))
+    {
+        PushStyleVar(OverlayStyle_ColorPreviewSize, 64.f);
+        PushStyleVar(OverlayStyle_ColorTooltipSize, 96.f);
+        ColorPreview(label, col, flags);
+        if (original)
+        {
+            ly.Text(ly.GenerateNextId(), "Original", getTextParams(OverlayColor_Text));
+            ColorPreview("Original", *original, flags);
+        }
+        PopStyleVar(2);
+    }
+    ly.EndPanel();
+
     ly.EndPanel();
 
     if (changed)
@@ -2430,7 +2462,8 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     return changed;
 }
 
-bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
+                          const f32 size, const OverlayColorFlags flags)
 {
     PushId(label);
     f32 *colPtr = color.Data;
@@ -2438,7 +2471,7 @@ bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const Color col =
         alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
-    bool changed = colorPicker(label, colPtr, col, flags);
+    bool changed = colorPicker(label, colPtr, col, original, flags, size);
 
     const bool inputs = !(flags & OverlayColorFlag_NoInput);
     if (inputs)
@@ -2456,6 +2489,35 @@ bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle
         changed |= colorHexInput(colPtr, col, flags);
     }
     PopId();
+    return changed;
+}
+
+bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+{
+    f32 *colPtr = color.Data;
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+
+    ColorPreview(label, col, flags);
+    bool changed = false;
+
+    const LayoutId id = AsStackedId(label);
+    if (!(flags & OverlayColorFlag_NoPicker) &&
+        BeginPopupContextItem(
+            label, OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_BringToTop,
+            OverlayPopupFlag_LeftClick))
+    {
+        if (!checkWidgetState(id, WidgetStateFlag_Opened))
+            m_PickerOriginal = col;
+
+        changed = ColorPicker(label, color, &m_PickerOriginal, m_Style[OverlayStyle_ColorPickerSize], flags);
+        EndPopup();
+        m_WidgetStates[id] = WidgetStateFlag_Opened;
+    }
+    else
+        m_WidgetStates[id] = 0;
+
     return changed;
 }
 
@@ -2490,7 +2552,12 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
     const usz oldItem = m_LastItem;
 
     if (!(flags & OverlayColorFlag_NoPreview))
-        ColorPreview(label, col, lh, 2.f * lh, flags);
+    {
+        PushStyleVar(OverlayStyle_ColorPreviewSize, lh);
+        PushStyleVar(OverlayStyle_ColorTooltipSize, 2.f * lh);
+        ColorButton(label, color, flags);
+        PopStyleVar(2);
+    }
 
     m_LastItem = oldItem;
 

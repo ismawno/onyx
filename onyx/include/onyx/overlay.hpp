@@ -489,6 +489,10 @@ enum OverlayStyleType : u8
     OverlayStyle_HintOpacity,
     OverlayStyle_CursorOpacity,
 
+    OverlayStyle_ColorPreviewSize,
+    OverlayStyle_ColorTooltipSize,
+    OverlayStyle_ColorPickerSize,
+
     OverlayStyle_Count
 };
 
@@ -777,14 +781,26 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    void ColorPreview(TKit::StringView label, const Color &col, f32 previewSize, f32 tooltipSize,
-                      OverlayColorFlags flags = 0);
+    void ColorPreview(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
 
-    void ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags = 0)
+    bool ColorPicker(TKit::StringView label, OverlayColorHandle color, const Color *original, f32 pickerSize,
+                     OverlayColorFlags flags = 0);
+    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
+                     OverlayColorFlags flags = 0)
     {
-        ColorPreview(label, col, 64.f, 96.f, flags);
+        return ColorPicker(label, color, original, 0.6f * m_Current->Size[0], flags);
     }
-    bool ColorPicker(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
+    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const f32 size,
+                     OverlayColorFlags flags = 0)
+    {
+        return ColorPicker(label, color, nullptr, size, flags);
+    }
+    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, OverlayColorFlags flags = 0)
+    {
+        return ColorPicker(label, color, nullptr, 0.6f * m_Current->Size[0], flags);
+    }
+
+    bool ColorButton(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
     bool ColorEditor(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
 
     // /widgets //
@@ -851,7 +867,7 @@ class Overlay
     bool BeginPopup(TKit::StringView title, OverlayWindowFlags flags = 0);
     void EndPopup();
 
-    bool BeginPopupContextItem(const TKit::StringView title, const OverlayFocusFlags wflags = 0,
+    bool BeginPopupContextItem(const TKit::StringView title, const OverlayWindowFlags wflags = 0,
                                const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
     {
         if (QueryItemFocusStatus() & flags)
@@ -1067,11 +1083,14 @@ class Overlay
         m_Style[var] = val;
     }
 
-    void PopStyleVar()
+    void PopStyleVar(const u32 count = 1)
     {
-        const StyleBackup &b = m_StyleStack.GetBack();
-        m_Style[b.Index] = b.Old;
-        m_StyleStack.Pop();
+        for (u32 i = 0; i < count; ++i)
+        {
+            const StyleBackup &b = m_StyleStack.GetBack();
+            m_Style[b.Index] = b.Old;
+            m_StyleStack.Pop();
+        }
     }
 
     void PushStyleColor(const OverlayColor color, const Color &col)
@@ -1096,7 +1115,8 @@ class Overlay
     }
     OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
     {
-        return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
+        // return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
+        return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags);
     }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0)
     {
@@ -1416,7 +1436,8 @@ class Overlay
 
     bool colorHexInput(f32 *colPtr, const Color &col, OverlayColorFlags flags);
     bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
-    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, OverlayColorFlags flags);
+    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
+                     OverlayColorFlags flags, f32 size);
 
     void closePopup(u32 depth);
     void requestCollapsePopups();
@@ -1615,6 +1636,8 @@ class Overlay
     f32v2 m_TopRightBorder;
     f32v2 m_BottomLeftBorder;
     f32v2 m_BottomRightBorder;
+
+    Color m_PickerOriginal{};
 
     NextWindowData m_NextWindow{};
     LayoutId m_TextId = NullLayoutId;
