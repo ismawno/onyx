@@ -1995,7 +1995,7 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
             ly.EndPanel();
             return id;
         }
-        return ly.Panel(AsStackedId("__onyx_id_Preview"), {.FillColor = col, .Sizing = sabs(size)});
+        return ly.Panel(AsStackedId("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
     };
 
     const usz id = drawPreview(GetCurrentLayout(), previewSize);
