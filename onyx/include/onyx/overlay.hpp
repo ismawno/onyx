@@ -564,6 +564,7 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
+// TODO(Isma): Menu item repositioning with offsetting
 // TODO(Isma): Embed window demo in overlay class as a method?
 // TODO(Isma): Style-color editor panel/window. embed as method as well
 // TODO(Isma): Adapt renderer visualization
