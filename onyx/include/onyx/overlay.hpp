@@ -562,7 +562,6 @@ struct PickerData
 
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement clipboard
-// TODO(Isma): Add want capture mouse/keyboard
 // TODO(Isma): Adapt renderer visualization
 class Overlay
 {

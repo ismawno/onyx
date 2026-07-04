@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/platform.hpp"
 
 namespace Onyx
 {
@@ -1457,19 +1458,35 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
         const u32 toRemoveEnd = selEnd;
 
-        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty() &&
-            (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight)))
+        const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
+        if (ctrl && m_EventKeys[Key_V])
         {
-            updated = true;
-            str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
+            const char *cp = Platform::GetClipboard();
+            if (cp && cp[0])
+                m_TextInput = cp;
+        }
 
-            const u32 removeCount = toRemoveEnd - toRemoveBegin;
-            if (!hasHighlight || negSel)
-                m_CursorStart -= removeCount;
-            if (!hasHighlight || !negSel)
-                m_CursorEnd -= removeCount;
+        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty())
+        {
+            if (ctrl && m_EventKeys[Key_C])
+            {
+                const TKit::StackString clipboard{str.begin() + toRemoveBegin, str.begin() + toRemoveEnd};
+                Platform::SetClipboard(clipboard.CString());
+            }
 
-            selEnd = toRemoveBegin;
+            if (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight))
+            {
+                updated = true;
+                str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
+
+                const u32 removeCount = toRemoveEnd - toRemoveBegin;
+                if (!hasHighlight || negSel)
+                    m_CursorStart -= removeCount;
+                if (!hasHighlight || !negSel)
+                    m_CursorEnd -= removeCount;
+
+                selEnd = toRemoveBegin;
+            }
         }
 
         const u32 insertionsLeft = capacity - 1 - str.GetSize();
@@ -1477,7 +1494,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         updated |= insertions != 0;
         for (u32 i = 0; i < insertions; ++i)
-            str.Insert(str.begin() + selEnd, m_TextInput[i]);
+            str.Insert(str.begin() + selEnd + i, m_TextInput[i]);
 
         m_CursorStart += insertions;
         m_CursorEnd += insertions;

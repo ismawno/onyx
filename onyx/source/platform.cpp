@@ -70,6 +70,16 @@ void DestroyWindows()
     s_Windows->Clear();
 }
 
+void SetClipboard(const char *data)
+{
+    glfwSetClipboardString(nullptr, data);
+}
+
+const char *GetClipboard()
+{
+    return glfwGetClipboardString(nullptr);
+}
+
 void PollEvents()
 {
     glfwPollEvents();
