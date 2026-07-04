@@ -1324,8 +1324,11 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         }
 
         const auto pushUndo = [&] {
-            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
-            m_RedoStack.Clear();
+            if (undoRedo)
+            {
+                m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+                m_RedoStack.Clear();
+            }
         };
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
