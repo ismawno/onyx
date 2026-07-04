@@ -1281,19 +1281,58 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
     {
         m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
+        const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
+
         TKit::String &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
         const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
+        const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
+
         if (justActive)
         {
             str.Clear();
             str.Insert(str.end(), buf, buf + bufSize);
+
+            m_UndoStack.Clear();
+            m_RedoStack.Clear();
         }
+
+        if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && m_EventKeys[Key_Z])
+        {
+            const TextInputStateInfo &info = m_UndoStack.GetBack();
+            m_RedoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+
+            m_CursorStart = info.Cursor;
+            m_CursorEnd = info.Cursor;
+            str = info.Text;
+
+            m_UndoStack.Pop();
+            updated = true;
+        }
+        if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && m_EventKeys[Key_Y])
+        {
+            const TextInputStateInfo &info = m_RedoStack.GetBack();
+            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+
+            m_CursorStart = info.Cursor;
+            m_CursorEnd = info.Cursor;
+            str = info.Text;
+
+            m_RedoStack.Pop();
+            updated = true;
+            updated = true;
+        }
+
+        const auto pushUndo = [&] {
+            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+            m_RedoStack.Clear();
+        };
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
 
         if (escapeClears && m_EventKeys[Key_Escape])
         {
+            pushUndo();
             str.Clear();
             updated = true;
             m_CursorStart = 0;
@@ -1458,10 +1497,11 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
         const u32 toRemoveEnd = selEnd;
 
-        const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
         if (ctrl && m_EventKeys[Key_V])
         {
             const char *cp = Platform::GetClipboard();
+
+            // could maybe append one by one, as that = operator is constructing a TKit::String temp
             if (cp && cp[0])
                 m_TextInput = cp;
         }
@@ -1476,6 +1516,8 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
             if (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight))
             {
+                pushUndo();
+
                 updated = true;
                 str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
 
@@ -1493,8 +1535,12 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const u32 insertions = Math::Min(m_TextInput.GetSize(), insertionsLeft);
 
         updated |= insertions != 0;
-        for (u32 i = 0; i < insertions; ++i)
-            str.Insert(str.begin() + selEnd + i, m_TextInput[i]);
+        if (insertions != 0)
+        {
+            pushUndo();
+            for (u32 i = 0; i < insertions; ++i)
+                str.Insert(str.begin() + selEnd + i, m_TextInput[i]);
+        }
 
         m_CursorStart += insertions;
         m_CursorEnd += insertions;

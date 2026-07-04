@@ -125,6 +125,7 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_NoHorizontalScroll = 1U << 4,
     OverlayInputFlag_ElideLeft = 1U << 5,
     OverlayInputFlag_StepButtons = 1U << 6,
+    OverlayInputFlag_NoUndoRedo = 1U << 7,
 };
 
 using OverlaySelectableFlags = u8;
@@ -560,8 +561,9 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
+// TODO(Isma): Undo/redo
+// TODO(Isma): List boxes
 // TODO(Isma): Implement selectable hints
-// TODO(Isma): Implement clipboard
 // TODO(Isma): Adapt renderer visualization
 class Overlay
 {
@@ -1672,6 +1674,15 @@ class Overlay
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
     TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
     TKit::TierArray<f32> m_DisabledStack{};
+
+    struct TextInputStateInfo
+    {
+        u32 Cursor;
+        TKit::String Text;
+    };
+
+    TKit::TierArray<TextInputStateInfo> m_UndoStack{};
+    TKit::TierArray<TextInputStateInfo> m_RedoStack{};
 
     OverlayWindow *m_Tooltip = nullptr;
 
