@@ -264,7 +264,7 @@ struct NextWindowData
     NextWindowFlags Flags = 0;
 };
 
-struct ResizeInfo
+struct GrabInfo
 {
     TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     const Color *InteractionColor = nullptr; // Whether hovered or pressed
@@ -313,7 +313,7 @@ struct OverlayWindow
     usz Id = NullLayoutId;
     u64 Layer;
 
-    ResizeInfo Resize{};
+    GrabInfo Grab{};
 
     Layout Layout;
     f32v2 Position{0.f};
@@ -563,10 +563,9 @@ struct PickerData
 
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
-// TODO(Isma): Dont allow window to go out of os window bounds
+// TODO(Isma): Implement clipboard
 // TODO(Isma): Add want capture mouse/keyboard
 // TODO(Isma): Adapt renderer visualization
-// TODO(Isma): Implement clipboard
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)

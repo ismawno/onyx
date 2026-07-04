@@ -304,15 +304,15 @@ Overlay::~Overlay()
 void Overlay::drawWindowBorders()
 {
     Layout &ly = GetCurrentLayout();
-    const Color &interaction = *m_Current->Resize.InteractionColor;
+    const Color &interaction = *m_Current->Grab.InteractionColor;
     const Color &idle = m_Style[OverlayColor_WindowBorderIdle];
 
-    ResizeInfo &rinfo = m_Current->Resize;
+    GrabInfo &ginfo = m_Current->Grab;
 
-    const bool l = rinfo.Flags & ResizeFlag_Left;
-    const bool r = rinfo.Flags & ResizeFlag_Right;
-    const bool b = rinfo.Flags & ResizeFlag_Bottom;
-    const bool t = rinfo.Flags & ResizeFlag_Top;
+    const bool l = ginfo.Flags & ResizeFlag_Left;
+    const bool r = ginfo.Flags & ResizeFlag_Right;
+    const bool b = ginfo.Flags & ResizeFlag_Bottom;
+    const bool t = ginfo.Flags & ResizeFlag_Top;
 
     const LySz2 hsizing = {sabs(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
     const LySz2 vsizing = {grow(), sabs(m_Style[OverlayStyle_WindowBorderWidth])};
@@ -326,25 +326,25 @@ void Overlay::drawWindowBorders()
 
     const auto drawLeftBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
-        rinfo.Ids[left] = ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = l ? interaction : idle, .Sizing = hsizing});
+        ginfo.Ids[left] = ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = l ? interaction : idle, .Sizing = hsizing});
         ly.EndPanel();
     };
     const auto drawRightBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
         ly.Panel(LyPnPar{.Sizing = grow()});
-        rinfo.Ids[right] = ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = r ? interaction : idle, .Sizing = hsizing});
+        ginfo.Ids[right] = ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = r ? interaction : idle, .Sizing = hsizing});
         ly.EndPanel();
     };
     const auto drawBottomBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
-        rinfo.Ids[bottom] =
+        ginfo.Ids[bottom] =
             ly.Panel("__onyx_id_Bottom", LyPnPar{.FillColor = b ? interaction : idle, .Sizing = vsizing});
         ly.EndPanel();
     };
     const auto drawTopBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
         ly.Panel(LyPnPar{.Sizing = grow()});
-        rinfo.Ids[top] = ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = t ? interaction : idle, .Sizing = vsizing});
+        ginfo.Ids[top] = ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = t ? interaction : idle, .Sizing = vsizing});
         ly.EndPanel();
     };
 
@@ -2718,13 +2718,13 @@ u32 Overlay::processWindows()
             const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
             if (winHovered && win->CheckFlags(WindowInternalFlag_InputHovered))
             {
-                win->Resize.Flags = 0;
+                win->Grab.Flags = 0;
                 cursor = MouseCursor_IBeam;
                 return false;
             }
             if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
             {
-                win->Resize.Flags = 0;
+                win->Grab.Flags = 0;
                 return true;
             }
             if (win->CheckFlags(OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize))
@@ -2733,18 +2733,18 @@ u32 Overlay::processWindows()
 
             const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
             ResizeFlags rflags = 0;
-            ResizeInfo &rinfo = win->Resize;
-            for (u32 i = 0; i < rinfo.Ids.GetSize(); ++i)
+            GrabInfo &ginfo = win->Grab;
+            for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
             {
-                const usz id = rinfo.Ids[i];
+                const usz id = ginfo.Ids[i];
                 if (win->Layout.IsHovered(id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding],
                                           /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                 {
-                    win->Resize.InteractionColor = &m_Style[OverlayColor_WindowBorderHovered];
+                    win->Grab.InteractionColor = &m_Style[OverlayColor_WindowBorderHovered];
                     rflags |= 1U << i;
                 }
             }
-            rinfo.Flags = rflags;
+            ginfo.Flags = rflags;
 
             const auto cf = [&](const ResizeFlags f) { return f & rflags; };
             if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
@@ -2846,12 +2846,12 @@ u32 Overlay::processWindows()
             canAssignHover = false;
         }
 
-        if (pressed && (win->Resize.Flags != 0 || winHovered))
+        if (pressed && (win->Grab.Flags != 0 || winHovered))
         {
             if (!widgetHovered && !widgetPressed && !inputHovered)
             {
-                win->Resize.Position = win->Position;
-                win->Resize.Size = win->Size;
+                win->Grab.Position = win->Position;
+                win->Grab.Size = win->Size;
                 m_Grabbed = win;
             }
             const bool noFocus = win->Flags & OverlayWindowFlag_NoBringToFocus;
@@ -2873,10 +2873,10 @@ u32 Overlay::processWindows()
     }
     else if (m_Grabbed)
     {
-        m_Grabbed->Resize.InteractionColor = &m_Style[OverlayColor_WindowBorderPressed];
-        ResizeInfo &rinfo = m_Grabbed->Resize;
-        f32v2 &p = rinfo.Position;
-        f32v2 &s = rinfo.Size;
+        m_Grabbed->Grab.InteractionColor = &m_Style[OverlayColor_WindowBorderPressed];
+        GrabInfo &ginfo = m_Grabbed->Grab;
+        f32v2 &p = ginfo.Position;
+        f32v2 &s = ginfo.Size;
         const f32v2 &ms = m_Grabbed->MinSize;
 
         const f32v2 &md = m_MouseDelta;
@@ -2884,7 +2884,7 @@ u32 Overlay::processWindows()
         const bool noMove = m_Grabbed->Flags & OverlayWindowFlag_NoMove;
         const bool noResize = m_Grabbed->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize);
 
-        if (rinfo.Flags == 0 && !noMove)
+        if (ginfo.Flags == 0 && !noMove)
         {
             p += md;
             m_Grabbed->Position = p;
@@ -2894,12 +2894,12 @@ u32 Overlay::processWindows()
             const auto handleResizeAxis = [&](const u32 idx, const ResizeFlags canonical, const ResizeFlags mirrored,
                                               const f32 sign = 1.f) {
                 const f32 step = md[idx];
-                if (rinfo.Flags & canonical)
+                if (ginfo.Flags & canonical)
                 {
                     s[idx] -= sign * step;
                     p[idx] += step;
                 }
-                else if (rinfo.Flags & mirrored)
+                else if (ginfo.Flags & mirrored)
                     s[idx] += sign * step;
 
                 if (s[idx] >= ms[idx])
@@ -2911,6 +2911,18 @@ u32 Overlay::processWindows()
             handleResizeAxis(0, ResizeFlag_Left, ResizeFlag_Right);
             handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom, -1.f);
         }
+        f32v2 wsize;
+        if (m_Grabbed->Flags & OverlayWindowFlag_AutoResize)
+        {
+            const LayoutElement *winRoot = m_Grabbed->Layout.QueryElement(m_Grabbed->Id);
+            wsize = winRoot ? winRoot->Size : m_Grabbed->Size;
+        }
+        else
+            wsize = m_Grabbed->Size;
+
+        const f32v2 mnlim = {leftBorder() - wsize[0] + m_Grabbed->MinSize[0], bottomBorder() + m_Grabbed->MinSize[1]};
+        const f32v2 mxlim = {rightBorder() - m_Grabbed->MinSize[0], topBorder() + wsize[1] - m_Grabbed->MinSize[1]};
+        m_Grabbed->Position = Math::Clamp(m_Grabbed->Position, mnlim, mxlim);
     }
 
     m_HoveredId = NullLayoutId;
