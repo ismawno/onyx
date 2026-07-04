@@ -564,9 +564,14 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-// TODO(Isma): List boxes
-// TODO(Isma): Implement selectable hints
+// TODO(Isma): Embed window demo in overlay class as a method?
+// TODO(Isma): Style-color editor panel/window. embed as method as well
 // TODO(Isma): Adapt renderer visualization
+// TODO(Isma): Implement drag & drop
+// TODO(Isma): Multi-window support
+// TODO(Isma): Implement docking
+// TODO(Isma): Create some sort of serialization
+// TODO(Isma, deprioritized): Implement selectable hints for menu items
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)

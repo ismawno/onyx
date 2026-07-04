@@ -27,7 +27,8 @@ static VKit::DeviceImage createImage(const u32v2 &dimensions)
 
     return ONYX_CHECK_VKIT_RESULT(
         VKit::DeviceImage::Builder(device, alloc, VkExtent2D{.width = dimensions[0], .height = dimensions[1]}, formats,
-                                   VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
+                                   VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled |
+                                       VKit::DeviceImageFlag_Source | VKit::DeviceImageFlag_Destination)
             .AddImageView(format)
             .AddImageView(sformat)
             .Build());
@@ -67,7 +68,6 @@ RenderTexture::~RenderTexture()
 
 void RenderTexture::Resize(const u32v2 &dims)
 {
-    m_Dimensions = dims;
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(m_Images.GetSize());
 
@@ -107,13 +107,45 @@ void RenderTexture::Resize(const u32v2 &dims)
     m_Writable = 0;
     m_Readable = 0;
 
+    VKit::DeviceImage newImage = createImage(dims);
+
+    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
+    const VkCommandBuffer cmd = ONYX_CHECK_VKIT_RESULT(pool.BeginSingleTimeCommands());
+
+    main->Image.TransitionLayout2(
+        cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        {.DstAccess = VK_ACCESS_2_TRANSFER_READ_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+    newImage.TransitionLayout2(
+        cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+    VkImageBlit region{};
+    region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.srcOffsets[1] = {i32(m_Dimensions[0]), i32(m_Dimensions[1]), 1};
+    region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.dstOffsets[1] = {i32(dims[0]), i32(dims[1]), 1};
+
+    const auto table = GetDeviceTable();
+    table->CmdBlitImage(cmd, main->Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, newImage,
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+
+    newImage.TransitionLayout2(
+        cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+    ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
+
     main->Image.Destroy();
-    main->Image = createImage(dims);
+    main->Image = newImage;
+
     if (IsDebugUtilsEnabled())
         nameImage(main->Image, 0);
 
     Resources::UpdateRenderTexture(main->Texture, main->Image.GetView());
     updateRenderViews();
+    m_Dimensions = dims;
 }
 
 void RenderTexture::FindAvailableImages()

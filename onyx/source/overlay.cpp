@@ -5,7 +5,6 @@
 
 namespace Onyx
 {
-
 static constexpr f32 s_CheckboardLight = 0.5f;
 static constexpr f32 s_CheckboardDark = 0.3f;
 
