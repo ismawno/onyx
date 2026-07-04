@@ -96,6 +96,7 @@ int main()
             ui->EndMainMenuBar();
         }
 
+        static bool disableGlobal = false;
         if (ui->BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
         {
             const f32 ftime = Onyx::GetDeltaTime(win).AsMilliseconds();
@@ -108,6 +109,18 @@ int main()
                     ui->Text("And this is the time that passes between frames");
                     ui->EndTooltip();
                 }
+                static bool disableLocal = false;
+                static bool dummy = false;
+
+                ui->CheckBox("Disable other sections", &disableGlobal);
+                ui->CheckBox("Disable items below", &disableLocal);
+
+                ui->BeginDisabled(disableLocal);
+                ui->Text("I can be disabled");
+                ui->CheckBox("I can be disabled##CB", &dummy);
+                ui->Button("I can be disabled##Button");
+                ui->EndDisabled();
+
                 ui->PopTree();
             }
 
@@ -117,6 +130,7 @@ int main()
                 ui->EndMenuBar();
             }
 
+            ui->BeginDisabled(disableGlobal);
             if (ui->PushTree("Buttons", drawLines))
             {
                 static bool helloText = false;
@@ -299,8 +313,15 @@ int main()
                 ui->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
                                   Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
                 ui->CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
+
+                ui->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
                 ui->CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
+                ui->EndDisabled();
+
+                ui->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_ShortDelay);
                 ui->CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
+                ui->EndDisabled();
+
                 ui->CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
 
                 ui->HorizontalSeparator("Focus flags");
@@ -528,6 +549,7 @@ int main()
                 }
                 ui->PopTree();
             }
+            ui->EndDisabled();
             ui->EndWindow();
         }
 

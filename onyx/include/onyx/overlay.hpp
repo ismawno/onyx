@@ -157,10 +157,11 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
     OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
     OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
     OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 6,
-    OverlayHoveredFlag_ShortDelay = 1U << 7,
-    OverlayHoveredFlag_NormalDelay = 1U << 8,
-    OverlayHoveredFlag_Stationary = 1U << 9,
+    OverlayHoveredFlag_AllowBlockedByDisabled = 1U << 6,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 7,
+    OverlayHoveredFlag_ShortDelay = 1U << 8,
+    OverlayHoveredFlag_NormalDelay = 1U << 9,
+    OverlayHoveredFlag_Stationary = 1U << 10,
 };
 
 using OverlayHoverQueryFlags = OverlayHoveredFlags;
@@ -172,6 +173,7 @@ enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
     OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
     OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
     OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
+    OverlayHoverQueryFlag_BlockedByDisabled = OverlayHoveredFlag_AllowBlockedByDisabled,
     OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
@@ -233,111 +235,6 @@ enum NextWindowFlagBit : NextWindowFlags
     NextWindowFlag_Size = 1U << 1,
 };
 
-struct OverlayColorHandle
-{
-    OverlayColorHandle() = default;
-    OverlayColorHandle(f32 *data) : Data(data)
-    {
-    }
-    OverlayColorHandle(f32v3 *data) : Data(&data->At(0))
-    {
-#ifdef TKIT_ENABLE_ASSERTS
-        Size = 3;
-#endif
-    }
-    OverlayColorHandle(f32v4 *data) : Data(&data->At(0))
-    {
-    }
-    OverlayColorHandle(Color *data) : Data(&data->rgba.At(0))
-    {
-    }
-    f32 *Data;
-#ifdef TKIT_ENABLE_ASSERTS
-    u32 Size = 4;
-#endif
-};
-
-struct NextWindowData
-{
-    f32v2 Position;
-    f32v2 Size;
-    NextWindowFlags Flags = 0;
-};
-
-struct GrabInfo
-{
-    TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
-    const Color *InteractionColor = nullptr; // Whether hovered or pressed
-    f32v2 Position;
-    f32v2 Size;
-    ResizeFlags Flags = 0;
-};
-
-struct ScrollBarInfo
-{
-    f32 BarOffset = 0.f;
-    f32 ElementOffset = 0.f;
-    f32 CursorOffset = 0.f;
-    f32 WheelOffset = 0.f;
-};
-
-struct ScrollInfo
-{
-    ScrollBarInfo Vertical{};
-    ScrollBarInfo Horizontal{};
-    OverlayScrollFlags Flags = 0;
-};
-
-struct ScrollParameterSpecs
-{
-    LayoutId Id;
-    vec2<LayoutSizing> OuterSizing;
-    vec2<LayoutSizing> ContentSizing;
-    f32 ContentPadding;
-    f32 ChildGap;
-    OverlayScrollFlags Flags;
-};
-
-using OverlayTooltipFlags = u8;
-enum OverlayTooltipFlagBit : OverlayTooltipFlags
-{
-    OverlayTooltipFlag_Reset = 1U << 0,
-};
-
-struct OverlayWindow
-{
-    OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
-    {
-    }
-
-    usz Id = NullLayoutId;
-    u64 Layer;
-
-    GrabInfo Grab{};
-
-    Layout Layout;
-    f32v2 Position{0.f};
-    f32v2 Size{240.f};
-    f32v2 MinSize;
-    f32 LastHeight = 240.f;
-    u32 PopupDepth = 0;
-    CodePoint HeaderIcon;
-    OverlayWindowFlags Flags = 0;
-
-    bool CheckFlags(const OverlayWindowFlags flags) const
-    {
-        return flags & Flags;
-    }
-    void AddFlags(const OverlayWindowFlags flags)
-    {
-        Flags |= flags;
-    }
-    void RemoveFlags(const OverlayWindowFlags flags)
-    {
-        Flags &= ~flags;
-    }
-};
-
 enum OverlayPaletteType : u8
 {
     OverlayPalette_Idle0,
@@ -367,6 +264,7 @@ enum OverlayPaletteType : u8
 
 enum OverlayColor : u8
 {
+    OverlayColor_None,
     OverlayColor_Text,
     OverlayColor_Line,
 
@@ -446,6 +344,9 @@ enum OverlayStyleType : u8
 {
     OverlayStyle_FontSize,
     OverlayStyle_ChildGap,
+
+    OverlayStyle_Alpha,
+    OverlayStyle_DisabledAlpha,
 
     OverlayStyle_TooltipOffset,
     OverlayStyle_TooltipPadding,
@@ -528,18 +429,116 @@ struct OverlayStyle
     {
         return Variables[idx];
     }
-    constexpr f32 &operator[](const OverlayStyleType idx)
+
+    Color operator[](const OverlayColor idx) const
     {
-        return Variables[idx];
+        const Color &col = Colors[idx];
+        return Color{col, col.rgba[3] * Variables[OverlayStyle_Alpha]};
+    }
+};
+
+struct OverlayColorHandle
+{
+    OverlayColorHandle() = default;
+    OverlayColorHandle(f32 *data) : Data(data)
+    {
+    }
+    OverlayColorHandle(f32v3 *data) : Data(&data->At(0))
+    {
+#ifdef TKIT_ENABLE_ASSERTS
+        Size = 3;
+#endif
+    }
+    OverlayColorHandle(f32v4 *data) : Data(&data->At(0))
+    {
+    }
+    OverlayColorHandle(Color *data) : Data(&data->rgba.At(0))
+    {
+    }
+    f32 *Data;
+#ifdef TKIT_ENABLE_ASSERTS
+    u32 Size = 4;
+#endif
+};
+
+struct NextWindowData
+{
+    f32v2 Position;
+    f32v2 Size;
+    NextWindowFlags Flags = 0;
+};
+
+struct GrabInfo
+{
+    TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
+    OverlayColor InteractionColor = OverlayColor_None; // Whether hovered or pressed
+    f32v2 Position;
+    f32v2 Size;
+    ResizeFlags Flags = 0;
+};
+
+struct ScrollBarInfo
+{
+    f32 BarOffset = 0.f;
+    f32 ElementOffset = 0.f;
+    f32 CursorOffset = 0.f;
+    f32 WheelOffset = 0.f;
+};
+
+struct ScrollInfo
+{
+    ScrollBarInfo Vertical{};
+    ScrollBarInfo Horizontal{};
+    OverlayScrollFlags Flags = 0;
+};
+
+struct ScrollParameterSpecs
+{
+    LayoutId Id;
+    vec2<LayoutSizing> OuterSizing;
+    vec2<LayoutSizing> ContentSizing;
+    f32 ContentPadding;
+    f32 ChildGap;
+    OverlayScrollFlags Flags;
+};
+
+using OverlayTooltipFlags = u8;
+enum OverlayTooltipFlagBit : OverlayTooltipFlags
+{
+    OverlayTooltipFlag_Reset = 1U << 0,
+};
+
+struct OverlayWindow
+{
+    OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
+    {
     }
 
-    constexpr const Color &operator[](const OverlayColor idx) const
+    usz Id = NullLayoutId;
+    u64 Layer;
+
+    GrabInfo Grab{};
+
+    Layout Layout;
+    f32v2 Position{0.f};
+    f32v2 Size{240.f};
+    f32v2 MinSize;
+    f32 LastHeight = 240.f;
+    u32 PopupDepth = 0;
+    CodePoint HeaderIcon;
+    OverlayWindowFlags Flags = 0;
+
+    bool CheckFlags(const OverlayWindowFlags flags) const
     {
-        return Colors[idx];
+        return flags & Flags;
     }
-    constexpr Color &operator[](const OverlayColor idx)
+    void AddFlags(const OverlayWindowFlags flags)
     {
-        return Colors[idx];
+        Flags |= flags;
+    }
+    void RemoveFlags(const OverlayWindowFlags flags)
+    {
+        Flags &= ~flags;
     }
 };
 
@@ -562,7 +561,6 @@ struct PickerData
 };
 
 // TODO(Isma): Implement selectable hints
-// TODO(Isma): Implement disabled
 // TODO(Isma): Implement clipboard
 // TODO(Isma): Add want capture mouse/keyboard
 // TODO(Isma): Adapt renderer visualization
@@ -955,6 +953,9 @@ class Overlay
 
     // layout //
 
+    void BeginDisabled(bool enabled = true);
+    void EndDisabled();
+
     bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
     bool BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
     {
@@ -1083,7 +1084,7 @@ class Overlay
     void PushStyleVar(const OverlayStyleType var, const f32 val)
     {
         m_StyleStack.Append(m_Style[var], var);
-        m_Style[var] = val;
+        m_Style.Variables[var] = val;
     }
 
     void PopStyleVar(const u32 count = 1)
@@ -1091,7 +1092,7 @@ class Overlay
         for (u32 i = 0; i < count; ++i)
         {
             const StyleBackup &b = m_StyleStack.GetBack();
-            m_Style[b.Index] = b.Old;
+            m_Style.Variables[b.Index] = b.Old;
             m_StyleStack.Pop();
         }
     }
@@ -1099,13 +1100,13 @@ class Overlay
     void PushStyleColor(const OverlayColor color, const Color &col)
     {
         m_ColorStack.Append(m_Style[color], color);
-        m_Style[color] = col;
+        m_Style.Colors[color] = col;
     }
 
     void PopStyleColor()
     {
         const ColorBackup &b = m_ColorStack.GetBack();
-        m_Style[b.Index] = b.Old;
+        m_Style.Colors[b.Index] = b.Old;
         m_ColorStack.Pop();
     }
 
@@ -1230,13 +1231,13 @@ class Overlay
         const T clamped = Math::Clamp(pval, T(mn), T(mx));
         format = getFormat<T>(format);
 
-        const Color *col = &m_Style[OverlayColor_SliderIdle];
+        OverlayColor col = OverlayColor_SliderIdle;
         const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & OverlayFocusQueryFlag_Pressed)
-            col = &m_Style[OverlayColor_SliderPressed];
+            col = OverlayColor_SliderPressed;
         else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-            col = &m_Style[OverlayColor_SliderHovered];
+            col = OverlayColor_SliderHovered;
 
         const f32 length = elm ? elm->Size[0] : 0.f;
 
@@ -1279,7 +1280,7 @@ class Overlay
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
 
-        ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                   .Alignment = {Alignment_Left, Alignment_Center},
                                   .Sizing = {grow(), fit()},
                                   .Padding = padding});
@@ -1336,13 +1337,13 @@ class Overlay
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
-        const Color *col = &m_Style[OverlayColor_DragIdle];
+        OverlayColor col = OverlayColor_DragIdle;
         const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
 
         if (focusFlags & OverlayFocusQueryFlag_Pressed)
-            col = &m_Style[OverlayColor_SliderPressed];
+            col = OverlayColor_SliderPressed;
         else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-            col = &m_Style[OverlayColor_SliderHovered];
+            col = OverlayColor_SliderHovered;
 
         if (focusFlags & OverlayFocusQueryFlag_JustActive)
             m_DragValue = f64(*value);
@@ -1365,7 +1366,7 @@ class Overlay
             *value = roundToFormat(T(nval), decimals);
         }
 
-        ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                   .Alignment = Alignment_Center,
                                   .Sizing = {flex(), fit()},
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
@@ -1669,6 +1670,7 @@ class Overlay
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
     TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
+    TKit::TierArray<f32> m_DisabledStack{};
 
     OverlayWindow *m_Tooltip = nullptr;
 

@@ -31,8 +31,9 @@ enum StateFlagBit : StateFlags
     StateFlag_FocusBlockByPopupCollapse = 1U << 8,
     StateFlag_PopupProtectionForbidden = 1U << 9,
     StateFlag_MainMenuBarActive = 1U << 10,
+    StateFlag_Disabled = 1U << 11,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
-    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse
+    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled
 };
 enum WindowInternalFlagBit : OverlayWindowFlags
 {
@@ -53,6 +54,9 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     OverlayStyleVariables vars;
     vars[OverlayStyle_FontSize] = 14.f;
     vars[OverlayStyle_ChildGap] = 8.f;
+
+    vars[OverlayStyle_Alpha] = 1.f;
+    vars[OverlayStyle_DisabledAlpha] = 0.8f;
 
     vars[OverlayStyle_TooltipOffset] = 12.f;
     vars[OverlayStyle_TooltipPadding] = 4.f;
@@ -199,6 +203,7 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
 {
     OverlayColors colors;
 
+    colors[OverlayColor_None] = Color_Transparent;
     colors[OverlayColor_Text] = palette[OverlayPalette_Text0];
     colors[OverlayColor_Line] = palette[OverlayPalette_Background1];
 
@@ -304,8 +309,8 @@ Overlay::~Overlay()
 void Overlay::drawWindowBorders()
 {
     Layout &ly = GetCurrentLayout();
-    const Color &interaction = *m_Current->Grab.InteractionColor;
-    const Color &idle = m_Style[OverlayColor_WindowBorderIdle];
+    const OverlayColor interaction = m_Current->Grab.InteractionColor;
+    const OverlayColor idle = OverlayColor_WindowBorderIdle;
 
     GrabInfo &ginfo = m_Current->Grab;
 
@@ -326,25 +331,28 @@ void Overlay::drawWindowBorders()
 
     const auto drawLeftBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
-        ginfo.Ids[left] = ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = l ? interaction : idle, .Sizing = hsizing});
+        ginfo.Ids[left] =
+            ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = m_Style[l ? interaction : idle], .Sizing = hsizing});
         ly.EndPanel();
     };
     const auto drawRightBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
         ly.Panel(LyPnPar{.Sizing = grow()});
-        ginfo.Ids[right] = ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = r ? interaction : idle, .Sizing = hsizing});
+        ginfo.Ids[right] =
+            ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = m_Style[r ? interaction : idle], .Sizing = hsizing});
         ly.EndPanel();
     };
     const auto drawBottomBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
         ginfo.Ids[bottom] =
-            ly.Panel("__onyx_id_Bottom", LyPnPar{.FillColor = b ? interaction : idle, .Sizing = vsizing});
+            ly.Panel("__onyx_id_Bottom", LyPnPar{.FillColor = m_Style[b ? interaction : idle], .Sizing = vsizing});
         ly.EndPanel();
     };
     const auto drawTopBorder = [&] {
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
         ly.Panel(LyPnPar{.Sizing = grow()});
-        ginfo.Ids[top] = ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = t ? interaction : idle, .Sizing = vsizing});
+        ginfo.Ids[top] =
+            ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = m_Style[t ? interaction : idle], .Sizing = vsizing});
         ly.EndPanel();
     };
 
@@ -372,7 +380,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
     {
         const f32 size = contentArea->Size[axis];
         const f32 csize = contentArea->ChildrenSize[axis] + 2.f * contentPadding;
-        const Color *col = &m_Style[OverlayColor_ScrollBarIdle];
+        OverlayColor col = OverlayColor_ScrollBarIdle;
 
         const char *name =
             axis == LayoutAxis_Horizontal ? "__onyx_id_Horizontal_scroll_bar" : "__onyx_id_Vertical_scroll_bar";
@@ -409,7 +417,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
                 if (pressed)
                 {
-                    col = &m_Style[OverlayColor_ScrollBarPressed];
+                    col = OverlayColor_ScrollBarPressed;
                     sinfo.CursorOffset += sign * m_MouseDelta[axis];
                 }
                 else
@@ -425,7 +433,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
                 sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
             }
             if (!pressed && hovered)
-                col = &m_Style[OverlayColor_ScrollBarHovered];
+                col = OverlayColor_ScrollBarHovered;
         }
         else
             sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
@@ -440,7 +448,7 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
             offset[axis] = oabs(sinfo.BarOffset);
             offset[1 - axis] = oabs(0.f);
 
-            ly.Panel(scrollId, LyPnPar{.FillColor = *col,
+            ly.Panel(scrollId, LyPnPar{.FillColor = m_Style[col],
                                        .Sizing = sizing,
                                        .SelfOffset = offset,
                                        .Shape = LayoutShape::Rectangle(m_Style[OverlayStyle_ScrollBarWidth])});
@@ -491,6 +499,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
         !(m_StateFlags & StateFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
     const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
     const bool popupCollapseBlocked = m_StateFlags & StateFlag_FocusBlockByPopupCollapse;
+    const bool disabledBlocked = m_StateFlags & StateFlag_Disabled;
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
@@ -499,6 +508,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
     flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByDisabled * disabledBlocked;
 
     return flags;
 }
@@ -766,7 +776,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         (mmnActive && m_CurrentPopupDepth != 0) ||
         (!mmnActive && (!m_Current->CheckFlags(WindowInternalFlag_MenuBarOpened) || m_CurrentPopupDepth != 0));
 
-    const Color *col = verticalLayout ? &Color_Transparent : &m_Style[OverlayColor_MenuItemIdle];
+    OverlayColor col = verticalLayout ? OverlayColor_None : OverlayColor_MenuItemIdle;
 
     const LayoutId barId = "__onyx_id_Menu_bar";
     const bool openOnHover = verticalLayout || checkWidgetState(barId, WidgetStateFlag_Opened);
@@ -778,14 +788,15 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
     const bool popupOpen = focusFlags & OverlayFocusQueryFlag_PopupOpen;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_MenuItemPressed];
+        col = OverlayColor_MenuItemPressed;
     else if (popupOpen || (focusFlags & OverlayFocusQueryFlag_Hovered))
-        col = &m_Style[OverlayColor_MenuItemHovered];
+        col = OverlayColor_MenuItemHovered;
 
     const f32 padding = m_Style[OverlayStyle_MenuPadding];
 
     const LySz2 sizing = {verticalLayout ? flex() : fit(), verticalLayout ? fit() : flex()};
-    ly.BeginPanel(id, LyPnPar{.FillColor = *col, .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
+    ly.BeginPanel(id,
+                  LyPnPar{.FillColor = m_Style[col], .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
 
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_MenuItemText));
     if (verticalLayout)
@@ -896,18 +907,18 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
     const LayoutId id = AsStackedId("Drop_down_box");
     const LayoutElement *elm = ly.QueryElement(id);
-    const Color *boxCol = &m_Style[OverlayColor_DropDownIdle];
+    OverlayColor boxCol = OverlayColor_DropDownIdle;
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_LeftClickOpensPopup);
 
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        boxCol = &m_Style[OverlayColor_DropDownPressed];
+        boxCol = OverlayColor_DropDownPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        boxCol = &m_Style[OverlayColor_DropDownHovered];
+        boxCol = OverlayColor_DropDownHovered;
 
     const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-    ly.BeginPanel(id, LyPnPar{.FillColor = *boxCol,
+    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[boxCol],
                               .Alignment = CenterLeft,
                               .Sizing = {m_CurrentPopupDepth == 0 ? snorm(0.7f) : flex(),
                                          hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)}});
@@ -926,10 +937,9 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     const bool dropDownActive = focusFlags & OverlayFocusQueryFlag_PopupOpen;
     if (!(flags & OverlayDropDownFlag_NoArrowButton))
     {
-        const Color *buttonCol =
-            dropDownActive ? &m_Style[OverlayColor_DropDownButton] : &m_Style[OverlayColor_DropDownHovered];
+        OverlayColor buttonCol = dropDownActive ? OverlayColor_DropDownButton : OverlayColor_DropDownHovered;
         ly.BeginPanel(AsStackedId("__onyx_id_Button_box"),
-                      LyPnPar{.FillColor = *buttonCol,
+                      LyPnPar{.FillColor = m_Style[buttonCol],
                               .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
         ly.Unicode(ly.GenerateNextId(), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
@@ -985,6 +995,23 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     ly.EndPanel();
     PopId();
     return false;
+}
+
+void Overlay::BeginDisabled(const bool enabled)
+{
+    m_DisabledStack.Append(m_Style[OverlayStyle_Alpha]);
+    if (enabled)
+    {
+        m_StateFlags |= StateFlag_Disabled;
+        m_Style.Variables[OverlayStyle_Alpha] *= m_Style[OverlayStyle_DisabledAlpha];
+    }
+}
+void Overlay::EndDisabled()
+{
+    m_Style.Variables[OverlayStyle_Alpha] = m_DisabledStack.GetBack();
+    m_DisabledStack.Pop();
+    if (m_DisabledStack.IsEmpty())
+        m_StateFlags &= ~StateFlag_Disabled;
 }
 
 bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
@@ -1115,13 +1142,13 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     Layout &ly = GetCurrentLayout();
     const bool framed = flags & OverlayTreeFlag_Framed;
 
-    const Color *col = framed ? &m_Style[OverlayColor_TreeIdle] : &Color_Transparent;
+    OverlayColor col = framed ? OverlayColor_TreeIdle : OverlayColor_None;
 
     OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_TreePressed];
+        col = OverlayColor_TreePressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_TreeHovered];
+        col = OverlayColor_TreeHovered;
 
     const bool horScroll = m_Current->Flags & OverlayWindowFlag_HorizontalScroll;
     const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
@@ -1130,7 +1157,7 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
     const LySz2 sizing = {spanLabel ? fit() : growOrFlex, fit()};
 
-    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                            .Alignment = CenterLeft,
                                            .Sizing = sizing,
                                            .Padding = m_Style[OverlayStyle_HeaderPadding],
@@ -1538,14 +1565,15 @@ bool Overlay::headerButton(const LayoutId id, const CodePoint code)
     Layout &ly = GetCurrentLayout();
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
-    const Color *col = &Color_Transparent;
+    OverlayColor col = OverlayColor_None;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_ButtonPressed];
+        col = OverlayColor_ButtonPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_ButtonHovered];
+        col = OverlayColor_ButtonHovered;
 
-    ly.BeginPanel(
-        id, LyPnPar{.FillColor = *col, .Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                              .Alignment = Center,
+                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams(OverlayColor_Header));
     ly.EndPanel();
@@ -1708,11 +1736,11 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
-    const Color *col = &m_Style[OverlayColor_ButtonIdle];
+    OverlayColor col = OverlayColor_ButtonIdle;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_ButtonPressed];
+        col = OverlayColor_ButtonPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_ButtonHovered];
+        col = OverlayColor_ButtonHovered;
 
     const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
 
@@ -1725,8 +1753,8 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
 
     const LySz2 sizing = spanFull ? LySz2{flex(mnSize), fit()} : LySz2{fit(mnSize), fit()};
 
-    m_LastItem =
-        ly.BeginPanel(id, LyPnPar{.FillColor = *col, .Alignment = Center, .Sizing = sizing, .Padding = padding});
+    m_LastItem = ly.BeginPanel(
+        id, LyPnPar{.FillColor = m_Style[col], .Alignment = Center, .Sizing = sizing, .Padding = padding});
 
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
     ly.EndPanel();
@@ -1741,16 +1769,16 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
-    const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
+    OverlayColor col = OverlayColor_CheckBoxIdle;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_CheckBoxPressed];
+        col = OverlayColor_CheckBoxPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_CheckBoxHovered];
+        col = OverlayColor_CheckBoxHovered;
 
     m_LastItem = ly.BeginPanel(
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.BeginPanel(AsStackedId("__onyx_id_Outer_radio"), LyPnPar{.FillColor = *col,
+    ly.BeginPanel(AsStackedId("__onyx_id_Outer_radio"), LyPnPar{.FillColor = m_Style[col],
                                                                 .Alignment = Center,
                                                                 .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
                                                                 .Shape = LayoutShape::Circle(),
@@ -1777,11 +1805,11 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
-    const Color *col = &m_Style[OverlayColor_CheckBoxIdle];
+    OverlayColor col = OverlayColor_CheckBoxIdle;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_CheckBoxPressed];
+        col = OverlayColor_CheckBoxPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_CheckBoxHovered];
+        col = OverlayColor_CheckBoxHovered;
 
     if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
         *enable = !*enable;
@@ -1789,7 +1817,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
     m_LastItem = ly.BeginPanel(
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.BeginPanel(AsStackedId("__onyx_id_Outer_checkbox"), LyPnPar{.FillColor = *col,
+    ly.BeginPanel(AsStackedId("__onyx_id_Outer_checkbox"), LyPnPar{.FillColor = m_Style[col],
                                                                    .Alignment = Center,
                                                                    .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
                                                                    .Padding = 6.f});
@@ -1817,21 +1845,21 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     const bool highlight = flags & OverlaySelectableFlag_Highlight;
     const bool cb = flags & OverlaySelectableFlag_CheckBox;
 
-    const Color *col = highlight ? &m_Style[OverlayColor_SelectableHovered] : &m_Style[OverlayColor_SelectableIdle];
+    OverlayColor col = highlight ? OverlayColor_SelectableHovered : OverlayColor_SelectableIdle;
 
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = &m_Style[OverlayColor_SelectablePressed];
+        col = OverlayColor_SelectablePressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = &m_Style[OverlayColor_SelectableHovered];
+        col = OverlayColor_SelectableHovered;
     else if (enabled && !cb)
-        col = &m_Style[OverlayColor_SelectablePressed];
+        col = OverlayColor_SelectablePressed;
 
     const bool spanLabel = flags & OverlaySelectableFlag_SpanLabelWidth;
     const bool mitem = flags & OverlaySelectableFlag_MenuItem;
 
     const LySz xsizing = mitem ? flex() : grow();
     const LySz2 sizing = {spanLabel ? fit() : xsizing, fit()};
-    ly.BeginPanel(id, LyPnPar{.FillColor = *col,
+    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                               .Direction = LayoutDirection_RightToLeft,
                               .Alignment = CenterLeft,
                               .Sizing = sizing});
@@ -1839,7 +1867,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     if (cb)
     {
         ly.BeginPanel(AsStackedId("__onyx_id_Outer_checkbox"),
-                      LyPnPar{.FillColor = *col,
+                      LyPnPar{.FillColor = m_Style[col],
                               .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_WidgetSize]), flex()},
                               .Padding = 6.f});
@@ -2740,7 +2768,7 @@ u32 Overlay::processWindows()
                 if (win->Layout.IsHovered(id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding],
                                           /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                 {
-                    win->Grab.InteractionColor = &m_Style[OverlayColor_WindowBorderHovered];
+                    win->Grab.InteractionColor = OverlayColor_WindowBorderHovered;
                     rflags |= 1U << i;
                 }
             }
@@ -2873,7 +2901,7 @@ u32 Overlay::processWindows()
     }
     else if (m_Grabbed)
     {
-        m_Grabbed->Grab.InteractionColor = &m_Style[OverlayColor_WindowBorderPressed];
+        m_Grabbed->Grab.InteractionColor = OverlayColor_WindowBorderPressed;
         GrabInfo &ginfo = m_Grabbed->Grab;
         f32v2 &p = ginfo.Position;
         f32v2 &s = ginfo.Size;
