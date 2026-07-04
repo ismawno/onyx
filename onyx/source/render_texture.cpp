@@ -95,13 +95,18 @@ void RenderTexture::Resize(const u32v2 &dims)
     }
 
     FrontEndImage *main = m_Images.GetFront();
+    FrontEndImage *mostUpToDate = m_Images[m_Writable];
     TKit::TierAllocator *tier = GetTier();
+
+    const auto destroyImage = [&](FrontEndImage *img) {
+        Resources::DestroyTexture(img->Texture);
+        img->Image.Destroy();
+        tier->Destroy(img);
+    };
     for (u32 i = 1; i < m_Images.GetSize(); ++i)
-    {
-        Resources::DestroyTexture(m_Images[i]->Texture);
-        m_Images[i]->Image.Destroy();
-        tier->Destroy(m_Images[i]);
-    }
+        if (m_Images[i] != mostUpToDate)
+            destroyImage(m_Images[i]);
+
     m_Images.Resize(1);
 
     m_Writable = 0;
@@ -113,7 +118,7 @@ void RenderTexture::Resize(const u32v2 &dims)
     const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
     const VkCommandBuffer cmd = ONYX_CHECK_VKIT_RESULT(pool.BeginSingleTimeCommands());
 
-    main->Image.TransitionLayout2(
+    mostUpToDate->Image.TransitionLayout2(
         cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         {.DstAccess = VK_ACCESS_2_TRANSFER_READ_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
@@ -128,7 +133,7 @@ void RenderTexture::Resize(const u32v2 &dims)
     region.dstOffsets[1] = {i32(dims[0]), i32(dims[1]), 1};
 
     const auto table = GetDeviceTable();
-    table->CmdBlitImage(cmd, main->Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, newImage,
+    table->CmdBlitImage(cmd, mostUpToDate->Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, newImage,
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
 
     newImage.TransitionLayout2(
@@ -136,6 +141,9 @@ void RenderTexture::Resize(const u32v2 &dims)
         {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
     ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
+
+    if (main != mostUpToDate)
+        destroyImage(mostUpToDate);
 
     main->Image.Destroy();
     main->Image = newImage;
