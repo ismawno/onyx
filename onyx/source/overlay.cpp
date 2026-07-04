@@ -32,8 +32,15 @@ enum StateFlagBit : StateFlags
     StateFlag_PopupProtectionForbidden = 1U << 9,
     StateFlag_MainMenuBarActive = 1U << 10,
     StateFlag_Disabled = 1U << 11,
+
+    StateFlag_RequestCaptureMouse = 1U << 12,
+    StateFlag_RequestCaptureKeyboard = 1U << 13,
+
+    StateFlag_WantCaptureMouse = 1U << 14,
+    StateFlag_WantCaptureKeyboard = 1U << 15,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
-    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled
+    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
+                       StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
 };
 enum WindowInternalFlagBit : OverlayWindowFlags
 {
@@ -1272,6 +1279,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     bool updated = false;
     if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
     {
+        m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
         TKit::String &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
         const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
@@ -2625,6 +2633,15 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
     return changed;
 }
 
+bool Overlay::WantCaptureMouse() const
+{
+    return m_StateFlags & StateFlag_WantCaptureMouse;
+}
+bool Overlay::WantCaptureKeyboard() const
+{
+    return m_StateFlags & StateFlag_WantCaptureKeyboard;
+}
+
 void Overlay::Draw()
 {
     TKIT_ASSERT(m_IdStack.IsEmpty(),
@@ -2727,6 +2744,11 @@ u32 Overlay::processWindows()
             m_StateFlags |= StateFlag_FocusBlockByPopupCollapse;
         m_PopupStack.Resize(collapse);
     }
+    if (!(m_StateFlags & StateFlag_RequestCaptureMouse))
+        m_StateFlags &= ~StateFlag_WantCaptureMouse;
+
+    if (!(m_StateFlags & StateFlag_RequestCaptureKeyboard))
+        m_StateFlags &= ~StateFlag_WantCaptureKeyboard;
 
     m_StateFlags &= StateFlagPersist;
 
@@ -2735,6 +2757,8 @@ u32 Overlay::processWindows()
     const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_StateFlags & StateFlag_ActiveAllowsInteraction);
     const bool widgetPressed = m_PressedId != NullLayoutId;
     const bool widgetHovered = m_HoveredId != NullLayoutId;
+
+    m_StateFlags |= widgetBlocked * StateFlag_WantCaptureMouse;
     // if nothing is grabbed, we check mouse cursors here
     if (!m_Grabbed)
     {
@@ -2872,6 +2896,7 @@ u32 Overlay::processWindows()
         {
             win->AddFlags(WindowInternalFlag_Hovered);
             canAssignHover = false;
+            m_StateFlags |= StateFlag_WantCaptureMouse;
         }
 
         if (pressed && (win->Grab.Flags != 0 || winHovered))

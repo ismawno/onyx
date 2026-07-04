@@ -312,6 +312,8 @@ int main()
                                   Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
                 ui->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
                                   Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
+                ui->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
+                                  Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
                 ui->CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
 
                 ui->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
@@ -348,29 +350,37 @@ int main()
                 ui->Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
                 ui->Text("Blocked by popup collapse : {}",
                          bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
+                ui->Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
                 ui->Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
 
                 ui->HorizontalSeparator("Focus info");
 
                 static TKit::Clock lclickClock{};
                 static TKit::Clock rclickClock{};
+                static TKit::Clock dclickClock{};
 
                 if (fqflags & Onyx::OverlayFocusQueryFlag_LeftClicked)
                     lclickClock.Restart();
                 if (fqflags & Onyx::OverlayFocusQueryFlag_RightClicked)
                     rclickClock.Restart();
+                if (fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked)
+                    dclickClock.Restart();
 
                 ui->Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
                 ui->Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
-                ui->Text("Left clicked: true {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
-                ui->Text("Right clicked: true {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
-                ui->Text("Double clicked: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked));
+                ui->Text("Left clicked: {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
+                ui->Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
+                ui->Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
                 ui->Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
                 ui->Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
                 ui->Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
 
                 ui->HorizontalSeparator("State info");
                 ui->Text("Opened: {}", opened);
+
+                ui->HorizontalSeparator("Focus info");
+                ui->Text("Want capture mouse: {}", ui->WantCaptureMouse());
+                ui->Text("Want capture keyboard: {}", ui->WantCaptureKeyboard());
 
                 ui->PopTree();
             }

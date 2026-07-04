@@ -1159,6 +1159,8 @@ class Overlay
         const auto it = m_WidgetStates.Find(m_LastItem);
         return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
     }
+    bool WantCaptureMouse() const;
+    bool WantCaptureKeyboard() const;
     // /query //
 
     void Draw();
