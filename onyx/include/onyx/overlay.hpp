@@ -110,6 +110,7 @@ enum OverlayScrollFlagBit : OverlayScrollFlags
     OverlayScrollFlag_Borders = 1U << 0,
     OverlayScrollFlag_Title = 1U << 1,
     OverlayScrollFlag_NoBackground = 1U << 2,
+    OverlayScrollFlag_Tight = 1U << 3,
     OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
     OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
     OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
@@ -349,6 +350,8 @@ enum OverlayStyleType : u8
     OverlayStyle_Alpha,
     OverlayStyle_DisabledAlpha,
 
+    OverlayStyle_ListBoxMaxHeight,
+
     OverlayStyle_TooltipOffset,
     OverlayStyle_TooltipPadding,
 
@@ -561,7 +564,6 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-// TODO(Isma): Undo/redo
 // TODO(Isma): List boxes
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Adapt renderer visualization
@@ -892,13 +894,13 @@ class Overlay
 
     template <TKit::Integer T>
     bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
-                  const OverlayDropDownFlags flags = 0)
+                  const OverlayDropDownFlags flags = 0, const OverlaySelectableFlags sflags = 0)
     {
         const T val = *current;
         if (BeginDropDown(label, val < elements.GetSize() ? elements[val] : "", flags | OverlayDropDownFlag_Tight))
         {
             for (u32 i = 0; i < elements.GetSize(); ++i)
-                if (Selectable(elements[i], val == i))
+                if (Selectable(elements[i], val == i, sflags))
                 {
                     *current = i;
                     CloseCurrentPopup();
@@ -919,6 +921,35 @@ class Overlay
         for (const TKit::StackString &elm : splits)
             views.Append(elm);
         return DropDown(label, current, views, flags);
+    }
+
+    template <TKit::Integer T>
+    bool ListBox(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
+                 const OverlaySelectableFlags flags = 0)
+    {
+        const T val = *current;
+        BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
+                    OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title);
+
+        for (u32 i = 0; i < elements.GetSize(); ++i)
+            if (Selectable(elements[i], val == i, flags))
+                *current = i;
+
+        EndScroll();
+        return val != *current;
+    }
+    template <TKit::Integer T>
+    bool ListBox(const TKit::StringView label, T *current, const TKit::StringView elements,
+                 const OverlaySelectableFlags flags = 0)
+    {
+        const TKit::StackString str{elements.GetData(), elements.GetSize()};
+        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
+
+        TKit::StackArray<TKit::StringView> views{};
+        views.Reserve(splits.GetSize());
+        for (const TKit::StackString &elm : splits)
+            views.Append(elm);
+        return ListBox(label, current, views, flags);
     }
 
     // /popups
@@ -1456,7 +1487,7 @@ class Overlay
     u32 processWindows();
 
     void drawWindowBorders();
-    void performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
+    bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
     void addActiveWindow(OverlayWindow *win);
     void popWindowStack();
     u64 toTop()

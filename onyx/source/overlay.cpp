@@ -66,6 +66,8 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_Alpha] = 1.f;
     vars[OverlayStyle_DisabledAlpha] = 0.8f;
 
+    vars[OverlayStyle_ListBoxMaxHeight] = 140.f;
+
     vars[OverlayStyle_TooltipOffset] = 12.f;
     vars[OverlayStyle_TooltipPadding] = 4.f;
 
@@ -378,7 +380,7 @@ void Overlay::drawWindowBorders()
     }
 }
 
-void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
+bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
                             const f32 contentPadding, const bool drawBar)
 {
     Layout &ly = GetCurrentLayout();
@@ -461,11 +463,11 @@ void Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
                                        .SelfOffset = offset,
                                        .Shape = LayoutShape::Rectangle(m_Style[OverlayStyle_ScrollBarWidth])});
         }
+        return true;
     }
-    else
-        sinfo = ScrollBarInfo{};
 
-    // sinfo.WheelOffset = 0.f;
+    sinfo = ScrollBarInfo{};
+    return false;
 }
 
 void Overlay::addActiveWindow(OverlayWindow *win)
@@ -1029,7 +1031,9 @@ bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
     const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
 
     const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
+
     const bool borders = flags & OverlayScrollFlag_Borders;
+    const bool tight = flags & OverlayScrollFlag_Tight;
 
     const f32 omw = maxWidth + 2.f * padding;
     const LySz2 outer = {autoResize ? fit() : grow(0.f, omw), fit()};
@@ -1048,8 +1052,8 @@ bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
     return beginScroll({.Id = id,
                         .OuterSizing = outer,
                         .ContentSizing = content,
-                        .ContentPadding = padding,
-                        .ChildGap = m_Style[OverlayStyle_ChildGap],
+                        .ContentPadding = tight ? 0.f : padding,
+                        .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
                         .Flags = flags});
 }
 
@@ -1075,8 +1079,9 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     const LayoutId contentId = AsStackedId("__onyx_id_Content_area");
+    bool appenStack = false;
     if (!collapsed && (specs.Flags & OverlayScrollFlag_HorizontalScroll))
-        performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
+        appenStack |= performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
 
     ly.BeginPanel(AsStackedId("__onyx_id_Vertical_scroll_area"),
                   LyPnPar{.Direction = LayoutDirection_RightToLeft,
@@ -1085,7 +1090,7 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
-        performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
+        appenStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
 
     ly.BeginPanel(contentId,
                   LyPnPar{.Direction = LayoutDirection_TopToBottom,
@@ -1097,7 +1102,8 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
 
     if (isElementHovered(ly.QueryElement(specs.Id)))
     {
-        m_ScrollStack.Append(specs.Id);
+        if (appenStack)
+            m_ScrollStack.Append(specs.Id);
         return true;
     }
     return false;

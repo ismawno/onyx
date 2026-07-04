@@ -410,6 +410,14 @@ int main()
                 ui->TextRaw("I even have multiple lines");
                 ui->EndSelectable();
 
+                const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3",
+                                                                     "Element 4", "Element 5", "Element 6",
+                                                                     "Element 7", "Element 8"};
+
+                static u32 idx = 0;
+                ui->ListBox("List box 1", &idx, elements, sflags);
+                ui->ListBox("List box 2##You should not see this", &idx, "I am#part of#the same#string", sflags);
+
                 ui->PopTree();
             }
 
