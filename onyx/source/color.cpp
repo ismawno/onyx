@@ -80,10 +80,6 @@ Color Color::FromHexadecimal(const u32 hex, const bool alpha)
 }
 Color Color::FromHexadecimal(TKit::StringView hex)
 {
-    if (hex[0] == '#')
-        hex = hex.SubString(1);
-
-    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8, "[ONYX][COLOR] Invalid hexadecimal color {}", hex);
     return FromHexadecimal(u32(std::strtoul(hex.begin(), nullptr, 16)), hex.GetSize() == 8);
 }
 

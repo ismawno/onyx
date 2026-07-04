@@ -563,12 +563,10 @@ struct PickerData
 
 // TODO(Isma): Implement selectable hints
 // TODO(Isma): Implement disabled
-// TODO(Isma): Implement color editors
-// TODO(Isma): Menu item repositioning
 // TODO(Isma): Dont allow window to go out of os window bounds
-// TODO(Isma): Fix touchpad scroll
 // TODO(Isma): Add want capture mouse/keyboard
 // TODO(Isma): Adapt renderer visualization
+// TODO(Isma): Implement clipboard
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -581,13 +579,19 @@ class Overlay
     using LySz = LayoutSizing;
     using LyOf = LayoutOffset;
     using LyAtt = LayoutAttachment;
+    using LyAlg = Alignment;
 
     using LySz2 = vec2<LySz>;
     using LyOf2 = vec2<LyOf>;
     using LyAtt2 = vec2<LyAtt>;
+    using LyAlg2 = vec2<LyAlg>;
 
     static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
+    static constexpr vec2<Alignment> BottomLeft = {Alignment_Left, Alignment_Bottom};
+
+    static constexpr vec2<Alignment> TopRight = {Alignment_Right, Alignment_Top};
     static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Center};
+
     static constexpr vec2<Alignment> TopCenter = {Alignment_Center, Alignment_Left};
     static constexpr vec2<Alignment> Center = Alignment_Center;
 
@@ -1503,6 +1507,43 @@ class Overlay
         return {.FillColor = m_Style[color], .Size = m_Style[OverlayStyle_FontSize]};
     }
 
+    f32v2 topLeftBorder() const
+    {
+        return m_TopLeftBorder;
+    }
+    f32v2 topRightBorder() const
+    {
+        return {m_BottomRightBorder[0], m_TopLeftBorder[1]};
+    }
+    f32v2 bottomLeftBorder() const
+    {
+        return {m_TopLeftBorder[0], m_BottomRightBorder[1]};
+    }
+    f32v2 bottomRightBorder() const
+    {
+        return m_BottomRightBorder;
+    }
+    f32 leftBorder() const
+    {
+        return m_TopLeftBorder[0];
+    }
+    f32 rightBorder() const
+    {
+        return m_BottomRightBorder[0];
+    }
+    f32 topBorder() const
+    {
+        return m_TopLeftBorder[1];
+    }
+    f32 bottomBorder() const
+    {
+        return m_BottomRightBorder[1];
+    }
+    f32v2 windowDimensions() const
+    {
+        return m_BottomRightBorder - m_TopLeftBorder;
+    }
+
     static constexpr LayoutSizing fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
         return LayoutSizing::Fit(min, max);
@@ -1633,8 +1674,6 @@ class Overlay
     OverlayWindow *m_Tooltip = nullptr;
 
     f32v2 m_TopLeftBorder;
-    f32v2 m_TopRightBorder;
-    f32v2 m_BottomLeftBorder;
     f32v2 m_BottomRightBorder;
 
     Color m_PickerOriginal{};

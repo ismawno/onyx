@@ -474,8 +474,6 @@ void Overlay::popWindowStack()
 void Overlay::updateMainWindowBorders()
 {
     m_TopLeftBorder = m_View->ScreenToWorld(f32v2{0.f});
-    m_TopRightBorder = m_View->ScreenToWorld(f32v2{1.f, 0.f});
-    m_BottomLeftBorder = m_View->ScreenToWorld(f32v2{0.f, 1.f});
     m_BottomRightBorder = m_View->ScreenToWorld(f32v2{1.f});
 }
 
@@ -721,8 +719,8 @@ void Overlay::EndMenuBar()
 
 void Overlay::BeginMainMenuBar()
 {
-    const f32v2 &tl = m_TopLeftBorder;
-    const f32v2 &tr = m_TopRightBorder;
+    const f32v2 tl = topLeftBorder();
+    const f32v2 tr = topRightBorder();
     const f32 xsize = tr[0] - tl[0];
 
     m_Current = getOrCreateOverlayWindow("__onyx_id_Main_menu_bar");
@@ -800,16 +798,39 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     {
         if (!verticalLayout)
             m_WidgetStates[barId] = WidgetStateFlag_Opened;
+
         const usz bid = AsStackedId("__onyx_id_Menu_box");
-        const LyAtt2 att = verticalLayout ? LyAtt2{LayoutAttachment_Right, LayoutAttachment_Top}
-                                          : LyAtt2{LayoutAttachment_Left, LayoutAttachment_Bottom};
+        const LayoutElement *belm = ly.QueryElement(bid);
+        const f32v2 csize = belm ? belm->Size : f32v2{0.f};
+
+        const f32v2 &ppos = elm->Position;
+        const f32 psize = elm->Size[0];
+
+        LyAtt2 att;
+        LyAlg2 alg;
+        f32v2 offset;
+
+        if (verticalLayout)
+        {
+            const bool surpasses = (ppos[0] + psize + csize[0]) > rightBorder();
+            att = LyAtt2{surpasses ? LayoutAttachment_Left : LayoutAttachment_Right, LayoutAttachment_Top};
+            alg = surpasses ? TopRight : TopLeft;
+            offset = {surpasses ? 4.f : -4.f, 0.f};
+        }
+        else
+        {
+            const bool surpasses = (ppos[1] - csize[1]) < bottomBorder();
+            att = LyAtt2{LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
+            alg = surpasses ? BottomLeft : TopLeft;
+            offset = {0.f, surpasses ? -4.f : 4.f};
+        }
 
         ly.BeginPanel(bid, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBoxBackground],
                                    .Direction = LayoutDirection_TopToBottom,
                                    .Alignment = TopLeft,
                                    .Sizing = {fit(m_Style[OverlayStyle_MinimumMenuWidth]), fit()},
-                                   .SelfOffset = oabs(verticalLayout ? f32v2{-4.f, 0.f} : f32v2{0.f, 4.f}),
-                                   .Floating = {.Enable = true, .Attachment = att, .Alignment = TopLeft},
+                                   .SelfOffset = oabs(offset),
+                                   .Floating = {.Enable = true, .Attachment = att, .Alignment = alg},
                                    .Padding = padding});
 
         PushStyleVar(OverlayStyle_WidgetPadding, padding);
@@ -919,16 +940,24 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
     {
         endHorizontalWidget(OverlayColor_Text, label);
 
-        const f32 size = elm ? elm->Size[0] : 0.f;
         const usz did = AsStackedId("__onyx_id_Drop_down");
+        const LayoutElement *delm = ly.QueryElement(did);
+        const f32 csize = delm ? delm->Size[1] : 0.f;
+
+        const f32 ppos = elm->Position[1];
+        const f32 psize = elm->Size[0];
+
         const bool tight = flags & OverlayDropDownFlag_Tight;
+
+        const bool surpasses = (ppos - csize) < bottomBorder();
+        const LyAtt2 att = {LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
+        const LyAlg2 alg = surpasses ? BottomLeft : TopLeft;
+
         ly.BeginPanel(did, LyPnPar{.FillColor = m_Style[OverlayColor_PopupBackground],
                                    .Direction = LayoutDirection_TopToBottom,
                                    .Alignment = TopLeft,
-                                   .Sizing = {fit(size), fit()},
-                                   .Floating = {.Enable = true,
-                                                .Attachment = {LayoutAttachment_Left, LayoutAttachment_Bottom},
-                                                .Alignment = TopLeft},
+                                   .Sizing = {fit(psize), fit()},
+                                   .Floating = {.Enable = true, .Attachment = att, .Alignment = alg},
                                    .Padding = tight ? 0.f : m_Style[OverlayStyle_WidgetPadding]});
 
         const f32 height = (flags & OverlayDropDownFlag_HeightSmall) ? m_Style[OverlayStyle_DropDownHeightSmall]
@@ -949,7 +978,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                      .ChildGap = cgap,
                      .Flags = OverlayScrollFlag_NoBackground});
 
-        queryAndSetFocusStatus(ly.QueryElement(did), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
+        queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
         return true;
     }
     endHorizontalWidget(OverlayColor_Text, label);
@@ -1173,16 +1202,16 @@ bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayT
     return true;
 }
 
-bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hint, const OverlayInputFlags flags,
+bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
                            const InputConvertInfoFlags cflags)
 {
-    TKIT_ASSERT(size != 0, "[ONYX][OVERLAY] Buffer size for text input cannot be zero");
+    TKIT_ASSERT(capacity != 0, "[ONYX][OVERLAY] Buffer capacity for text input cannot be zero");
     Layout &ly = GetCurrentLayout();
-    const u32 strSize = u32(std::strlen(buf));
-    TKIT_ASSERT(strSize < size,
-                "[ONYX][OVERLAY] The input character length ({}) must be lower than buffer size ({}) as the latter "
+    const u32 bufSize = u32(std::strlen(buf));
+    TKIT_ASSERT(bufSize < capacity,
+                "[ONYX][OVERLAY] The input character length ({}) must be lower than buffer capacity ({}) as the latter "
                 "must to account for the null terminator",
-                strSize, size);
+                bufSize, capacity);
 
     const LayoutId iboxId = AsStackedId("__onyx_id_Input_box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
@@ -1222,7 +1251,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
         if (justActive)
         {
             str.Clear();
-            str.Insert(str.end(), buf, buf + strSize);
+            str.Insert(str.end(), buf, buf + bufSize);
         }
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
@@ -1408,7 +1437,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
             selEnd = toRemoveBegin;
         }
 
-        const u32 insertionsLeft = size - 1 - strSize;
+        const u32 insertionsLeft = capacity - 1 - str.GetSize();
         const u32 insertions = Math::Min(m_TextInput.GetSize(), insertionsLeft);
 
         updated |= insertions != 0;
@@ -1442,7 +1471,7 @@ bool Overlay::inputTextBox(char *buf, const u32 size, const TKit::StringView hin
     {
         const bool elide = flags & OverlayInputFlag_ElideLeft;
         const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
-        const bool useHint = strSize == 0 && !hint.IsEmpty();
+        const bool useHint = bufSize == 0 && !hint.IsEmpty();
 
         tparams.Offset[0] = oabs(textOffset);
         if (useHint)
@@ -2075,7 +2104,7 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
 
 bool Overlay::colorHexInput(f32 *colPtr, const Color &col, const OverlayColorFlags flags)
 {
-    constexpr u32 bsize = 16;
+    constexpr u32 bsize = 10;
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
 
     TKit::StaticString<bsize> strBuf = col.ToHexadecimal<TKit::StaticString<bsize>>(alpha);
@@ -2086,12 +2115,14 @@ bool Overlay::colorHexInput(f32 *colPtr, const Color &col, const OverlayColorFla
     if (inputTextBox(buf, bsize, {}, OverlayInputFlag_AutoSelectAll))
     {
         TKit::StaticString<bsize> hex = buf;
-        if (hex[0] == '#')
+        if (!hex.IsEmpty() && hex[0] == '#')
             hex = hex.SubString(1);
 
         const u32 hexSize = 6 + 2 * alpha;
         while (hex.GetSize() < hexSize)
             hex.Append('0');
+
+        hex.Resize(hexSize);
 
         const Color fhex = Color::FromHexadecimal(hex);
         for (u32 i = 0; i < count; ++i)
@@ -2586,7 +2617,7 @@ void Overlay::Draw()
         if (++idx == modalWindow)
         {
             m_Context->Push();
-            m_Context->Scale(m_TopRightBorder - m_BottomLeftBorder);
+            m_Context->Scale(windowDimensions());
             m_Context->Alpha(0.2f);
             m_Context->Quad();
             m_Context->Pop();
