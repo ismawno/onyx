@@ -12,8 +12,6 @@ using namespace Detail;
 
 template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDynamicMeshCapacity)
 {
-    m_Current = &m_StateStack.Append();
-
     TKit::TierAllocator *tier = GetTier();
     for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
         for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
@@ -28,8 +26,8 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
     resizeInstanceData();
     m_DefaultResources = Resources::GetDefaultResources();
 
-    m_Current->Font = m_DefaultResources.Font;
-    m_Current->Sampler = m_DefaultResources.Sampler;
+    m_State.Font = m_DefaultResources.Font;
+    m_State.Sampler = m_DefaultResources.Sampler;
 
     m_ImmediateDynamicMeshes.Reserve(immediateDynamicMeshCapacity);
 
@@ -61,15 +59,16 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
 
 template <Dimension D> void IRenderContext<D>::Flush()
 {
-    TKIT_ASSERT(m_StateStack.GetSize() == 1,
-                "[ONYX][CONTEXT] Mismatched Push() call found. For every Push(), there must be a Pop()");
+    TKIT_ASSERT(m_StateStack.IsEmpty(),
+                "[ONYX][CONTEXT] Mismatched Push() call found. For every Push(), there must be a Pop(). Stack has {} "
+                "entries left",
+                m_StateStack.GetSize());
 
-    m_StateStack[0] = ContextState<D>{};
-    m_Current = &m_StateStack.GetFront();
+    m_State = ContextState<D>{};
     m_DefaultResources = Resources::GetDefaultResources();
 
-    m_Current->Font = m_DefaultResources.Font;
-    m_Current->Sampler = m_DefaultResources.Sampler;
+    m_State.Font = m_DefaultResources.Font;
+    m_State.Sampler = m_DefaultResources.Sampler;
 
     NoClip();
     for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -251,25 +250,25 @@ template <Dimension D> u32 packAlignment(const vec<Alignment, D> alg)
 }
 
 template <Dimension D>
-static InstanceData<D> createInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+static InstanceData<D> createInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                           const u32 depthCounter)
 {
 #ifdef TKIT_ENABLE_ASSERTS
-    checkMaterial<D>(state->Material);
-    checkSampler<D>(state->Sampler);
-    checkTexture<D>(state->Texture);
+    checkMaterial<D>(state.Material);
+    checkSampler<D>(state.Sampler);
+    checkTexture<D>(state.Texture);
 #endif
-    const bool flat = state->RenderFlags & RenderModeFlag_Flat;
+    const bool flat = state.RenderFlags & RenderModeFlag_Flat;
     InstanceData<D> instanceData;
     instanceData.Transform = CreateTransformData<D>(transform);
-    instanceData.Rect = state->Rect;
+    instanceData.Rect = state.Rect;
     instanceData.MatOrSamplerTex =
-        flat ? Resources::CombineSamplerTexIntoId(state->Sampler, state->Texture) : GetResourceId(state->Material);
-    instanceData.TexOffset = PackHalf2x16(state->TexOffset);
-    instanceData.TexScale = PackHalf2x16(state->TexScale);
-    instanceData.FillColor = state->FillColor.ToLinear().Pack();
-    instanceData.OutlineColor = state->OutlineColor.ToLinear().Pack();
-    instanceData.OutlineWidth = state->OutlineWidth;
+        flat ? Resources::CombineSamplerTexIntoId(state.Sampler, state.Texture) : GetResourceId(state.Material);
+    instanceData.TexOffset = PackHalf2x16(state.TexOffset);
+    instanceData.TexScale = PackHalf2x16(state.TexScale);
+    instanceData.FillColor = state.FillColor.ToLinear().Pack();
+    instanceData.OutlineColor = state.OutlineColor.ToLinear().Pack();
+    instanceData.OutlineWidth = state.OutlineWidth;
     if constexpr (D == D2)
         instanceData.DepthCounter = depthCounter;
 
@@ -277,28 +276,28 @@ static InstanceData<D> createInstanceData(const ContextState<D> *state, const f3
 }
 
 template <Dimension D>
-static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                                       const Resource bounds, const u32 depthCounter)
 {
     StaticInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.Alignment = packAlignment<D>(state->Alignment);
+    instanceData.Alignment = packAlignment<D>(state.Alignment);
     instanceData.BoundsId = GetResourceId(bounds);
     return instanceData;
 }
 
 template <Dimension D>
-static CircleInstanceData<D> createCircleInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+static CircleInstanceData<D> createCircleInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                                       const CircleParameters &params, const u32 depthCounter)
 {
     // constexpr TKit::FixedArray<f32v2, 9> bounds = {f32v2{-0.5f, -0.5f}, f32v2{-0.5f, 0.f}, f32v2{-0.5f, 0.5f},
     //                                                f32v2{0.f, -0.5f},   f32v2{0.f, 0.f},   f32v2{0.f, 0.5f},
     //                                                f32v2{0.5f, -0.5f},  f32v2{0.5f, 0.f},  f32v2{0.5f, 0.5f}};
     //
-    // const f32v2 &alignment = bounds[state->Alignment[0] * 3 + state->Alignment[1]];
+    // const f32v2 &alignment = bounds[state.Alignment[0] * 3 + state.Alignment[1]];
     CircleInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.Alignment = packAlignment<D>(state->Alignment);
+    instanceData.Alignment = packAlignment<D>(state.Alignment);
 
     instanceData.Arc.LowerCos = Math::Cosine(params.LowerAngle);
     instanceData.Arc.LowerSin = Math::Sine(params.LowerAngle);
@@ -314,13 +313,13 @@ static CircleInstanceData<D> createCircleInstanceData(const ContextState<D> *sta
 }
 
 template <Dimension D>
-static ParametricInstanceData<D> createParametricInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+static ParametricInstanceData<D> createParametricInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                                               const Resource bounds, const ParametricShape shape,
                                                               const InstanceParameters &params, const u32 depthCounter)
 {
     ParametricInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.Alignment = packAlignment<D>(state->Alignment);
+    instanceData.Alignment = packAlignment<D>(state.Alignment);
     instanceData.BoundsId = GetResourceId(bounds);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
@@ -328,13 +327,13 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
 }
 
 template <Dimension D>
-static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                                     const f32 unitRange, const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.SamplerAtlasId =
-        Resources::CombineSamplerTexIntoId(state->Sampler, Resources::GetFontAtlas(state->Font));
+        Resources::CombineSamplerTexIntoId(state.Sampler, Resources::GetFontAtlas(state.Font));
     instanceData.UnitRange = unitRange;
     return instanceData;
 }
@@ -410,7 +409,7 @@ template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const Cl
     }
     if constexpr (D == D2)
     {
-        const f32m3 &t = m_Current->Transform;
+        const f32m3 &t = m_State.Transform;
         const f32v2 &mn = clip.Min;
         const f32v2 &mx = clip.Max;
 
@@ -424,7 +423,7 @@ template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const Cl
     }
     else
     {
-        const f32m4 &t = m_Current->Transform;
+        const f32m4 &t = m_State.Transform;
         const f32v3 &mn = clip.Min;
         const f32v3 &mx = clip.Max;
 
@@ -449,7 +448,7 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
     f32v<D> mx;
     for (u32 i = 0; i < D; ++i)
     {
-        const Alignment alg = m_Current->Alignment[i];
+        const Alignment alg = m_State.Alignment[i];
         const f32 p = position[i];
         const f32 d = dimensions[i];
         if (alg == Alignment_Canonical)
@@ -482,16 +481,16 @@ void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &dat
 
 template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params)
 {
-    if (!m_Current->RenderFlags)
+    if (!m_State.RenderFlags)
         return;
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Circles;
+    const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++m_DepthCounter);
+    InstanceDataBuffer &buffer = m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Circles;
     addInstanceData(buffer, idata);
 }
 
 template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh, const f32m<D> &transform)
 {
-    if (!m_Current->RenderFlags)
+    if (!m_State.RenderFlags)
         return;
     CHECK_HANDLE(mesh, Resource_StaticMesh, D);
 
@@ -499,26 +498,25 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
     const u32 mid = GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
-        createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
+        createStaticInstanceData(m_State, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
 
     InstanceResourceGroup &group =
-        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid];
+        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_StaticMesh][pid];
 
     group.Registry.RegisterResourceId(mid);
     addInstanceData(group.Instances[mid], idata);
 }
 template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mesh, const f32m<D> &transform)
 {
-    if (!m_Current->RenderFlags)
+    if (!m_State.RenderFlags)
         return;
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(mesh);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(mesh, Resource_DynamicMesh, D);
 
     const u32 mid = GetResourceId(mesh);
-    const DynamicInstanceData<D> idata = createInstanceData(m_Current, transform, ++m_DepthCounter);
+    const DynamicInstanceData<D> idata = createInstanceData(m_State, transform, ++m_DepthCounter);
 
-    InstanceResourceGroup &group =
-        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->DynamicMeshes;
+    InstanceResourceGroup &group = m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->DynamicMeshes;
     group.Registry.RegisterResourceId(mid);
     addInstanceData(group.Instances[mid], idata);
 }
@@ -526,7 +524,7 @@ template <Dimension D>
 void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &transform,
                                           const InstanceParameters &params)
 {
-    if (!m_Current->RenderFlags)
+    if (!m_State.RenderFlags)
         return;
     CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
 
@@ -536,10 +534,10 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(
-        m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
+        m_State, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
     InstanceResourceGroup &group =
-        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_ParametricMesh][pid];
+        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_ParametricMesh][pid];
 
     group.Registry.RegisterResourceId(mid);
     addInstanceData(group.Instances[mid], idata);
@@ -562,21 +560,21 @@ template <Dimension D>
 void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &transform,
                                      const ContextTextParameters &params)
 {
-    if (!m_Current->RenderFlags || text.IsEmpty())
+    if (!m_State.RenderFlags || text.IsEmpty())
         return;
 
-    TKIT_ASSERT(m_Current->Sampler != NullHandle,
+    TKIT_ASSERT(m_State.Sampler != NullHandle,
                 "[ONYX][CONTEXT] To draw text, a valid sampler must be provided first with the Font() method");
 
-    CHECK_HANDLE(m_Current->Font, Resource_Font, D);
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->Sampler);
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->Sampler, Resource_Sampler, D);
+    CHECK_HANDLE(m_State.Font, Resource_Font, D);
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_State.Sampler);
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_State.Sampler, Resource_Sampler, D);
 
     ++m_DepthCounter;
-    const Alignment alg0 = m_Current->Alignment[0] == Alignment_None ? Alignment_Left : m_Current->Alignment[0];
-    const Alignment alg1 = m_Current->Alignment[1] == Alignment_None ? Alignment_Top : m_Current->Alignment[1];
+    const Alignment alg0 = m_State.Alignment[0] == Alignment_None ? Alignment_Left : m_State.Alignment[0];
+    const Alignment alg1 = m_State.Alignment[1] == Alignment_None ? Alignment_Top : m_State.Alignment[1];
 
-    const Resource font = m_Current->Font;
+    const Resource font = m_State.Font;
     const FontData &fdata = Resources::GetFontData(font);
 
     TKit::String wrapped;
@@ -681,27 +679,27 @@ void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, 
     const u32 pid = GetResourcePoolId(glyph);
     const u32 gid = GetResourceId(glyph);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, m_DepthCounter);
     InstanceResourceGroup &group =
-        m_InstanceData[m_Current->Blend][GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_GlyphMesh][pid];
+        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_GlyphMesh][pid];
 
     group.Registry.RegisterResourceId(gid);
     addInstanceData(group.Instances[gid], idata);
 }
 template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph, const f32m<D> &transform)
 {
-    TKIT_ASSERT(m_Current->Sampler != NullHandle,
+    TKIT_ASSERT(m_State.Sampler != NullHandle,
                 "[ONYX][CONTEXT] To draw text, a valid sampler must be provided first with the Font() method");
 
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->Sampler);
-    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->Sampler, Resource_Sampler, D);
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_State.Sampler);
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_State.Sampler, Resource_Sampler, D);
 
     ++m_DepthCounter;
     const Resource font = Resources::GetFont(glyph);
     const FontData &fdata = Resources::GetFontData(font);
 
-    const Alignment al0 = m_Current->Alignment[0];
-    const Alignment al1 = m_Current->Alignment[1];
+    const Alignment al0 = m_State.Alignment[0];
+    const Alignment al1 = m_State.Alignment[1];
     if ((al0 == Alignment_None || al0 == Alignment_Left) && (al1 == Alignment_None || al1 == Alignment_Bottom))
     {
         addGlyphData(glyph, fdata.UnitRange, transform);
@@ -884,7 +882,7 @@ void IRenderContext<D>::Line(const Resource mesh, const f32v<D> &start, const f3
 {
     const f32v<D> delta = end - start;
 
-    f32m<D> transform = m_Current->Transform;
+    f32m<D> transform = m_State.Transform;
     Onyx::Transform<D>::TranslateIntrinsic(transform, 0.5f * (start + end));
     Onyx::Transform<D>::RotateIntrinsic(transform, computeLineRotation<D>(start, end));
 
@@ -899,7 +897,7 @@ template <Dimension D> void IRenderContext<D>::Axes(const Resource mesh, const A
 {
     if constexpr (D == D2)
     {
-        Color &color = m_Current->FillColor;
+        Color &color = m_State.FillColor;
         const Color oldColor = color; // A cheap filthy push
 
         const f32v2 xLeft = {-params.Size, 0.f};
@@ -917,7 +915,7 @@ template <Dimension D> void IRenderContext<D>::Axes(const Resource mesh, const A
     }
     else
     {
-        Color &color = m_Current->FillColor;
+        Color &color = m_State.FillColor;
         const Color oldColor = color; // A cheap filthy push
 
         const f32v3 xLeft = {-params.Size, 0.f, 0.f};

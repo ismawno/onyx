@@ -208,30 +208,30 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Align(const vec<Alignment, D> &alg)
     {
-        m_Current->Alignment = alg;
+        m_State.Alignment = alg;
     }
     void Align(const Alignment alg)
     {
-        m_Current->Alignment = vec<Alignment, D>{alg};
+        m_State.Alignment = vec<Alignment, D>{alg};
     }
     void AlignX(const Alignment alg)
     {
-        m_Current->Alignment[0] = alg;
+        m_State.Alignment[0] = alg;
     }
     void AlignY(const Alignment alg)
     {
-        m_Current->Alignment[1] = alg;
+        m_State.Alignment[1] = alg;
     }
 
     void ResetTransform()
     {
-        m_Current->Transform = f32m<D>::Identity();
+        m_State.Transform = f32m<D>::Identity();
     }
 
     void Transform(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        m_Current->Transform =
-            mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform);
+        m_State.Transform =
+            mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform);
     }
 
     void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation,
@@ -248,25 +248,25 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Translate(const f32v<D> &translation, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, translation);
+            Onyx::Transform<D>::TranslateExtrinsic(m_State.Transform, translation);
         else
-            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, translation);
+            Onyx::Transform<D>::TranslateIntrinsic(m_State.Transform, translation);
     }
 
     void SetTranslation(const f32v<D> &translation)
     {
-        m_Current->Transform[D][0] = translation[0];
-        m_Current->Transform[D][1] = translation[1];
+        m_State.Transform[D][0] = translation[0];
+        m_State.Transform[D][1] = translation[1];
         if constexpr (D == D3)
-            m_Current->Transform[D][2] = translation[2];
+            m_State.Transform[D][2] = translation[2];
     }
 
     void Scale(const f32v<D> &scale, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, scale);
+            Onyx::Transform<D>::ScaleExtrinsic(m_State.Transform, scale);
         else
-            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, scale);
+            Onyx::Transform<D>::ScaleIntrinsic(m_State.Transform, scale);
     }
     void Scale(const f32 scale, const TransformMode mode = Transform_Extrinsic)
     {
@@ -276,93 +276,93 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void TranslateX(const f32 x, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 0, x);
+            Onyx::Transform<D>::TranslateExtrinsic(m_State.Transform, 0, x);
         else
-            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, 0, x);
+            Onyx::Transform<D>::TranslateIntrinsic(m_State.Transform, 0, x);
     }
 
     void TranslateY(const f32 y, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 1, y);
+            Onyx::Transform<D>::TranslateExtrinsic(m_State.Transform, 1, y);
         else
-            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, 1, y);
+            Onyx::Transform<D>::TranslateIntrinsic(m_State.Transform, 1, y);
     }
 
     void SetTranslationX(const f32 x)
     {
-        m_Current->Transform[D][0] = x;
+        m_State.Transform[D][0] = x;
     }
 
     void SetTranslationY(const f32 y)
     {
-        m_Current->Transform[D][1] = y;
+        m_State.Transform[D][1] = y;
     }
 
     void ScaleX(const f32 x, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 0, x);
+            Onyx::Transform<D>::ScaleExtrinsic(m_State.Transform, 0, x);
         else
-            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, 0, x);
+            Onyx::Transform<D>::ScaleIntrinsic(m_State.Transform, 0, x);
     }
 
     void ScaleY(const f32 y, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
+            Onyx::Transform<D>::ScaleExtrinsic(m_State.Transform, 1, y);
         else
-            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, 1, y);
+            Onyx::Transform<D>::ScaleIntrinsic(m_State.Transform, 1, y);
     }
 
     void Material(const Resource material)
     {
-        m_Current->Material = material;
+        m_State.Material = material;
     }
 
     void Font(const Resource font)
     {
-        m_Current->Font = font;
+        m_State.Font = font;
     }
     void Sampler(const Resource sampler)
     {
-        m_Current->Sampler = sampler;
+        m_State.Sampler = sampler;
     }
 
     void Texture(const Resource tex)
     {
-        m_Current->Texture = tex;
+        m_State.Texture = tex;
     }
     void Texture(const Resource tex, const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
     {
-        m_Current->Texture = tex;
+        m_State.Texture = tex;
         TextureCoordinates(offset, scale);
     }
     void TextureCoordinates(const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
     {
-        m_Current->TexOffset = offset;
-        m_Current->TexScale = scale;
+        m_State.TexOffset = offset;
+        m_State.TexScale = scale;
     }
 
     void Image(const Resource tex)
     {
-        const Resource oldTex = m_Current->Texture;
+        const Resource oldTex = m_State.Texture;
         Texture(tex);
         Quad();
         Texture(oldTex);
     }
     void Image(const Resource tex, const f32v2 &offset, const f32v2 &scale = f32v2{1.f})
     {
-        const Resource oldTex = m_Current->Texture;
-        const f32v2 oldOffset = m_Current->TexOffset;
-        const f32v2 oldScale = m_Current->TexScale;
+        const Resource oldTex = m_State.Texture;
+        const f32v2 oldOffset = m_State.TexOffset;
+        const f32v2 oldScale = m_State.TexScale;
         Texture(tex, offset, scale);
         Quad();
         Texture(oldTex, oldOffset, oldScale);
     }
     void Image(const Resource tex, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        const Resource oldTex = m_Current->Texture;
+        const Resource oldTex = m_State.Texture;
         Texture(tex);
         Quad(transform, mode);
         Texture(oldTex);
@@ -370,9 +370,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Image(const Resource tex, const f32m<D> &transform, const f32v2 &offset, const f32v2 &scale = f32v2{1.f},
                const TransformMode mode = Transform_Extrinsic)
     {
-        const Resource oldTex = m_Current->Texture;
-        const f32v2 oldOffset = m_Current->TexOffset;
-        const f32v2 oldScale = m_Current->TexScale;
+        const Resource oldTex = m_State.Texture;
+        const f32v2 oldOffset = m_State.TexOffset;
+        const f32v2 oldScale = m_State.TexScale;
         Texture(tex, offset, scale);
         Quad(transform, mode);
         Texture(oldTex, oldOffset, oldScale);
@@ -380,22 +380,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void StaticMesh(const Resource mesh)
     {
-        addStaticData(mesh, m_Current->Transform);
+        addStaticData(mesh, m_State.Transform);
     }
     void StaticMesh(const Resource mesh, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        addStaticData(mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
-                                                        : (m_Current->Transform * transform));
+        addStaticData(mesh,
+                      mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform));
     }
 
     void DynamicMesh(const Resource mesh)
     {
-        addDynamicData(mesh, m_Current->Transform);
+        addDynamicData(mesh, m_State.Transform);
     }
     void DynamicMesh(const Resource mesh, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        addDynamicData(mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
-                                                         : (m_Current->Transform * transform));
+        addDynamicData(mesh,
+                       mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform));
     }
     void DynamicMesh(const DynamicMeshData<D> *data)
     {
@@ -437,13 +437,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void ParametricMesh(const Resource mesh, const InstanceParameters &params)
     {
-        addParametricData(mesh, m_Current->Transform, params);
+        addParametricData(mesh, m_State.Transform, params);
     }
     void ParametricMesh(const Resource mesh, const InstanceParameters &params, const f32m<D> &transform,
                         const TransformMode mode = Transform_Extrinsic)
     {
         addParametricData(
-            mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform),
+            mesh, mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform),
             params);
     }
 
@@ -502,32 +502,31 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Circle(const CircleParameters &params = {})
     {
-        addCircleData(m_Current->Transform, params);
+        addCircleData(m_State.Transform, params);
     }
     void Circle(const f32m<D> &transform, const CircleParameters &params = {},
                 const TransformMode mode = Transform_Extrinsic)
     {
-        addCircleData(mode == Transform_Extrinsic ? (transform * m_Current->Transform)
-                                                  : (m_Current->Transform * transform),
+        addCircleData(mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform),
                       params);
     }
 
     void Glyph(const Resource glyph)
     {
-        addGlyphData(glyph, m_Current->Transform);
+        addGlyphData(glyph, m_State.Transform);
     }
     void Glyph(const Resource glyph, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        addGlyphData(glyph, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
-                                                        : (m_Current->Transform * transform));
+        addGlyphData(glyph,
+                     mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform));
     }
     void Unicode(const CodePoint code)
     {
-        Glyph(Resources::GetGlyph(m_Current->Font, code));
+        Glyph(Resources::GetGlyph(m_State.Font, code));
     }
     void Unicode(const CodePoint code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        Glyph(Resources::GetGlyph(m_Current->Font, code), transform, mode);
+        Glyph(Resources::GetGlyph(m_State.Font, code), transform, mode);
     }
     void Unicode(const TKit::StringView code)
     {
@@ -540,14 +539,14 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Text(const TKit::StringView text, const ContextTextParameters &params = {})
     {
-        addGlyphData(text, m_Current->Transform, params);
+        addGlyphData(text, m_State.Transform, params);
     }
     void Text(const TKit::StringView text, const f32m<D> &transform, const ContextTextParameters &params = {},
               const TransformMode mode = Transform_Extrinsic)
     {
-        addGlyphData(
-            text, mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform),
-            params);
+        addGlyphData(text,
+                     mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform),
+                     params);
     }
 
     void Layout(const Onyx::Layout &layout);
@@ -580,12 +579,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Push(const ContextState<D> &state)
     {
-        m_StateStack.Append(state);
-        updateState();
+        m_StateStack.Append(m_State);
+        m_State = state;
     }
     void Push()
     {
-        Push(*m_Current);
+        Push(m_State);
     }
     void PushClear()
     {
@@ -594,7 +593,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Clip(const ClipRect<D> &rect)
     {
-        m_Current->Rect = computeWorldRect(rect);
+        m_State.Rect = computeWorldRect(rect);
     }
     void Clip(const f32v<D> &position, const f32v<D> &dimensions)
     {
@@ -607,60 +606,59 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void NoClip()
     {
         ClipRect<D> crect{f32v<D>{TKIT_F32_MIN}, f32v<D>{TKIT_F32_MAX}};
-        m_Current->Rect = computeWorldRect(crect);
+        m_State.Rect = computeWorldRect(crect);
     }
 
     f32v<D> WorldToLocal(const f32v<D> &world)
     {
-        return f32v<D>{Math::Inverse(m_Current->Transform) * f32v<D + 1>{world, 1.f}};
+        return f32v<D>{Math::Inverse(m_State.Transform) * f32v<D + 1>{world, 1.f}};
     }
     f32v<D> LocalToWorld(const f32v<D> &local)
     {
-        return f32v<D>{m_Current->Transform * f32v<D + 1>{local, 1.f}};
+        return f32v<D>{m_State.Transform * f32v<D + 1>{local, 1.f}};
     }
 
     void Pop()
     {
+        m_State = m_StateStack.GetBack();
         m_StateStack.Pop();
-        TKIT_ASSERT(!m_StateStack.IsEmpty(), "[ONYX][CONTEXT] For every Push(), there must be a Pop()");
-        updateState();
     }
 
     void RenderFlags(const RenderModeFlags flags)
     {
-        m_Current->RenderFlags = flags;
+        m_State.RenderFlags = flags;
     }
     void AddRenderFlags(const RenderModeFlags flags)
     {
-        m_Current->RenderFlags |= flags;
+        m_State.RenderFlags |= flags;
     }
     void RemoveRenderFlags(const RenderModeFlags flags)
     {
-        m_Current->RenderFlags &= ~flags;
+        m_State.RenderFlags &= ~flags;
     }
     void FillColor(const Color &color)
     {
-        m_Current->FillColor = color;
-        m_Current->Blend = Math::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+        m_State.FillColor = color;
+        m_State.Blend = Math::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // required when material has a color factor with alpha < 1 or circles have fading
     void Blend(const bool enable = true)
     {
-        m_Current->Blend = BlendPass(enable);
+        m_State.Blend = BlendPass(enable);
     }
     void Alpha(const f32 alpha)
     {
-        m_Current->FillColor.rgba[3] = alpha;
-        m_Current->Blend = Math::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+        m_State.FillColor.rgba[3] = alpha;
+        m_State.Blend = Math::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // there is no support for alpha channel in outlines
     void OutlineColor(const Color &color)
     {
-        m_Current->OutlineColor = color;
+        m_State.OutlineColor = color;
     }
     void OutlineWidth(const f32 width)
     {
-        m_Current->OutlineWidth = width;
+        m_State.OutlineWidth = width;
     }
 
     void SetAmbientLight(const Color &color)
@@ -678,7 +676,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
     void PointLight(const PointLightParameters<D> &params = {})
     {
-        addPointLightData(m_Current->Transform, params);
+        addPointLightData(m_State.Transform, params);
     }
     void DirectionalLight(const DirectionalLightParameters<D> &params = {})
     {
@@ -687,13 +685,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     const ContextState<D> &GetState() const
     {
-        return *m_Current;
+        return m_State;
     }
     void SetState(const ContextState<D> &state)
     {
-        *m_Current = state;
-        m_Current->Blend =
-            Math::Approximately(m_Current->FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
+        m_State = state;
+        m_State.Blend = Math::Approximately(m_State.FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
     const InstanceDataGrouping<InstanceDataArrays *> &GetInstanceData() const
@@ -755,15 +752,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
   protected:
-    ContextState<D> *m_Current{};
+    ContextState<D> m_State{};
     DefaultResources m_DefaultResources{};
 
   private:
-    void updateState()
-    {
-        m_Current = &m_StateStack.GetBack();
-    }
-
     void resizeBuffer(InstanceDataBuffer &buffer);
     void resizeInstanceData();
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
@@ -829,9 +821,9 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public
     void Rotate(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D2>::RotateExtrinsic(m_State.Transform, angle);
         else
-            Onyx::Transform<D2>::RotateIntrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D2>::RotateIntrinsic(m_State.Transform, angle);
     }
 };
 
@@ -849,7 +841,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
 
     void AlignZ(const Alignment alg)
     {
-        m_Current->Alignment[2] = alg;
+        m_State.Alignment[2] = alg;
     }
 
     void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation,
@@ -867,30 +859,30 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     void TranslateZ(const f32 z, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::TranslateExtrinsic(m_Current->Transform, 2, z);
+            Onyx::Transform<D3>::TranslateExtrinsic(m_State.Transform, 2, z);
         else
-            Onyx::Transform<D3>::TranslateIntrinsic(m_Current->Transform, 2, z);
+            Onyx::Transform<D3>::TranslateIntrinsic(m_State.Transform, 2, z);
     }
 
     void SetTranslationZ(const f32 z)
     {
-        m_Current->Transform[D3][2] = z;
+        m_State.Transform[D3][2] = z;
     }
 
     void ScaleZ(const f32 z, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::ScaleExtrinsic(m_Current->Transform, 2, z);
+            Onyx::Transform<D3>::ScaleExtrinsic(m_State.Transform, 2, z);
         else
-            Onyx::Transform<D3>::ScaleIntrinsic(m_Current->Transform, 2, z);
+            Onyx::Transform<D3>::ScaleIntrinsic(m_State.Transform, 2, z);
     }
 
     void Rotate(const f32q &quaternion, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::RotateExtrinsic(m_Current->Transform, quaternion);
+            Onyx::Transform<D3>::RotateExtrinsic(m_State.Transform, quaternion);
         else
-            Onyx::Transform<D3>::RotateIntrinsic(m_Current->Transform, quaternion);
+            Onyx::Transform<D3>::RotateIntrinsic(m_State.Transform, quaternion);
     }
 
     void Rotate(const f32v3 &angles, const TransformMode mode = Transform_Extrinsic)
@@ -906,23 +898,23 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     void RotateX(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::RotateXExtrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateXExtrinsic(m_State.Transform, angle);
         else
-            Onyx::Transform<D3>::RotateXIntrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateXIntrinsic(m_State.Transform, angle);
     }
     void RotateY(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::RotateYExtrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateYExtrinsic(m_State.Transform, angle);
         else
-            Onyx::Transform<D3>::RotateYIntrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateYIntrinsic(m_State.Transform, angle);
     }
     void RotateZ(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
         if (mode == Transform_Extrinsic)
-            Onyx::Transform<D3>::RotateZExtrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateZExtrinsic(m_State.Transform, angle);
         else
-            Onyx::Transform<D3>::RotateZIntrinsic(m_Current->Transform, angle);
+            Onyx::Transform<D3>::RotateZIntrinsic(m_State.Transform, angle);
     }
 
     void Box()
@@ -983,7 +975,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
 
     void SpotLight(const SpotLightParameters &params = {})
     {
-        addSpotLightData(m_Current->Transform, params);
+        addSpotLightData(m_State.Transform, params);
     }
 
     const TKit::TierArray<SpotLightParameters> &GetSpotLightData() const
