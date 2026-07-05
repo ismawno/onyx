@@ -494,12 +494,12 @@ void Overlay::updateMainWindowBorders()
     m_BottomRightBorder = m_View->ScreenToWorld(f32v2{1.f});
 }
 
-OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
+OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
 {
     OverlayHoverQueryFlags flags = 0;
     const usz id = elm ? elm->Id : NullLayoutId;
 
-    const bool hovered = elm && elm->IsHovered(m_MousePos);
+    const bool hovered = elm && elm->IsHovered(m_MousePos, padding);
     const bool windowBlock =
         !m_Current->CheckFlags(WindowInternalFlag_Focused) && !m_Current->CheckFlags(WindowInternalFlag_Hovered);
     const bool grabBlock = m_Grabbed;
@@ -522,9 +522,9 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm) const
     return flags;
 }
 
-bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFlags flags)
+bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFlags flags, const f32v2 &padding)
 {
-    const OverlayHoverQueryFlags qflags = queryHoverStatus(elm);
+    const OverlayHoverQueryFlags qflags = queryHoverStatus(elm, padding);
     const bool candidate = isElementHovered(qflags, flags);
 
     const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
@@ -793,7 +793,8 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     const FocusFlags fflags = openOnHover ? (FocusFlag_HoverOpensPopup | FocusFlag_HoverRequestsPopupCollapse)
                                           : FocusFlag_LeftClickOpensPopup;
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, fflags);
+    const f32v2 hoverPad = 8.f;
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, fflags, verticalLayout ? hoverPad : 0.f);
 
     const bool popupOpen = focusFlags & OverlayFocusQueryFlag_PopupOpen;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
@@ -824,7 +825,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         const f32v2 csize = belm ? belm->Size : f32v2{0.f};
 
         const f32v2 &ppos = elm->Position;
-        const f32 psize = elm->Size[0];
+        const f32v2 &psize = elm->Size;
 
         LyAtt2 att;
         LyAlg2 alg;
@@ -832,17 +833,35 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
         if (verticalLayout)
         {
-            const bool surpasses = (ppos[0] + psize + csize[0]) > rightBorder();
+            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > rightBorder();
             att = LyAtt2{surpasses ? LayoutAttachment_Left : LayoutAttachment_Right, LayoutAttachment_Top};
             alg = surpasses ? TopRight : TopLeft;
-            offset = {surpasses ? 4.f : -4.f, 0.f};
+
+            const f32 spill = ppos[1] - csize[1] + psize[1];
+            const f32 bborder = bottomBorder();
+            const f32 yoffset = spill < bborder ? (bborder - spill) : 0.f;
+
+            offset = {0.f, yoffset};
         }
         else
         {
             const bool surpasses = (ppos[1] - csize[1]) < bottomBorder();
             att = LyAtt2{LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
             alg = surpasses ? BottomLeft : TopLeft;
-            offset = {0.f, surpasses ? -4.f : 4.f};
+
+            const f32 rborder = rightBorder();
+            const f32 lborder = leftBorder();
+
+            const f32 rspill = ppos[0] + csize[0];
+            const f32 lspill = ppos[0];
+
+            f32 xoffset = 0.f;
+            if (rspill > rborder)
+                xoffset = rborder - rspill;
+            else if (lspill < lborder)
+                xoffset = lborder - lspill;
+
+            offset = {xoffset, 0.f};
         }
 
         ly.BeginPanel(bid, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBoxBackground],
@@ -855,7 +874,8 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
         PushStyleVar(OverlayStyle_WidgetPadding, padding);
         ++m_CurrentPopupDepth;
-        queryAndSetFocusStatus(ly.QueryElement(bid), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
+        queryAndSetFocusStatus(ly.QueryElement(bid), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId,
+                               hoverPad);
         return true;
     }
     ly.EndPanel();
@@ -1659,7 +1679,8 @@ bool Overlay::headerButton(const LayoutId id, const CodePoint code)
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
 }
 
-OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const FocusFlags flags)
+OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const FocusFlags flags,
+                                                       const f32v2 &padding)
 {
     if (!elm)
         return 0;
@@ -1674,7 +1695,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     const bool lmpressed = checkFlags(StateFlag_LeftMousePressed);
     const bool lmreleased = checkFlags(StateFlag_LeftMouseReleased);
 
-    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm);
+    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
     const bool focusHovered = isElementHovered(hflags);
 
     const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);

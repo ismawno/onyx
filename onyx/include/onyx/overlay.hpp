@@ -564,7 +564,6 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-// TODO(Isma): Menu item repositioning with offsetting
 // TODO(Isma): Implement tabs
 // TODO(Isma): Create a help marker widget
 // TODO(Isma): Embed window demo in overlay class as a method?
@@ -1153,18 +1152,18 @@ class Overlay
     // /style //
 
     // query //
-    OverlayHoverQueryFlags QueryItemHoverStatus() const
+    OverlayHoverQueryFlags QueryItemHoverStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
     {
-        return queryHoverStatus(GetCurrentLayout().QueryElement(m_LastItem));
+        return queryHoverStatus(GetCurrentLayout().QueryElement(m_LastItem), hoverPadding);
     }
     OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
     {
         // return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
         return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags);
     }
-    bool IsItemHovered(const OverlayHoveredFlags flags = 0)
+    bool IsItemHovered(const OverlayHoveredFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
     {
-        return isElementHovered(GetCurrentLayout().QueryElement(m_LastItem), flags);
+        return isElementHovered(GetCurrentLayout().QueryElement(m_LastItem), flags, hoverPadding);
     }
     bool IsItemPressed(const OverlayFocusFlags flags = 0)
     {
@@ -1505,12 +1504,12 @@ class Overlay
 
     void updateMainWindowBorders();
 
-    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm) const;
+    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
     {
         return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
     }
-    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0);
+    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0, const f32v2 &padding = f32v2{0.f});
 
     WidgetStateFlags getWidgetState(const LayoutId id, const WidgetStateFlags fallback = 0)
     {
@@ -1529,7 +1528,8 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
-    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0);
+    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
+                                                  const f32v2 &padding = f32v2{0.f});
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     // TODO(Isma): Replace with hash map [] operator
