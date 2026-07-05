@@ -455,6 +455,7 @@ void Render(const RenderInfo &info)
         }
     }
     s_Data->DeltaTime = s_Data->Clock.Restart();
+    TKIT_PROFILE_MARK_FRAME();
 }
 
 template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);

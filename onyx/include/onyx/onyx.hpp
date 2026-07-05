@@ -3,7 +3,6 @@
 #include "onyx/window.hpp"
 #include "onyx/render_texture.hpp"
 #include "onyx/context.hpp"
-#include "onyx/overlay.hpp"
 
 namespace Onyx
 {
