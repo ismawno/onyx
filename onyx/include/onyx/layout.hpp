@@ -42,11 +42,11 @@ struct LayoutSizing
 
     static constexpr LayoutSizing Absolute(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Absolute};
+        return {size, size, size, LayoutSizing_Absolute};
     }
     static constexpr LayoutSizing Normalized(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Normalized};
+        return {size, size, size, LayoutSizing_Normalized};
     }
     static constexpr LayoutSizing Fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {

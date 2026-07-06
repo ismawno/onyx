@@ -338,7 +338,7 @@ static void initializeAllocators(const Specs &specs)
         else if (!libAlloc.Tier)
         {
             const TKit::TierDescriptions desc{{.Allocator = libAlloc.Arena,
-                                               .MaxAllocation = i == 0 ? 1_mib : 4_kib,
+                                               .MaxAllocation = i == 0 ? 2_mib : 4_kib,
                                                .TierSlotDecay = i == 0 ? 0.8f : 0.85f}};
             if (i == 0)
             {

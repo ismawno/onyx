@@ -22,7 +22,7 @@ enum ResizeEdge : u8
     ResizeEdge_Count
 };
 using ResizeFlags = u8;
-using StateFlags = u16;
+using StateFlags = u32;
 
 // NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
 using WidgetStateFlags = u8;
@@ -136,7 +136,7 @@ enum OverlaySelectableFlagBit : OverlaySelectableFlags
     OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
     OverlaySelectableFlag_Highlight = 1U << 2,
     OverlaySelectableFlag_CheckBox = 1U << 3,
-    OverlaySelectableFlag_MenuItem = 1U << 4,
+    OverlaySelectableFlag_FlexWidth = 1U << 4,
 };
 
 using OverlayDropDownFlags = u8;
@@ -342,10 +342,30 @@ enum OverlayColor : u8
     OverlayColor_Count,
 };
 
-enum OverlayStyleType : u8
+enum OverlayStyleVariable : u8
 {
     OverlayStyle_FontSize,
     OverlayStyle_ChildGap,
+
+    OverlayStyle_HeaderRadius,
+    OverlayStyle_MenuBarRadius,
+
+    OverlayStyle_DropDownRadius,
+    OverlayStyle_DropDownPopupRadius,
+
+    OverlayStyle_ScrollAreaBorderRadius,
+    OverlayStyle_TreeRadius,
+    OverlayStyle_InputBoxRadius,
+    OverlayStyle_ButtonRadius,
+    OverlayStyle_CheckBoxRadius,
+    OverlayStyle_SelectableRadius,
+    OverlayStyle_SelectableCheckBoxRadius,
+    OverlayStyle_TooltipRadius,
+    OverlayStyle_ColorPreviewRadius,
+    OverlayStyle_ImageRadius,
+
+    OverlayStyle_SliderRadius,
+    OverlayStyle_SliderInnerRadius,
 
     OverlayStyle_Alpha,
     OverlayStyle_DisabledAlpha,
@@ -421,7 +441,7 @@ struct ColorBackup
 struct StyleBackup
 {
     f32 Old;
-    OverlayStyleType Index;
+    OverlayStyleVariable Index;
 };
 
 struct OverlayStyle
@@ -429,7 +449,7 @@ struct OverlayStyle
     OverlayStyleVariables Variables = CreateDefaultOverlayVariables();
     OverlayColors Colors = CreateOverlayColorsFromPalette(CreateBabyBlueOverlayPalette());
 
-    constexpr f32 operator[](const OverlayStyleType idx) const
+    constexpr f32 operator[](const OverlayStyleVariable idx) const
     {
         return Variables[idx];
     }
@@ -564,11 +584,9 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-// TODO(Isma): CREATE RENDER TEXTURE DEMO!!
 // TODO(Isma): Implement tabs
+// TODO(Isma): Use tabs in style editor
 // TODO(Isma): Create a help marker widget
-// TODO(Isma): Embed window demo in overlay class as a method?
-// TODO(Isma): Style-color editor panel/window. embed as method as well
 // TODO(Isma): Adapt renderer visualization
 // TODO(Isma): Implement drag & drop
 // TODO(Isma): Multi-window support
@@ -637,20 +655,12 @@ class Overlay
     void EndMainMenuBar();
 
     bool BeginMenu(TKit::StringView label);
-    void EndMenu()
-    {
-        PopStyleVar();
-        PopId();
-        --m_CurrentPopupDepth;
-        Layout &ly = GetCurrentLayout();
-        ly.EndPanel();
-        ly.EndPanel();
-    }
+    void EndMenu();
 
     bool MenuItem(const TKit::StringView label, const bool enabled = false)
     {
         PushStyleColor(OverlayColor_SelectableIdle, Color_Transparent);
-        if (Selectable(label, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_MenuItem))
+        if (Selectable(label, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_FlexWidth))
         {
             CollapsePopups();
             PopStyleColor();
@@ -859,6 +869,7 @@ class Overlay
     {
         GetCurrentLayout().Panel(LyPnPar{.FillColor = Color_White,
                                          .Sizing = sabs(size),
+                                         .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
                                          .Texture = texture,
                                          .TexOffset = offset,
                                          .TexScale = scale});
@@ -876,16 +887,25 @@ class Overlay
     void CloseChildPopup();
     void CollapsePopups();
 
-    bool BeginPopup(TKit::StringView title, OverlayWindowFlags flags = 0);
+    bool BeginPopup(LayoutId id, TKit::StringView title, OverlayWindowFlags flags = 0);
+    bool BeginPopup(const TKit::StringView title, const OverlayWindowFlags flags = 0)
+    {
+        return BeginPopup(title, title, flags);
+    }
     void EndPopup();
 
-    bool BeginPopupContextItem(const TKit::StringView title, const OverlayWindowFlags wflags = 0,
+    bool BeginPopupContextItem(const LayoutId id, const TKit::StringView title, const OverlayWindowFlags wflags = 0,
                                const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
     {
         if (QueryItemFocusStatus() & flags)
-            OpenPopup(title);
+            OpenPopup(id);
 
-        return BeginPopup(title, wflags);
+        return BeginPopup(id, title, wflags);
+    }
+    bool BeginPopupContextItem(const TKit::StringView title, const OverlayWindowFlags wflags = 0,
+                               const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
+    {
+        return BeginPopupContextItem(title, title, wflags, flags);
     }
 
     bool BeginDropDown(TKit::StringView label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
@@ -908,7 +928,7 @@ class Overlay
         if (BeginDropDown(label, val < elements.GetSize() ? elements[val] : "", flags | OverlayDropDownFlag_Tight))
         {
             for (u32 i = 0; i < elements.GetSize(); ++i)
-                if (Selectable(elements[i], val == i, sflags))
+                if (Selectable(elements[i], val == i, sflags | OverlaySelectableFlag_FlexWidth))
                 {
                     *current = i;
                     CloseCurrentPopup();
@@ -1019,11 +1039,13 @@ class Overlay
     void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
     void HorizontalLine(const f32 width = 4.f)
     {
-        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}});
+        GetCurrentLayout().Panel(
+            LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}, .Shape = rect(width)});
     }
     void VerticalLine(const f32 width = 4.f)
     {
-        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}});
+        GetCurrentLayout().Panel(
+            LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}, .Shape = rect(width)});
     }
 
     Layout &BeginPanel(const LayoutId id, const LyPnPar &params = {})
@@ -1101,7 +1123,20 @@ class Overlay
         return m_Current->Layout;
     }
 
-    LayoutId AsStackedId(LayoutId id)
+    const OverlayStyle &GetStyle() const
+    {
+        return m_Style;
+    }
+    OverlayStyle &GetStyle()
+    {
+        return m_Style;
+    }
+    const OverlayStyle &GetDefaultStyle() const
+    {
+        return m_DefaultStyle;
+    }
+
+    LayoutId IdFromStack(LayoutId id)
     {
         if (m_IdStack.IsEmpty())
             return id;
@@ -1111,7 +1146,7 @@ class Overlay
 
     LayoutId PushId(const LayoutId id)
     {
-        return m_IdStack.Append(AsStackedId(id));
+        return m_IdStack.Append(IdFromStack(id));
     }
     void PopId()
     {
@@ -1121,7 +1156,7 @@ class Overlay
     // /layout //
 
     // style //
-    void PushStyleVar(const OverlayStyleType var, const f32 val)
+    void PushStyleVar(const OverlayStyleVariable var, const f32 val)
     {
         m_StyleStack.Append(m_Style[var], var);
         m_Style.Variables[var] = val;
@@ -1228,6 +1263,7 @@ class Overlay
     }
 
     void ShowDemo();
+    void ShowStyleEditor();
 
   private:
     bool checkFlags(const OverlayWindowFlags flags) const
@@ -1241,23 +1277,14 @@ class Overlay
     void endScroll();
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
-    void beginHorizontalWidget(const usz id, f32 normSize = 0.7f)
-    {
-        const bool autoResize = m_Current->Flags & OverlayWindowFlag_AutoResize;
-        const f32 mw = m_Style[OverlayStyle_WidgetMinimumWidth];
-
-        const LySz2 outerSizing = {autoResize ? fit(mw) : flex(mw), fit()};
-        const LySz2 innerSizing = {autoResize ? fit(mw) : snorm(normSize), fit()};
-
-        return beginHorizontalWidget(id, outerSizing, innerSizing);
-    }
+    void beginHorizontalWidget(usz id, f32 normSize = 0.5f);
     void endHorizontalWidget(OverlayColor labelColor, TKit::StringView label = {});
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = AsStackedId("__onyx_id_Drag/Slider_box");
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_box");
 
         const LayoutElement *elm = ly.QueryElement(id);
 
@@ -1330,8 +1357,11 @@ class Overlay
 
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                   .Alignment = {Alignment_Left, Alignment_Center},
-                                  .Sizing = {grow(), fit()},
+                                  .Sizing = {flex(), fit()},
+                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                   .Padding = padding});
+
+        const f32 boxWidth = elm ? (elm->Size[0] - 2.f * padding) : 0.f;
 
         // the next 2 children will serve as slots for the slider button and the text. this is required bc text
         // length cannot interfere with slider button positioning in layout calculation
@@ -1340,17 +1370,25 @@ class Overlay
         // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
         // so, we offset text slot by 1 parent to align it correctly
 
-        ly.BeginPanel(AsStackedId("__onyx_id_Slider_slot"),
+        ly.BeginPanel(IdFromStack("__onyx_id_Slider_slot"),
                       LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
 
-        ly.Panel(AsStackedId("__onyx_id_Slider_button"), LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                                                                 .Sizing = {sabs(innerWidth), grow()},
-                                                                 .SelfOffset = oabs({offset, 0.f})});
+        ly.Panel(IdFromStack("__onyx_id_Slider_button"),
+                 LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                         .Sizing = {sabs(innerWidth), grow()},
+                         .SelfOffset = oabs({offset, 0.f}),
+                         .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
+
+        const LayoutId txtId = IdFromStack("__onyx_id_Text_slot");
+        const LayoutElement *txtElm = ly.QueryElement(txtId);
+        const f32 txtOffset = txtElm ? (-0.5f * (txtElm->Size[0] + boxWidth)) : 0.f;
+        const bool hasAccurateFlex = elm && txtElm;
 
         ly.EndPanel();
-        ly.BeginPanel(
-            AsStackedId("__onyx_id_Text_slot"),
-            LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), fit()}, .SelfOffset = onorm({-1.f, 0.f})});
+        ly.BeginPanel(IdFromStack("__onyx_id_Text_slot"),
+                      LyPnPar{.Alignment = Alignment_Center,
+                              .Sizing = {hasAccurateFlex ? flex() : snorm(1.f), fit()},
+                              .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
         ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_SliderText));
@@ -1364,7 +1402,7 @@ class Overlay
                            const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = AsStackedId("__onyx_id_Drag/Slider_box");
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_box");
 
         const LayoutElement *elm = ly.QueryElement(id);
         const T pval = *value;
@@ -1417,6 +1455,7 @@ class Overlay
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                   .Alignment = Alignment_Center,
                                   .Sizing = {flex(), fit()},
+                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
@@ -1535,6 +1574,23 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
+    f32v2 getCurrentEffectiveSize() const
+    {
+        if (m_Current->Flags & OverlayWindowFlag_AutoResize)
+            return m_Current->Size;
+
+        const LayoutElement *elm = m_Current->Layout.QueryElement(m_Current->Id);
+        return elm ? elm->Size : m_Current->Size;
+    }
+    f32 getCurrentEffectiveWidth() const
+    {
+        return getCurrentEffectiveSize()[0];
+    }
+    f32 getCurrentEffectiveHeight() const
+    {
+        return getCurrentEffectiveSize()[1];
+    }
+
     OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
                                                   const f32v2 &padding = f32v2{0.f});
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
@@ -1544,6 +1600,7 @@ class Overlay
 
     const FontData &getFontData() const;
     f32 getLineHeight() const;
+    bool isAutoResize() const;
 
     f32 computeWindowMinSize() const;
 
@@ -1593,49 +1650,61 @@ class Overlay
         return m_BottomRightBorder - m_TopLeftBorder;
     }
 
-    static constexpr LayoutSizing fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    static constexpr LySz fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return LayoutSizing::Fit(min, max);
+        return LySz::Fit(min, max);
     }
-    static constexpr LayoutSizing grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    static constexpr LySz grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return LayoutSizing::Grow(min, max);
+        return LySz::Grow(min, max);
     }
-    static constexpr LayoutSizing flex(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
+    static constexpr LySz flex(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
-        return LayoutSizing::Flex(min, max);
+        return LySz::Flex(min, max);
     }
-    static constexpr LayoutSizing sabs(const f32 size)
+    static constexpr LySz sabs(const f32 size)
     {
-        return LayoutSizing::Absolute(size);
+        return LySz::Absolute(size);
     }
     static constexpr LySz2 sabs(const f32v2 &size)
     {
-        return LayoutSizing::Absolute(size);
+        return LySz::Absolute(size);
     }
-    static constexpr LayoutSizing snorm(const f32 size)
+    static constexpr LySz snorm(const f32 size)
     {
-        return LayoutSizing::Normalized(size);
+        return LySz::Normalized(size);
     }
     static constexpr LySz2 snorm(const f32v2 &size)
     {
-        return LayoutSizing::Normalized(size);
+        return LySz::Normalized(size);
     }
-    static constexpr LayoutOffset oabs(const f32 size)
+    static constexpr LyOf oabs(const f32 size)
     {
-        return LayoutOffset::Absolute(size);
+        return LyOf::Absolute(size);
     }
     static constexpr LyOf2 oabs(const f32v2 &size)
     {
-        return LayoutOffset::Absolute(size);
+        return LyOf::Absolute(size);
     }
-    static constexpr LayoutOffset onorm(const f32 size)
+    static constexpr LyOf onorm(const f32 size)
     {
-        return LayoutOffset::Normalized(size);
+        return LyOf::Normalized(size);
     }
     static constexpr LyOf2 onorm(const f32v2 &size)
     {
-        return LayoutOffset::Normalized(size);
+        return LyOf::Normalized(size);
+    }
+    static constexpr LayoutShape rect(const f32 radius = 0.f)
+    {
+        return LayoutShape::Rectangle(radius);
+    }
+    static constexpr LayoutShape circle()
+    {
+        return LayoutShape::Circle();
+    }
+    static constexpr LayoutShape dynamic(const Resource handle)
+    {
+        return LayoutShape::Dynamic(handle);
     }
 
     LayoutSpecs m_LayoutSpecs{};
@@ -1652,7 +1721,8 @@ class Overlay
     f32v2 m_MouseDelta{0.f};
     f32 m_WindowSpawnOffset = 0.f;
 
-    OverlayStyle m_Style{};
+    OverlayStyle m_Style;
+    OverlayStyle m_DefaultStyle;
     TKit::TierArray<ColorBackup> m_ColorStack{};
     TKit::TierArray<StyleBackup> m_StyleStack{};
 

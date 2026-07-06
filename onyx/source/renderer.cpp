@@ -2078,13 +2078,16 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
     const u32 bcount = Resources::GetDistinctBatchDrawCount<D>();
     const u32 dynCount = Resources::GetDynamicMeshCount<D>();
-    BufferCopies copies{bcount, dynCount};
+    const u32 upperCapacity =
+        dirtyContexts.GetSize() * bcount * u32(RenderMode_Count) * u32(BlendPass_Count) * u32(Geometry_Count);
+
+    BufferCopies copies{upperCapacity, dynCount};
 
     TKit::StackArray<RangePair> ranges{};
-    ranges.Reserve(RenderMode_Count * bcount);
+    ranges.Reserve(upperCapacity);
 
     TKit::StackArray<BufferCopySlice> instanceCopyCmds{};
-    instanceCopyCmds.Reserve(RenderMode_Count * u32(Geometry_Count));
+    instanceCopyCmds.Reserve(upperCapacity);
 
     TKit::StackArray<ContextInstanceRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
@@ -2092,7 +2095,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     TKit::ITaskManager *tm = GetTaskManager();
 
     TKit::StackArray<Task> tasks{};
-    tasks.Reserve(dirtyContexts.GetSize() * bcount);
+    tasks.Reserve(upperCapacity);
 
     const auto finishTasks = [&] {
         for (const Task &task : tasks)
