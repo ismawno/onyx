@@ -584,6 +584,7 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
+// TODO(Isma): Fix color and scroll area radii
 // TODO(Isma): Implement tabs
 // TODO(Isma): Use tabs in style editor
 // TODO(Isma): Create a help marker widget
