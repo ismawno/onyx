@@ -295,8 +295,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    m_View =
-        m_Window->CreateRenderView<D2>(&m_Camera, RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency);
+    m_View = m_Window->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
 
     m_Context = CreateRenderContext<D2>();
     m_Context->AddTarget(m_View);
@@ -3166,4 +3165,553 @@ f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
 
     return pos;
 }
+
+void Overlay::ShowDemo()
+{
+    static Onyx::OverlayWindowFlags wflags = 0;
+    static bool enableSettings = false;
+    static bool enableMainMenu = false;
+
+    const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
+
+    const auto editWindowFlags = [&](Onyx::OverlayWindowFlags *flags) {
+        CheckBoxFlags("OverlayWindowFlag_NoResize", flags, Onyx::OverlayWindowFlag_NoResize);
+        CheckBoxFlags("OverlayWindowFlag_NoMove", flags, Onyx::OverlayWindowFlag_NoMove);
+        CheckBoxFlags("OverlayWindowFlag_NoCollapse", flags, Onyx::OverlayWindowFlag_NoCollapse);
+        CheckBoxFlags("OverlayWindowFlag_NoScrollBar", flags, Onyx::OverlayWindowFlag_NoScrollBar);
+        CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+        CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+        CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
+        CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
+        CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+        CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
+        CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
+        CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
+        CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
+    };
+    const auto drawMenus = [&] {
+        if (BeginMenu("Options"))
+        {
+            MenuItem("Window settings", &enableSettings);
+            MenuItem("Main menu bar", &enableMainMenu);
+            EndMenu();
+        }
+        if (BeginMenu("Menu"))
+        {
+            static bool selected = false;
+            HorizontalSeparator("This is a demo menu");
+            MenuItem("New");
+            MenuItem("Open");
+            if (BeginMenu("Open as..."))
+            {
+                MenuItem("File 1");
+                MenuItem("File 2");
+                MenuItem("File 3");
+                MenuItem("File 4");
+                if (BeginMenu("More..."))
+                {
+                    MenuItem("Nothing to see here");
+                    EndMenu();
+                }
+                EndMenu();
+            }
+            if (BeginMenu("Options"))
+            {
+                static f32 val = 3.f;
+                HorizontalSlider("Slider", &val, -10.f, 10.f);
+                Button("Press me");
+
+                BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
+                for (u32 i = 0; i < 10; ++i)
+                    Text("Bla bla");
+                EndScroll();
+
+                static u32 element = 0;
+                DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
+                EndMenu();
+            }
+            MenuItem("Select", &selected);
+            EndMenu();
+        }
+    };
+
+    if (enableMainMenu)
+    {
+        BeginMainMenuBar();
+        drawMenus();
+        EndMainMenuBar();
+    }
+
+    static bool disableGlobal = false;
+    if (BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
+    {
+        const f32 ftime = Onyx::GetDeltaTime(m_Window).AsMilliseconds();
+        if (PushTree("General", drawLines))
+        {
+            Text("Delta time: {:.2f} ms", ftime);
+            if (BeginItemTooltip())
+            {
+                Text("I am a tooltip!");
+                Text("And this is the time that passes between frames");
+                EndTooltip();
+            }
+            static bool disableLocal = false;
+            static bool dummy = false;
+
+            CheckBox("Disable other sections", &disableGlobal);
+            CheckBox("Disable items below", &disableLocal);
+
+            BeginDisabled(disableLocal);
+            Text("I can be disabled");
+            CheckBox("I can be disabled##CB", &dummy);
+            Button("I can be disabled##Button");
+            EndDisabled();
+
+            PopTree();
+        }
+
+        if (BeginMenuBar())
+        {
+            drawMenus();
+            EndMenuBar();
+        }
+
+        BeginDisabled(disableGlobal);
+        if (PushTree("Buttons", drawLines))
+        {
+            static bool helloText = false;
+            if (Button("This is a button"))
+                helloText = !helloText;
+
+            if (helloText)
+                Text("Hi!");
+
+            Button("I have a twin##Cant see me");
+            Button("I have a twin##Cant see me eiter");
+            Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
+
+            PushDirection(Onyx::LayoutDirection_LeftToRight, 0.f);
+            TextRaw("A small button can be easily ");
+            Button("embedded", Onyx::OverlayButtonFlag_Small);
+            TextRaw(" in text");
+            PopDirection();
+
+            PushDirection(Onyx::LayoutDirection_LeftToRight);
+            static u32 radio = 0;
+            RadioButton("I am enabled!", &radio, 0);
+            RadioButton("I am not :(", &radio, 1);
+
+            PopDirection();
+            PopTree();
+        }
+
+        if (PushTree("Color editor", drawLines))
+        {
+            static Onyx::OverlayColorFlags cflags = 0;
+            CheckBoxFlags("OverlayColorFlag_NoAlpha", &cflags, Onyx::OverlayColorFlag_NoAlpha);
+            CheckBoxFlags("OverlayColorFlag_NoInput", &cflags, Onyx::OverlayColorFlag_NoInput);
+            CheckBoxFlags("OverlayColorFlag_NoColorMarkers", &cflags, Onyx::OverlayColorFlag_NoColorMarkers);
+            CheckBoxFlags("OverlayColorFlag_NoPicker", &cflags, Onyx::OverlayColorFlag_NoPicker);
+            CheckBoxFlags("OverlayColorFlag_NoTooltip", &cflags, Onyx::OverlayColorFlag_NoTooltip);
+            CheckBoxFlags("OverlayColorFlag_NoPreview", &cflags, Onyx::OverlayColorFlag_NoPreview);
+            CheckBoxFlags("OverlayColorFlag_NoTooltipLabel", &cflags, Onyx::OverlayColorFlag_NoTooltipLabel);
+            CheckBoxFlags("OverlayColorFlag_HSV", &cflags, Onyx::OverlayColorFlag_HSV);
+            CheckBoxFlags("OverlayColorFlag_Hex", &cflags, Onyx::OverlayColorFlag_Hex);
+            CheckBoxFlags("OverlayColorFlag_Float", &cflags, Onyx::OverlayColorFlag_Float);
+
+            static Onyx::Color col = Onyx::Color_Red;
+            ColorEditor("Color", &col, cflags);
+            ColorPreview("Preview", col, cflags);
+            ColorButton("Button", &col, cflags);
+            ColorPicker("Picker", &col, cflags);
+            PopTree();
+        }
+
+        if (PushTree("Dropdowns", drawLines))
+        {
+            static Onyx::OverlayDropDownFlags dflags = 0;
+            CheckBoxFlags("OverlayDropDownFlag_NoArrowButton", &dflags, Onyx::OverlayDropDownFlag_NoArrowButton);
+            CheckBoxFlags("OverlayDropDownFlag_NoPreview", &dflags, Onyx::OverlayDropDownFlag_NoPreview);
+            CheckBoxFlags("OverlayDropDownFlag_HeightSmall", &dflags, Onyx::OverlayDropDownFlag_HeightSmall);
+            CheckBoxFlags("OverlayDropDownFlag_HeightRegular", &dflags, Onyx::OverlayDropDownFlag_HeightRegular);
+            CheckBoxFlags("OverlayDropDownFlag_HeightLargest", &dflags, Onyx::OverlayDropDownFlag_HeightLargest);
+            CheckBoxFlags("OverlayDropDownFlag_Tight", &dflags, Onyx::OverlayDropDownFlag_Tight);
+            if (BeginDropDown("Hello", "Some preview", dflags))
+            {
+                static bool dummy = false;
+                TextRaw("Some text");
+                Button("I am a button in a drop down!");
+                CheckBox("You can pretty much put whatever you want in here...", &dummy);
+
+                if (BeginDropDown("Even another dropdown!", "I am another preview", dflags))
+                {
+                    for (u32 i = 0; i < 10; ++i)
+                        TextRaw("Bla bla");
+                    EndDropDown();
+                }
+
+                EndDropDown();
+            }
+            const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3", "Element 4",
+                                                                 "Element 5", "Element 6", "Element 7", "Element 8"};
+            static u32 idx = 0;
+            DropDown("One-liner 1", &idx, elements, dflags);
+            DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", dflags);
+            PopTree();
+        }
+
+        if (PushTree("Inputs", drawLines))
+        {
+            static Onyx::OverlayInputFlags iflags = 0;
+            CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
+            CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags, Onyx::OverlayInputFlag_EnterCommitsBuffer);
+            CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
+            CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
+            CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags, Onyx::OverlayInputFlag_NoHorizontalScroll);
+            CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
+            CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
+            CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
+
+            static char buf1[32] = "This is some nice text";
+            InputText("Text 1", buf1, 32, "I am a little hint", iflags);
+
+            static i32 iival = 4;
+            InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
+
+            static f32 ifval = 8.f;
+            InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+            PopTree();
+        }
+
+        if (PushTree("Popups", drawLines))
+        {
+            static Onyx::OverlayWindowFlags pflags =
+                Onyx::OverlayWindowFlag_BringToTop | Onyx::OverlayWindowFlag_AutoResize;
+            editWindowFlags(&pflags);
+
+            if (Button("Open popup"))
+                OpenPopup("Popup example");
+
+            if (BeginPopup("Popup example", pflags))
+            {
+                TextRaw("I am a popup");
+                if (Button("Another one?"))
+                    OpenPopup("Yes, another one");
+
+                SetItemTooltip("This will open another popup!");
+
+                if (BeginPopup("Yes, another one", pflags))
+                {
+                    TextRaw("Hi!");
+
+                    static u32 value = 3;
+                    SetNextTextId("Text id");
+                    Text("Right click me and change the value!: {}", value);
+                    if (BeginPopupContextItem("Value edit",
+                                              Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_BringToTop))
+                    {
+                        InputNumeric("Value", &value);
+                        EndPopup();
+                    }
+
+                    if (Button("Close##Two"))
+                        CloseCurrentPopup();
+                    EndPopup();
+                }
+
+                if (Button("Close##One"))
+                    CloseCurrentPopup();
+                EndPopup();
+            }
+            PopTree();
+        }
+
+        if (PushTree("Queries", drawLines))
+        {
+            HorizontalSeparator("Hover flags");
+            static Onyx::OverlayHoveredFlags hflags = 0;
+
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopup", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
+            CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
+
+            BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
+            CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
+            EndDisabled();
+
+            BeginDisabled(hflags & Onyx::OverlayHoveredFlag_ShortDelay);
+            CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
+            EndDisabled();
+
+            CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
+
+            HorizontalSeparator("Focus flags");
+            static Onyx::OverlayFocusFlags fflags = 0;
+            CheckBoxFlags("OverlayFocusFlag_PressedEvenWhenAwayFromHover", &fflags,
+                          Onyx::OverlayFocusFlag_PressedEvenWhenAwayFromHover);
+
+            HorizontalSeparator("The experiment");
+            if (PushTree("I am to be queried"))
+                PopTree();
+
+            const bool hovered = IsItemHovered(hflags);
+            const bool opened = IsItemOpened();
+            const Onyx::OverlayHoverQueryFlags hqflags = QueryItemHoverStatus();
+            const Onyx::OverlayFocusQueryFlags fqflags = QueryItemFocusStatus(fflags);
+
+            HorizontalSeparator("Hovering info");
+            Text("Hovered: {}", hovered);
+            Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
+            Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
+            Text("Blocked by pressed item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
+            Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
+            Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
+            Text("Blocked by popup collapse : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
+            Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
+            Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
+
+            HorizontalSeparator("Focus info");
+
+            static TKit::Clock lclickClock{};
+            static TKit::Clock rclickClock{};
+            static TKit::Clock dclickClock{};
+
+            if (fqflags & Onyx::OverlayFocusQueryFlag_LeftClicked)
+                lclickClock.Restart();
+            if (fqflags & Onyx::OverlayFocusQueryFlag_RightClicked)
+                rclickClock.Restart();
+            if (fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked)
+                dclickClock.Restart();
+
+            Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
+            Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
+            Text("Left clicked: {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
+            Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
+            Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
+            Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
+            Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
+            Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
+
+            HorizontalSeparator("State info");
+            Text("Opened: {}", opened);
+
+            HorizontalSeparator("Focus info");
+            Text("Want capture mouse: {}", WantCaptureMouse());
+            Text("Want capture keyboard: {}", WantCaptureKeyboard());
+
+            PopTree();
+        }
+
+        if (PushTree("Selectables", drawLines))
+        {
+            static Onyx::OverlaySelectableFlags sflags = 0;
+
+            CheckBoxFlags("OverlaySelectableFlag_SpanLabelWidth", &sflags, Onyx::OverlaySelectableFlag_SpanLabelWidth);
+            CheckBoxFlags("OverlaySelectableFlag_SelectOnDoubleClick", &sflags,
+                          Onyx::OverlaySelectableFlag_SelectOnDoubleClick);
+            CheckBoxFlags("OverlaySelectableFlag_Highlight", &sflags, Onyx::OverlaySelectableFlag_Highlight);
+            CheckBoxFlags("OverlaySelectableFlag_CheckBox", &sflags, Onyx::OverlaySelectableFlag_CheckBox);
+
+            Selectable("I am not selected at all##One", false, sflags);
+            Selectable("I am permanently selected", true, sflags);
+            Selectable("I am not selected at all##Two", false, sflags);
+
+            static bool enabled[3] = {false, false, false};
+            Selectable("I can be toggled on and off##One", &enabled[0], sflags);
+            Selectable("I can be toggled on and off##Two", &enabled[1], sflags);
+
+            BeginSelectable(&enabled[2], sflags);
+            TextRaw("I am a fancy selectable");
+            TextRaw("I even have multiple lines");
+            EndSelectable();
+
+            const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3", "Element 4",
+                                                                 "Element 5", "Element 6", "Element 7", "Element 8"};
+
+            static u32 idx = 0;
+            ListBox("List box 1", &idx, elements, sflags);
+            ListBox("List box 2##You should not see this", &idx, "I am#part of#the same#string", sflags);
+
+            PopTree();
+        }
+
+        if (PushTree("Scroll area", drawLines))
+        {
+            static f32v2 dimensions = {400.f, 200.f};
+            static bool xunlim = true;
+            static Onyx::OverlayScrollFlags sflags = 0;
+            CheckBoxFlags("OverlayScrollFlag_Borders", &sflags, Onyx::OverlayScrollFlag_Borders);
+            CheckBoxFlags("OverlayScrollFlag_Title", &sflags, Onyx::OverlayScrollFlag_Title);
+            CheckBoxFlags("OverlayScrollFlag_NoBackground", &sflags, Onyx::OverlayScrollFlag_NoBackground);
+            CheckBoxFlags("OverlayScrollFlag_NoScrollBar", &sflags, Onyx::OverlayScrollFlag_NoScrollBar);
+            CheckBoxFlags("OverlayScrollFlag_NoVerticalScroll", &sflags, Onyx::OverlayScrollFlag_NoVerticalScroll);
+            CheckBoxFlags("OverlayScrollFlag_HorizontalScroll", &sflags, Onyx::OverlayScrollFlag_HorizontalScroll);
+
+            CheckBox("Unlimited width", &xunlim);
+            if (xunlim)
+                HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
+            else
+                HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
+
+            const bool focused = BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
+
+            if (focused)
+                TextRaw("I am focused!");
+            else
+                TextRaw("I am not focused");
+
+            TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
+                    "showcase the feature");
+            Button("I am a useless button");
+            if (PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
+            {
+                for (u32 i = 0; i < 10; ++i)
+                    Text("Bla bla");
+                PopTree();
+            }
+
+            BeginScroll("I am yet another scroll", 200.f, 200.f, sflags);
+            if (PushTree("Some more content"))
+            {
+                for (u32 i = 0; i < 10; ++i)
+                    Text("Bla bla");
+                PopTree();
+            }
+            EndScroll();
+
+            EndScroll();
+            PopTree();
+        }
+
+        if (PushTree("Sliders/Drags", drawLines))
+        {
+            static Onyx::OverlaySliderFlags sflags = 0;
+            CheckBoxFlags("OverlaySliderFlag_ClampOnInput", &sflags, Onyx::OverlaySliderFlag_ClampOnInput);
+            CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
+            CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
+            CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
+
+            HorizontalSeparator("Sliders");
+            static f32 fval[2] = {4, 7};
+            Text("Underlying values: {:.2f}, {:.2f}", fval[0], fval[1]);
+
+            HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            HorizontalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
+
+            static i32 ival = 7;
+            Text("Underlying value: {}", ival);
+            HorizontalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
+            HorizontalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
+
+            HorizontalSeparator("Drags");
+            static f32 speed = 0.1f;
+            HorizontalSlider("Drag speed", &speed, 1e-2f, 10.f, "{:.2f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
+
+            HorizontalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            HorizontalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
+
+            HorizontalDrag("My drag int", &ival, speed, -3, 28, nullptr, 1, sflags);
+            HorizontalDrag("My small drag int", &ival, speed, 0, 2, nullptr, 1, sflags);
+
+            static u32 uval2[3] = {7, 2, 5};
+            HorizontalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
+            PopTree();
+        }
+
+        if (PushTree("Text", drawLines))
+        {
+            TextRaw("This is some raw text");
+            TextRaw(Onyx::TextMode_Wrapped,
+                    "This is some text that should wrap because it is too long to fit into the width of the window");
+            TextIconRaw(Onyx::BulletIcon, "A bullet!");
+            TextIcon(Onyx::ArrowRightIcon, "Here is the delta time again: {:.2f} ms", ftime);
+            PopTree();
+        }
+
+        if (PushTree("Tooltips", drawLines))
+        {
+            Button("I am an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (IsItemHovered())
+                SetTooltip("I am instant!");
+
+            Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                SetTooltip("I am a bit delayed!");
+
+            Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
+                SetTooltip("I am delayed!");
+
+            Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
+                SetTooltip("I am stationary!");
+            PopTree();
+        }
+
+        if (PushTree("Trees", drawLines))
+        {
+            static Onyx::OverlayTreeFlags tflags = 0;
+            CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, drawLines);
+            CheckBoxFlags("OverlayTreeFlag_ToggleOnArrow", &tflags, Onyx::OverlayTreeFlag_ToggleOnArrow);
+            CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
+            CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
+            CheckBoxFlags("OverlayTreeFlag_Framed", &tflags, Onyx::OverlayTreeFlag_Framed);
+            CheckBoxFlags("OverlayTreeFlag_NoIndent", &tflags, Onyx::OverlayTreeFlag_NoIndent);
+
+            if (PushTree("Click me", tflags))
+            {
+                if (PushTree("Simple example", tflags))
+                {
+                    Button("Hello");
+                    PopTree();
+                }
+                if (PushTree("I am open", tflags | Onyx::OverlayTreeFlag_StartOpen))
+                {
+                    Text("You can see me");
+                    PopTree();
+                }
+                PopTree();
+            }
+            PopTree();
+        }
+        EndDisabled();
+        EndWindow();
+    }
+
+    if (BeginWindow("Window settings", &enableSettings, wflags))
+    {
+        editWindowFlags(&wflags);
+        EndWindow();
+    }
+
+    if (BeginWindow("Overlay demo"))
+    {
+        if (PushTree("Miscellaneous", drawLines))
+        {
+            TextRaw(Onyx::TextMode_Wrapped, "Nothing to see here! This is extra content to demonstrate "
+                                            "appending multiple times to a window after it has "
+                                            "been closed");
+            if (BeginMenu("A rogue menu item"))
+            {
+                drawMenus();
+                EndMenu();
+            }
+            PopTree();
+        }
+        EndWindow();
+    }
+}
+
 } // namespace Onyx

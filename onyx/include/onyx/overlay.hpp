@@ -564,6 +564,7 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
+// TODO(Isma): CREATE RENDER TEXTURE DEMO!!
 // TODO(Isma): Implement tabs
 // TODO(Isma): Create a help marker widget
 // TODO(Isma): Embed window demo in overlay class as a method?
@@ -1217,10 +1218,16 @@ class Overlay
     {
         return m_Context;
     }
-    RenderViewFlags GetRenderViewFlags() const
+    RenderView<D2> *GetView()
+    {
+        return m_View;
+    }
+    static constexpr RenderViewFlags GetRenderViewFlags()
     {
         return RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency;
     }
+
+    void ShowDemo();
 
   private:
     bool checkFlags(const OverlayWindowFlags flags) const

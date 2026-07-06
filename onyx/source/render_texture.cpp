@@ -68,31 +68,34 @@ RenderTexture::~RenderTexture()
 
 void RenderTexture::Resize(const u32v2 &dims)
 {
-    TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(m_Images.GetSize());
-
-    TKit::StackArray<u64> values{};
-    values.Reserve(m_Images.GetSize());
-
-    for (const FrontEndImage *img : m_Images)
-        if (img->Tracker.InFlight())
-        {
-            semaphores.Append(img->Tracker.Queue->GetTimelineSempahore());
-            values.Append(img->Tracker.InFlightValue);
-        }
-
-    if (!semaphores.IsEmpty())
-    {
-        const auto table = GetDeviceTable();
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = semaphores.GetSize();
-        waitInfo.pSemaphores = semaphores.GetData();
-        waitInfo.pValues = values.GetData();
-
-        const auto &device = GetDevice();
-        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
-    }
+    // this sync step is just not enough and right now, im not sure why as the tracker waits should ensure all work with
+    // the images is done. there is something here im definitely missing, so ill just stick a device wait idle here.
+    // resize operations are supposed to be expensive and not frequent anyways TKit::StackArray<VkSemaphore>
+    // semaphores{}; semaphores.Reserve(m_Images.GetSize());
+    //
+    // TKit::StackArray<u64> values{};
+    // values.Reserve(m_Images.GetSize());
+    //
+    // for (const FrontEndImage *img : m_Images)
+    //     if (img->Tracker.InFlight())
+    //     {
+    //         semaphores.Append(img->Tracker.Queue->GetTimelineSempahore());
+    //         values.Append(img->Tracker.InFlightValue);
+    //     }
+    //
+    // if (!semaphores.IsEmpty())
+    // {
+    //     const auto table = GetDeviceTable();
+    //     VkSemaphoreWaitInfoKHR waitInfo{};
+    //     waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+    //     waitInfo.semaphoreCount = semaphores.GetSize();
+    //     waitInfo.pSemaphores = semaphores.GetData();
+    //     waitInfo.pValues = values.GetData();
+    //
+    //     const auto &device = GetDevice();
+    //     ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
+    // }
+    DeviceWaitIdle();
 
     FrontEndImage *main = m_Images.GetFront();
     FrontEndImage *mostUpToDate = m_Images[m_Writable];

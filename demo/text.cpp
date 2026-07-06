@@ -19,18 +19,15 @@ int main()
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
+    ctx->Flush();
+    ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+
+    ctx->Align(Onyx::Alignment_Center);
+    ctx->Text("Hello world!");
+    Onyx::Transfer();
 
     while (Onyx::Running())
-    {
-        ctx->Flush();
-        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
-
-        ctx->Align(Onyx::Alignment_Center);
-        ctx->Text("Hello world!");
-
-        Onyx::Transfer();
         Onyx::Render();
-    }
 
     Onyx::Terminate();
 }

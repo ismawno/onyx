@@ -124,7 +124,8 @@ void TerminateApi()
     TKit::TierAllocator *tier = GetTier();
 #ifdef ONYX_ENABLE_IMGUI
     for (WindowData &wdata : s_Data->Windows)
-        shutdownImGui(wdata);
+        if (wdata.ImContext)
+            shutdownImGui(wdata);
 #endif
     for (RenderTexture *rtex : s_Data->RenderTextures)
         tier->Destroy(rtex);
