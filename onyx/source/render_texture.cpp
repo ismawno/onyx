@@ -155,8 +155,8 @@ void RenderTexture::Resize(const u32v2 &dims)
         nameImage(main->Image, 0);
 
     Resources::UpdateRenderTexture(main->Texture, main->Image.GetView());
-    updateRenderViews();
     m_Dimensions = dims;
+    updateRenderViews();
 }
 
 void RenderTexture::FindAvailableImages()
