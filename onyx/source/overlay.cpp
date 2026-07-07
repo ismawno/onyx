@@ -78,6 +78,11 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_SelectableCheckBoxRadius] = 0.f;
     vars[OverlayStyle_TooltipRadius] = 0.f;
     vars[OverlayStyle_ImageRadius] = 0.f;
+    vars[OverlayStyle_TabRadius] = 0.f;
+
+    vars[OverlayStyle_LineRadius] = 0.f;
+    vars[OverlayStyle_LineWidth] = 4.f;
+    vars[OverlayStyle_SeparatorTextOffset] = 20.f;
 
     vars[OverlayStyle_SliderRadius] = 0.f;
     vars[OverlayStyle_SliderInnerRadius] = 0.f;
@@ -130,7 +135,10 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_ColorPreviewSize] = 64.f;
     vars[OverlayStyle_ColorTooltipSize] = 96.f;
-    vars[OverlayStyle_ColorPickerSize] = 256.f;
+
+    vars[OverlayStyle_ColorPickerSize] = 196.f;
+    vars[OverlayStyle_ColorPickerPreviewSize] = 64.f;
+    vars[OverlayStyle_ColorPickerTooltipSize] = 96.f;
 
     return vars;
 }
@@ -674,7 +682,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
                                                                .Padding = m_Style[OverlayStyle_HeaderPadding],
                                                                .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-        if (!noCollapse && headerButton("__onyx_id_Collapse_button", m_Current->HeaderIcon))
+        if (!noCollapse && iconButton("__onyx_id_Collapse_button", m_Current->HeaderIcon))
         {
             if (collapsed)
             {
@@ -693,9 +701,9 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
         if (!(flags & OverlayWindowFlag_NoCloseButton))
         {
-            if (opened && headerButton("__onyx_id_Close_button", CrossIcon))
+            if (opened && iconButton("__onyx_id_Close_button", CrossIcon))
                 *opened = false;
-            else if ((flags & WindowInternalFlag_ClosePopupButton) && headerButton("__onyx_id_Close_button", CrossIcon))
+            else if ((flags & WindowInternalFlag_ClosePopupButton) && iconButton("__onyx_id_Close_button", CrossIcon))
                 CloseCurrentPopup();
         }
 
@@ -1148,13 +1156,13 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
     if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
         appenStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
 
-    ly.BeginPanel(contentId,
-                  LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                          .Alignment = TopLeft,
-                          .Sizing = specs.ContentSizing,
-                          .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset, -sinfo.Vertical.ElementOffset}),
-                          .Padding = specs.ContentPadding,
-                          .ChildGap = specs.ChildGap});
+    ly.BeginPanel(contentId, LyPnPar{.Direction = specs.Direction,
+                                     .Alignment = TopLeft,
+                                     .Sizing = specs.ContentSizing,
+                                     .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset,
+                                                          -sinfo.Vertical.ElementOffset + specs.VerticalOffset}),
+                                     .Padding = specs.ContentPadding,
+                                     .ChildGap = specs.ChildGap});
 
     if (isElementHovered(ly.QueryElement(specs.Id)))
     {
@@ -1204,13 +1212,16 @@ void Overlay::endHorizontalWidget(const OverlayColor labelColor, const TKit::Str
     ly.EndPanel();
 }
 
-void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOffset, const f32 width)
+void Overlay::HorizontalSeparator(const TKit::StringView label)
 {
     Layout &ly = GetCurrentLayout();
     ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
                           .Alignment = CenterLeft,
                           .Sizing = {flex(), fit()},
                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    const f32 textOffset = m_Style[OverlayStyle_SeparatorTextOffset];
+    const f32 width = m_Style[OverlayStyle_LineWidth];
 
     ly.Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
@@ -1713,12 +1724,12 @@ void Overlay::requestCollapsePopups()
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-bool Overlay::headerButton(const LayoutId id, const CodePoint code)
+bool Overlay::iconButton(const LayoutId id, const CodePoint code, const LySz ysizing, const OverlayColor idle)
 {
     Layout &ly = GetCurrentLayout();
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
-    OverlayColor col = OverlayColor_None;
+    OverlayColor col = idle;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
         col = OverlayColor_ButtonPressed;
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
@@ -1726,7 +1737,7 @@ bool Overlay::headerButton(const LayoutId id, const CodePoint code)
 
     ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                               .Alignment = Center,
-                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
 
     ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams(OverlayColor_Header));
     ly.EndPanel();
@@ -2041,10 +2052,12 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
         ly.EndPanel();
     }
 
-    ly.BeginPanel(IdFromStack("__onyx_id_Selectable_content"), LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                                                       .Alignment = CenterLeft,
-                                                                       .Sizing = sizing,
-                                                                       .Padding = m_Style[OverlayStyle_WidgetPadding]});
+    const bool ltr = flags & OverlaySelectableFlag_LeftToRight;
+    ly.BeginPanel(IdFromStack("__onyx_id_Selectable_content"),
+                  LyPnPar{.Direction = ltr ? LayoutDirection_LeftToRight : LayoutDirection_TopToBottom,
+                          .Alignment = CenterLeft,
+                          .Sizing = sizing,
+                          .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
     if (!enabled && (flags & OverlaySelectableFlag_SelectOnDoubleClick))
         return focusFlags & OverlayFocusQueryFlag_DoubleClicked;
@@ -2073,7 +2086,7 @@ bool Overlay::Selectable(const TKit::StringView label, const bool enabled, const
 {
     const bool selected = BeginSelectable(label, enabled, flags);
     Layout &ly = GetCurrentLayout();
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_DropDownText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_SelectableText));
     EndSelectable();
 
     return selected;
@@ -2087,6 +2100,102 @@ bool Overlay::Selectable(const TKit::StringView label, bool *enabled, const Over
         return true;
     }
     return false;
+}
+
+void Overlay::BeginTabBar(const LayoutId id)
+{
+    TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A tab bar is already opened. Cannot nest two tab bars in one");
+
+    const LySz2 scrollSizing = {isAutoResize() ? fit() : grow(), fit()};
+    const LayoutId tid = PushId(id);
+
+    Layout &ly = GetCurrentLayout();
+    ly.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_ScrollAreaBorders],
+                          .Direction = LayoutDirection_TopToBottom,
+                          .Alignment = CenterLeft,
+                          .Sizing = scrollSizing,
+                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius])});
+    beginScroll({.Id = tid,
+                 .Direction = LayoutDirection_LeftToRight,
+                 .OuterSizing = scrollSizing,
+                 .ContentSizing = scrollSizing,
+                 .ContentPadding = 0.f,
+                 .ChildGap = m_Style[OverlayStyle_ChildGap],
+                 .Flags = OverlayScrollFlag_NoVerticalScroll | OverlayScrollFlag_HorizontalScroll});
+
+    endScroll();
+
+    PushStyleColor(OverlayColor_Line, m_Style[OverlayColor_SelectablePressed]);
+    PushStyleVar(OverlayStyle_LineRadius, 0.f);
+    HorizontalLine();
+    PopStyleColor();
+    PopStyleVar();
+
+    ly.EndPanel();
+
+    m_CurrentTabBar = &m_TabBarData[tid];
+    // the id that will need to be opened by tab items to keep appending
+    m_CurrentTabBar->Id = IdFromStack("__onyx_id_Content_area");
+}
+
+void Overlay::EndTabBar()
+{
+    TKIT_ASSERT(m_CurrentTabBar, "[ONYX][OVERLAY] Cannot end a tab bar without starting one to begin with");
+    m_CurrentTabBar = nullptr;
+    m_TabIndex = 0;
+    HorizontalLine();
+    PopId();
+}
+
+bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const OverlayTabFlags flags)
+{
+    TKIT_ASSERT(m_CurrentTabBar, "[ONYX][OVERLAY] Tabs can only be created inside an active tab bar");
+    const u32 idx = m_TabIndex++;
+    if (enabled && !*enabled)
+        return false;
+
+    Layout &ly = GetCurrentLayout();
+    ly.OpenPanel(m_CurrentTabBar->Id);
+
+    const LayoutId id = PushId(label);
+    bool isOpen = m_CurrentTabBar->OpenId == id;
+    const bool startOpen = flags & OverlayTabFlag_StartOpen;
+
+    PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
+
+    if (enabled)
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
+
+    if (Selectable(label, isOpen, OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight) ||
+        (startOpen && m_CurrentTabBar->OpenId == NullLayoutId))
+    {
+        if (idx < m_CurrentTabBar->OpenIndex)
+            isOpen = true;
+        m_CurrentTabBar->OpenId = id;
+        m_CurrentTabBar->OpenIndex = idx;
+    }
+    if (enabled && iconButton(IdFromStack("__onyx_id_Tab_close"), CrossIcon, grow(), OverlayColor_SelectableIdle))
+        *enabled = false;
+
+    if (enabled)
+        ly.EndPanel();
+
+    PopStyleVar();
+
+    ly.EndPanel();
+
+    if (!isOpen)
+    {
+        PopId();
+        return false;
+    }
+
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                          .Alignment = TopLeft,
+                          .Sizing = {isAutoResize() ? fit() : flex(), fit()},
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    return true;
 }
 
 void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
@@ -2659,8 +2768,8 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     ly.Text(ly.GenerateNextId(), original ? "Current" : trimLabel(label), getTextParams(OverlayColor_Text));
     if (!(flags & OverlayColorFlag_NoPreview))
     {
-        PushStyleVar(OverlayStyle_ColorPreviewSize, 64.f);
-        PushStyleVar(OverlayStyle_ColorTooltipSize, 96.f);
+        PushStyleVar(OverlayStyle_ColorPreviewSize, m_Style[OverlayStyle_ColorPickerPreviewSize]);
+        PushStyleVar(OverlayStyle_ColorTooltipSize, m_Style[OverlayStyle_ColorPickerTooltipSize]);
         ColorPreview(label, col, flags);
         if (original)
         {
@@ -2855,6 +2964,7 @@ u32 Overlay::processWindows()
                 m_CurrentPopupDepth);
     TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
                 m_WindowStack.GetSize());
+    TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A currently opened tab bar has been detected!");
 
     updateMainWindowBorders();
     u32 modalWindow = 0;
@@ -3702,6 +3812,28 @@ void Overlay::ShowDemo()
             PopTree();
         }
 
+        if (PushTree("Tabs", drawLines))
+        {
+            TextRaw(TextMode_Wrapped,
+                    "Tab features are currently pretty minimal at the moment and the styling is not great either");
+            static bool tab1 = true;
+            CheckBox("Enable tab 1", &tab1);
+
+            BeginTabBar();
+            if (BeginTab("Tab 1", &tab1, OverlayTabFlag_StartOpen))
+            {
+                TextRaw("I am tab 1");
+                EndTab();
+            }
+            if (BeginTab("Tab 2"))
+            {
+                TextRaw("I am tab 2");
+                EndTab();
+            }
+            EndTabBar();
+            PopTree();
+        }
+
         if (PushTree("Text", drawLines))
         {
             TextRaw("This is some raw text");
@@ -3805,199 +3937,213 @@ void Overlay::ShowStyleEditor()
 
     TextRaw("Welcome to the (pretty minimal) style editor! Right click any item to reset it to default");
 
-    const auto colorEditor = [&](const TKit::StringView str, const u32 col) {
-        if (colorFilter[0] != 0 && !str.Contains(colorFilter))
-            return;
+    BeginTabBar();
 
-        static TKit::Clock flashClock{};
-        static OverlayColors backup;
-        static u32 flashing = TKIT_U32_MAX;
+    if (BeginTab("Colors", OverlayTabFlag_StartOpen))
+    {
+        const auto colorEditor = [&](const TKit::StringView str, const u32 col) {
+            if (colorFilter[0] != 0 && !str.Contains(colorFilter))
+                return;
 
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
-                              .Alignment = TopLeft,
-                              .Sizing = {grow(), fit()},
-                              .ChildGap = m_Style[OverlayStyle_ChildGap]});
-        PushId(str);
-        if (Button("?"))
-        {
-            flashing = col;
-            backup[col] = m_Style.Colors[col];
-            flashClock.Restart();
-        }
-        if (BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
-        {
-            TextRaw("Press this button to flash this color and easily identify where it is used");
-            EndTooltip();
-        }
+            static TKit::Clock flashClock{};
+            static OverlayColors backup;
+            static u32 flashing = TKIT_U32_MAX;
 
-        if (flashing == col)
-        {
-            const f32 elapsed = flashClock.GetElapsed().AsSeconds();
-            if (elapsed < 1.f)
+            ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
+                                  .Alignment = TopLeft,
+                                  .Sizing = {grow(), fit()},
+                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+            PushId(str);
+            if (Button("?"))
             {
-                const f32 t = 0.5f * (1.f - Math::Sine(10.f * elapsed));
-                m_Style.Colors[col] = Color{t, 4.f * t * (1.f - t), 1.f - t};
+                flashing = col;
+                backup[col] = m_Style.Colors[col];
+                flashClock.Restart();
             }
-            else if (flashing == col)
+            if (BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
             {
-                m_Style.Colors[col] = backup[col];
-                flashing = TKIT_U32_MAX;
-            }
-        }
-
-        ColorEditor(fmt("[{}] {}", col, str), &m_Style.Colors[col]);
-        if (BeginPopupContextItem(IdFromStack(col), "Default",
-                                  OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
-                                      OverlayWindowFlag_NoHeaderBar))
-        {
-            if (Button("Reset to default"))
-            {
-                m_Style.Colors[col] = m_DefaultStyle.Colors[col];
-                CloseCurrentPopup();
+                TextRaw("Press this button to flash this color and easily identify where it is used");
+                EndTooltip();
             }
 
-            EndPopup();
-        }
-        PopId();
-        ly.EndPanel();
-    };
-
-    HorizontalSeparator("Colors");
-    InputText("Filter##Colors", colorFilter, bufSize);
-
-    colorEditor("None", OverlayColor_None);
-    colorEditor("Text", OverlayColor_Text);
-    colorEditor("Line", OverlayColor_Line);
-    colorEditor("InputText", OverlayColor_InputText);
-    colorEditor("InputCursor", OverlayColor_InputCursor);
-    colorEditor("InputHighlight", OverlayColor_InputHighlight);
-    colorEditor("WindowBorderIdle", OverlayColor_WindowBorderIdle);
-    colorEditor("WindowBorderHovered", OverlayColor_WindowBorderHovered);
-    colorEditor("WindowBorderPressed", OverlayColor_WindowBorderPressed);
-    colorEditor("Header", OverlayColor_Header);
-    colorEditor("ButtonIdle", OverlayColor_ButtonIdle);
-    colorEditor("ButtonHovered", OverlayColor_ButtonHovered);
-    colorEditor("ButtonPressed", OverlayColor_ButtonPressed);
-    colorEditor("ButtonText", OverlayColor_ButtonText);
-    colorEditor("CheckBoxIdle", OverlayColor_CheckBoxIdle);
-    colorEditor("CheckBoxHovered", OverlayColor_CheckBoxHovered);
-    colorEditor("CheckBoxPressed", OverlayColor_CheckBoxPressed);
-    colorEditor("CheckBoxText", OverlayColor_CheckBoxText);
-    colorEditor("CheckBoxInner", OverlayColor_CheckBoxInner);
-    colorEditor("SliderIdle", OverlayColor_SliderIdle);
-    colorEditor("SliderHovered", OverlayColor_SliderHovered);
-    colorEditor("SliderPressed", OverlayColor_SliderPressed);
-    colorEditor("SliderText", OverlayColor_SliderText);
-    colorEditor("SliderInner", OverlayColor_SliderInner);
-    colorEditor("DragIdle", OverlayColor_DragIdle);
-    colorEditor("DragHovered", OverlayColor_DragHovered);
-    colorEditor("DragPressed", OverlayColor_DragPressed);
-    colorEditor("DragText", OverlayColor_DragText);
-    colorEditor("TreeIdle", OverlayColor_TreeIdle);
-    colorEditor("TreeHovered", OverlayColor_TreeHovered);
-    colorEditor("TreePressed", OverlayColor_TreePressed);
-    colorEditor("TreeText", OverlayColor_TreeText);
-    colorEditor("DropDownIdle", OverlayColor_DropDownIdle);
-    colorEditor("DropDownHovered", OverlayColor_DropDownHovered);
-    colorEditor("DropDownPressed", OverlayColor_DropDownPressed);
-    colorEditor("DropDownText", OverlayColor_DropDownText);
-    colorEditor("DropDownButton", OverlayColor_DropDownButton);
-    colorEditor("SelectableIdle", OverlayColor_SelectableIdle);
-    colorEditor("SelectableHovered", OverlayColor_SelectableHovered);
-    colorEditor("SelectablePressed", OverlayColor_SelectablePressed);
-    colorEditor("SelectableText", OverlayColor_SelectableText);
-    colorEditor("MenuItemIdle", OverlayColor_MenuItemIdle);
-    colorEditor("MenuItemHovered", OverlayColor_MenuItemHovered);
-    colorEditor("MenuItemPressed", OverlayColor_MenuItemPressed);
-    colorEditor("MenuItemText", OverlayColor_MenuItemText);
-    colorEditor("MenuBoxBackground", OverlayColor_MenuBoxBackground);
-    colorEditor("ScrollBarIdle", OverlayColor_ScrollBarIdle);
-    colorEditor("ScrollBarHovered", OverlayColor_ScrollBarHovered);
-    colorEditor("ScrollBarPressed", OverlayColor_ScrollBarPressed);
-    colorEditor("ScrollAreaBorders", OverlayColor_ScrollAreaBorders);
-    colorEditor("PopupBackground", OverlayColor_PopupBackground);
-    colorEditor("WindowBackgroundExpanded", OverlayColor_WindowBackgroundExpanded);
-    colorEditor("WindowBackgroundCollapsed", OverlayColor_WindowBackgroundCollapsed);
-    colorEditor("HeaderBackgroundExpanded", OverlayColor_HeaderBackgroundExpanded);
-    colorEditor("HeaderBackgroundCollapsed", OverlayColor_HeaderBackgroundCollapsed);
-    colorEditor("MenuBarBackground", OverlayColor_MenuBarBackground);
-
-    static char varFilter[bufSize] = {0};
-    const auto varSlider = [&](const TKit::StringView str, const u32 var, const f32 mn, const f32 mx) {
-        if (varFilter[0] != 0 && !str.Contains(varFilter))
-            return;
-
-        PushId(str);
-        HorizontalSlider(fmt("[{}] {}", var, str), &m_Style.Variables[var], mn, mx);
-        if (BeginPopupContextItem(IdFromStack(var), "Default",
-                                  OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
-                                      OverlayWindowFlag_NoHeaderBar))
-        {
-            if (Button("Reset to default"))
+            if (flashing == col)
             {
-                m_Style.Variables[var] = m_DefaultStyle.Variables[var];
-                CloseCurrentPopup();
+                const f32 elapsed = flashClock.GetElapsed().AsSeconds();
+                if (elapsed < 1.f)
+                {
+                    const f32 t = 0.5f * (1.f - Math::Sine(10.f * elapsed));
+                    m_Style.Colors[col] = Color{t, 4.f * t * (1.f - t), 1.f - t};
+                }
+                else if (flashing == col)
+                {
+                    m_Style.Colors[col] = backup[col];
+                    flashing = TKIT_U32_MAX;
+                }
             }
 
-            EndPopup();
-        }
-        PopId();
-    };
+            ColorEditor(fmt("[{}] {}", col, str), &m_Style.Colors[col]);
+            if (BeginPopupContextItem(IdFromStack(col), "Default",
+                                      OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
+                                          OverlayWindowFlag_NoHeaderBar))
+            {
+                if (Button("Reset to default"))
+                {
+                    m_Style.Colors[col] = m_DefaultStyle.Colors[col];
+                    CloseCurrentPopup();
+                }
 
-    HorizontalSeparator("Variables");
-    InputText("Filter##Variables", varFilter, bufSize);
+                EndPopup();
+            }
+            PopId();
+            ly.EndPanel();
+        };
 
-    varSlider("FontSize", OverlayStyle_FontSize, 1.f, 100.f);
-    varSlider("ChildGap", OverlayStyle_ChildGap, 0.f, 50.f);
-    varSlider("HeaderRadius", OverlayStyle_HeaderRadius, 0.f, 50.f);
-    varSlider("MenuBarRadius", OverlayStyle_MenuBarRadius, 0.f, 50.f);
-    varSlider("DropDownRadius", OverlayStyle_DropDownRadius, 0.f, 50.f);
-    varSlider("DropDownPopupRadius", OverlayStyle_DropDownPopupRadius, 0.f, 50.f);
-    varSlider("ScrollAreaBorderRadius", OverlayStyle_ScrollAreaBorderRadius, 0.f, 50.f);
-    varSlider("TreeRadius", OverlayStyle_TreeRadius, 0.f, 50.f);
-    varSlider("InputBoxRadius", OverlayStyle_InputBoxRadius, 0.f, 50.f);
-    varSlider("ButtonRadius", OverlayStyle_ButtonRadius, 0.f, 50.f);
-    varSlider("CheckBoxRadius", OverlayStyle_CheckBoxRadius, 0.f, 50.f);
-    varSlider("SelectableRadius", OverlayStyle_SelectableRadius, 0.f, 50.f);
-    varSlider("SelectableCheckBoxRadius", OverlayStyle_SelectableCheckBoxRadius, 0.f, 50.f);
-    varSlider("TooltipRadius", OverlayStyle_TooltipRadius, 0.f, 50.f);
-    varSlider("ImageRadius", OverlayStyle_ImageRadius, 0.f, 50.f);
-    varSlider("SliderRadius", OverlayStyle_SliderRadius, 0.f, 50.f);
-    varSlider("SliderInnerRadius", OverlayStyle_SliderInnerRadius, 0.f, 50.f);
-    varSlider("Alpha", OverlayStyle_Alpha, 0.f, 1.f);
-    varSlider("DisabledAlpha", OverlayStyle_DisabledAlpha, 0.f, 1.f);
-    varSlider("ListBoxMaxHeight", OverlayStyle_ListBoxMaxHeight, 20.f, 500.f);
-    varSlider("TooltipOffset", OverlayStyle_TooltipOffset, 0.f, 100.f);
-    varSlider("TooltipPadding", OverlayStyle_TooltipPadding, 0.f, 50.f);
-    varSlider("MainMenuBarPadding", OverlayStyle_MainMenuBarPadding, 0.f, 50.f);
-    varSlider("MinimumMenuWidth", OverlayStyle_MinimumMenuWidth, 50.f, 500.f);
-    varSlider("WindowPadding", OverlayStyle_WindowPadding, 0.f, 50.f);
-    varSlider("WindowBorderWidth", OverlayStyle_WindowBorderWidth, 0.f, 20.f);
-    varSlider("WindowSpawnDelta", OverlayStyle_WindowSpawnDelta, 0.f, 200.f);
-    varSlider("HeaderPadding", OverlayStyle_HeaderPadding, 0.f, 50.f);
-    varSlider("IconWidth", OverlayStyle_IconWidth, 0.f, 100.f);
-    varSlider("BorderHoverPadding", OverlayStyle_BorderHoverPadding, 0.f, 50.f);
-    varSlider("ContentAreaPadding", OverlayStyle_ContentAreaPadding, 0.f, 50.f);
-    varSlider("ScrollBarWidth", OverlayStyle_ScrollBarWidth, 1.f, 50.f);
-    varSlider("ScrollBarGap", OverlayStyle_ScrollBarGap, 0.f, 50.f);
-    varSlider("ScrollSensitivity", OverlayStyle_ScrollSensitivity, 1.f, 200.f);
-    varSlider("WidgetSize", OverlayStyle_WidgetSize, 1.f, 100.f);
-    varSlider("WidgetPadding", OverlayStyle_WidgetPadding, 0.f, 50.f);
-    varSlider("WidgetMinimumWidth", OverlayStyle_WidgetMinimumWidth, 50.f, 1000.f);
-    varSlider("SmallButtonPadding", OverlayStyle_SmallButtonPadding, 0.f, 50.f);
-    varSlider("MenuPadding", OverlayStyle_MenuPadding, 0.f, 50.f);
-    varSlider("TreeLineWidth", OverlayStyle_TreeLineWidth, 0.f, 20.f);
-    varSlider("ClickMilliseconds", OverlayStyle_ClickMilliseconds, 50.f, 1000.f);
-    varSlider("CursorWidth", OverlayStyle_CursorWidth, 0.5f, 10.f);
-    varSlider("HoverDelayShort", OverlayStyle_HoverDelayShort, 0.f, 2.f);
-    varSlider("HoverDelayNormal", OverlayStyle_HoverDelayNormal, 0.f, 2.f);
-    varSlider("HoverStationaryThreshold", OverlayStyle_HoverStationaryThreshold, 0.f, 50.f);
-    varSlider("DropDownHeightSmall", OverlayStyle_DropDownHeightSmall, 20.f, 500.f);
-    varSlider("DropDownHeightRegular", OverlayStyle_DropDownHeightRegular, 50.f, 1000.f);
-    varSlider("HintOpacity", OverlayStyle_HintOpacity, 0.f, 1.f);
-    varSlider("CursorOpacity", OverlayStyle_CursorOpacity, 0.f, 1.f);
-    varSlider("ColorPreviewSize", OverlayStyle_ColorPreviewSize, 10.f, 300.f);
-    varSlider("ColorTooltipSize", OverlayStyle_ColorTooltipSize, 10.f, 300.f);
-    varSlider("ColorPickerSize", OverlayStyle_ColorPickerSize, 50.f, 500.f);
+        InputText("Filter##Colors", colorFilter, bufSize);
+
+        colorEditor("None", OverlayColor_None);
+        colorEditor("Text", OverlayColor_Text);
+        colorEditor("Line", OverlayColor_Line);
+        colorEditor("InputText", OverlayColor_InputText);
+        colorEditor("InputCursor", OverlayColor_InputCursor);
+        colorEditor("InputHighlight", OverlayColor_InputHighlight);
+        colorEditor("WindowBorderIdle", OverlayColor_WindowBorderIdle);
+        colorEditor("WindowBorderHovered", OverlayColor_WindowBorderHovered);
+        colorEditor("WindowBorderPressed", OverlayColor_WindowBorderPressed);
+        colorEditor("Header", OverlayColor_Header);
+        colorEditor("ButtonIdle", OverlayColor_ButtonIdle);
+        colorEditor("ButtonHovered", OverlayColor_ButtonHovered);
+        colorEditor("ButtonPressed", OverlayColor_ButtonPressed);
+        colorEditor("ButtonText", OverlayColor_ButtonText);
+        colorEditor("CheckBoxIdle", OverlayColor_CheckBoxIdle);
+        colorEditor("CheckBoxHovered", OverlayColor_CheckBoxHovered);
+        colorEditor("CheckBoxPressed", OverlayColor_CheckBoxPressed);
+        colorEditor("CheckBoxText", OverlayColor_CheckBoxText);
+        colorEditor("CheckBoxInner", OverlayColor_CheckBoxInner);
+        colorEditor("SliderIdle", OverlayColor_SliderIdle);
+        colorEditor("SliderHovered", OverlayColor_SliderHovered);
+        colorEditor("SliderPressed", OverlayColor_SliderPressed);
+        colorEditor("SliderText", OverlayColor_SliderText);
+        colorEditor("SliderInner", OverlayColor_SliderInner);
+        colorEditor("DragIdle", OverlayColor_DragIdle);
+        colorEditor("DragHovered", OverlayColor_DragHovered);
+        colorEditor("DragPressed", OverlayColor_DragPressed);
+        colorEditor("DragText", OverlayColor_DragText);
+        colorEditor("TreeIdle", OverlayColor_TreeIdle);
+        colorEditor("TreeHovered", OverlayColor_TreeHovered);
+        colorEditor("TreePressed", OverlayColor_TreePressed);
+        colorEditor("TreeText", OverlayColor_TreeText);
+        colorEditor("DropDownIdle", OverlayColor_DropDownIdle);
+        colorEditor("DropDownHovered", OverlayColor_DropDownHovered);
+        colorEditor("DropDownPressed", OverlayColor_DropDownPressed);
+        colorEditor("DropDownText", OverlayColor_DropDownText);
+        colorEditor("DropDownButton", OverlayColor_DropDownButton);
+        colorEditor("SelectableIdle", OverlayColor_SelectableIdle);
+        colorEditor("SelectableHovered", OverlayColor_SelectableHovered);
+        colorEditor("SelectablePressed", OverlayColor_SelectablePressed);
+        colorEditor("SelectableText", OverlayColor_SelectableText);
+        colorEditor("MenuItemIdle", OverlayColor_MenuItemIdle);
+        colorEditor("MenuItemHovered", OverlayColor_MenuItemHovered);
+        colorEditor("MenuItemPressed", OverlayColor_MenuItemPressed);
+        colorEditor("MenuItemText", OverlayColor_MenuItemText);
+        colorEditor("MenuBoxBackground", OverlayColor_MenuBoxBackground);
+        colorEditor("ScrollBarIdle", OverlayColor_ScrollBarIdle);
+        colorEditor("ScrollBarHovered", OverlayColor_ScrollBarHovered);
+        colorEditor("ScrollBarPressed", OverlayColor_ScrollBarPressed);
+        colorEditor("ScrollAreaBorders", OverlayColor_ScrollAreaBorders);
+        colorEditor("PopupBackground", OverlayColor_PopupBackground);
+        colorEditor("WindowBackgroundExpanded", OverlayColor_WindowBackgroundExpanded);
+        colorEditor("WindowBackgroundCollapsed", OverlayColor_WindowBackgroundCollapsed);
+        colorEditor("HeaderBackgroundExpanded", OverlayColor_HeaderBackgroundExpanded);
+        colorEditor("HeaderBackgroundCollapsed", OverlayColor_HeaderBackgroundCollapsed);
+        colorEditor("MenuBarBackground", OverlayColor_MenuBarBackground);
+        EndTab();
+    }
+
+    if (BeginTab("Variables"))
+    {
+        static char varFilter[bufSize] = {0};
+        const auto varSlider = [&](const TKit::StringView str, const u32 var, const f32 mn, const f32 mx) {
+            if (varFilter[0] != 0 && !str.Contains(varFilter))
+                return;
+
+            PushId(str);
+            HorizontalSlider(fmt("[{}] {}", var, str), &m_Style.Variables[var], mn, mx);
+            if (BeginPopupContextItem(IdFromStack(var), "Default",
+                                      OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
+                                          OverlayWindowFlag_NoHeaderBar))
+            {
+                if (Button("Reset to default"))
+                {
+                    m_Style.Variables[var] = m_DefaultStyle.Variables[var];
+                    CloseCurrentPopup();
+                }
+
+                EndPopup();
+            }
+            PopId();
+        };
+
+        InputText("Filter##Variables", varFilter, bufSize);
+
+        varSlider("FontSize", OverlayStyle_FontSize, 1.f, 100.f);
+        varSlider("ChildGap", OverlayStyle_ChildGap, 0.f, 50.f);
+        varSlider("HeaderRadius", OverlayStyle_HeaderRadius, 0.f, 50.f);
+        varSlider("MenuBarRadius", OverlayStyle_MenuBarRadius, 0.f, 50.f);
+        varSlider("DropDownRadius", OverlayStyle_DropDownRadius, 0.f, 50.f);
+        varSlider("DropDownPopupRadius", OverlayStyle_DropDownPopupRadius, 0.f, 50.f);
+        varSlider("ScrollAreaBorderRadius", OverlayStyle_ScrollAreaBorderRadius, 0.f, 50.f);
+        varSlider("TreeRadius", OverlayStyle_TreeRadius, 0.f, 50.f);
+        varSlider("InputBoxRadius", OverlayStyle_InputBoxRadius, 0.f, 50.f);
+        varSlider("ButtonRadius", OverlayStyle_ButtonRadius, 0.f, 50.f);
+        varSlider("CheckBoxRadius", OverlayStyle_CheckBoxRadius, 0.f, 50.f);
+        varSlider("SelectableRadius", OverlayStyle_SelectableRadius, 0.f, 50.f);
+        varSlider("SelectableCheckBoxRadius", OverlayStyle_SelectableCheckBoxRadius, 0.f, 50.f);
+        varSlider("TooltipRadius", OverlayStyle_TooltipRadius, 0.f, 50.f);
+        varSlider("ImageRadius", OverlayStyle_ImageRadius, 0.f, 50.f);
+        varSlider("TabRadius", OverlayStyle_TabRadius, 0.f, 50.f);
+        varSlider("LineRadius", OverlayStyle_LineRadius, 0.f, 50.f);
+        varSlider("LineWidth", OverlayStyle_LineWidth, 0.f, 50.f);
+        varSlider("SeparatorTextOffset", OverlayStyle_SeparatorTextOffset, 0.f, 50.f);
+        varSlider("SliderRadius", OverlayStyle_SliderRadius, 0.f, 50.f);
+        varSlider("SliderInnerRadius", OverlayStyle_SliderInnerRadius, 0.f, 50.f);
+        varSlider("Alpha", OverlayStyle_Alpha, 0.f, 1.f);
+        varSlider("DisabledAlpha", OverlayStyle_DisabledAlpha, 0.f, 1.f);
+        varSlider("ListBoxMaxHeight", OverlayStyle_ListBoxMaxHeight, 20.f, 500.f);
+        varSlider("TooltipOffset", OverlayStyle_TooltipOffset, 0.f, 100.f);
+        varSlider("TooltipPadding", OverlayStyle_TooltipPadding, 0.f, 50.f);
+        varSlider("MainMenuBarPadding", OverlayStyle_MainMenuBarPadding, 0.f, 50.f);
+        varSlider("MinimumMenuWidth", OverlayStyle_MinimumMenuWidth, 50.f, 500.f);
+        varSlider("WindowPadding", OverlayStyle_WindowPadding, 0.f, 50.f);
+        varSlider("WindowBorderWidth", OverlayStyle_WindowBorderWidth, 0.f, 20.f);
+        varSlider("WindowSpawnDelta", OverlayStyle_WindowSpawnDelta, 0.f, 200.f);
+        varSlider("HeaderPadding", OverlayStyle_HeaderPadding, 0.f, 50.f);
+        varSlider("IconWidth", OverlayStyle_IconWidth, 0.f, 100.f);
+        varSlider("BorderHoverPadding", OverlayStyle_BorderHoverPadding, 0.f, 50.f);
+        varSlider("ContentAreaPadding", OverlayStyle_ContentAreaPadding, 0.f, 50.f);
+        varSlider("ScrollBarWidth", OverlayStyle_ScrollBarWidth, 1.f, 50.f);
+        varSlider("ScrollBarGap", OverlayStyle_ScrollBarGap, 0.f, 50.f);
+        varSlider("ScrollSensitivity", OverlayStyle_ScrollSensitivity, 1.f, 200.f);
+        varSlider("WidgetSize", OverlayStyle_WidgetSize, 1.f, 100.f);
+        varSlider("WidgetPadding", OverlayStyle_WidgetPadding, 0.f, 50.f);
+        varSlider("WidgetMinimumWidth", OverlayStyle_WidgetMinimumWidth, 50.f, 1000.f);
+        varSlider("SmallButtonPadding", OverlayStyle_SmallButtonPadding, 0.f, 50.f);
+        varSlider("MenuPadding", OverlayStyle_MenuPadding, 0.f, 50.f);
+        varSlider("TreeLineWidth", OverlayStyle_TreeLineWidth, 0.f, 20.f);
+        varSlider("ClickMilliseconds", OverlayStyle_ClickMilliseconds, 50.f, 1000.f);
+        varSlider("CursorWidth", OverlayStyle_CursorWidth, 0.5f, 10.f);
+        varSlider("HoverDelayShort", OverlayStyle_HoverDelayShort, 0.f, 2.f);
+        varSlider("HoverDelayNormal", OverlayStyle_HoverDelayNormal, 0.f, 2.f);
+        varSlider("HoverStationaryThreshold", OverlayStyle_HoverStationaryThreshold, 0.f, 50.f);
+        varSlider("DropDownHeightSmall", OverlayStyle_DropDownHeightSmall, 20.f, 500.f);
+        varSlider("DropDownHeightRegular", OverlayStyle_DropDownHeightRegular, 50.f, 1000.f);
+        varSlider("HintOpacity", OverlayStyle_HintOpacity, 0.f, 1.f);
+        varSlider("CursorOpacity", OverlayStyle_CursorOpacity, 0.f, 1.f);
+        varSlider("ColorPreviewSize", OverlayStyle_ColorPreviewSize, 10.f, 300.f);
+        varSlider("ColorTooltipSize", OverlayStyle_ColorTooltipSize, 10.f, 300.f);
+        varSlider("ColorPickerSize", OverlayStyle_ColorPickerSize, 50.f, 500.f);
+        EndTab();
+    }
+
+    EndTabBar();
 }
 } // namespace Onyx

@@ -25,7 +25,7 @@ using ResizeFlags = u8;
 using StateFlags = u32;
 
 // NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
-using WidgetStateFlags = u8;
+using WidgetStateFlags = u16;
 enum WidgetStateFlagBit : WidgetStateFlags
 {
     WidgetStateFlag_Opened = 1U << 0,
@@ -137,6 +137,7 @@ enum OverlaySelectableFlagBit : OverlaySelectableFlags
     OverlaySelectableFlag_Highlight = 1U << 2,
     OverlaySelectableFlag_CheckBox = 1U << 3,
     OverlaySelectableFlag_FlexWidth = 1U << 4,
+    OverlaySelectableFlag_LeftToRight = 1U << 5,
 };
 
 using OverlayDropDownFlags = u8;
@@ -221,6 +222,12 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_Logarithmic = 1U << 1,
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
     OverlaySliderFlag_NoInput = 1U << 3,
+};
+
+using OverlayTabFlags = u8;
+enum OverlayTabFlagBit : OverlayTabFlags
+{
+    OverlayTabFlag_StartOpen = 1U << 0,
 };
 
 using OverlayPopupFlags = OverlayFocusQueryFlags;
@@ -362,6 +369,11 @@ enum OverlayStyleVariable : u8
     OverlayStyle_SelectableCheckBoxRadius,
     OverlayStyle_TooltipRadius,
     OverlayStyle_ImageRadius,
+    OverlayStyle_TabRadius,
+
+    OverlayStyle_LineRadius,
+    OverlayStyle_LineWidth,
+    OverlayStyle_SeparatorTextOffset,
 
     OverlayStyle_SliderRadius,
     OverlayStyle_SliderInnerRadius,
@@ -415,7 +427,10 @@ enum OverlayStyleVariable : u8
 
     OverlayStyle_ColorPreviewSize,
     OverlayStyle_ColorTooltipSize,
+
     OverlayStyle_ColorPickerSize,
+    OverlayStyle_ColorPickerPreviewSize,
+    OverlayStyle_ColorPickerTooltipSize,
 
     OverlayStyle_Count
 };
@@ -518,10 +533,12 @@ struct ScrollInfo
 struct ScrollParameterSpecs
 {
     LayoutId Id;
+    LayoutDirection Direction = LayoutDirection_TopToBottom; // useful for tabs
     vec2<LayoutSizing> OuterSizing;
     vec2<LayoutSizing> ContentSizing;
     f32 ContentPadding;
     f32 ChildGap;
+    f32 VerticalOffset = 0.f; // useful for tabs
     OverlayScrollFlags Flags;
 };
 
@@ -583,16 +600,13 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-// TODO(Isma): Fix color and scroll area radii
-// TODO(Isma): Implement tabs
-// TODO(Isma): Use tabs in style editor
-// TODO(Isma): Create a help marker widget
-// TODO(Isma): Adapt renderer visualization
-// TODO(Isma): Implement drag & drop
-// TODO(Isma): Multi-window support
-// TODO(Isma): Implement docking
-// TODO(Isma): Create some sort of serialization
-// TODO(Isma, deprioritized): Implement selectable hints for menu items
+struct TabBarData
+{
+    usz Id;
+    usz OpenId = NullLayoutId;
+    u32 OpenIndex = 0;
+};
+
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -715,6 +729,24 @@ class Overlay
 
     bool Selectable(TKit::StringView label, bool enabled = false, OverlaySelectableFlags flags = 0);
     bool Selectable(TKit::StringView label, bool *enabled, OverlaySelectableFlags flags = 0);
+
+    void BeginTabBar(LayoutId id);
+    void BeginTabBar()
+    {
+        BeginTabBar(GetCurrentLayout().GenerateNextId());
+    }
+    void EndTabBar();
+
+    bool BeginTab(TKit::StringView label, bool *enabled, OverlayTabFlags flags = 0);
+    bool BeginTab(const TKit::StringView label, OverlayTabFlags flags = 0)
+    {
+        return BeginTab(label, nullptr, flags);
+    }
+    void EndTab()
+    {
+        PopId();
+        GetCurrentLayout().EndPanel();
+    }
 
     bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
                    OverlayInputFlags flags = 0);
@@ -1028,24 +1060,26 @@ class Overlay
         endScroll();
     }
 
-    void Separator(const f32 width = 4.f)
+    void Separator()
     {
         const LayoutElement &elm = GetCurrentLayout().GetCurrentElement();
         if (elm.Direction == LayoutDirection_LeftToRight || elm.Direction == LayoutDirection_RightToLeft)
-            VerticalLine(width);
+            VerticalLine();
         else
-            HorizontalLine(width);
+            HorizontalLine();
     }
-    void HorizontalSeparator(TKit::StringView label, f32 textOffset = 20.f, f32 width = 4.f);
-    void HorizontalLine(const f32 width = 4.f)
+    void HorizontalSeparator(TKit::StringView label);
+    void HorizontalLine()
     {
-        GetCurrentLayout().Panel(
-            LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(), sabs(width)}, .Shape = rect(width)});
+        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
+                                         .Sizing = {grow(), sabs(m_Style[OverlayStyle_LineWidth])},
+                                         .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
-    void VerticalLine(const f32 width = 4.f)
+    void VerticalLine()
     {
-        GetCurrentLayout().Panel(
-            LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = {sabs(width), grow()}, .Shape = rect(width)});
+        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
+                                         .Sizing = {sabs(m_Style[OverlayStyle_LineWidth]), grow()},
+                                         .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
 
     Layout &BeginPanel(const LayoutId id, const LyPnPar &params = {})
@@ -1144,9 +1178,11 @@ class Overlay
         return id;
     }
 
-    LayoutId PushId(const LayoutId id)
+    LayoutId PushId(LayoutId id)
     {
-        return m_IdStack.Append(IdFromStack(id));
+        id = IdFromStack(id);
+        m_IdStack.Append(id);
+        return id;
     }
     void PopId()
     {
@@ -1532,7 +1568,7 @@ class Overlay
 
     void closePopup(u32 depth);
     void requestCollapsePopups();
-    bool headerButton(LayoutId id, CodePoint code);
+    bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
     template <typename F> void iterateReverseWindows(F func);
 
     f32v2 getMousePos() const;
@@ -1789,7 +1825,11 @@ class Overlay
     TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
     TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
     TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
+    TKit::TierHashMap<usz, TabBarData> m_TabBarData{};
     TKit::TierArray<f32> m_DisabledStack{};
+
+    TabBarData *m_CurrentTabBar = nullptr;
+    u32 m_TabIndex = 0;
 
     struct TextInputStateInfo
     {
@@ -1808,6 +1848,9 @@ class Overlay
     Color m_PickerOriginal{};
 
     NextWindowData m_NextWindow{};
+    // NOTE(Isma, 07/07/26): Persistently saving a LayoutId object may be dangerous bc of the debug name stored:
+    // underlying string may become stale. In practice, this is a throwaway id that gets discarded once used, so its not
+    // that persistent. should be fine
     LayoutId m_TextId = NullLayoutId;
 
     u64 m_LayerCount = 0;
