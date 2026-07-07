@@ -361,7 +361,6 @@ enum OverlayStyleVariable : u8
     OverlayStyle_SelectableRadius,
     OverlayStyle_SelectableCheckBoxRadius,
     OverlayStyle_TooltipRadius,
-    OverlayStyle_ColorPreviewRadius,
     OverlayStyle_ImageRadius,
 
     OverlayStyle_SliderRadius,

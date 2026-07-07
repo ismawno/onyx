@@ -77,7 +77,6 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_SelectableRadius] = 0.f;
     vars[OverlayStyle_SelectableCheckBoxRadius] = 0.f;
     vars[OverlayStyle_TooltipRadius] = 0.f;
-    vars[OverlayStyle_ColorPreviewRadius] = 0.f;
     vars[OverlayStyle_ImageRadius] = 0.f;
 
     vars[OverlayStyle_SliderRadius] = 0.f;
@@ -1131,6 +1130,7 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                           .Direction = LayoutDirection_BottomToTop,
                           .Alignment = TopLeft,
                           .Sizing = specs.OuterSizing,
+                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
                           .Padding = borders ? cpadding : 0.f,
                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
@@ -2211,18 +2211,13 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
 
             ly.EndPanel();
 
-            const usz id =
-                ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = col,
-                                                            .Sizing = sabs(size),
-                                                            .SelfOffset = oabs({0.f, size}),
-                                                            .Shape = rect(m_Style[OverlayStyle_ColorPreviewRadius])});
+            const usz id = ly.Panel(IdFromStack("__onyx_id_Preview"),
+                                    {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
 
             ly.EndPanel();
             return id;
         }
-        return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f},
-                                                           .Sizing = sabs(size),
-                                                           .Shape = rect(m_Style[OverlayStyle_ColorPreviewRadius])});
+        return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
     };
 
     const usz id = drawPreview(GetCurrentLayout(), previewSize);
@@ -3966,7 +3961,6 @@ void Overlay::ShowStyleEditor()
     varSlider("SelectableRadius", OverlayStyle_SelectableRadius, 0.f, 50.f);
     varSlider("SelectableCheckBoxRadius", OverlayStyle_SelectableCheckBoxRadius, 0.f, 50.f);
     varSlider("TooltipRadius", OverlayStyle_TooltipRadius, 0.f, 50.f);
-    varSlider("ColorPreviewRadius", OverlayStyle_ColorPreviewRadius, 0.f, 50.f);
     varSlider("ImageRadius", OverlayStyle_ImageRadius, 0.f, 50.f);
     varSlider("SliderRadius", OverlayStyle_SliderRadius, 0.f, 50.f);
     varSlider("SliderInnerRadius", OverlayStyle_SliderInnerRadius, 0.f, 50.f);
