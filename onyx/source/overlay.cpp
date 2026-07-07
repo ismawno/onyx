@@ -1212,14 +1212,12 @@ void Overlay::HorizontalSeparator(const TKit::StringView label, const f32 textOf
                           .Sizing = {flex(), fit()},
                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_HeaderBackgroundExpanded],
-                     .Sizing = sabs({textOffset, width}),
-                     .Shape = rect(width)});
+    ly.Panel(
+        LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
 
     ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
-    ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_HeaderBackgroundExpanded],
-                     .Sizing = {grow(textOffset), sabs(width)},
-                     .Shape = rect(width)});
+    ly.Panel(LyPnPar{
+        .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
     ly.EndPanel();
 }
 
