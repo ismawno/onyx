@@ -263,7 +263,7 @@ void Transfer(const TransferInfo &info)
     Execution::UpdateCompletedQueueTimelines();
 
     static u64 transferCount = 0;
-    if (info.CoalescePeriod != 0 && transferCount++ % info.CoalescePeriod)
+    if (info.CoalescePeriod != 0 && (transferCount++ % info.CoalescePeriod) == 0)
         Renderer::Coalesce();
 
     VKit::Queue *tqueue = Execution::GetQueue(VKit::Queue_Transfer);

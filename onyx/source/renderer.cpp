@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "onyx/specs.hpp"
 #include "onyx/context.hpp"
+#include "onyx/overlay.hpp"
 #include "core.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
@@ -3719,13 +3720,10 @@ void Coalesce(const u32 maxRanges)
     coalesce<D3>(maxRanges);
 }
 
-#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D, typename Range>
-static void displayRanges(const char *name, const Pool<Range> &pool, const u64 generation = 0)
+static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<Range> &pool, const u64 generation = 0)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    // NOTE(Isma): Using stack strings as return values may be a bit dangerous. RVO may save us here, but its an
-    // unreliable solution
     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
         if (bytes > 1_gib)
             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
@@ -3735,85 +3733,75 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
         return TKit::StackString::Format("{:L} b", bytes);
     };
-
     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
         return TKit::StackString::Format("{:L} b", bytes);
     };
-
-    if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
+    if (ov->PushTree(&pool, OverlayTreeFlag_DrawLines, "{} pool ranges ({})", name, pool.Ranges.GetSize()))
     {
-        ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).CString());
+        ov->Text("Buffer size: {}", fmts(pool.Buffer.GetInfo().Size));
         for (const Range &range : pool.Ranges)
             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
-                ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size).CString(),
-                            fmtb(range.Offset).CString(), fmtb(range.Offset + range.Size).CString());
+                ov->Text("{} ({}): {} - {}", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size),
+                         fmtb(range.Offset), fmtb(range.Offset + range.Size));
+
             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
             {
-                if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
-                                    range.InUse()
-                                        ? "IN-USE"
-                                        : (rdata.AreAllContextRangesDirty(range)
-                                               ? "FREE"
-                                               : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-                                    fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-                                    fmtb(range.Offset + range.Size).CString()))
+                if (ov->PushTree(&range, OverlayTreeFlag_DrawLines, "{} ({}): {} - {}",
+                                 range.InUse()
+                                     ? "IN-USE"
+                                     : (rdata.AreAllContextRangesDirty(range)
+                                            ? "FREE"
+                                            : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
+                                 fmts(range.Size), fmtb(range.Offset), fmtb(range.Offset + range.Size)))
                 {
-                    ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
-                    ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
+                    ov->Text("In use by transfer queue: {}", range.TransferTracker.InUse() ? "YES" : "NO");
+                    ov->Text("In use by graphics queue: {}", range.GraphicsTracker.InUse() ? "YES" : "NO");
                     if (range.MeshHandle != NullHandle)
-                        ImGui::Text("Mesh handle: %u", range.MeshHandle);
+                        ov->Text("Mesh handle: {}", range.MeshHandle);
 
                     if (range.RenderFlags != 0)
-                        ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
+                        ov->Text("Render mode: {}", ToString(GetRenderMode(range.RenderFlags)));
                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
-                    ImGui::Text("View mask: %s", vmask.CString());
-                    if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
+                    ov->Text("View mask: {}", vmask.CString());
+                    if (ov->PushTree(&range.ContextRanges, OverlayTreeFlag_DrawLines, "Context ranges ({})",
+                                     range.ContextRanges.GetSize()))
                     {
                         for (const ContextInstanceRange &crange : range.ContextRanges)
-                            if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
-                                                rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
-                                                fmts(crange.Size).CString(), fmtb(crange.Offset).CString(),
-                                                fmtb(crange.Offset + crange.Size).CString()))
+                            if (ov->PushTree(&crange, OverlayTreeFlag_DrawLines, "{} ({}): {} - {}",
+                                             rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY", fmts(crange.Size),
+                                             fmtb(crange.Offset), fmtb(crange.Offset + crange.Size)))
                             {
                                 if (crange.ContextIndex != TKIT_U32_MAX)
                                 {
-                                    ImGui::Text("Context index: %u", crange.ContextIndex);
-#    ifndef TKIT_OS_LINUX
-                                    ImGui::Text("Context generation: %llu", crange.Generation);
-#    else
-                                    ImGui::Text("Context generation: %lu", crange.Generation);
-#    endif
+                                    ov->Text("Context index: {}", crange.ContextIndex);
+                                    ov->Text("Context generation: {}", crange.Generation);
                                 }
                                 else
-                                    ImGui::Text("Context index: None");
+                                    ov->Text("Context index: None");
 
                                 const TKit::StackString cvmask = TKit::StackString::Format("{:032b}", crange.ViewMask);
-                                ImGui::Text("View mask: %s", cvmask.CString());
-                                ImGui::TreePop();
-                                ImGui::Spacing();
+                                ov->Text("View mask: %s", cvmask.CString());
+                                ov->PopTree();
                             }
-                        ImGui::TreePop();
-                        ImGui::Spacing();
+                        ov->PopTree();
                     }
-                    ImGui::TreePop();
-                    ImGui::Spacing();
+                    ov->PopTree();
                 }
             }
             else
-                ImGui::Text("%s (%s): %s - %s",
-                            range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
-                            fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-                            fmtb(range.Offset + range.Size).CString());
-        ImGui::TreePop();
-        ImGui::Spacing();
+                ov->Text("{} ({}): {} - {}",
+                         range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
+                         fmts(range.Size), fmtb(range.Offset), fmtb(range.Offset + range.Size));
+        ov->PopTree();
     }
 }
 
-#    ifdef ONYX_ENABLE_IMPLOT
 template <Dimension D, typename TRange, typename GRange>
-static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
+void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
 {
     const RendererData<D> &rdata = getRendererData<D>();
+    const OverlayStyle &st = ov->GetStyle();
+
     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
         if (bytes > 1_gib)
             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
@@ -3827,189 +3815,504 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
         return TKit::StackString::Format("{:L} b", bytes);
     };
+
+    constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
+    const TKit::FixedArray<Color, 5> colors = {Color::FromHexadecimal(0x6B7280B3), Color::FromHexadecimal(0x22C55EB3),
+                                               Color::FromHexadecimal(0x3B82F6B3), Color::FromHexadecimal(0xF59E0BB3),
+                                               Color::FromHexadecimal(0xF97316B3)};
+
     const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
-    constexpr u32 top = 2 + std::is_same_v<GRange, GraphicsInstanceRange>;
-    ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, top, ImGuiCond_Always);
+    if (maxSize == 0)
+        return;
 
-    if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
+    const f32 invMax = 1.f / f32(maxSize);
+    constexpr bool hasContextRow = std::is_same_v<GRange, GraphicsInstanceRange>;
+    // constexpr u32 rowCount = 2 + hasContextRow;
+    const f32 rowHeight = 24.f;
+    // const f32 rowGap = 4.f;
+    const f32 labelWidth = 64.f;
+    // const f32 plotHeight = rowCount * (rowHeight + rowGap);
+
+    ov->BeginPanel(LayoutPanelParameters{.FillColor = st[OverlayColor_ScrollAreaBorders],
+                                         .Direction = LayoutDirection_TopToBottom,
+                                         .Alignment = {Alignment_Center, Alignment_Top},
+                                         .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()},
+                                         .Padding = st[OverlayStyle_ContentAreaPadding],
+                                         .ChildGap = st[OverlayStyle_ChildGap]});
+
+    ov->TextRaw("Memory ranges");
+
+    // a row is: [label] [bar area with normalized panels inside]
+    const auto drawRow = [&](const char *label) {
+        ov->BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
+                                             .Alignment = {Alignment_Left, Alignment_Center},
+                                             .Sizing = {LayoutSizing::Grow(), LayoutSizing::Absolute(rowHeight)}});
+
+        ov->BeginPanel(LayoutPanelParameters{.Alignment = {Alignment_Left, Alignment_Center},
+                                             .Sizing = {LayoutSizing::Absolute(labelWidth), LayoutSizing::Grow()}});
+        ov->TextRaw(label);
+        ov->EndPanel();
+
+        // bar container - ranges go inside as normalized-offset panels
+        ov->BeginPanel(LayoutPanelParameters{.FillColor = Color::FromHexadecimal(0x1A1A1AFF),
+                                             .Alignment = {Alignment_Left, Alignment_Top},
+                                             .Sizing = LayoutSizing::Grow()});
+        ov->PushId(label);
+    };
+
+    const auto endRow = [&]() {
+        ov->PopId();
+        ov->EndPanel(); // bar container
+        ov->EndPanel(); // row
+    };
+
+    const auto drawBlock = [&](const VkDeviceSize offset, const VkDeviceSize size, const u32 colorIdx,
+                               const char *tooltipLabel, const Resource meshHandle = NullHandle,
+                               const RenderMode rmode = RenderMode_None) {
+        const f32 gap = 0.003f;
+        const f32 normOffset = f32(offset) * invMax + 0.5f * gap;
+        const f32 normSize = Math::Max(f32(size) * invMax - gap, 0.001f);
+
+        const LayoutId id = ov->IdFromStack(offset);
+        ov->Panel(
+            id, LayoutPanelParameters{.FillColor = colors[colorIdx],
+                                      .Sizing = LayoutSizing::Normalized({normSize, 1.f}),
+                                      .SelfOffset = {LayoutOffset::Normalized(normOffset), LayoutOffset::Absolute(0.f)},
+                                      .Floating = {.Enable = true,
+                                                   .DrawOnTop = false,
+                                                   .Clip = true,
+                                                   .Attachment = {LayoutAttachment_Left, LayoutAttachment_Top},
+                                                   .Alignment = {Alignment_Left, Alignment_Top}}});
+
+        if (rmode != RenderMode_None)
+            ov->SetItemTooltip(OverlayHoveredFlag_ShortDelay, "{} - Offset: {} - Size: {} - Mesh: {:#010x} - Mode: {}",
+                               tooltipLabel, fmtb(offset), fmts(size), meshHandle, ToString(rmode));
+        else
+            ov->SetItemTooltip(OverlayHoveredFlag_ShortDelay, "{} - Offset: {} - Size: {}", tooltipLabel, fmtb(offset),
+                               fmts(size));
+    };
+
+    // transfer row
+    drawRow("Transfer");
+    for (const TRange &trange : tpool.Ranges)
+        drawBlock(trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0, status[trange.Tracker.InUse() ? 1 : 0]);
+    endRow();
+
+    // graphics row
+    drawRow("Graphics");
+    for (const GRange &range : gpool.Ranges)
     {
-        constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
-        const TKit::FixedArray<u32, 5> colors = {
-            Color::FromHexadecimal(0x6B7280B3).Pack(), Color::FromHexadecimal(0x22C55EB3).Pack(),
-            Color::FromHexadecimal(0x3B82F6B3).Pack(), Color::FromHexadecimal(0xF59E0BB3).Pack(),
-            Color::FromHexadecimal(0xF97316B3).Pack()};
-
-        ImPlot::SetupAxes("Offset", nullptr, 0, ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Lock);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, f64(top), ImGuiCond_Always);
-        ImDrawList *dl = ImPlot::GetPlotDrawList();
-
-        const f32 height = 1.f;
-        const f32 separation = 0.1f;
-        const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32 idx,
-                                  const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
-            const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
-            const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
-
-            dl->AddRectFilled(mnpix, mxpix, colors[idx]);
-            dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
-
-            const char *lbl = status[idx];
-            if (ImPlot::IsPlotHovered())
-            {
-                const ImPlotPoint mouse = ImPlot::GetPlotMousePos();
-                if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
-                {
-                    ImGui::BeginTooltip();
-                    ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).CString(), fmts(size).CString());
-                    if (rmode != RenderMode_None)
-                    {
-                        ImGui::SameLine();
-                        ImGui::Text("- Mesh handle: %s - Render mode: %s",
-                                    TKit::StackString::Format("{:#010x}", meshHandle).CString(), ToString(rmode));
-                    }
-                    ImGui::EndTooltip();
-                }
-            }
-        };
-
-        const auto drawLabel = [&dl](const char *name, const u32 bindex) {
-            const ImVec2 labelPos = ImPlot::PlotToPixels(0, (bindex + 0.5));
-            dl->AddText(ImVec2(labelPos.x + 4, labelPos.y - ImGui::GetTextLineHeight() * 0.5f),
-                        IM_COL32(255, 255, 255, 255), name);
-        };
-
-        for (const TRange &trange : tpool.Ranges)
-            drawPlot(top - 1, trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0);
-
-        for (const GRange &range : gpool.Ranges)
-            if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-            {
-                const u32 idx =
-                    range.InUse()
-                        ? 1
-                        : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 : 4));
-                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle,
-                         range.RenderFlags != 0 ? GetRenderMode(range.RenderFlags) : RenderMode_None);
-                for (const ContextInstanceRange &crange : range.ContextRanges)
-                    drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 : 3);
-            }
-            else
-            {
-                const u32 idx = range.InUse() ? 1 : (range.Generation == generation ? 2 : 0);
-                drawPlot(0, range.Offset, range.Size, idx);
-            }
-
-        drawLabel("Transfer", top - 1);
-        drawLabel("Graphics", top - 2);
-        if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-            drawLabel("Context", 0);
-
-        if (ImPlot::IsPlotHovered())
+        if constexpr (hasContextRow)
         {
-            const ImVec2 plotPos = ImPlot::GetPlotPos();
-            const ImVec2 plotSize = ImPlot::GetPlotSize();
-
-            constexpr f32 legendPadding = 8.f;
-            constexpr f32 swatchSize = 12.f;
-            constexpr f32 swatchSpacing = 4.f;
-
-            f32 totalWidth = legendPadding;
-            const u32 stsize = status.GetSize() - 2 * std::is_same_v<GRange, GraphicsRange>;
-            for (u32 j = 0; j < stsize; ++j)
-                totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[j]).x + legendPadding;
-
-            const f32 legendHeight = swatchSize + legendPadding * 2.f;
-
-            const ImVec2 legendMin = ImVec2(plotPos.x + (plotSize.x - totalWidth) * 0.5f,
-                                            plotPos.y + plotSize.y - legendHeight - legendPadding);
-            const ImVec2 legendMax = ImVec2(legendMin.x + totalWidth, legendMin.y + legendHeight);
-
-            dl->AddRectFilled(legendMin, legendMax, IM_COL32(30, 30, 30, 200));
-            dl->AddRect(legendMin, legendMax, IM_COL32(255, 255, 255, 80));
-
-            f32 cursorX = legendMin.x + legendPadding;
-            const f32 itemY = legendMin.y + legendPadding;
-
-            for (u32 j = 0; j < stsize; ++j)
-            {
-                const ImVec2 swatchMin = ImVec2(cursorX, itemY);
-                const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
-                dl->AddRectFilled(swatchMin, swatchMax, colors[j]);
-                dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
-                cursorX += swatchSize + swatchSpacing;
-
-                dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
-                            IM_COL32(255, 255, 255, 255), status[j]);
-                cursorX += ImGui::CalcTextSize(status[j]).x + legendPadding;
-            }
+            const u32 idx =
+                range.InUse()
+                    ? 1
+                    : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 : 4));
+            drawBlock(range.Offset, range.Size, idx, status[idx], range.MeshHandle,
+                      range.RenderFlags != 0 ? GetRenderMode(range.RenderFlags) : RenderMode_None);
         }
-        ImPlot::EndPlot();
+        else
+        {
+            const u32 idx = range.InUse() ? 1 : (range.Generation == generation ? 2 : 0);
+            drawBlock(range.Offset, range.Size, idx, status[idx]);
+        }
     }
-}
-#    endif
+    endRow();
 
-template <Dimension D> void DisplayMemoryLayout()
+    // context row (only for instance ranges)
+    if constexpr (hasContextRow)
+    {
+        drawRow("Context");
+        for (const GRange &range : gpool.Ranges)
+            for (const ContextInstanceRange &crange : range.ContextRanges)
+            {
+                const u32 idx = rdata.IsContextRangeClean(crange) ? 2 : 3;
+                drawBlock(range.Offset + crange.Offset, crange.Size, idx, status[idx]);
+            }
+        endRow();
+    }
+
+    // axis labels
+    ov->BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
+                                         .Alignment = {Alignment_Left, Alignment_Center},
+                                         .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()}});
+
+    ov->Panel(LayoutPanelParameters{.Sizing = {LayoutSizing::Absolute(labelWidth), LayoutSizing::Fit()}});
+    ov->TextRaw("0 b");
+    ov->Panel(LayoutPanelParameters{.Sizing = LayoutSizing::Grow()});
+    ov->TextRaw(fmts(maxSize));
+    ov->EndPanel();
+
+    // legend
+    ov->BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
+                                         .Alignment = {Alignment_Center, Alignment_Center},
+                                         .Sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()},
+                                         .ChildGap = st[OverlayStyle_ChildGap]});
+
+    const u32 legendCount = hasContextRow ? 5 : 3;
+    for (u32 i = 0; i < legendCount; ++i)
+    {
+        ov->BeginPanel(LayoutPanelParameters{.Direction = LayoutDirection_LeftToRight,
+                                             .Alignment = {Alignment_Left, Alignment_Center},
+                                             .Sizing = LayoutSizing::Fit(),
+                                             .ChildGap = 4.f});
+
+        ov->Panel(LayoutPanelParameters{.FillColor = colors[i], .Sizing = LayoutSizing::Absolute(12.f)});
+        ov->TextRaw(status[i]);
+        ov->EndPanel();
+    }
+    ov->EndPanel();
+
+    ov->EndPanel(); // outer container
+}
+
+template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
 {
     const RendererData<D> &rdata = getRendererData<D>();
     const LightData<D> &ldata = rdata.Lights;
-    ImGui::PushID(&rdata);
-    if (ImGui::Button("Coalesce##Button"))
+    ov->PushId(&rdata);
+    if (ov->Button("Coalesce##Button"))
         coalesce<D>(512);
 
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
-        if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
+        if (ov->PushTreeRaw(&arena, ToString(geo), OverlayTreeFlag_DrawLines))
         {
-            displayRanges<D>("Transfer", arena.Transfer);
-            displayRanges<D>("Graphics", arena.Graphics);
-#    ifdef ONYX_ENABLE_IMPLOT
-            plotRanges<D>(arena.Transfer, arena.Graphics);
-#    endif
-            ImGui::TreePop();
-            ImGui::Spacing();
+            displayRanges<D>(ov, "Transfer", arena.Transfer);
+            displayRanges<D>(ov, "Graphics", arena.Graphics);
+            plotRanges<D>(ov, arena.Transfer, arena.Graphics);
+            ov->PopTree();
         }
     }
     for (u32 i = 0; i < LightTypeCount<D>; ++i)
     {
         const LightType light = LightType(i);
         const LightArena &arena = ldata.Arenas[light];
-        if (ImGui::TreeNode(&arena, "%s", ToString(light)))
+        if (ov->PushTreeRaw(&arena, ToString(light), OverlayTreeFlag_DrawLines))
         {
-            displayRanges<D>("Transfer", arena.Transfer);
-            displayRanges<D>("Graphics", arena.Graphics, arena.ActiveGeneration);
-#    ifdef ONYX_ENABLE_IMPLOT
-            plotRanges<D>(arena.Transfer, arena.Graphics, arena.ActiveGeneration);
-#    endif
-            ImGui::TreePop();
-            ImGui::Spacing();
+            displayRanges<D>(ov, "Transfer", arena.Transfer);
+            displayRanges<D>(ov, "Graphics", arena.Graphics, arena.ActiveGeneration);
+            plotRanges<D>(ov, arena.Transfer, arena.Graphics, arena.ActiveGeneration);
+            ov->PopTree();
         }
     }
-    if (ImGui::TreeNode("Vertex buffer"))
+    if (ov->PushTree("Vertex buffer", OverlayTreeFlag_DrawLines))
     {
         const Arena &arena = rdata.Geometry.VertexArena;
-        displayRanges<D>("Transfer", arena.Transfer);
-        displayRanges<D>("Graphics", arena.Graphics);
-#    ifdef ONYX_ENABLE_IMPLOT
-        plotRanges<D>(arena.Transfer, arena.Graphics);
-#    endif
+        displayRanges<D>(ov, "Transfer", arena.Transfer);
+        displayRanges<D>(ov, "Graphics", arena.Graphics);
+        plotRanges<D>(ov, arena.Transfer, arena.Graphics);
     }
-    if (ImGui::TreeNode("Index buffer"))
+    if (ov->PushTree("Index buffer", OverlayTreeFlag_DrawLines))
     {
         const Arena &arena = rdata.Geometry.IndexArena;
-        displayRanges<D>("Transfer", arena.Transfer);
-        displayRanges<D>("Graphics", arena.Graphics);
-#    ifdef ONYX_ENABLE_IMPLOT
-        plotRanges<D>(arena.Transfer, arena.Graphics);
-#    endif
+        displayRanges<D>(ov, "Transfer", arena.Transfer);
+        displayRanges<D>(ov, "Graphics", arena.Graphics);
+        plotRanges<D>(ov, arena.Transfer, arena.Graphics);
     }
-    ImGui::PopID();
+    ov->PopId();
 }
 
-template void DisplayMemoryLayout<D2>();
-template void DisplayMemoryLayout<D3>();
-#endif
+// imgui code i used to visualize with that im still unsure to delete
+// #ifdef ONYX_ENABLE_IMGUI
+// template <Dimension D, typename Range>
+// static void displayRanges(const char *name, const Pool<Range> &pool, const u64 generation = 0)
+// {
+//     const RendererData<D> &rdata = getRendererData<D>();
+//     // NOTE(Isma): Using stack strings as return values may be a bit dangerous. RVO may save us here, but its an
+//     // unreliable solution
+//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
+//         if (bytes > 1_gib)
+//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
+//         if (bytes > 1_mib)
+//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
+//         if (bytes > 1_kib)
+//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
+//         return TKit::StackString::Format("{:L} b", bytes);
+//     };
+//
+//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
+//         return TKit::StackString::Format("{:L} b", bytes);
+//     };
+//
+//     if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
+//     {
+//         ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).CString());
+//         for (const Range &range : pool.Ranges)
+//             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
+//                 ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE",
+//                 fmts(range.Size).CString(),
+//                             fmtb(range.Offset).CString(), fmtb(range.Offset + range.Size).CString());
+//             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
+//             {
+//                 if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
+//                                     range.InUse()
+//                                         ? "IN-USE"
+//                                         : (rdata.AreAllContextRangesDirty(range)
+//                                                ? "FREE"
+//                                                : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
+//                                     fmts(range.Size).CString(), fmtb(range.Offset).CString(),
+//                                     fmtb(range.Offset + range.Size).CString()))
+//                 {
+//                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
+//                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
+//                     if (range.MeshHandle != NullHandle)
+//                         ImGui::Text("Mesh handle: %u", range.MeshHandle);
+//
+//                     if (range.RenderFlags != 0)
+//                         ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
+//                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
+//                     ImGui::Text("View mask: %s", vmask.CString());
+//                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
+//                     {
+//                         for (const ContextInstanceRange &crange : range.ContextRanges)
+//                             if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
+//                                                 rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
+//                                                 fmts(crange.Size).CString(), fmtb(crange.Offset).CString(),
+//                                                 fmtb(crange.Offset + crange.Size).CString()))
+//                             {
+//                                 if (crange.ContextIndex != TKIT_U32_MAX)
+//                                 {
+//                                     ImGui::Text("Context index: %u", crange.ContextIndex);
+// #    ifndef TKIT_OS_LINUX
+//                                     ImGui::Text("Context generation: %llu", crange.Generation);
+// #    else
+//                                     ImGui::Text("Context generation: %lu", crange.Generation);
+// #    endif
+//                                 }
+//                                 else
+//                                     ImGui::Text("Context index: None");
+//
+//                                 const TKit::StackString cvmask = TKit::StackString::Format("{:032b}",
+//                                 crange.ViewMask); ImGui::Text("View mask: %s", cvmask.CString()); ImGui::TreePop();
+//                                 ImGui::Spacing();
+//                             }
+//                         ImGui::TreePop();
+//                         ImGui::Spacing();
+//                     }
+//                     ImGui::TreePop();
+//                     ImGui::Spacing();
+//                 }
+//             }
+//             else
+//                 ImGui::Text("%s (%s): %s - %s",
+//                             range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
+//                             fmts(range.Size).CString(), fmtb(range.Offset).CString(),
+//                             fmtb(range.Offset + range.Size).CString());
+//         ImGui::TreePop();
+//         ImGui::Spacing();
+//     }
+// }
+//
+// #    ifdef ONYX_ENABLE_IMPLOT
+// template <Dimension D, typename TRange, typename GRange>
+// static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
+// {
+//     const RendererData<D> &rdata = getRendererData<D>();
+//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
+//         if (bytes > 1_gib)
+//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
+//         if (bytes > 1_mib)
+//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
+//         if (bytes > 1_kib)
+//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
+//         return TKit::StackString::Format("{:L} b", bytes);
+//     };
+//
+//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
+//         return TKit::StackString::Format("{:L} b", bytes);
+//     };
+//     const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
+//     constexpr u32 top = 2 + std::is_same_v<GRange, GraphicsInstanceRange>;
+//     ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, top, ImGuiCond_Always);
+//
+//     if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
+//     {
+//         constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
+//         const TKit::FixedArray<u32, 5> colors = {
+//             Color::FromHexadecimal(0x6B7280B3).Pack(), Color::FromHexadecimal(0x22C55EB3).Pack(),
+//             Color::FromHexadecimal(0x3B82F6B3).Pack(), Color::FromHexadecimal(0xF59E0BB3).Pack(),
+//             Color::FromHexadecimal(0xF97316B3).Pack()};
+//
+//         ImPlot::SetupAxes("Offset", nullptr, 0, ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Lock);
+//         ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, f64(top), ImGuiCond_Always);
+//         ImDrawList *dl = ImPlot::GetPlotDrawList();
+//
+//         const f32 height = 1.f;
+//         const f32 separation = 0.1f;
+//         const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32
+//         idx,
+//                                   const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
+//             const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
+//             const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
+//
+//             dl->AddRectFilled(mnpix, mxpix, colors[idx]);
+//             dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
+//
+//             const char *lbl = status[idx];
+//             if (ImPlot::IsPlotHovered())
+//             {
+//                 const ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+//                 if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
+//                 {
+//                     ImGui::BeginTooltip();
+//                     ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).CString(), fmts(size).CString());
+//                     if (rmode != RenderMode_None)
+//                     {
+//                         ImGui::SameLine();
+//                         ImGui::Text("- Mesh handle: %s - Render mode: %s",
+//                                     TKit::StackString::Format("{:#010x}", meshHandle).CString(), ToString(rmode));
+//                     }
+//                     ImGui::EndTooltip();
+//                 }
+//             }
+//         };
+//
+//         const auto drawLabel = [&dl](const char *name, const u32 bindex) {
+//             const ImVec2 labelPos = ImPlot::PlotToPixels(0, (bindex + 0.5));
+//             dl->AddText(ImVec2(labelPos.x + 4, labelPos.y - ImGui::GetTextLineHeight() * 0.5f),
+//                         IM_COL32(255, 255, 255, 255), name);
+//         };
+//
+//         for (const TRange &trange : tpool.Ranges)
+//             drawPlot(top - 1, trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0);
+//
+//         for (const GRange &range : gpool.Ranges)
+//             if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
+//             {
+//                 const u32 idx =
+//                     range.InUse()
+//                         ? 1
+//                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 :
+//                         4));
+//                 drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle,
+//                          range.RenderFlags != 0 ? GetRenderMode(range.RenderFlags) : RenderMode_None);
+//                 for (const ContextInstanceRange &crange : range.ContextRanges)
+//                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 :
+//                     3);
+//             }
+//             else
+//             {
+//                 const u32 idx = range.InUse() ? 1 : (range.Generation == generation ? 2 : 0);
+//                 drawPlot(0, range.Offset, range.Size, idx);
+//             }
+//
+//         drawLabel("Transfer", top - 1);
+//         drawLabel("Graphics", top - 2);
+//         if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
+//             drawLabel("Context", 0);
+//
+//         if (ImPlot::IsPlotHovered())
+//         {
+//             const ImVec2 plotPos = ImPlot::GetPlotPos();
+//             const ImVec2 plotSize = ImPlot::GetPlotSize();
+//
+//             constexpr f32 legendPadding = 8.f;
+//             constexpr f32 swatchSize = 12.f;
+//             constexpr f32 swatchSpacing = 4.f;
+//
+//             f32 totalWidth = legendPadding;
+//             const u32 stsize = status.GetSize() - 2 * std::is_same_v<GRange, GraphicsRange>;
+//             for (u32 j = 0; j < stsize; ++j)
+//                 totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[j]).x + legendPadding;
+//
+//             const f32 legendHeight = swatchSize + legendPadding * 2.f;
+//
+//             const ImVec2 legendMin = ImVec2(plotPos.x + (plotSize.x - totalWidth) * 0.5f,
+//                                             plotPos.y + plotSize.y - legendHeight - legendPadding);
+//             const ImVec2 legendMax = ImVec2(legendMin.x + totalWidth, legendMin.y + legendHeight);
+//
+//             dl->AddRectFilled(legendMin, legendMax, IM_COL32(30, 30, 30, 200));
+//             dl->AddRect(legendMin, legendMax, IM_COL32(255, 255, 255, 80));
+//
+//             f32 cursorX = legendMin.x + legendPadding;
+//             const f32 itemY = legendMin.y + legendPadding;
+//
+//             for (u32 j = 0; j < stsize; ++j)
+//             {
+//                 const ImVec2 swatchMin = ImVec2(cursorX, itemY);
+//                 const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
+//                 dl->AddRectFilled(swatchMin, swatchMax, colors[j]);
+//                 dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
+//                 cursorX += swatchSize + swatchSpacing;
+//
+//                 dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
+//                             IM_COL32(255, 255, 255, 255), status[j]);
+//                 cursorX += ImGui::CalcTextSize(status[j]).x + legendPadding;
+//             }
+//         }
+//         ImPlot::EndPlot();
+//     }
+// }
+// #    endif
+//
+// template <Dimension D> void DisplayMemoryLayout()
+// {
+//     const RendererData<D> &rdata = getRendererData<D>();
+//     const LightData<D> &ldata = rdata.Lights;
+//     ImGui::PushID(&rdata);
+//     if (ImGui::Button("Coalesce##Button"))
+//         coalesce<D>(512);
+//
+//     for (u32 i = 0; i < Geometry_Count; ++i)
+//     {
+//         const Geometry geo = Geometry(i);
+//         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
+//         if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
+//         {
+//             displayRanges<D>("Transfer", arena.Transfer);
+//             displayRanges<D>("Graphics", arena.Graphics);
+// #    ifdef ONYX_ENABLE_IMPLOT
+//             plotRanges<D>(arena.Transfer, arena.Graphics);
+// #    endif
+//             ImGui::TreePop();
+//             ImGui::Spacing();
+//         }
+//     }
+//     for (u32 i = 0; i < LightTypeCount<D>; ++i)
+//     {
+//         const LightType light = LightType(i);
+//         const LightArena &arena = ldata.Arenas[light];
+//         if (ImGui::TreeNode(&arena, "%s", ToString(light)))
+//         {
+//             displayRanges<D>("Transfer", arena.Transfer);
+//             displayRanges<D>("Graphics", arena.Graphics, arena.ActiveGeneration);
+// #    ifdef ONYX_ENABLE_IMPLOT
+//             plotRanges<D>(arena.Transfer, arena.Graphics, arena.ActiveGeneration);
+// #    endif
+//             ImGui::TreePop();
+//             ImGui::Spacing();
+//         }
+//     }
+//     if (ImGui::TreeNode("Vertex buffer"))
+//     {
+//         const Arena &arena = rdata.Geometry.VertexArena;
+//         displayRanges<D>("Transfer", arena.Transfer);
+//         displayRanges<D>("Graphics", arena.Graphics);
+// #    ifdef ONYX_ENABLE_IMPLOT
+//         plotRanges<D>(arena.Transfer, arena.Graphics);
+// #    endif
+//     }
+//     if (ImGui::TreeNode("Index buffer"))
+//     {
+//         const Arena &arena = rdata.Geometry.IndexArena;
+//         displayRanges<D>("Transfer", arena.Transfer);
+//         displayRanges<D>("Graphics", arena.Graphics);
+// #    ifdef ONYX_ENABLE_IMPLOT
+//         plotRanges<D>(arena.Transfer, arena.Graphics);
+// #    endif
+//     }
+//     ImGui::PopID();
+// }
+//
+// template void DisplayMemoryLayout<D2>();
+// template void DisplayMemoryLayout<D3>();
+// #endif
+
+template void DisplayMemoryLayout<D2>(Overlay *ov);
+template void DisplayMemoryLayout<D3>(Overlay *ov);
 
 template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(RenderPass rpass);
 template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(RenderPass rpass);

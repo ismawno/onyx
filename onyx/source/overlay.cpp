@@ -2,6 +2,7 @@
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
 #include "onyx/platform.hpp"
+#include "onyx/renderer.hpp"
 
 namespace Onyx
 {
@@ -1184,12 +1185,11 @@ void Overlay::endScroll()
 void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, const LySz2 &innerSizing)
 {
     Layout &ly = GetCurrentLayout();
-    ly.BeginPanel(id,
-                  LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
     m_LastItem = ly.BeginPanel(
-        IdFromStack("__onyx_id_Container"),
-        LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        id, LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    ly.BeginPanel(IdFromStack("__onyx_id_Container"),
+                  LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
 void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 {
@@ -1232,7 +1232,7 @@ void Overlay::HorizontalSeparator(const TKit::StringView label)
     ly.EndPanel();
 }
 
-bool Overlay::PushTree(LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
+bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
 {
     id = PushId(id);
     Layout &ly = GetCurrentLayout();
@@ -1819,7 +1819,8 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     }
 
     const bool rclicked = focusHovered && checkFlags(StateFlag_RightMouseReleased);
-    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse;
+    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse &&
+                         (lmpressed || m_PressedId == elm->Id);
 
     if (focusHovered && setHovered)
     {
@@ -3106,7 +3107,10 @@ u32 Overlay::processWindows()
                 m_PressingLeftMouse = true;
             }
             if (ev.Mouse.Button == Mouse_Button2)
+            {
                 m_StateFlags |= StateFlag_RightMousePressed;
+                requestCollapsePopups();
+            }
         }
         else if (ev.Type == Event_MouseReleased)
         {
@@ -3350,6 +3354,7 @@ void Overlay::ShowDemo()
 {
     static Onyx::OverlayWindowFlags wflags = 0;
     static bool enableSettings = false;
+    static bool enableRenderer = false;
     static bool enableStyleEditor = false;
     static bool enableMainMenu = false;
 
@@ -3374,6 +3379,7 @@ void Overlay::ShowDemo()
         if (BeginMenu("Options"))
         {
             MenuItem("Window settings", &enableSettings);
+            MenuItem("Renderer stats", &enableRenderer);
             MenuItem("Style editor", &enableStyleEditor);
             MenuItem("Main menu bar", &enableMainMenu);
             EndMenu();
@@ -3899,6 +3905,11 @@ void Overlay::ShowDemo()
         editWindowFlags(&wflags);
         EndWindow();
     }
+    if (BeginWindow("Renderer statistics", &enableRenderer, wflags))
+    {
+        ShowRendererStatistics();
+        EndWindow();
+    }
     if (BeginWindow("Style editor", &enableStyleEditor, wflags))
     {
         ShowStyleEditor();
@@ -3926,6 +3937,23 @@ void Overlay::ShowDemo()
 template <typename... Args> TKit::StackString fmt(const fmt::format_string<Args...> str, Args &&...args)
 {
     return TKit::StackString::Format(str, std::forward<Args>(args)...);
+}
+
+void Overlay::ShowRendererStatistics()
+{
+    BeginTabBar();
+    if (BeginTab("2D", OverlayTabFlag_StartOpen))
+    {
+        Renderer::DisplayMemoryLayout<D2>(this);
+        EndTab();
+    }
+    if (BeginTab("3D"))
+    {
+        Renderer::DisplayMemoryLayout<D3>(this);
+        EndTab();
+    }
+
+    EndTabBar();
 }
 
 void Overlay::ShowStyleEditor()

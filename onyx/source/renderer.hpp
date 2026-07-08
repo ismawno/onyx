@@ -91,9 +91,4 @@ RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, RenderTe
 void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
 void Coalesce(u32 maxRanges = 512);
 
-// TODO(Isma): This right now is unused and inaccessible. Do something about this
-#ifdef ONYX_ENABLE_IMGUI
-template <Dimension D> void DisplayMemoryLayout();
-#endif
-
 } // namespace Onyx::Renderer

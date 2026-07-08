@@ -1082,27 +1082,34 @@ class Overlay
                                          .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
 
-    Layout &BeginPanel(const LayoutId id, const LyPnPar &params = {})
+    usz BeginPanel(const LayoutId id, const LyPnPar &params = {})
     {
-        Layout &ly = GetCurrentLayout();
-        ly.BeginPanel(id, params);
-        return ly;
+        m_LastItem = GetCurrentLayout().BeginPanel(id, params);
+        return m_LastItem;
     }
-    Layout &BeginPanel(const LyPnPar &params = {})
+    void BeginPanel(const LyPnPar &params = {})
     {
-        Layout &ly = GetCurrentLayout();
-        ly.BeginPanel(params);
-        return ly;
+        GetCurrentLayout().BeginPanel(params);
     }
     void EndPanel()
     {
         GetCurrentLayout().EndPanel();
     }
 
-    bool PushTree(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
+    usz Panel(const LayoutId id, const LyPnPar &params = {})
+    {
+        m_LastItem = GetCurrentLayout().Panel(id, params);
+        return m_LastItem;
+    }
+    void Panel(const LyPnPar &params = {})
+    {
+        GetCurrentLayout().Panel(params);
+    }
+
+    bool PushTreeRaw(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
     bool PushTree(TKit::StringView label, const OverlayTreeFlags flags = 0)
     {
-        return PushTree(label, label, flags);
+        return PushTreeRaw(label, label, flags);
     }
     template <typename... Args> bool PushTree(const LayoutId id, const fmt::format_string<Args...> str, Args &&...args)
     {
@@ -1113,7 +1120,7 @@ class Overlay
                   Args &&...args)
     {
         const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        return PushTree(id, txt, flags);
+        return PushTreeRaw(id, txt, flags);
     }
     void PopTree()
     {
@@ -1300,6 +1307,7 @@ class Overlay
 
     void ShowDemo();
     void ShowStyleEditor();
+    void ShowRendererStatistics();
 
   private:
     bool checkFlags(const OverlayWindowFlags flags) const
