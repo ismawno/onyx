@@ -24,6 +24,8 @@ struct OpenWindowSpecs
 Window *OpenWindow(const OpenWindowSpecs &specs = {});
 void CloseWindow(Window *window);
 
+TKit::Timespan GetTime();
+TKit::Timespan GetDeltaTime();
 TKit::Timespan GetDeltaTime(const Window *win);
 TKit::Timespan GetTargetDeltaTime(const Window *win);
 

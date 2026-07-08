@@ -83,6 +83,12 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
                         params.SelfOffset[1].Type != LayoutOffset_Normalized,
                     "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
 
+        TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Relative && params.Sizing[1].Type != LayoutSizing_Relative,
+                    "[ONYX][LAYOUT] The root layout element cannot have relative sizing");
+        TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Relative &&
+                        params.SelfOffset[1].Type != LayoutOffset_Relative,
+                    "[ONYX][LAYOUT] The root layout element cannot have relative offsets");
+
         TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
         current.ClipMin = f32v2{TKIT_F32_MIN};
         current.ClipMax = f32v2{TKIT_F32_MAX};
@@ -123,7 +129,8 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     {
         // NOTE(Isma): This could be removed and hope the user sets the sizing correctly with the static methods
         current.Sizing[i] = params.Sizing[i].Type;
-        if (params.Sizing[i].Type == LayoutSizing_Absolute || params.Sizing[i].Type == LayoutSizing_Normalized)
+        if (params.Sizing[i].Type == LayoutSizing_Absolute || params.Sizing[i].Type == LayoutSizing_Normalized ||
+            params.Sizing[i].Type == LayoutSizing_Relative)
         {
             current.Size[i] = params.Sizing[i].Size;
             current.MinSize[i] = current.Size[i];
@@ -325,7 +332,8 @@ void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
         for (const u32 c : parent.Children)
         {
             const LayoutElement &child = m_Elements[c];
-            if (child.Sizing[axis] == LayoutSizing_Normalized || child.Type == LayoutElement_Floating)
+            if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative ||
+                child.Type == LayoutElement_Floating)
                 continue;
 
             const f32 csize = child.Size[axis];
@@ -362,14 +370,15 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
 
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
-        const f32 floatFactor = parent.Size[axis];
-        const f32 normFactor = Math::Max(0.f, floatFactor - padding);
+
+        const f32 normFactor = parent.Size[axis];
+        const f32 relFactor = Math::Max(0.f, normFactor - padding);
         for (const u32 c : parent.Children)
         {
             LayoutElement &child = m_Elements[c];
-            if (child.Sizing[axis] == LayoutSizing_Normalized)
+            if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative)
             {
-                const f32 factor = child.Type == LayoutElement_Floating ? floatFactor : normFactor;
+                const f32 factor = child.Sizing[axis] == LayoutSizing_Normalized ? normFactor : relFactor;
                 child.Size[axis] *= factor;
                 child.MinSize[axis] *= factor;
                 child.MaxSize[axis] *= factor;
@@ -574,14 +583,15 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                 return paxis != axis ? computeAlignOffset(size) : 0.f;
             };
 
-            const f32 offsetNormFactor = psize - p0 - p1;
+            const f32 offsetNormFactor = psize;
+            const f32 offsetRelFactor = Math::Max(psize - p0 - p1, 0.f);
 
             f32 coffset = parent.ChildOffset[axis];
             if (parent.ChildOffsetType[axis] != LayoutOffset_Absolute)
             {
-                const f32 factor = parent.ChildOffsetType[axis] == LayoutOffset_Normalized
-                                       ? offsetNormFactor
-                                       : (offsetNormFactor - tcsize);
+                const f32 factor =
+                    parent.ChildOffsetType[axis] == LayoutOffset_Normalized ? offsetNormFactor : offsetRelFactor;
+
                 coffset *= Math::Absolute(factor);
             }
 

@@ -277,9 +277,9 @@ enum OverlayColor : u8
     OverlayColor_Text,
     OverlayColor_Line,
 
-    OverlayColor_InputText,
     OverlayColor_InputCursor,
     OverlayColor_InputHighlight,
+    OverlayColor_InputBackground,
 
     OverlayColor_WindowBorderIdle,
     OverlayColor_WindowBorderHovered,
@@ -290,51 +290,46 @@ enum OverlayColor : u8
     OverlayColor_ButtonIdle,
     OverlayColor_ButtonHovered,
     OverlayColor_ButtonPressed,
-    OverlayColor_ButtonText,
 
     OverlayColor_CheckBoxIdle,
     OverlayColor_CheckBoxHovered,
     OverlayColor_CheckBoxPressed,
-    OverlayColor_CheckBoxText,
     OverlayColor_CheckBoxInner,
 
     OverlayColor_SliderIdle,
     OverlayColor_SliderHovered,
     OverlayColor_SliderPressed,
-    OverlayColor_SliderText,
     OverlayColor_SliderInner,
 
     OverlayColor_DragIdle,
     OverlayColor_DragHovered,
     OverlayColor_DragPressed,
-    OverlayColor_DragText,
 
     OverlayColor_TreeIdle,
     OverlayColor_TreeHovered,
     OverlayColor_TreePressed,
-    OverlayColor_TreeText,
 
     OverlayColor_DropDownIdle,
     OverlayColor_DropDownHovered,
     OverlayColor_DropDownPressed,
-    OverlayColor_DropDownText,
     OverlayColor_DropDownButton,
 
     OverlayColor_SelectableIdle,
     OverlayColor_SelectableHovered,
     OverlayColor_SelectablePressed,
-    OverlayColor_SelectableText,
 
     OverlayColor_MenuItemIdle,
     OverlayColor_MenuItemHovered,
     OverlayColor_MenuItemPressed,
-    OverlayColor_MenuItemText,
     OverlayColor_MenuBoxBackground,
 
     OverlayColor_ScrollBarIdle,
     OverlayColor_ScrollBarHovered,
     OverlayColor_ScrollBarPressed,
     OverlayColor_ScrollAreaBorders,
+
+    OverlayColor_ProgressBarBackground,
+    OverlayColor_ProgressBarInner,
 
     OverlayColor_PopupBackground,
 
@@ -730,6 +725,18 @@ class Overlay
     bool Selectable(TKit::StringView label, bool enabled = false, OverlaySelectableFlags flags = 0);
     bool Selectable(TKit::StringView label, bool *enabled, OverlaySelectableFlags flags = 0);
 
+    void ProgressBar(TKit::StringView label, TKit::StringView text, f32 pct);
+    void ProgressBar(const TKit::StringView label, const f32 pct)
+    {
+        ProgressBar(label, {}, pct);
+    }
+    template <typename... Args>
+    void ProgressBar(const TKit::StringView label, const f32 pct, const fmt::format_string<Args...> str, Args &&...args)
+    {
+        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
+        ProgressBar(label, txt, pct);
+    }
+
     void BeginTabBar(LayoutId id);
     void BeginTabBar()
     {
@@ -763,7 +770,7 @@ class Overlay
             if (Button("+", OverlayButtonFlag_TryKeepSquare))
                 ++(*value);
         }
-        endHorizontalWidget(OverlayColor_InputText, label);
+        endHorizontalWidget(label);
         PopId();
         return updated;
     }
@@ -796,7 +803,7 @@ class Overlay
             changed |= horizontalSliderBox(&val, mn, mx, format, flags);
             PopId();
         }
-        endHorizontalWidget(OverlayColor_SliderText, label);
+        endHorizontalWidget(label);
         PopId();
         return changed;
     }
@@ -823,7 +830,7 @@ class Overlay
             PopId();
         }
 
-        endHorizontalWidget(OverlayColor_DragText, label);
+        endHorizontalWidget(label);
         PopId();
         return changed;
     }
@@ -1322,7 +1329,7 @@ class Overlay
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
     void beginHorizontalWidget(usz id, f32 normSize = 0.5f);
-    void endHorizontalWidget(OverlayColor labelColor, TKit::StringView label = {});
+    void endHorizontalWidget(TKit::StringView label = {});
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
@@ -1400,7 +1407,7 @@ class Overlay
         // come
 
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                  .Alignment = {Alignment_Left, Alignment_Center},
+                                  .Alignment = CenterLeft,
                                   .Sizing = {flex(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                   .Padding = padding});
@@ -1415,7 +1422,7 @@ class Overlay
         // so, we offset text slot by 1 parent to align it correctly
 
         ly.BeginPanel(IdFromStack("__onyx_id_Slider_slot"),
-                      LyPnPar{.Alignment = Alignment_Center, .Sizing = {snorm(1.f), grow()}});
+                      LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
 
         ly.Panel(IdFromStack("__onyx_id_Slider_button"),
                  LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
@@ -1429,13 +1436,12 @@ class Overlay
         const bool hasAccurateFlex = elm && txtElm;
 
         ly.EndPanel();
-        ly.BeginPanel(IdFromStack("__onyx_id_Text_slot"),
-                      LyPnPar{.Alignment = Alignment_Center,
-                              .Sizing = {hasAccurateFlex ? flex() : snorm(1.f), fit()},
-                              .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
+        ly.BeginPanel(txtId, LyPnPar{.Alignment = Center,
+                                     .Sizing = {hasAccurateFlex ? flex() : srel(1.f), fit()},
+                                     .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
-        ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_SliderText));
+        ly.Text(ly.GenerateNextId(), text, getTextParams());
 
         ly.EndPanel();
         ly.EndPanel();
@@ -1497,13 +1503,13 @@ class Overlay
         }
 
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                  .Alignment = Alignment_Center,
+                                  .Alignment = Center,
                                   .Sizing = {flex(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
-        ly.Text(ly.GenerateNextId(), text, getTextParams(OverlayColor_DragText));
+        ly.Text(ly.GenerateNextId(), text, getTextParams());
 
         ly.EndPanel();
         return *value != pval;
@@ -1648,13 +1654,13 @@ class Overlay
 
     f32 computeWindowMinSize() const;
 
-    LyTxPar getTextParams(const OverlayColor color) const
+    LyTxPar getTextParams() const
     {
-        return {.FillColor = m_Style[color], .FontSize = m_Style[OverlayStyle_FontSize]};
+        return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_FontSize]};
     }
-    LyUnPar getUnicodeParams(const OverlayColor color) const
+    LyUnPar getUnicodeParams() const
     {
-        return {.FillColor = m_Style[color], .Size = m_Style[OverlayStyle_FontSize]};
+        return {.FillColor = m_Style[OverlayColor_Text], .Size = m_Style[OverlayStyle_FontSize]};
     }
 
     f32v2 topLeftBorder() const
@@ -1722,6 +1728,14 @@ class Overlay
     {
         return LySz::Normalized(size);
     }
+    static constexpr LySz srel(const f32 size)
+    {
+        return LySz::Relative(size);
+    }
+    static constexpr LySz2 srel(const f32v2 &size)
+    {
+        return LySz::Relative(size);
+    }
     static constexpr LyOf oabs(const f32 size)
     {
         return LyOf::Absolute(size);
@@ -1737,6 +1751,14 @@ class Overlay
     static constexpr LyOf2 onorm(const f32v2 &size)
     {
         return LyOf::Normalized(size);
+    }
+    static constexpr LyOf orel(const f32 size)
+    {
+        return LyOf::Relative(size);
+    }
+    static constexpr LyOf2 orel(const f32v2 &size)
+    {
+        return LyOf::Relative(size);
     }
     static constexpr LayoutShape rect(const f32 radius = 0.f)
     {

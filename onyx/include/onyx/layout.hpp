@@ -29,6 +29,7 @@ enum LayoutSizingType : u8
 {
     LayoutSizing_Absolute,
     LayoutSizing_Normalized,
+    LayoutSizing_Relative,
     LayoutSizing_Fit,
     LayoutSizing_Grow,
     LayoutSizing_Flex,
@@ -47,6 +48,10 @@ struct LayoutSizing
     static constexpr LayoutSizing Normalized(const f32 size)
     {
         return {size, size, size, LayoutSizing_Normalized};
+    }
+    static constexpr LayoutSizing Relative(const f32 size)
+    {
+        return {size, size, size, LayoutSizing_Relative};
     }
     static constexpr LayoutSizing Fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
@@ -68,6 +73,10 @@ struct LayoutSizing
     static constexpr vec2<LayoutSizing> Normalized(const f32v2 &size)
     {
         return {Normalized(size[0]), Normalized(size[1])};
+    }
+    static constexpr vec2<LayoutSizing> Relative(const f32v2 &size)
+    {
+        return {Relative(size[0]), Relative(size[1])};
     }
     static constexpr vec2<LayoutSizing> Fit(const f32v2 &mn, const f32v2 &mx = f32v2{TKIT_F32_MAX})
     {
@@ -255,7 +264,7 @@ struct LayoutElement
     LayoutOverflowMode ChildOverflow;
     bool ForceBlend;
 
-    // NOTE(Isma, 25/06/06): Bool arg. not very nice but a bit overkill setting up flags for an option
+    // NOTE(Isma, 25/06/26): Bool arg. not very nice but a bit overkill setting up flags for an option
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
 };
 

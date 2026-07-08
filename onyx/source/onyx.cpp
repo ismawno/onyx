@@ -51,7 +51,8 @@ struct ApiData
     TKit::TierArray<RenderContext<D2> *> Contexts2{};
     TKit::TierArray<RenderContext<D3> *> Contexts3{};
 
-    TKit::Clock Clock{};
+    TKit::Clock FrameClock{};
+    TKit::Clock TimeClock{};
     TKit::Timespan DeltaTime{};
 
     template <Dimension D> auto &GetContexts()
@@ -144,6 +145,14 @@ static u32 getWindowIndex(const Window *window)
     return TKIT_U32_MAX;
 }
 
+TKit::Timespan GetTime()
+{
+    return s_Data->TimeClock.GetElapsed();
+}
+TKit::Timespan GetDeltaTime()
+{
+    return s_Data->DeltaTime;
+}
 TKit::Timespan GetDeltaTime(const Window *win)
 {
     return s_Data->Windows[getWindowIndex(win)].DeltaTime;
@@ -455,7 +464,7 @@ void Render(const RenderInfo &info)
             TKit::Timespan::Sleep(sleep);
         }
     }
-    s_Data->DeltaTime = s_Data->Clock.Restart();
+    s_Data->DeltaTime = s_Data->FrameClock.Restart();
     TKIT_PROFILE_MARK_FRAME();
 }
 

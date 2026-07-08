@@ -245,9 +245,9 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_Text] = palette[OverlayPalette_Text0];
     colors[OverlayColor_Line] = palette[OverlayPalette_Background1];
 
-    colors[OverlayColor_InputText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_InputCursor] = palette[OverlayPalette_Text0];
     colors[OverlayColor_InputHighlight] = palette[OverlayPalette_Pressed0];
+    colors[OverlayColor_InputBackground] = palette[OverlayPalette_Background2];
 
     colors[OverlayColor_WindowBorderIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_WindowBorderHovered] = palette[OverlayPalette_Hovered0];
@@ -257,50 +257,45 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_ButtonIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_ButtonHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_ButtonPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_ButtonText] = palette[OverlayPalette_Text0];
 
     colors[OverlayColor_CheckBoxIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_CheckBoxHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_CheckBoxPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_CheckBoxText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_CheckBoxInner] = palette[OverlayPalette_Inner0];
 
     colors[OverlayColor_SliderIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_SliderHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_SliderPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_SliderText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_SliderInner] = palette[OverlayPalette_Inner0];
 
     colors[OverlayColor_DragIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_DragHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_DragPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_DragText] = palette[OverlayPalette_Text0];
 
     colors[OverlayColor_ScrollBarIdle] = palette[OverlayPalette_Idle1];
     colors[OverlayColor_ScrollBarHovered] = palette[OverlayPalette_Hovered1];
     colors[OverlayColor_ScrollBarPressed] = palette[OverlayPalette_Inner0];
     colors[OverlayColor_ScrollAreaBorders] = palette[OverlayPalette_Background1];
 
+    colors[OverlayColor_ProgressBarBackground] = palette[OverlayPalette_Background2];
+    colors[OverlayColor_ProgressBarInner] = palette[OverlayPalette_Pressed0];
+
     colors[OverlayColor_TreeIdle] = palette[OverlayPalette_Background1];
     colors[OverlayColor_TreeHovered] = palette[OverlayPalette_Hovered2];
     colors[OverlayColor_TreePressed] = palette[OverlayPalette_Pressed1];
-    colors[OverlayColor_TreeText] = palette[OverlayPalette_Text0];
 
     colors[OverlayColor_DropDownIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_DropDownHovered] = palette[OverlayPalette_Hovered0];
     colors[OverlayColor_DropDownPressed] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_DropDownText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_DropDownButton] = palette[OverlayPalette_Inner0];
 
     colors[OverlayColor_SelectableIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_SelectableHovered] = palette[OverlayPalette_Hovered3];
     colors[OverlayColor_SelectablePressed] = palette[OverlayPalette_Pressed2];
-    colors[OverlayColor_SelectableText] = palette[OverlayPalette_Text0];
 
     colors[OverlayColor_MenuItemIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_MenuItemHovered] = palette[OverlayPalette_Hovered3];
     colors[OverlayColor_MenuItemPressed] = palette[OverlayPalette_Pressed2];
-    colors[OverlayColor_MenuItemText] = palette[OverlayPalette_Text0];
     colors[OverlayColor_MenuBoxBackground] = palette[OverlayPalette_Background2];
 
     colors[OverlayColor_PopupBackground] = palette[OverlayPalette_Background2];
@@ -697,7 +692,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
             }
         }
 
-        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams(OverlayColor_Header));
+        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams());
         ly.EndPanel();
 
         if (!(flags & OverlayWindowFlag_NoCloseButton))
@@ -840,11 +835,11 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     ly.BeginPanel(id,
                   LyPnPar{.FillColor = m_Style[col], .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_MenuItemText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     if (verticalLayout)
     {
         ly.Panel(IdFromStack("__onyx_id_Push"), LyPnPar{.Sizing = grow()});
-        ly.Unicode(ly.GenerateNextId(), ArrowRightIcon, getUnicodeParams(OverlayColor_MenuItemText));
+        ly.Unicode(ly.GenerateNextId(), ArrowRightIcon, getUnicodeParams());
     }
 
     if (popupOpen)
@@ -1000,7 +995,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                                                                .Sizing = {grow(), fit()},
                                                                .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
-        ly.Text(ly.GenerateNextId(), preview, getTextParams(OverlayColor_DropDownText));
+        ly.Text(ly.GenerateNextId(), preview, getTextParams());
         ly.EndPanel();
     }
 
@@ -1014,13 +1009,13 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                       LyPnPar{.FillColor = m_Style[buttonCol],
                               .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
-        ly.Unicode(ly.GenerateNextId(), ArrowDownIcon, getUnicodeParams(OverlayColor_DropDownText));
+        ly.Unicode(ly.GenerateNextId(), ArrowDownIcon, getUnicodeParams());
         ly.EndPanel();
     }
 
     if (dropDownActive)
     {
-        endHorizontalWidget(OverlayColor_Text, label);
+        endHorizontalWidget(label);
 
         const usz did = IdFromStack("__onyx_id_Drop_down");
         const LayoutElement *delm = ly.QueryElement(did);
@@ -1064,7 +1059,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
         queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
         return true;
     }
-    endHorizontalWidget(OverlayColor_Text, label);
+    endHorizontalWidget(label);
     ly.EndPanel();
     PopId();
     return false;
@@ -1111,7 +1106,7 @@ bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
                           .Padding = borders ? padding : 0.f});
 
     if (flags & OverlayScrollFlag_Title)
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
 
     return beginScroll({.Id = id,
                         .OuterSizing = outer,
@@ -1203,12 +1198,12 @@ void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 
     return beginHorizontalWidget(id, outerSizing, innerSizing);
 }
-void Overlay::endHorizontalWidget(const OverlayColor labelColor, const TKit::StringView label)
+void Overlay::endHorizontalWidget(TKit::StringView label)
 {
     Layout &ly = GetCurrentLayout();
     ly.EndPanel();
     if (!label.IsEmpty())
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(labelColor));
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.EndPanel();
 }
 
@@ -1226,7 +1221,7 @@ void Overlay::HorizontalSeparator(const TKit::StringView label)
     ly.Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.Panel(LyPnPar{
         .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
     ly.EndPanel();
@@ -1280,11 +1275,11 @@ bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const Overl
     }
 
     const CodePoint code = opened ? ArrowDownIcon : ArrowRightIcon;
-    ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams(OverlayColor_TreeText));
+    ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams());
 
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_TreeText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.EndPanel();
 
     if (toggleOpen)
@@ -1343,7 +1338,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         ibox, FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
                   FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover);
 
-    ly.BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_PopupBackground],
+    ly.BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
                                   .Alignment = CenterLeft,
                                   .Sizing = {grow(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_InputBoxRadius]),
@@ -1361,7 +1356,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const FontData &fdata = getFontData();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
-    LyTxPar tparams = getTextParams(OverlayColor_InputText);
+    LyTxPar tparams = getTextParams();
     const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
     const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
     if (pressed || hovered)
@@ -1739,7 +1734,7 @@ bool Overlay::iconButton(const LayoutId id, const CodePoint code, const LySz ysi
                               .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
 
-    ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams(OverlayColor_Header));
+    ly.Unicode(ly.GenerateNextId(), code, getUnicodeParams());
     ly.EndPanel();
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
 }
@@ -1925,7 +1920,7 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
                                            .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
                                            .Padding = padding});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_ButtonText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     ly.EndPanel();
     PopId();
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
@@ -1959,7 +1954,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
                      .Shape = circle()});
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
 
     ly.EndPanel();
     PopId();
@@ -1998,7 +1993,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
                                                                   .Shape = rect(m_Style[OverlayStyle_CheckBoxRadius])});
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_CheckBoxText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
 
     ly.EndPanel();
     PopId();
@@ -2087,7 +2082,7 @@ bool Overlay::Selectable(const TKit::StringView label, const bool enabled, const
 {
     const bool selected = BeginSelectable(label, enabled, flags);
     Layout &ly = GetCurrentLayout();
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_SelectableText));
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
     EndSelectable();
 
     return selected;
@@ -2101,6 +2096,37 @@ bool Overlay::Selectable(const TKit::StringView label, bool *enabled, const Over
         return true;
     }
     return false;
+}
+
+void Overlay::ProgressBar(const TKit::StringView label, const TKit::StringView text, const f32 pct)
+{
+    beginHorizontalWidget(PushId(label));
+    Layout &ly = GetCurrentLayout();
+
+    const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+    const f32 lh = getLineHeight() + 2.f * padding;
+    ly.BeginPanel(LyPnPar{
+        .FillColor = m_Style[OverlayColor_ProgressBarBackground], .Alignment = Center, .Sizing = {flex(), fit(lh)}});
+
+    const bool isIndeterminate = pct < 0.f;
+    const f32 idetSize = 0.4f;
+    ly.Panel(
+        LyPnPar{.FillColor = m_Style[OverlayColor_ProgressBarInner],
+                .Sizing = snorm({isIndeterminate ? idetSize : Math::Clamp(pct, 0.f, 1.f), 1.f}),
+                .SelfOffset = onorm({isIndeterminate ? (Math::Modulo(-pct, 1.f + idetSize) - idetSize) : 0.f, 0.f}),
+                .Floating = {.Enable = true,
+                             .DrawOnTop = false,
+                             .Clip = true,
+                             .Attachment = {LayoutAttachment_Left, LayoutAttachment_Top},
+                             .Alignment = TopLeft}});
+
+    if (!text.IsEmpty())
+        ly.Text(ly.GenerateNextId(), text, getTextParams());
+
+    ly.EndPanel();
+
+    endHorizontalWidget(label);
+    PopId();
 }
 
 void Overlay::BeginTabBar(const LayoutId id)
@@ -2201,7 +2227,7 @@ bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const Overla
 
 void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
 {
-    LyTxPar params = getTextParams(OverlayColor_Text);
+    LyTxPar params = getTextParams();
     params.Mode = mode;
 
     Layout &ly = GetCurrentLayout();
@@ -2214,11 +2240,11 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
 {
     PushDirection(LayoutDirection_LeftToRight);
 
-    LyTxPar params = getTextParams(OverlayColor_Text);
+    LyTxPar params = getTextParams();
     params.Mode = mode;
 
     Layout &ly = GetCurrentLayout();
-    ly.Unicode(ly.GenerateNextId(), icon, getUnicodeParams(OverlayColor_Text));
+    ly.Unicode(ly.GenerateNextId(), icon, getUnicodeParams());
 
     const usz id = m_TextId == NullLayoutId ? ly.GenerateNextId() : m_TextId.Id;
     ly.Text(id, text, params);
@@ -2286,7 +2312,7 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
 {
     beginHorizontalWidget(PushId(label));
     const bool updated = inputTextBox(buf, size, hint, flags);
-    endHorizontalWidget(OverlayColor_InputText, label);
+    endHorizontalWidget(label);
     PopId();
     return updated;
 }
@@ -2345,7 +2371,7 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
                             .Sizing = fit(),
                             .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-            tly.Text(tly.GenerateNextId(), trimLabel(label), getTextParams(OverlayColor_Text));
+            tly.Text(tly.GenerateNextId(), trimLabel(label), getTextParams());
             HorizontalLine();
         }
 
@@ -2709,7 +2735,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
                                     .Overflow = LayoutOverflow_Spill});
 
     ly.Panel(LyPnPar{.FillColor = Color_White,
-                     .Sizing = {snorm(1.2f), sabs(rodHeight)},
+                     .Sizing = {srel(1.2f), sabs(rodHeight)},
                      .SelfOffset = oabs({0.f, pdata->HueRodPos})});
 
     ly.EndPanel();
@@ -2754,7 +2780,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
                                           .ForceBlend = true});
 
         ly.Panel(LyPnPar{.FillColor = Color_White,
-                         .Sizing = {snorm(1.2f), sabs(rodHeight)},
+                         .Sizing = {srel(1.2f), sabs(rodHeight)},
                          .SelfOffset = oabs({0.f, pdata->AlphaRodPos})});
 
         ly.EndPanel();
@@ -2766,7 +2792,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
                           .Sizing = fit(),
                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.Text(ly.GenerateNextId(), original ? "Current" : trimLabel(label), getTextParams(OverlayColor_Text));
+    ly.Text(ly.GenerateNextId(), original ? "Current" : trimLabel(label), getTextParams());
     if (!(flags & OverlayColorFlag_NoPreview))
     {
         PushStyleVar(OverlayStyle_ColorPreviewSize, m_Style[OverlayStyle_ColorPickerPreviewSize]);
@@ -2774,7 +2800,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
         ColorPreview(label, col, flags);
         if (original)
         {
-            ly.Text(ly.GenerateNextId(), "Original", getTextParams(OverlayColor_Text));
+            ly.Text(ly.GenerateNextId(), "Original", getTextParams());
             ColorPreview("Original", *original, flags);
         }
         PopStyleVar(2);
@@ -2812,12 +2838,12 @@ bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle
     {
         beginHorizontalWidget(PushId("__onyx_id_RGB"), 1.f);
         changed |= colorDrag(colPtr, col, flags);
-        endHorizontalWidget(OverlayColor_DragText);
+        endHorizontalWidget();
         PopId();
 
         beginHorizontalWidget(PushId("__onyx_id_HSV"), 1.f);
         changed |= colorDrag(colPtr, col, flags | OverlayColorFlag_HSV);
-        endHorizontalWidget(OverlayColor_DragText);
+        endHorizontalWidget();
         PopId();
 
         changed |= colorHexInput(colPtr, col, flags);
@@ -2895,7 +2921,7 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
 
     m_LastItem = oldItem;
 
-    endHorizontalWidget(OverlayColor_DragText, label);
+    endHorizontalWidget(label);
     PopId();
     return changed;
 }
@@ -3571,6 +3597,31 @@ void Overlay::ShowDemo()
             PopTree();
         }
 
+        if (PushTree("Progress bars", drawLines))
+        {
+            constexpr u32 top = 1200;
+            static u32 current = 0;
+            static f32 time = 0.f;
+            static TKit::Clock clock{};
+            static bool manual = false;
+
+            CheckBox("Manual", &manual);
+            if (manual)
+                HorizontalSlider("AAA", &current, 0u, top);
+            else
+            {
+                time += clock.Restart().AsSeconds();
+                current = u32(0.5f * (1.f - Math::Sine(time)) * top);
+            }
+            const f32 pct = f32(current) / f32(top);
+
+            ProgressBar("PB 1", pct, "{:.1f}%", 100.f * pct);
+            ProgressBar("PB 2", pct, "{}/{}", current, top);
+            ProgressBar("Indeterminate", "Waiting...", -time);
+
+            PopTree();
+        }
+
         if (PushTree("Popups", drawLines))
         {
             static Onyx::OverlayWindowFlags pflags =
@@ -4031,9 +4082,9 @@ void Overlay::ShowStyleEditor()
         colorEditor("None", OverlayColor_None);
         colorEditor("Text", OverlayColor_Text);
         colorEditor("Line", OverlayColor_Line);
-        colorEditor("InputText", OverlayColor_InputText);
         colorEditor("InputCursor", OverlayColor_InputCursor);
         colorEditor("InputHighlight", OverlayColor_InputHighlight);
+        colorEditor("InputBackground", OverlayColor_InputBackground);
         colorEditor("WindowBorderIdle", OverlayColor_WindowBorderIdle);
         colorEditor("WindowBorderHovered", OverlayColor_WindowBorderHovered);
         colorEditor("WindowBorderPressed", OverlayColor_WindowBorderPressed);
@@ -4041,43 +4092,37 @@ void Overlay::ShowStyleEditor()
         colorEditor("ButtonIdle", OverlayColor_ButtonIdle);
         colorEditor("ButtonHovered", OverlayColor_ButtonHovered);
         colorEditor("ButtonPressed", OverlayColor_ButtonPressed);
-        colorEditor("ButtonText", OverlayColor_ButtonText);
         colorEditor("CheckBoxIdle", OverlayColor_CheckBoxIdle);
         colorEditor("CheckBoxHovered", OverlayColor_CheckBoxHovered);
         colorEditor("CheckBoxPressed", OverlayColor_CheckBoxPressed);
-        colorEditor("CheckBoxText", OverlayColor_CheckBoxText);
         colorEditor("CheckBoxInner", OverlayColor_CheckBoxInner);
         colorEditor("SliderIdle", OverlayColor_SliderIdle);
         colorEditor("SliderHovered", OverlayColor_SliderHovered);
         colorEditor("SliderPressed", OverlayColor_SliderPressed);
-        colorEditor("SliderText", OverlayColor_SliderText);
         colorEditor("SliderInner", OverlayColor_SliderInner);
         colorEditor("DragIdle", OverlayColor_DragIdle);
         colorEditor("DragHovered", OverlayColor_DragHovered);
         colorEditor("DragPressed", OverlayColor_DragPressed);
-        colorEditor("DragText", OverlayColor_DragText);
         colorEditor("TreeIdle", OverlayColor_TreeIdle);
         colorEditor("TreeHovered", OverlayColor_TreeHovered);
         colorEditor("TreePressed", OverlayColor_TreePressed);
-        colorEditor("TreeText", OverlayColor_TreeText);
         colorEditor("DropDownIdle", OverlayColor_DropDownIdle);
         colorEditor("DropDownHovered", OverlayColor_DropDownHovered);
         colorEditor("DropDownPressed", OverlayColor_DropDownPressed);
-        colorEditor("DropDownText", OverlayColor_DropDownText);
         colorEditor("DropDownButton", OverlayColor_DropDownButton);
         colorEditor("SelectableIdle", OverlayColor_SelectableIdle);
         colorEditor("SelectableHovered", OverlayColor_SelectableHovered);
         colorEditor("SelectablePressed", OverlayColor_SelectablePressed);
-        colorEditor("SelectableText", OverlayColor_SelectableText);
         colorEditor("MenuItemIdle", OverlayColor_MenuItemIdle);
         colorEditor("MenuItemHovered", OverlayColor_MenuItemHovered);
         colorEditor("MenuItemPressed", OverlayColor_MenuItemPressed);
-        colorEditor("MenuItemText", OverlayColor_MenuItemText);
         colorEditor("MenuBoxBackground", OverlayColor_MenuBoxBackground);
         colorEditor("ScrollBarIdle", OverlayColor_ScrollBarIdle);
         colorEditor("ScrollBarHovered", OverlayColor_ScrollBarHovered);
         colorEditor("ScrollBarPressed", OverlayColor_ScrollBarPressed);
         colorEditor("ScrollAreaBorders", OverlayColor_ScrollAreaBorders);
+        colorEditor("ProgressBarBackground", OverlayColor_ProgressBarBackground);
+        colorEditor("ProgressBarInner", OverlayColor_ProgressBarInner);
         colorEditor("PopupBackground", OverlayColor_PopupBackground);
         colorEditor("WindowBackgroundExpanded", OverlayColor_WindowBackgroundExpanded);
         colorEditor("WindowBackgroundCollapsed", OverlayColor_WindowBackgroundCollapsed);
