@@ -1342,17 +1342,20 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
     const LayoutId iboxId = IdFromStack("__onyx_id_Input_box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(
-        ibox, FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
-                  FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover);
+    const bool mustConvert = cflags & InputConvertFlag_MustConvert;
+
+    FocusFlags fflags = FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
+                        FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover;
+    if (mustConvert)
+        fflags |= FocusFlag_AllowPressedPickUp;
+
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ibox, fflags);
 
     ly.BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
                                   .Alignment = CenterLeft,
                                   .Sizing = {grow(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_InputBoxRadius]),
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
-
-    const bool mustConvert = cflags & InputConvertFlag_MustConvert;
 
     // This input text box may be a "converted" slider/drag. this means that the first frame (where layout
     // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
@@ -1821,9 +1824,10 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         return outFlags;
     }
 
+    const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
     const bool rclicked = focusHovered && checkFlags(StateFlag_RightMouseReleased);
     const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse &&
-                         (lmpressed || m_PressedId == elm->Id);
+                         (allowPickup || lmpressed || m_PressedId == elm->Id);
 
     if (focusHovered && setHovered)
     {

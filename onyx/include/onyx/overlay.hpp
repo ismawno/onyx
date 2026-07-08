@@ -70,6 +70,7 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_DoNotSetActiveId = 1U << 21,
     FocusFlag_DoNotProtectPopup = 1U << 22,
     FocusFlag_EnableDragging = 1U << 23,
+    FocusFlag_AllowPressedPickUp = 1U << 24,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
                          FocusFlag_DoNotProtectPopup
 };
