@@ -26,6 +26,7 @@ enum StateFlagBit : StateFlags
 
     StateFlag_ActiveIdMustPersist = 1U << 4,
     StateFlag_PressedIdMustPersist = 1U << 5,
+    StateFlag_DraggedIdMustPersist = 1U << 5,
     StateFlag_ActiveAllowsInteraction = 1U << 6,
 
     StateFlag_MustCollapsePopups = 1U << 7,
@@ -69,6 +70,9 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_DropDownRadius] = 0.f;
     vars[OverlayStyle_DropDownPopupRadius] = 0.f;
+
+    vars[OverlayStyle_DragThreshold] = 16.f;
+    vars[OverlayStyle_DragOutlineWidth] = 0.3f;
 
     vars[OverlayStyle_ScrollAreaBorderRadius] = 0.f;
     vars[OverlayStyle_TreeRadius] = 0.f;
@@ -244,6 +248,8 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_None] = Color_Transparent;
     colors[OverlayColor_Text] = palette[OverlayPalette_Text0];
     colors[OverlayColor_Line] = palette[OverlayPalette_Background1];
+
+    colors[OverlayColor_DragOutline] = palette[OverlayPalette_Background1];
 
     colors[OverlayColor_InputCursor] = palette[OverlayPalette_Text0];
     colors[OverlayColor_InputHighlight] = palette[OverlayPalette_Pressed0];
@@ -531,6 +537,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const
     const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
     const bool popupCollapseBlocked = m_StateFlags & StateFlag_FocusBlockByPopupCollapse;
     const bool disabledBlocked = m_StateFlags & StateFlag_Disabled;
+    const bool dragBlocked = m_DraggedId != NullLayoutId && m_DraggedId != id;
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
@@ -540,6 +547,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const
     flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByDisabled * disabledBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByDrag * dragBlocked;
 
     return flags;
 }
@@ -1823,6 +1831,28 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         outFlags |= OverlayFocusQueryFlag_Hovered;
     }
 
+    if (flags & FocusFlag_EnableDragging)
+    {
+        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && m_PressingLeftMouse);
+        if (dragged)
+        {
+            m_DraggedId = elm->Id;
+            m_StateFlags |= StateFlag_DraggedIdMustPersist;
+            outFlags |= OverlayFocusQueryFlag_DragSource;
+        }
+
+        const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
+                                                              OverlayHoveredFlag_AllowBlockedByActiveItem |
+                                                              OverlayHoveredFlag_AllowBlockedByDrag);
+        if (dragHovered && m_DraggedId != NullLayoutId)
+        {
+            if (m_DragDropId != NullLayoutId)
+                outFlags |= OverlayFocusQueryFlag_DragTarget;
+            if (lmreleased)
+                outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
+        }
+    }
+
     if (pressed)
     {
         if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
@@ -1864,6 +1894,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         }
     }
 
+    // *i think* lmreleased check could be omitted bc pressed id wont be set if mouse is not being pressed rn
     if (m_PressedId == elm->Id && !lmreleased)
         m_StateFlags |= StateFlag_PressedIdMustPersist;
 
@@ -2317,75 +2348,38 @@ bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const
     return updated;
 }
 
-void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
+void Overlay::ColorPreviewTooltip(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
 {
-    const f32 previewSize = m_Style[OverlayStyle_ColorPreviewSize];
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const bool tlabel = !(flags & OverlayColorFlag_NoTooltipLabel);
     const f32 tooltipSize = m_Style[OverlayStyle_ColorTooltipSize];
 
-    PushId(label);
-    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
-    const auto drawPreview = [&](Layout &ly, const f32 size) {
-        if (alpha)
-        {
-            const f32 hsize = 0.5f * size;
-            ly.BeginPanel(
-                LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(size)});
-
-            // top horizontal checkboard strip
-            ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
-
-            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
-            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
-
-            ly.EndPanel();
-
-            // bottom horizontal checkboard strip
-            ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
-
-            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
-            ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
-
-            ly.EndPanel();
-
-            const usz id = ly.Panel(IdFromStack("__onyx_id_Preview"),
-                                    {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
-
-            ly.EndPanel();
-            return id;
-        }
-        return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
-    };
-
-    const usz id = drawPreview(GetCurrentLayout(), previewSize);
-    m_LastItem = id;
-
-    const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
-    if (tooltip && BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
+    Layout &ly = GetCurrentLayout();
+    const bool info = !(flags & OverlayColorFlag_NoTooltipColorInfo);
+    if (info)
     {
-        const bool tlabel = !(flags & OverlayColorFlag_NoTooltipLabel);
-        Layout &tly = GetCurrentLayout();
         if (tlabel)
         {
-            tly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
-                            .Alignment = CenterLeft,
-                            .Sizing = fit(),
-                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
+            ly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                           .Alignment = CenterLeft,
+                           .Sizing = fit(),
+                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-            tly.Text(tly.GenerateNextId(), trimLabel(label), getTextParams());
+            ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
             HorizontalLine();
         }
 
-        tly.BeginPanel({.Direction = LayoutDirection_LeftToRight,
-                        .Alignment = CenterLeft,
-                        .Sizing = fit(),
-                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly.BeginPanel({.Direction = LayoutDirection_LeftToRight,
+                       .Alignment = CenterLeft,
+                       .Sizing = fit(),
+                       .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-        drawPreview(tly, tooltipSize);
+        drawColorPreview(col, tooltipSize, alpha);
 
-        tly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
-                        .Alignment = CenterLeft,
-                        .Sizing = fit(),
-                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly.BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                       .Alignment = CenterLeft,
+                       .Sizing = fit(),
+                       .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
         const f32v4 hsv = col.ToHSV();
         if (flags & OverlayColorFlag_Float)
@@ -2419,11 +2413,38 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
             Text("Hex: #{:08X}", col.ToHexadecimal<u32>(true));
         else
             Text("Hex: #{:06X}", col.ToHexadecimal<u32>(false));
-
-        tly.EndPanel();
-        tly.EndPanel();
+        ly.EndPanel();
+        ly.EndPanel();
         if (tlabel)
-            tly.EndPanel();
+            ly.EndPanel();
+    }
+    else
+    {
+        ly.BeginPanel({.Direction = LayoutDirection_LeftToRight,
+                       .Alignment = CenterLeft,
+                       .Sizing = fit(),
+                       .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        drawColorPreview(col, tooltipSize, alpha);
+        if (tlabel)
+            ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+        ly.EndPanel();
+    }
+}
+
+void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
+{
+    const f32 previewSize = m_Style[OverlayStyle_ColorPreviewSize];
+
+    PushId(label);
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+
+    const usz id = drawColorPreview(col, previewSize, alpha);
+    m_LastItem = id;
+
+    const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
+    if (tooltip && BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
+    {
+        ColorPreviewTooltip(label, col, flags);
         EndTooltip();
     }
 
@@ -2822,6 +2843,39 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     return changed;
 }
 
+usz Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
+{
+    Layout &ly = GetCurrentLayout();
+    if (alpha)
+    {
+        const f32 hsize = 0.5f * size;
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(size)});
+
+        // top horizontal checkboard strip
+        ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+
+        ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
+        ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
+
+        ly.EndPanel();
+
+        // bottom horizontal checkboard strip
+        ly.BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+
+        ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
+        ly.Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
+
+        ly.EndPanel();
+
+        const usz id = ly.Panel(IdFromStack("__onyx_id_Preview"),
+                                {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
+
+        ly.EndPanel();
+        return id;
+    }
+    return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
+}
+
 bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
                           const f32 size, const OverlayColorFlags flags)
 {
@@ -2926,6 +2980,61 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
     return changed;
 }
 
+bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
+{
+    Layout &ly = GetCurrentLayout();
+    const LayoutElement *elm = ly.QueryElement(m_LastItem);
+    const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
+
+    const f32 th = m_Style[OverlayStyle_DragThreshold];
+    const f32 drag = Math::NormSquared(m_MousePos - m_MousePosOnPress);
+    if ((m_DragDropId == m_LastItem || drag > th * th) && focusFlags & OverlayFocusQueryFlag_DragSource)
+    {
+        m_DragDropId = m_LastItem;
+        BeginTooltip();
+
+        m_DragDropFlags |= flags;
+        return true;
+    }
+    return false;
+}
+void Overlay::EndDragDropSource()
+{
+    EndTooltip();
+    if (m_DragDropFlags & (OverlayDragDropFlag_SourceNoTooltip | DragDropFlag_MustClearTooltip))
+    {
+        m_Tooltip->Layout.Reset();
+        m_Tooltip = nullptr;
+    }
+
+    m_DragDropFlags = 0;
+}
+bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
+{
+    Layout &ly = GetCurrentLayout();
+    const LayoutElement *elm = ly.QueryElement(m_LastItem);
+    const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
+
+    m_DragDropFlags = flags;
+    if (focusFlags & OverlayFocusQueryFlag_DragTarget)
+    {
+        LayoutElement *mod = ly.ModifyElement(m_LastItem);
+        mod->OutlineColor = m_Style[OverlayColor_DragOutline];
+        mod->OutlineWidth = m_Style[OverlayStyle_DragOutlineWidth];
+        if (flags & OverlayDragDropFlag_TargetNoTooltip)
+        {
+            m_Tooltip->Layout.Reset();
+            m_Tooltip = nullptr;
+            m_DragDropFlags |= DragDropFlag_MustClearTooltip;
+        }
+        if (flags & OverlayDragDropFlag_TargetAcceptOnHover)
+            return true;
+    }
+
+    m_DragDropFlags |= DragDropFlag_MustClearPayload;
+    return focusFlags & OverlayFocusQueryFlag_DragPayloadDropped;
+}
+
 bool Overlay::WantCaptureMouse() const
 {
     return m_StateFlags & StateFlag_WantCaptureMouse;
@@ -3024,8 +3133,11 @@ u32 Overlay::processWindows()
         m_ActiveId = NullLayoutId;
         m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
     }
+
     if (!(m_StateFlags & StateFlag_PressedIdMustPersist))
         m_PressedId = NullLayoutId;
+    if (!(m_StateFlags & StateFlag_DraggedIdMustPersist))
+        m_DraggedId = NullLayoutId;
 
     TKIT_ASSERT(m_PopupCollapseDepth <= m_PopupStack.GetSize(),
                 "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
@@ -3148,6 +3260,7 @@ u32 Overlay::processWindows()
                 m_PressingLeftMouse = false;
                 m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
                 m_WidgetStates[LayoutId{"__onyx_id_Menu_bar"}] = 0;
+                m_DragDropId = NullLayoutId;
             }
             if (ev.Mouse.Button == Mouse_Button2)
                 m_StateFlags |= StateFlag_RightMouseReleased;
@@ -3304,6 +3417,7 @@ u32 Overlay::processWindows()
         hinfo->WheelOffset += scroll[0];
 
     m_ScrollStack.Clear();
+    m_DragDropFlags = 0;
     return modalWindow;
 }
 
@@ -3541,6 +3655,72 @@ void Overlay::ShowDemo()
             PopTree();
         }
 
+        if (PushTree("Drag & Drop"))
+        {
+            static Onyx::OverlayDragDropFlags dflags = 0;
+            CheckBoxFlags("OverlayDragDropFlag_SourceNoTooltip", &dflags, Onyx::OverlayDragDropFlag_SourceNoTooltip);
+            CheckBoxFlags("OverlayDragDropFlag_TargetNoTooltip", &dflags, Onyx::OverlayDragDropFlag_TargetNoTooltip);
+            CheckBoxFlags("OverlayDragDropFlag_TargetAcceptOnHover", &dflags,
+                          Onyx::OverlayDragDropFlag_TargetAcceptOnHover);
+
+            static Onyx::Color col1 = Color_Orange;
+            static Onyx::Color col2 = Color_Cyan;
+
+            ColorEditor("Pick me up!", &col1);
+            if (BeginDragDropSource(dflags))
+            {
+                SetDragDropPayload("COLOR", &col1);
+                PushStyleVar(OverlayStyle_ColorTooltipSize, 32.f);
+                ColorPreviewTooltip("Color", col1, OverlayColorFlag_NoTooltipColorInfo);
+                PopStyleVar();
+                EndDragDropSource();
+            }
+
+            ColorEditor("Drop something on me!", &col2);
+            if (BeginDragDropTarget(dflags))
+            {
+                if (const auto pl = AcceptDragDropPayload("COLOR"))
+                    col2 = *rcast<Color *>(pl.Data);
+                EndDragDropTarget();
+            }
+
+            static f32 val1 = 1.f;
+            static f32 val2 = 2.f;
+            static f32 val3 = 3.f;
+
+            HorizontalSlider("Pick me up!##Slider", &val1, 0.f, 10.f);
+            if (BeginDragDropSource(dflags))
+            {
+                SetDragDropPayload("VALUE", &val1);
+                Text("Value: {}", val1);
+                EndDragDropSource();
+            }
+
+            HorizontalSlider("Drop something on me!##Slider", &val2, 0.f, 10.f);
+            if (BeginDragDropTarget(dflags))
+            {
+                if (const auto pl = AcceptDragDropPayload("VALUE"))
+                    val2 = *rcast<f32 *>(pl.Data);
+                EndDragDropTarget();
+            }
+
+            HorizontalDrag("You can do both here!##Drag", &val3, 0.1f, 0.f, 10.f);
+            if (BeginDragDropSource(dflags))
+            {
+                SetDragDropPayload("VALUE", &val3);
+                Text("Value: {}", val3);
+                EndDragDropSource();
+            }
+            if (BeginDragDropTarget(dflags))
+            {
+                if (const auto pl = AcceptDragDropPayload("VALUE"))
+                    val3 = *rcast<f32 *>(pl.Data);
+                EndDragDropTarget();
+            }
+
+            PopTree();
+        }
+
         if (PushTree("Dropdowns", drawLines))
         {
             static Onyx::OverlayDropDownFlags dflags = 0;
@@ -3684,6 +3864,8 @@ void Overlay::ShowDemo()
                           Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
             CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
                           Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
+            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDrag", &hflags,
+                          Onyx::OverlayHoveredFlag_AllowBlockedByDrag);
             CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
 
             BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
@@ -4082,6 +4264,7 @@ void Overlay::ShowStyleEditor()
         colorEditor("None", OverlayColor_None);
         colorEditor("Text", OverlayColor_Text);
         colorEditor("Line", OverlayColor_Line);
+        colorEditor("DragOutline", OverlayColor_DragOutline);
         colorEditor("InputCursor", OverlayColor_InputCursor);
         colorEditor("InputHighlight", OverlayColor_InputHighlight);
         colorEditor("InputBackground", OverlayColor_InputBackground);
@@ -4164,6 +4347,8 @@ void Overlay::ShowStyleEditor()
         varSlider("MenuBarRadius", OverlayStyle_MenuBarRadius, 0.f, 50.f);
         varSlider("DropDownRadius", OverlayStyle_DropDownRadius, 0.f, 50.f);
         varSlider("DropDownPopupRadius", OverlayStyle_DropDownPopupRadius, 0.f, 50.f);
+        varSlider("DragThreshold", OverlayStyle_DragThreshold, 0.f, 50.f);
+        varSlider("DragOutlineWidth", OverlayStyle_DragOutlineWidth, 0.f, 1.f);
         varSlider("ScrollAreaBorderRadius", OverlayStyle_ScrollAreaBorderRadius, 0.f, 50.f);
         varSlider("TreeRadius", OverlayStyle_TreeRadius, 0.f, 50.f);
         varSlider("InputBoxRadius", OverlayStyle_InputBoxRadius, 0.f, 50.f);

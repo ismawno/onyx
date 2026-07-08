@@ -34,7 +34,7 @@ enum WidgetStateFlagBit : WidgetStateFlags
 };
 
 // public focus query flags -> these flags are given to the user/dev by queries
-using OverlayFocusQueryFlags = u8;
+using OverlayFocusQueryFlags = u16;
 enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
 {
     OverlayFocusQueryFlag_Hovered = 1U << 0,
@@ -45,6 +45,9 @@ enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
     OverlayFocusQueryFlag_Active = 1U << 5,
     OverlayFocusQueryFlag_JustActive = 1U << 6,
     OverlayFocusQueryFlag_PopupOpen = 1U << 7,
+    OverlayFocusQueryFlag_DragSource = 1U << 8,
+    OverlayFocusQueryFlag_DragTarget = 1U << 9,
+    OverlayFocusQueryFlag_DragPayloadDropped = 1U << 10,
 };
 
 // internal focus flags -> these configure how querying focus behave
@@ -66,6 +69,7 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_DoNotSetPressedId = 1U << 20,
     FocusFlag_DoNotSetActiveId = 1U << 21,
     FocusFlag_DoNotProtectPopup = 1U << 22,
+    FocusFlag_EnableDragging = 1U << 23,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
                          FocusFlag_DoNotProtectPopup
 };
@@ -161,10 +165,11 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
     OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
     OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
     OverlayHoveredFlag_AllowBlockedByDisabled = 1U << 6,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 7,
-    OverlayHoveredFlag_ShortDelay = 1U << 8,
-    OverlayHoveredFlag_NormalDelay = 1U << 9,
-    OverlayHoveredFlag_Stationary = 1U << 10,
+    OverlayHoveredFlag_AllowBlockedByDrag = 1U << 7,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 8,
+    OverlayHoveredFlag_ShortDelay = 1U << 9,
+    OverlayHoveredFlag_NormalDelay = 1U << 10,
+    OverlayHoveredFlag_Stationary = 1U << 11,
 };
 
 using OverlayHoverQueryFlags = OverlayHoveredFlags;
@@ -177,6 +182,7 @@ enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
     OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
     OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
     OverlayHoverQueryFlag_BlockedByDisabled = OverlayHoveredFlag_AllowBlockedByDisabled,
+    OverlayHoverQueryFlag_BlockedByDrag = OverlayHoveredFlag_AllowBlockedByDrag,
     OverlayHoverQueryFlag_Hovered = 1U << 15,
 };
 
@@ -190,9 +196,10 @@ enum OverlayColorFlagBit : OverlayColorFlags
     OverlayColorFlag_NoTooltip = 1U << 4,
     OverlayColorFlag_NoPreview = 1U << 5,
     OverlayColorFlag_NoTooltipLabel = 1U << 6,
-    OverlayColorFlag_HSV = 1U << 7,
-    OverlayColorFlag_Hex = 1U << 8,
-    OverlayColorFlag_Float = 1U << 9,
+    OverlayColorFlag_NoTooltipColorInfo = 1U << 7,
+    OverlayColorFlag_HSV = 1U << 8,
+    OverlayColorFlag_Hex = 1U << 9,
+    OverlayColorFlag_Float = 1U << 10,
 };
 
 using OverlayButtonFlags = u8;
@@ -237,6 +244,18 @@ enum OverlayPopupFlagBit : OverlayPopupFlags
     OverlayPopupFlag_RightClick = OverlayFocusQueryFlag_RightClicked
 };
 
+using OverlayDragDropFlags = u8;
+enum OverlayDragDropFlagBit : OverlayDragDropFlags
+{
+    OverlayDragDropFlag_SourceNoTooltip = 1U << 0,
+
+    OverlayDragDropFlag_TargetNoTooltip = 1U << 1,
+    OverlayDragDropFlag_TargetAcceptOnHover = 1U << 2,
+
+    DragDropFlag_MustClearPayload = 1U << 3,
+    DragDropFlag_MustClearTooltip = 1U << 4,
+};
+
 using NextWindowFlags = u8;
 enum NextWindowFlagBit : NextWindowFlags
 {
@@ -276,6 +295,8 @@ enum OverlayColor : u8
     OverlayColor_None,
     OverlayColor_Text,
     OverlayColor_Line,
+
+    OverlayColor_DragOutline,
 
     OverlayColor_InputCursor,
     OverlayColor_InputHighlight,
@@ -354,6 +375,9 @@ enum OverlayStyleVariable : u8
 
     OverlayStyle_DropDownRadius,
     OverlayStyle_DropDownPopupRadius,
+
+    OverlayStyle_DragThreshold,
+    OverlayStyle_DragOutlineWidth,
 
     OverlayStyle_ScrollAreaBorderRadius,
     OverlayStyle_TreeRadius,
@@ -602,6 +626,18 @@ struct TabBarData
     u32 OpenIndex = 0;
 };
 
+struct OverlayDragDropPayload
+{
+    TKit::StringView Identifier{};
+    void *Data = nullptr;
+    u32 Size = 0;
+
+    operator bool() const
+    {
+        return Size != 0;
+    }
+};
+
 class Overlay
 {
     TKIT_NON_COPYABLE(Overlay)
@@ -842,6 +878,7 @@ class Overlay
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
+    void ColorPreviewTooltip(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
     void ColorPreview(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
 
     bool ColorPicker(TKit::StringView label, OverlayColorHandle color, const Color *original, f32 pickerSize,
@@ -1238,6 +1275,37 @@ class Overlay
     // /style //
 
     // query //
+
+    bool BeginDragDropSource(OverlayDragDropFlags flags = 0);
+    void EndDragDropSource();
+
+    bool BeginDragDropTarget(OverlayDragDropFlags flags = 0);
+    void EndDragDropTarget()
+    {
+        if (m_DragDropFlags & DragDropFlag_MustClearPayload)
+        {
+            m_DragDropPayload = {};
+            m_DragDropFlags = 0;
+        }
+    }
+
+    // NOTE(Isma, 08/07/26) right now identifiers' memory is owned by user. may consider copying the actual string
+    // contents into payload
+    void SetDragDropPayload(const TKit::StringView identifier, void *data, const u32 size)
+    {
+        m_DragDropPayload = {identifier, data, size};
+    }
+    template <typename T> void SetDragDropPayload(const TKit::StringView identifier, T *data)
+    {
+        SetDragDropPayload(identifier, data, sizeof(T));
+    }
+    OverlayDragDropPayload AcceptDragDropPayload(const TKit::StringView identifier)
+    {
+        if (!m_DragDropPayload || m_DragDropPayload.Identifier == identifier)
+            return m_DragDropPayload;
+        return {};
+    }
+
     OverlayHoverQueryFlags QueryItemHoverStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
     {
         return queryHoverStatus(GetCurrentLayout().QueryElement(m_LastItem), hoverPadding);
@@ -1309,7 +1377,8 @@ class Overlay
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
-        return RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency;
+        return RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency | RenderViewFlag_PostProcess |
+               RenderViewFlag_Outlines;
     }
 
     void ShowDemo();
@@ -1579,6 +1648,7 @@ class Overlay
     bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
     bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
                      OverlayColorFlags flags, f32 size);
+    usz drawColorPreview(const Color &col, f32 size, bool alpha);
 
     void closePopup(u32 depth);
     void requestCollapsePopups();
@@ -1590,6 +1660,7 @@ class Overlay
     u32 processWindows();
 
     void drawWindowBorders();
+
     bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
     void addActiveWindow(OverlayWindow *win);
     void popWindowStack();
@@ -1797,8 +1868,13 @@ class Overlay
     // interaction info
     usz m_HoveredId = NullLayoutId;
     usz m_PressedId = NullLayoutId;
+    usz m_DraggedId = NullLayoutId;
+    usz m_DragDropId = NullLayoutId;
     usz m_ActiveId = NullLayoutId;
     usz m_ActiveIdLastFrame = NullLayoutId;
+
+    OverlayDragDropPayload m_DragDropPayload{};
+    OverlayDragDropFlags m_DragDropFlags = 0;
 
     TKit::TierArray<usz> m_ScrollStack{};
 

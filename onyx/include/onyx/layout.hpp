@@ -457,6 +457,9 @@ class Layout
 
     const LayoutElement *QueryElement(LayoutId id) const;
 
+    // modification of fields that actively participate on layout compilation is not supported
+    LayoutElement *ModifyElement(LayoutId id);
+
     bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f},
                    const bool applyPaddingToClip = true) const
     {

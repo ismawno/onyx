@@ -313,6 +313,14 @@ const LayoutElement *Layout::QueryElement(const LayoutId id) const
 
     return &it->Value;
 }
+LayoutElement *Layout::ModifyElement(const LayoutId id)
+{
+    const auto it = m_InsertedElements.Find(id.Id);
+    if (it == m_InsertedElements.end())
+        return nullptr;
+
+    return &m_Elements[it->Value];
+}
 
 void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
 {
