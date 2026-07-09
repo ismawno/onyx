@@ -41,6 +41,9 @@ enum StateFlagBit : StateFlags
 
     StateFlag_WantCaptureMouse = 1U << 15,
     StateFlag_WantCaptureKeyboard = 1U << 16,
+
+    StateFlag_DragPayloadAccepted = 1U << 17,
+    StateFlag_DragPayloadRejected = 1U << 18,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
                        StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
@@ -1848,7 +1851,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
                                                               OverlayHoveredFlag_AllowBlockedByActiveItem |
                                                               OverlayHoveredFlag_AllowBlockedByDrag);
-        if (dragHovered && m_DraggedId != NullLayoutId)
+        if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
         {
             if (m_DragDropId != NullLayoutId)
                 outFlags |= OverlayFocusQueryFlag_DragTarget;
@@ -2289,6 +2292,7 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
 
 void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 {
+    m_LastItemTooltipBackup = m_LastItem;
     if (m_Tooltip && (flags & OverlayTooltipFlag_Reset))
     {
         m_Tooltip->Layout.Reset();
@@ -2340,6 +2344,7 @@ void Overlay::EndTooltip()
 {
     PopId();
     popWindowStack();
+    m_LastItem = m_LastItemTooltipBackup;
 }
 
 bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
@@ -3005,7 +3010,7 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 void Overlay::EndDragDropSource()
 {
     EndTooltip();
-    if (m_DragDropFlags & (OverlayDragDropFlag_SourceNoTooltip | DragDropFlag_MustClearTooltip))
+    if (m_Tooltip && (m_DragDropFlags & (OverlayDragDropFlag_SourceNoTooltip | DragDropFlag_MustClearTooltip)))
     {
         m_Tooltip->Layout.Reset();
         m_Tooltip = nullptr;
@@ -3015,28 +3020,59 @@ void Overlay::EndDragDropSource()
 }
 bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
 {
+    if (m_DragDropId == NullLayoutId)
+        return false;
+
     Layout &ly = GetCurrentLayout();
     const LayoutElement *elm = ly.QueryElement(m_LastItem);
     const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
 
     m_DragDropFlags = flags;
-    if (focusFlags & OverlayFocusQueryFlag_DragTarget)
+    const bool target = focusFlags & OverlayFocusQueryFlag_DragTarget;
+    if (target)
     {
-        LayoutElement *mod = ly.ModifyElement(m_LastItem);
-        mod->OutlineColor = m_Style[OverlayColor_DragOutline];
-        mod->OutlineWidth = m_Style[OverlayStyle_DragOutlineWidth];
+        if (!(flags & OverlayDragDropFlag_TargetNoOutline))
+        {
+            LayoutElement *mod = ly.ModifyElement(m_LastItem);
+            mod->OutlineColor = m_Style[OverlayColor_DragOutline];
+            mod->OutlineWidth = m_Style[OverlayStyle_DragOutlineWidth];
+        }
         if (flags & OverlayDragDropFlag_TargetNoTooltip)
         {
-            m_Tooltip->Layout.Reset();
-            m_Tooltip = nullptr;
+            if (m_Tooltip)
+            {
+                m_Tooltip->Layout.Reset();
+                m_Tooltip = nullptr;
+            }
             m_DragDropFlags |= DragDropFlag_MustClearTooltip;
         }
-        if (flags & OverlayDragDropFlag_TargetAcceptOnHover)
-            return true;
     }
 
-    m_DragDropFlags |= DragDropFlag_MustClearPayload;
-    return focusFlags & OverlayFocusQueryFlag_DragPayloadDropped;
+    if (focusFlags & OverlayFocusQueryFlag_DragPayloadDropped)
+    {
+        m_DragDropFlags |= DragDropFlag_PayloadDropped;
+        return true;
+    }
+    return target;
+}
+
+OverlayDragDropPayload Overlay::AcceptDragDropPayload(const TKit::StringView identifier)
+{
+    if (!m_DragDropPayload)
+        return {};
+
+    const bool canAccept = m_DragDropFlags & (OverlayDragDropFlag_TargetAcceptOnHover | DragDropFlag_PayloadDropped);
+    const bool isValid = m_DragDropPayload.Identifier == identifier;
+    if (isValid)
+    {
+        m_StateFlags |= StateFlag_DragPayloadAccepted;
+        if (canAccept)
+            return m_DragDropPayload;
+    }
+    else if (!(m_DragDropFlags & OverlayDragDropFlag_TargetNoNotAllowedCursor))
+        m_StateFlags |= StateFlag_DragPayloadRejected;
+
+    return {};
 }
 
 bool Overlay::WantCaptureMouse() const
@@ -3140,8 +3176,12 @@ u32 Overlay::processWindows()
 
     if (!(m_StateFlags & StateFlag_PressedIdMustPersist))
         m_PressedId = NullLayoutId;
+
     if (!(m_StateFlags & StateFlag_DraggedIdMustPersist))
+    {
         m_DraggedId = NullLayoutId;
+        m_DragDropId = NullLayoutId;
+    }
 
     TKIT_ASSERT(m_PopupCollapseDepth <= m_PopupStack.GetSize(),
                 "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
@@ -3160,6 +3200,9 @@ u32 Overlay::processWindows()
     if (!(m_StateFlags & StateFlag_RequestCaptureKeyboard))
         m_StateFlags &= ~StateFlag_WantCaptureKeyboard;
 
+    const bool notAllowed =
+        (m_StateFlags & StateFlag_DragPayloadRejected) && !(m_StateFlags & StateFlag_DragPayloadAccepted);
+
     m_StateFlags &= StateFlagPersist;
 
     m_EventKeys.ClearAll();
@@ -3172,7 +3215,7 @@ u32 Overlay::processWindows()
     // if nothing is grabbed, we check mouse cursors here
     if (!m_Grabbed)
     {
-        MouseCursor cursor = MouseCursor_Default;
+        MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow *win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
             const bool winHovered = win->CheckFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
@@ -3264,7 +3307,6 @@ u32 Overlay::processWindows()
                 m_PressingLeftMouse = false;
                 m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
                 m_WidgetStates[LayoutId{"__onyx_id_Menu_bar"}] = 0;
-                m_DragDropId = NullLayoutId;
             }
             if (ev.Mouse.Button == Mouse_Button2)
                 m_StateFlags |= StateFlag_RightMouseReleased;
@@ -3663,7 +3705,11 @@ void Overlay::ShowDemo()
         {
             static Onyx::OverlayDragDropFlags dflags = 0;
             CheckBoxFlags("OverlayDragDropFlag_SourceNoTooltip", &dflags, Onyx::OverlayDragDropFlag_SourceNoTooltip);
+
             CheckBoxFlags("OverlayDragDropFlag_TargetNoTooltip", &dflags, Onyx::OverlayDragDropFlag_TargetNoTooltip);
+            CheckBoxFlags("OverlayDragDropFlag_TargetNoOutline", &dflags, Onyx::OverlayDragDropFlag_TargetNoOutline);
+            CheckBoxFlags("OverlayDragDropFlag_TargetNoNotAllowedCursor", &dflags,
+                          Onyx::OverlayDragDropFlag_TargetNoNotAllowedCursor);
             CheckBoxFlags("OverlayDragDropFlag_TargetAcceptOnHover", &dflags,
                           Onyx::OverlayDragDropFlag_TargetAcceptOnHover);
 

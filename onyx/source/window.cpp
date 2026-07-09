@@ -293,6 +293,8 @@ static u32 toGlfwCursor(const MouseCursor cursor)
         return GLFW_CROSSHAIR_CURSOR;
     case MouseCursor_IBeam:
         return GLFW_IBEAM_CURSOR;
+    case MouseCursor_NotAllowed:
+        return GLFW_NOT_ALLOWED_CURSOR;
     default:
         TKIT_FATAL("[ONYX][WINDOW] Failed to find cursors");
         return TKIT_U32_MAX;

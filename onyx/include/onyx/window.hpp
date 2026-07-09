@@ -32,6 +32,7 @@ enum MouseCursor : u8
     MouseCursor_Hand,
     MouseCursor_CrossHair,
     MouseCursor_IBeam,
+    MouseCursor_NotAllowed,
     MouseCursor_Count,
 };
 

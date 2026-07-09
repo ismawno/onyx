@@ -251,10 +251,12 @@ enum OverlayDragDropFlagBit : OverlayDragDropFlags
     OverlayDragDropFlag_SourceNoTooltip = 1U << 0,
 
     OverlayDragDropFlag_TargetNoTooltip = 1U << 1,
-    OverlayDragDropFlag_TargetAcceptOnHover = 1U << 2,
+    OverlayDragDropFlag_TargetNoOutline = 1U << 2,
+    OverlayDragDropFlag_TargetNoNotAllowedCursor = 1U << 3,
+    OverlayDragDropFlag_TargetAcceptOnHover = 1U << 4,
 
-    DragDropFlag_MustClearPayload = 1U << 3,
-    DragDropFlag_MustClearTooltip = 1U << 4,
+    DragDropFlag_PayloadDropped = 1U << 5,
+    DragDropFlag_MustClearTooltip = 1U << 6,
 };
 
 using NextWindowFlags = u8;
@@ -1283,7 +1285,7 @@ class Overlay
     bool BeginDragDropTarget(OverlayDragDropFlags flags = 0);
     void EndDragDropTarget()
     {
-        if (m_DragDropFlags & DragDropFlag_MustClearPayload)
+        if (m_DragDropFlags & DragDropFlag_PayloadDropped)
         {
             m_DragDropPayload = {};
             m_DragDropFlags = 0;
@@ -1300,12 +1302,7 @@ class Overlay
     {
         SetDragDropPayload(identifier, data, sizeof(T));
     }
-    OverlayDragDropPayload AcceptDragDropPayload(const TKit::StringView identifier)
-    {
-        if (!m_DragDropPayload || m_DragDropPayload.Identifier == identifier)
-            return m_DragDropPayload;
-        return {};
-    }
+    OverlayDragDropPayload AcceptDragDropPayload(TKit::StringView identifier);
 
     OverlayHoverQueryFlags QueryItemHoverStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
     {
@@ -1947,6 +1944,7 @@ class Overlay
     TKit::TierArray<TextInputStateInfo> m_UndoStack{};
     TKit::TierArray<TextInputStateInfo> m_RedoStack{};
 
+    usz m_LastItemTooltipBackup = NullLayoutId;
     OverlayWindow *m_Tooltip = nullptr;
 
     f32v2 m_TopLeftBorder;
