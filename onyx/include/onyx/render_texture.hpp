@@ -18,7 +18,8 @@ class RenderTexture final : public RenderTarget
     void BeginRendering(Onyx_CommandBuffer commandBuffer);
     void EndRendering(Onyx_CommandBuffer commandBuffer);
 
-    void MarkCurrentImageInUse(const Execution::Tracker &tracker);
+    void MarkWriteImageInUse(const Execution::Tracker &tracker);
+    void MarkReadImageInUse(const Execution::Tracker &tracker);
     const u32v2 &GetDimensions() const
     {
         return m_Dimensions;

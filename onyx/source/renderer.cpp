@@ -3461,7 +3461,7 @@ RenderSubmitInfo render(VKit::Queue *graphics, const VkCommandBuffer cmd, Target
     if constexpr (std::is_same_v<Target, Window>)
         target->MarkImageSemaphoreInUse(tracker);
     else
-        target->MarkCurrentImageInUse(tracker);
+        target->MarkWriteImageInUse(tracker);
 
     target->BeginRendering(cmd);
 

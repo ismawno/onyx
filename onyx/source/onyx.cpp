@@ -361,6 +361,7 @@ void Render(const RenderInfo &info)
         const auto multiViewports = [] { return ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable; };
 #endif
 
+        u32 maxFlight = 0;
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowData *wdata = acwin.Window;
@@ -390,6 +391,7 @@ void Render(const RenderInfo &info)
             }
 #endif
             const RenderSubmitInfo rinfo = Renderer::Render(gqueue, cmd, wdata->Window, flags);
+            maxFlight = rinfo.InFlightValue;
             Execution::EndCommandBuffer(cmd);
             rinfos.Append(rinfo);
 
@@ -416,6 +418,11 @@ void Render(const RenderInfo &info)
                 }
             }
 #endif
+        }
+        if (maxFlight != 0)
+        {
+            for (RenderTexture *rtex : s_Data->RenderTextures)
+                rtex->MarkReadImageInUse({.Queue = gqueue, .InFlightValue = maxFlight});
         }
 
         Renderer::SubmitRender(gqueue, gpool, rinfos);
