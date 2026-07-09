@@ -143,6 +143,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_ColorPreviewSize] = 64.f;
     vars[OverlayStyle_ColorTooltipSize] = 96.f;
+    vars[OverlayStyle_ColorDragTooltipSize] = 32.f;
 
     vars[OverlayStyle_ColorPickerSize] = 196.f;
     vars[OverlayStyle_ColorPickerPreviewSize] = 64.f;
@@ -2955,8 +2956,9 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
         beginHorizontalWidget(PushId(label), fit(), fit());
 
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
-    TKIT_ASSERT(3 + alpha <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
-                                         "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
+    const u32 count = 3 + alpha;
+    TKIT_ASSERT(count <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
+                                     "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
 
     bool changed = false;
 
@@ -2986,6 +2988,29 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
 
     endHorizontalWidget(label);
     PopId();
+
+    if (!(flags & OverlayColorFlag_NoDragDrop))
+    {
+        if (BeginDragDropSource())
+        {
+            SetDragDropPayload("__onyx_id_Color", colPtr, count);
+            PushStyleVar(OverlayStyle_ColorTooltipSize, m_Style[OverlayStyle_ColorDragTooltipSize]);
+            ColorPreviewTooltip(label, col, OverlayColorFlag_NoTooltipColorInfo);
+            PopStyleVar();
+            EndDragDropSource();
+        }
+        if (BeginDragDropTarget())
+        {
+            if (const auto pl = AcceptDragDropPayload("__onyx_id_Color"))
+            {
+                const u32 size = Math::Min(count, pl.Size);
+                const f32 *payload = rcast<f32 *>(pl.Data);
+                for (u32 i = 0; i < size; ++i)
+                    colPtr[i] = payload[i];
+            }
+            EndDragDropTarget();
+        }
+    }
     return changed;
 }
 
@@ -3703,6 +3728,13 @@ void Overlay::ShowDemo()
 
         if (PushTree("Drag & Drop"))
         {
+            TextRaw(
+                TextMode_Wrapped,
+                "Generally drag & drop is enabled by default in color editors. Here it is "
+                "disabled explicitly by using OverlayColorFlag_NoDragDrop for demonstration "
+                "purposes through the user-facing API. Color editors are the only widgets (for "
+                "now) that provide drag & drop capabilities out of the box, but they can be set up for any UI element");
+
             static Onyx::OverlayDragDropFlags dflags = 0;
             CheckBoxFlags("OverlayDragDropFlag_SourceNoTooltip", &dflags, Onyx::OverlayDragDropFlag_SourceNoTooltip);
 
@@ -3716,7 +3748,7 @@ void Overlay::ShowDemo()
             static Onyx::Color col1 = Color_Orange;
             static Onyx::Color col2 = Color_Cyan;
 
-            ColorEditor("Pick me up!", &col1);
+            ColorEditor("Pick me up!", &col1, OverlayColorFlag_NoDragDrop);
             if (BeginDragDropSource(dflags))
             {
                 SetDragDropPayload("COLOR", &col1);
@@ -3726,7 +3758,7 @@ void Overlay::ShowDemo()
                 EndDragDropSource();
             }
 
-            ColorEditor("Drop something on me!", &col2);
+            ColorEditor("Drop something on me!", &col2, OverlayColorFlag_NoDragDrop);
             if (BeginDragDropTarget(dflags))
             {
                 if (const auto pl = AcceptDragDropPayload("COLOR"))
@@ -4448,6 +4480,7 @@ void Overlay::ShowStyleEditor()
         varSlider("CursorOpacity", OverlayStyle_CursorOpacity, 0.f, 1.f);
         varSlider("ColorPreviewSize", OverlayStyle_ColorPreviewSize, 10.f, 300.f);
         varSlider("ColorTooltipSize", OverlayStyle_ColorTooltipSize, 10.f, 300.f);
+        varSlider("ColorDragTooltipSize", OverlayStyle_ColorDragTooltipSize, 10.f, 300.f);
         varSlider("ColorPickerSize", OverlayStyle_ColorPickerSize, 50.f, 500.f);
         EndTab();
     }

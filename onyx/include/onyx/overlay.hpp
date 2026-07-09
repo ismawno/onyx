@@ -198,9 +198,10 @@ enum OverlayColorFlagBit : OverlayColorFlags
     OverlayColorFlag_NoPreview = 1U << 5,
     OverlayColorFlag_NoTooltipLabel = 1U << 6,
     OverlayColorFlag_NoTooltipColorInfo = 1U << 7,
-    OverlayColorFlag_HSV = 1U << 8,
-    OverlayColorFlag_Hex = 1U << 9,
-    OverlayColorFlag_Float = 1U << 10,
+    OverlayColorFlag_NoDragDrop = 1U << 8,
+    OverlayColorFlag_HSV = 1U << 9,
+    OverlayColorFlag_Hex = 1U << 10,
+    OverlayColorFlag_Float = 1U << 11,
 };
 
 using OverlayButtonFlags = u8;
@@ -449,6 +450,7 @@ enum OverlayStyleVariable : u8
 
     OverlayStyle_ColorPreviewSize,
     OverlayStyle_ColorTooltipSize,
+    OverlayStyle_ColorDragTooltipSize,
 
     OverlayStyle_ColorPickerSize,
     OverlayStyle_ColorPickerPreviewSize,
