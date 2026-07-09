@@ -412,7 +412,7 @@ class Layout
     // here id is not guaranteed to be persisted accross frames, so no point in returning it
     void BeginPanel(const LayoutPanelParameters &params = {})
     {
-        BeginPanel(GenerateNextId(), params);
+        BeginPanel(NullLayoutId, params);
     }
 
     usz Panel(const LayoutId id, const LayoutPanelParameters &params = {})
@@ -504,7 +504,9 @@ class Layout
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
     TKit::TierHashMap<usz, u32> m_InsertedElements{};
-    TKit::TierHashMap<usz, LayoutElement> m_ElementMap{};
+
+    TKit::TierArray<LayoutElement> m_GenerationalElements{};
+    TKit::TierHashMap<usz, u32> m_GenerationalMap{};
 
     LayoutSpecs m_Specs{};
     usz m_AutoId = 0;

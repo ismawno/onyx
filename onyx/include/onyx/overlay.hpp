@@ -1490,11 +1490,9 @@ class Overlay
         // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
         // so, we offset text slot by 1 parent to align it correctly
 
-        ly.BeginPanel(IdFromStack("__onyx_id_Slider_slot"),
-                      LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
+        ly.BeginPanel(LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
 
-        ly.Panel(IdFromStack("__onyx_id_Slider_button"),
-                 LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+        ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
                          .Sizing = {sabs(innerWidth), grow()},
                          .SelfOffset = oabs({offset, 0.f}),
                          .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});

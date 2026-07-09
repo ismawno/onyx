@@ -17,6 +17,9 @@ Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
 
 void Layout::insertId(const LayoutId id, const u32 idx)
 {
+    if (id == NullLayoutId)
+        return;
+
 #ifdef TKIT_ENABLE_ASSERTS
     if (id.__DebugName.IsEmpty())
     {
@@ -307,11 +310,11 @@ bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool
 
 const LayoutElement *Layout::QueryElement(const LayoutId id) const
 {
-    const auto it = m_ElementMap.Find(id.Id);
-    if (it == m_ElementMap.end())
+    const auto it = m_GenerationalMap.Find(id.Id);
+    if (it == m_GenerationalMap.end())
         return nullptr;
 
-    return &it->Value;
+    return &m_GenerationalElements[it->Value];
 }
 LayoutElement *Layout::ModifyElement(const LayoutId id)
 {
@@ -704,6 +707,9 @@ void Layout::Compile()
     TKit::StackArray<u32> textElms{};
     textElms.Reserve(count);
 
+    m_GenerationalElements.Clear();
+    m_GenerationalMap.Clear();
+
     for (u32 i = 0; i < count; ++i)
     {
         const u32 fidx = i;
@@ -737,7 +743,21 @@ void Layout::Compile()
 
     for (const LayoutElement &elm : m_Elements)
     {
-        m_ElementMap[elm.Id] = elm;
+        if (elm.Id != NullLayoutId)
+        {
+            // persisting all past elements costs too much memory in the long run. this is at the cost of more "one
+            // frame glitches" when past elements are not available
+
+            // const u32 genSize = m_GenerationalElements.GetSize();
+            // const u32 idx = m_GenerationalMap.TryInsert(elm.Id, genSize);
+            // if (idx == genSize)
+            //     m_GenerationalElements.Append(elm);
+            // else
+            //     m_GenerationalElements[idx] = elm;
+            m_GenerationalMap.Insert(elm.Id, m_GenerationalElements.GetSize());
+            m_GenerationalElements.Append(elm);
+        }
+
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
