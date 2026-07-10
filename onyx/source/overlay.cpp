@@ -8,6 +8,7 @@ namespace Onyx
 {
 static constexpr f32 s_CheckboardLight = 0.5f;
 static constexpr f32 s_CheckboardDark = 0.3f;
+static const LayoutId s_MenuBarId = LayoutId{"__onyx_id_Menu_bar"};
 
 enum ResizeFlagBit : ResizeFlags
 {
@@ -18,36 +19,39 @@ enum ResizeFlagBit : ResizeFlags
 };
 enum StateFlagBit : StateFlags
 {
-    StateFlag_LeftMousePressed = 1U << 0,
-    StateFlag_LeftMouseReleased = 1U << 1,
+    StateFlag_ActiveIdMustPersist = 1U << 0,
+    StateFlag_PressedIdMustPersist = 1U << 1,
+    StateFlag_DraggedIdMustPersist = 1U << 2,
+    StateFlag_ActiveAllowsInteraction = 1U << 3,
 
-    StateFlag_RightMousePressed = 1U << 2,
-    StateFlag_RightMouseReleased = 1U << 3,
+    StateFlag_MustCollapsePopups = 1U << 4,
+    StateFlag_FocusBlockByPopupCollapse = 1U << 5,
+    StateFlag_PopupProtectionForbidden = 1U << 6,
+    StateFlag_MainMenuBarActive = 1U << 7,
+    StateFlag_MenuBarActive = 1U << 8,
+    StateFlag_Disabled = 1U << 9,
 
-    StateFlag_ActiveIdMustPersist = 1U << 4,
-    StateFlag_PressedIdMustPersist = 1U << 5,
-    StateFlag_DraggedIdMustPersist = 1U << 5,
-    StateFlag_ActiveAllowsInteraction = 1U << 6,
+    StateFlag_RequestCaptureMouse = 1U << 10,
+    StateFlag_RequestCaptureKeyboard = 1U << 11,
 
-    StateFlag_MustCollapsePopups = 1U << 7,
-    StateFlag_FocusBlockByPopupCollapse = 1U << 8,
-    StateFlag_PopupProtectionForbidden = 1U << 9,
-    StateFlag_MainMenuBarActive = 1U << 10,
-    StateFlag_MenuBarActive = 1U << 11,
-    StateFlag_Disabled = 1U << 12,
+    StateFlag_WantCaptureMouse = 1U << 12,
+    StateFlag_WantCaptureKeyboard = 1U << 13,
 
-    StateFlag_RequestCaptureMouse = 1U << 13,
-    StateFlag_RequestCaptureKeyboard = 1U << 14,
-
-    StateFlag_WantCaptureMouse = 1U << 15,
-    StateFlag_WantCaptureKeyboard = 1U << 16,
-
-    StateFlag_DragPayloadAccepted = 1U << 17,
-    StateFlag_DragPayloadRejected = 1U << 18,
+    StateFlag_DragPayloadAccepted = 1U << 14,
+    StateFlag_DragPayloadRejected = 1U << 15,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
                        StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
 };
+enum NativeWindowFlagBit : NativeWindowFlags
+{
+    NativeWindowFlag_LeftMousePressed = 1U << 0,
+    NativeWindowFlag_LeftMouseReleased = 1U << 1,
+
+    NativeWindowFlag_RightMousePressed = 1U << 2,
+    NativeWindowFlag_RightMouseReleased = 1U << 3,
+};
+
 enum WindowInternalFlagBit : OverlayWindowFlags
 {
     WindowInternalFlag_Hovered = 1U << 0,
@@ -324,18 +328,27 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     return colors;
 }
 
+NativeWindow Overlay::createNativeWindow(Window *win)
+{
+    NativeWindow nw{};
+    nw.Window = win;
+    nw.View = win->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
+
+    nw.Context = CreateRenderContext<D2>();
+    nw.Context->AddTarget(nw.View);
+
+    return nw;
+}
+
 Overlay::Overlay(Window *win, const OverlaySpecs &specs)
-    : m_LayoutSpecs(specs.Layout), m_Window(win), m_Style(specs.Style), m_DefaultStyle(specs.Style)
+    : m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
 {
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    m_View = m_Window->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
-
-    m_Context = CreateRenderContext<D2>();
-    m_Context->AddTarget(m_View);
+    m_Native = createNativeWindow(win);
     updateMainWindowBorders();
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
@@ -525,8 +538,8 @@ void Overlay::popWindowStack()
 
 void Overlay::updateMainWindowBorders()
 {
-    m_TopLeftBorder = m_View->ScreenToWorld(f32v2{0.f});
-    m_BottomRightBorder = m_View->ScreenToWorld(f32v2{1.f});
+    m_TopLeftBorder = m_Native.View->ScreenToWorld(f32v2{0.f});
+    m_BottomRightBorder = m_Native.View->ScreenToWorld(f32v2{1.f});
 }
 
 OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
@@ -721,11 +734,11 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
     if (flags & OverlayWindowFlag_MenuBar)
     {
-        ly.BeginPanel("__onyx_id_Menu_bar", LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
-                                                    .Direction = LayoutDirection_LeftToRight,
-                                                    .Alignment = CenterLeft,
-                                                    .Sizing = {flex(), fit()},
-                                                    .Shape = rect(OverlayStyle_MenuBarRadius)});
+        ly.BeginPanel(s_MenuBarId, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
+                                           .Direction = LayoutDirection_LeftToRight,
+                                           .Alignment = CenterLeft,
+                                           .Sizing = {flex(), fit()},
+                                           .Shape = rect(OverlayStyle_MenuBarRadius)});
         // To be opened by menu bar calls
         ly.EndPanel();
     }
@@ -759,10 +772,8 @@ bool Overlay::BeginMenuBar()
     if (!(m_Current->Flags & OverlayWindowFlag_MenuBar))
         return false;
 
-    const LayoutId barId = "__onyx_id_Menu_bar";
-
-    PushId(barId);
-    m_Current->Layout.OpenPanel(barId);
+    PushId(s_MenuBarId);
+    m_Current->Layout.OpenPanel(s_MenuBarId);
     m_Current->Flags |= WindowInternalFlag_MenuBarOpened;
     m_StateFlags |= StateFlag_MenuBarActive;
     return true;
@@ -827,8 +838,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
     OverlayColor col = verticalLayout ? OverlayColor_None : OverlayColor_MenuItemIdle;
 
-    const LayoutId barId = "__onyx_id_Menu_bar";
-    const bool openOnHover = verticalLayout || checkWidgetState(barId, WidgetStateFlag_Opened);
+    const bool openOnHover = verticalLayout || checkWidgetState(s_MenuBarId, WidgetStateFlag_Opened);
 
     const FocusFlags fflags = openOnHover ? (FocusFlag_HoverOpensPopup | FocusFlag_HoverRequestsPopupCollapse)
                                           : FocusFlag_LeftClickOpensPopup;
@@ -858,7 +868,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     if (popupOpen)
     {
         if (!verticalLayout)
-            m_WidgetStates[barId] = WidgetStateFlag_Opened;
+            m_WidgetStates[s_MenuBarId] = WidgetStateFlag_Opened;
 
         const usz bid = IdFromStack("__onyx_id_Menu_box");
         const LayoutElement *belm = ly.QueryElement(bid);
@@ -1197,13 +1207,14 @@ void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, cons
 }
 void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 {
-    const bool autoResize =
-        (m_Current->Flags & OverlayWindowFlag_AutoResize) && !(m_StateFlags & StateFlag_MenuBarActive);
+    const bool autoResize = isAutoResize();
+    const bool isFloat = m_CurrentPopupDepth != m_Current->PopupDepth;
+    const f32 effW = isFloat ? TKIT_F32_MAX : (normSize * getCurrentEffectiveWidth());
 
     const f32 mnw = m_Style[OverlayStyle_WidgetMinimumWidth];
 
     const LySz2 outerSizing = {autoResize ? fit(mnw) : flex(), fit()};
-    const LySz2 innerSizing = {autoResize ? fit(mnw) : flex(0.f, normSize * getCurrentEffectiveWidth()), fit()};
+    const LySz2 innerSizing = {autoResize ? fit(mnw) : flex(0.f, effW), fit()};
 
     return beginHorizontalWidget(id, outerSizing, innerSizing);
 }
@@ -1378,7 +1389,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
     {
         m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
-        const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
+
+        const NativeWindow *nw = m_Current->Native;
+        const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
 
         TKit::String &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
@@ -1526,7 +1539,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
             if (m_CursorEnd != limit)
             {
-                const bool lshift = m_Window->IsKeyPressed(Key_LeftShift);
+                const bool lshift = nw->Window->IsKeyPressed(Key_LeftShift);
                 const i32 diff = left ? -1 : 1;
                 if (lshift)
                     m_CursorEnd += diff;
@@ -1696,10 +1709,11 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
     const usz iboxId = IdFromStack("__onyx_id_Input_box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
 
-    const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
+    const NativeWindow *nw = m_Current->Native;
+    const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
-    const bool triggered = hovered && (dclick || (ctrl && (m_StateFlags & StateFlag_LeftMousePressed)));
+    const bool triggered = hovered && (dclick || (ctrl && (nw->Flags & NativeWindowFlag_LeftMousePressed)));
     const bool persisted =
         ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(m_MousePos)));
 
@@ -1720,7 +1734,7 @@ void Overlay::closePopup(const u32 depth)
     m_PopupCollapseDepth = depth;
     // this means only the topmost modal can be collapsed
     m_ModalCollapseDepth = Math::Min(m_ModalCollapseDepth, depth);
-    m_WidgetStates[LayoutId{"__onyx_id_Menu_bar"}] = 0;
+    m_WidgetStates[s_MenuBarId] = 0;
 }
 void Overlay::requestCollapsePopups()
 {
@@ -1762,8 +1776,9 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
     const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
 
-    const bool lmpressed = m_StateFlags & StateFlag_LeftMousePressed;
-    const bool lmreleased = m_StateFlags & StateFlag_LeftMouseReleased;
+    const NativeWindow *nw = m_Current->Native;
+    const bool lmpressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
+    const bool lmreleased = nw->Flags & NativeWindowFlag_LeftMouseReleased;
 
     const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
     const bool focusHovered = isElementHovered(hflags);
@@ -1824,7 +1839,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     }
 
     const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
-    const bool rclicked = focusHovered && (m_StateFlags & StateFlag_RightMouseReleased);
+    const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
     const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse &&
                          (allowPickup || lmpressed || m_PressedId == elm->Id);
 
@@ -3116,26 +3131,27 @@ void Overlay::Draw()
                 "be a PopId()",
                 m_IdStack.GetSize());
 
-    m_Context->Flush();
+    RenderContext<D2> *ctx = m_Native.Context;
+    ctx->Flush();
     const u32 modalWindow = processWindows();
     if (modalWindow != 0)
-        m_View->ClearColor.rgba[3] = 1.f;
+        m_Native.View->ClearColor.rgba[3] = 1.f;
     else
-        m_View->ClearColor.rgba[3] = 0.f;
+        m_Native.View->ClearColor.rgba[3] = 0.f;
 
     u32 idx = 0;
     for (OverlayWindow *win : m_ActiveWindows)
     {
         if (++idx == modalWindow)
         {
-            m_Context->Push();
-            m_Context->Scale(windowDimensions());
-            m_Context->Alpha(0.2f);
-            m_Context->Quad();
-            m_Context->Pop();
+            ctx->Push();
+            ctx->Scale(windowDimensions());
+            ctx->Alpha(0.2f);
+            ctx->Quad();
+            ctx->Pop();
         }
         win->Layout.Compile();
-        m_Context->Layout(win->Layout);
+        ctx->Layout(win->Layout);
     }
 
     if (m_Tooltip)
@@ -3144,7 +3160,7 @@ void Overlay::Draw()
         m_Tooltip->Layout.EndPanel();
         m_Tooltip->Layout.Compile();
 
-        m_Context->Layout(m_Tooltip->Layout);
+        ctx->Layout(m_Tooltip->Layout);
         m_Tooltip = nullptr;
     }
 
@@ -3187,7 +3203,7 @@ u32 Overlay::processWindows()
     }
     m_Current = nullptr;
 
-    const f32v2 mpos = getMousePos();
+    const f32v2 mpos = m_Native.View->ScreenToWorld(m_Native.Window->GetNormalizedMousePosition());
 
     m_MouseDelta = mpos - m_MousePos;
     m_MousePos = mpos;
@@ -3290,7 +3306,7 @@ u32 Overlay::processWindows()
 
             return true;
         });
-        m_Window->SetMouseCursor(cursor);
+        m_Native.Window->SetMouseCursor(cursor);
     }
 
     // remove some state and check whether the window is collapsed
@@ -3305,20 +3321,22 @@ u32 Overlay::processWindows()
     // check for mouse events
     OverlayWindowFlags wflags = 0;
     f32v2 scroll{0.f};
+
     m_TextInput.Clear();
-    for (const Event &ev : m_Window->GetNewEvents())
+    m_Native.Flags = 0;
+    for (const Event &ev : m_Native.Window->GetNewEvents())
     {
         if (ev.Type == Event_MousePressed)
         {
             if (ev.Mouse.Button == Mouse_Button1)
             {
-                m_StateFlags |= StateFlag_LeftMousePressed;
+                m_Native.Flags |= NativeWindowFlag_LeftMousePressed;
                 requestCollapsePopups();
                 m_PressingLeftMouse = true;
             }
             if (ev.Mouse.Button == Mouse_Button2)
             {
-                m_StateFlags |= StateFlag_RightMousePressed;
+                m_Native.Flags |= NativeWindowFlag_RightMousePressed;
                 requestCollapsePopups();
             }
         }
@@ -3326,15 +3344,15 @@ u32 Overlay::processWindows()
         {
             if (ev.Mouse.Button == Mouse_Button1)
             {
-                m_StateFlags |= StateFlag_LeftMouseReleased;
+                m_Native.Flags |= NativeWindowFlag_LeftMouseReleased;
                 if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
                     ++m_OverflowClicks;
                 m_PressingLeftMouse = false;
                 m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
-                m_WidgetStates[LayoutId{"__onyx_id_Menu_bar"}] = 0;
+                m_WidgetStates[s_MenuBarId] = 0;
             }
             if (ev.Mouse.Button == Mouse_Button2)
-                m_StateFlags |= StateFlag_RightMouseReleased;
+                m_Native.Flags |= NativeWindowFlag_RightMouseReleased;
         }
         else if (ev.Type == Event_Scrolled)
             scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
@@ -3353,7 +3371,7 @@ u32 Overlay::processWindows()
 
     bool canAssignHover = true;
 
-    const bool pressed = m_StateFlags & StateFlag_LeftMousePressed;
+    const bool pressed = m_Native.Flags & NativeWindowFlag_LeftMousePressed;
     iterateReverseWindows([&](OverlayWindow *win) {
         const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
         const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
@@ -3503,6 +3521,7 @@ OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
     win.HeaderIcon = ArrowDownIcon;
     win.Position += m_WindowSpawnOffset;
     win.Layer = toTop();
+    win.Native = &m_Native;
     m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
     return &win;
 }
@@ -3521,7 +3540,7 @@ u32 Overlay::getFormatDecimals(const char *format)
 
 const FontData &Overlay::getFontData() const
 {
-    const Resource font = m_Context->GetState().Font;
+    const Resource font = m_Native.Context->GetState().Font;
     return Resources::GetFontData(font);
 }
 f32 Overlay::getLineHeight() const
@@ -3530,16 +3549,12 @@ f32 Overlay::getLineHeight() const
 }
 bool Overlay::isAutoResize() const
 {
-    return (m_Current->Flags & OverlayWindowFlag_AutoResize) && !(m_StateFlags & StateFlag_MenuBarActive);
+    return m_CurrentPopupDepth == m_Current->PopupDepth && (m_Current->Flags & OverlayWindowFlag_AutoResize) &&
+           !(m_StateFlags & StateFlag_MenuBarActive);
 }
 f32 Overlay::computeWindowMinSize() const
 {
     return getLineHeight() + 2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
-}
-
-f32v2 Overlay::getMousePos() const
-{
-    return m_View->ScreenToWorld(m_Window->GetNormalizedMousePosition());
 }
 
 f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
@@ -3644,7 +3659,7 @@ void Overlay::ShowDemo()
     static bool disableGlobal = false;
     if (BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
-        const f32 ftime = Onyx::GetDeltaTime(m_Window).AsMilliseconds();
+        const f32 ftime = Onyx::GetDeltaTime(m_Native.Window).AsMilliseconds();
         if (PushTree("General", drawLines))
         {
             SetNextTextId("Delta time");

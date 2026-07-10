@@ -22,7 +22,7 @@ enum ResizeEdge : u8
     ResizeEdge_Count
 };
 using ResizeFlags = u8;
-using StateFlags = u32;
+using StateFlags = u16;
 
 // NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
 using WidgetStateFlags = u16;
@@ -575,6 +575,16 @@ enum OverlayTooltipFlagBit : OverlayTooltipFlags
     OverlayTooltipFlag_Reset = 1U << 0,
 };
 
+using NativeWindowFlags = u8;
+
+struct NativeWindow
+{
+    Window *Window;
+    RenderView<D2> *View;
+    RenderContext<D2> *Context;
+    NativeWindowFlags Flags = 0;
+};
+
 struct OverlayWindow
 {
     OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
@@ -583,6 +593,7 @@ struct OverlayWindow
 
     usz Id = NullLayoutId;
     u64 Layer;
+    const NativeWindow *Native;
 
     GrabInfo Grab{};
 
@@ -1355,17 +1366,9 @@ class Overlay
     {
         return m_Camera;
     }
-    Window *GetWindow()
+    const NativeWindow &GetMainNativeWindow() const
     {
-        return m_Window;
-    }
-    RenderContext<D2> *GetContext()
-    {
-        return m_Context;
-    }
-    RenderView<D2> *GetView()
-    {
-        return m_View;
+        return m_Native;
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
@@ -1441,7 +1444,7 @@ class Overlay
 
         f32 offset = 0.f;
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
-        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !m_Window->IsKeyPressed(Key_LeftControl))
+        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !m_Native.Window->IsKeyPressed(Key_LeftControl))
         {
             f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
@@ -1640,7 +1643,6 @@ class Overlay
     bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
     template <typename F> void iterateReverseWindows(F func);
 
-    f32v2 getMousePos() const;
     f32v2 computeMouseAlignedPosition(const f32v2 &size) const;
     u32 processWindows();
 
@@ -1682,7 +1684,7 @@ class Overlay
 
     f32v2 getCurrentEffectiveSize() const
     {
-        if (m_Current->Flags & OverlayWindowFlag_AutoResize)
+        if (isAutoResize())
             return m_Current->Size;
 
         const LayoutElement *elm = m_Current->Layout.QueryElement(m_Current->Id);
@@ -1696,6 +1698,8 @@ class Overlay
     {
         return getCurrentEffectiveSize()[1];
     }
+
+    NativeWindow createNativeWindow(Window *win);
 
     OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
                                                   const f32v2 &padding = f32v2{0.f});
@@ -1830,10 +1834,8 @@ class Overlay
     }
 
     LayoutSpecs m_LayoutSpecs{};
-    Window *m_Window;
-    RenderView<D2> *m_View;
+    NativeWindow m_Native{};
     Camera<D2> m_Camera;
-    RenderContext<D2> *m_Context;
 
     OverlayWindow *m_Current = nullptr;
     OverlayWindow *m_Grabbed = nullptr;

@@ -31,7 +31,9 @@ int main()
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(wview);
     ctx->AddTarget(rview1);
-    ui->GetContext()->AddTarget(rview2);
+
+    const Onyx::NativeWindow &nw = ui->GetMainNativeWindow();
+    nw.Context->AddTarget(rview2);
 
     ctx->Flush();
 
@@ -46,7 +48,7 @@ int main()
     ctx->FillColor(Onyx::Color_Blue);
     ctx->Circle();
 
-    win->BringToTop(ui->GetView());
+    win->BringToTop(nw.View);
     while (Onyx::Running())
     {
         if (ui->BeginWindow("Main viewport", Onyx::OverlayWindowFlag_AutoResize))
