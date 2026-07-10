@@ -267,6 +267,18 @@ enum NextWindowFlagBit : NextWindowFlags
     NextWindowFlag_Size = 1U << 1,
 };
 
+using OverlayTooltipFlags = u8;
+enum OverlayTooltipFlagBit : OverlayTooltipFlags
+{
+    OverlayTooltipFlag_Reset = 1U << 0,
+};
+
+using OverlayFlags = u8;
+enum OverlayFlagBit : OverlayFlags
+{
+    OverlayFlag_MultiWindow = 1U << 0,
+};
+
 enum OverlayPaletteType : u8
 {
     OverlayPalette_Idle0,
@@ -569,12 +581,6 @@ struct ScrollParameterSpecs
     OverlayScrollFlags Flags;
 };
 
-using OverlayTooltipFlags = u8;
-enum OverlayTooltipFlagBit : OverlayTooltipFlags
-{
-    OverlayTooltipFlag_Reset = 1U << 0,
-};
-
 using NativeWindowFlags = u8;
 
 struct NativeWindow
@@ -582,7 +588,67 @@ struct NativeWindow
     Window *Window;
     RenderView<D2> *View;
     RenderContext<D2> *Context;
+
+    f32v2 MousePos{0.f};
+    f32v2 MousePosOnPress{0.f};
+    f32v2 MouseDelta{0.f};
+
+    f32v2 TopLeftBorder;
+    f32v2 BottomRightBorder;
+
+    // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
+    // a double click)
+    u32 OverflowClicks = 0;
+    TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
+    TKit::String TextInput{};
+
+    TKit::String InputWidgetBuffer{};
+    TKit::Clock ClickClock{};
+
     NativeWindowFlags Flags = 0;
+
+    void UpdateBorders()
+    {
+        TopLeftBorder = View->ScreenToWorld(f32v2{0.f});
+        BottomRightBorder = View->ScreenToWorld(f32v2{1.f});
+    }
+
+    f32v2 GetTopLeft() const
+    {
+        return TopLeftBorder;
+    }
+    f32v2 GetTopRight() const
+    {
+        return {BottomRightBorder[0], TopLeftBorder[1]};
+    }
+    f32v2 GetBottomLeft() const
+    {
+        return {TopLeftBorder[0], BottomRightBorder[1]};
+    }
+    f32v2 GetBottomRight() const
+    {
+        return BottomRightBorder;
+    }
+    f32 GetLeft() const
+    {
+        return TopLeftBorder[0];
+    }
+    f32 GetRight() const
+    {
+        return BottomRightBorder[0];
+    }
+    f32 GetTop() const
+    {
+        return TopLeftBorder[1];
+    }
+    f32 GetBottom() const
+    {
+        return BottomRightBorder[1];
+    }
+    f32v2 GetDimensions() const
+    {
+        return BottomRightBorder - TopLeftBorder;
+    }
 };
 
 struct OverlayWindow
@@ -593,7 +659,7 @@ struct OverlayWindow
 
     usz Id = NullLayoutId;
     u64 Layer;
-    const NativeWindow *Native;
+    NativeWindow *Native;
 
     GrabInfo Grab{};
 
@@ -611,6 +677,7 @@ struct OverlaySpecs
 {
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
     OverlayStyle Style{};
+    OverlayFlags Flags = 0;
 };
 
 struct PickerData
@@ -1366,9 +1433,9 @@ class Overlay
     {
         return m_Camera;
     }
-    const NativeWindow &GetMainNativeWindow() const
+    const NativeWindow *GetMainNativeWindow() const
     {
-        return m_Native;
+        return &m_NativeWindows[0];
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
@@ -1443,10 +1510,11 @@ class Overlay
         };
 
         f32 offset = 0.f;
+        const NativeWindow *nw = m_Current->Native;
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
-        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !m_Native.Window->IsKeyPressed(Key_LeftControl))
+        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
-            f32 relPos = m_MousePos[0] - elm->Position[0] - 0.5f * length;
+            f32 relPos = nw->MousePos[0] - elm->Position[0] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
                 relPos += 0.5f * innerWidth;
 
@@ -1546,7 +1614,8 @@ class Overlay
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
-            const f32 drag = m_MousePos[0] - m_MousePosOnPress[0];
+            const NativeWindow *nw = m_Current->Native;
+            const f32 drag = nw->MousePos[0] - nw->MousePosOnPress[0];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
                                          decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
@@ -1643,7 +1712,7 @@ class Overlay
     bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
     template <typename F> void iterateReverseWindows(F func);
 
-    f32v2 computeMouseAlignedPosition(const f32v2 &size) const;
+    f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const;
     u32 processWindows();
 
     void drawWindowBorders();
@@ -1655,8 +1724,6 @@ class Overlay
     {
         return m_LayerCount++;
     }
-
-    void updateMainWindowBorders();
 
     OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
@@ -1700,6 +1767,10 @@ class Overlay
     }
 
     NativeWindow createNativeWindow(Window *win);
+    NativeWindow *getMainNativeWindow()
+    {
+        return &m_NativeWindows[0];
+    }
 
     OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
                                                   const f32v2 &padding = f32v2{0.f});
@@ -1712,8 +1783,6 @@ class Overlay
     f32 getLineHeight() const;
     bool isAutoResize() const;
 
-    f32 computeWindowMinSize() const;
-
     LyTxPar getTextParams() const
     {
         return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_FontSize]};
@@ -1721,43 +1790,6 @@ class Overlay
     LyUnPar getUnicodeParams() const
     {
         return {.FillColor = m_Style[OverlayColor_Text], .Size = m_Style[OverlayStyle_FontSize]};
-    }
-
-    f32v2 topLeftBorder() const
-    {
-        return m_TopLeftBorder;
-    }
-    f32v2 topRightBorder() const
-    {
-        return {m_BottomRightBorder[0], m_TopLeftBorder[1]};
-    }
-    f32v2 bottomLeftBorder() const
-    {
-        return {m_TopLeftBorder[0], m_BottomRightBorder[1]};
-    }
-    f32v2 bottomRightBorder() const
-    {
-        return m_BottomRightBorder;
-    }
-    f32 leftBorder() const
-    {
-        return m_TopLeftBorder[0];
-    }
-    f32 rightBorder() const
-    {
-        return m_BottomRightBorder[0];
-    }
-    f32 topBorder() const
-    {
-        return m_TopLeftBorder[1];
-    }
-    f32 bottomBorder() const
-    {
-        return m_BottomRightBorder[1];
-    }
-    f32v2 windowDimensions() const
-    {
-        return m_BottomRightBorder - m_TopLeftBorder;
     }
 
     static constexpr LySz fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
@@ -1834,15 +1866,19 @@ class Overlay
     }
 
     LayoutSpecs m_LayoutSpecs{};
-    NativeWindow m_Native{};
     Camera<D2> m_Camera;
+    // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear
+    // search is overall better
+
+    // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
+    // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
+    // time, so 32 should be plenty
+    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
+    TKit::StaticArray<NativeWindow, ONYX_MAX_VIEWS> m_NativeWindows{};
 
     OverlayWindow *m_Current = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
 
-    f32v2 m_MousePos{0.f};
-    f32v2 m_MousePosOnPress{0.f};
-    f32v2 m_MouseDelta{0.f};
     f32 m_WindowSpawnOffset = 0.f;
 
     OverlayStyle m_Style;
@@ -1851,6 +1887,7 @@ class Overlay
     TKit::TierArray<StyleBackup> m_StyleStack{};
 
     StateFlags m_StateFlags = 0;
+    // OverlayFlags m_Flags = 0;
 
     // interaction info
     usz m_HoveredId = NullLayoutId;
@@ -1866,7 +1903,6 @@ class Overlay
     TKit::TierArray<usz> m_ScrollStack{};
 
     TKit::TierArray<usz> m_PopupStack{};
-    // TKit::TierArray<
     u32 m_CurrentPopupDepth = 0;
     u32 m_PopupCollapseDepth = 0;
     // so that modals only collapse manually
@@ -1874,14 +1910,8 @@ class Overlay
 
     f64 m_DragValue = 0.;
 
-    // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
-    // pressed event. this is important for elements that if they are active think they are currently pressed,
-    // causing the firs mouse click outside their bounding box to still qualify as pressed
-    bool m_PressingLeftMouse = false;
-    //
-
     // text input info
-    TKit::String m_TextInput{};
+    TKit::String m_InputWidgetBuffer{};
     u32 m_CursorStart = 0;
     u32 m_CursorEnd = 0;
     //
@@ -1891,22 +1921,6 @@ class Overlay
     const Layout *m_CandidateLayout = nullptr;
     TKit::Clock m_WidgetHoverClock{};
 
-    // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
-    // a double click)
-    u32 m_OverflowClicks = 0;
-
-    TKit::StaticBitSet<Key_Count> m_EventKeys{Key_Count};
-    TKit::String m_InputWidgetBuffer{};
-
-    TKit::Clock m_ClickClock{};
-
-    // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear
-    // search is overall better
-
-    // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
-    // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
-    // time, so 32 should be plenty
-    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
     TKit::FixedArray<DynamicMeshInfo<D2>, 3 * 32> m_DynamicMeshes{};
     u32 m_DynamicMeshIndex = 0;
 
@@ -1935,9 +1949,6 @@ class Overlay
 
     usz m_LastItemTooltipBackup = NullLayoutId;
     OverlayWindow *m_Tooltip = nullptr;
-
-    f32v2 m_TopLeftBorder;
-    f32v2 m_BottomRightBorder;
 
     Color m_PickerOriginal{};
 

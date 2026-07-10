@@ -50,6 +50,13 @@ enum NativeWindowFlagBit : NativeWindowFlags
 
     NativeWindowFlag_RightMousePressed = 1U << 2,
     NativeWindowFlag_RightMouseReleased = 1U << 3,
+
+    // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
+    // pressed event. this is important for elements that if they are active think they are currently pressed,
+    // causing the firs mouse click outside their bounding box to still qualify as pressed
+    NativeWindowFlag_PressingLeftMouse = 1U << 4,
+    NativeWindowFlag_Hovered = 1U << 5,
+    NativeWindowFlagPersist = NativeWindowFlag_Hovered | NativeWindowFlag_PressingLeftMouse,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -348,8 +355,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    m_Native = createNativeWindow(win);
-    updateMainWindowBorders();
+    m_NativeWindows.Append(createNativeWindow(win)).UpdateBorders();
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
@@ -475,7 +481,8 @@ bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
                 if (pressed)
                 {
                     col = OverlayColor_ScrollBarPressed;
-                    sinfo.CursorOffset += sign * m_MouseDelta[axis];
+                    const NativeWindow *nw = m_Current->Native;
+                    sinfo.CursorOffset += sign * nw->MouseDelta[axis];
                 }
                 else
                 {
@@ -536,18 +543,13 @@ void Overlay::popWindowStack()
     m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
 }
 
-void Overlay::updateMainWindowBorders()
-{
-    m_TopLeftBorder = m_Native.View->ScreenToWorld(f32v2{0.f});
-    m_BottomRightBorder = m_Native.View->ScreenToWorld(f32v2{1.f});
-}
-
 OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
 {
     OverlayHoverQueryFlags flags = 0;
     const usz id = elm ? elm->Id : NullLayoutId;
 
-    const bool hovered = elm && elm->IsHovered(m_MousePos, padding);
+    const NativeWindow *nw = m_Current->Native;
+    const bool hovered = elm && elm->IsHovered(nw->MousePos, padding);
     const bool windowBlock =
         !(m_Current->Flags & WindowInternalFlag_Focused) && !(m_Current->Flags & WindowInternalFlag_Hovered);
     const bool grabBlock = m_Grabbed;
@@ -587,7 +589,8 @@ bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFla
     if (candidate)
     {
         const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
-        if (Math::NormSquared(m_MouseDelta) > statThres)
+        const NativeWindow *nw = m_Current->Native;
+        if (Math::NormSquared(nw->MouseDelta) > statThres)
         {
             m_WidgetHoverClock.Restart();
             return false;
@@ -654,7 +657,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
     m_NextWindow.Flags = 0;
 
     m_Current->Flags &= WindowInternalFlagPersist;
-    m_Current->MinSize = computeWindowMinSize();
+    m_Current->MinSize =
+        getLineHeight() + 2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
     m_Current->Flags |= flags;
 
     Layout &ly = GetCurrentLayout();
@@ -788,8 +792,9 @@ void Overlay::EndMenuBar()
 
 void Overlay::BeginMainMenuBar()
 {
-    const f32v2 tl = topLeftBorder();
-    const f32v2 tr = topRightBorder();
+    const NativeWindow *nw = m_Current->Native;
+    const f32v2 tl = nw->GetTopLeft();
+    const f32v2 tr = nw->GetTopRight();
     const f32 xsize = tr[0] - tl[0];
 
     m_Current = getOrCreateOverlayWindow("__onyx_id_Main_menu_bar");
@@ -881,26 +886,27 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         LyAlg2 alg;
         f32v2 offset;
 
+        const NativeWindow *nw = m_Current->Native;
         if (verticalLayout)
         {
-            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > rightBorder();
+            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > nw->GetRight();
             att = LyAtt2{surpasses ? LayoutAttachment_Left : LayoutAttachment_Right, LayoutAttachment_Top};
             alg = surpasses ? TopRight : TopLeft;
 
             const f32 spill = ppos[1] - csize[1] + psize[1];
-            const f32 bborder = bottomBorder();
+            const f32 bborder = nw->GetBottom();
             const f32 yoffset = spill < bborder ? (bborder - spill) : 0.f;
 
             offset = {0.f, yoffset};
         }
         else
         {
-            const bool surpasses = (ppos[1] - csize[1]) < bottomBorder();
+            const bool surpasses = (ppos[1] - csize[1]) < nw->GetBottom();
             att = LyAtt2{LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
             alg = surpasses ? BottomLeft : TopLeft;
 
-            const f32 rborder = rightBorder();
-            const f32 lborder = leftBorder();
+            const f32 rborder = nw->GetRight();
+            const f32 lborder = nw->GetLeft();
 
             const f32 rspill = ppos[0] + csize[0];
             const f32 lspill = ppos[0];
@@ -973,7 +979,7 @@ bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const 
         const LayoutElement *elm = win->Layout.QueryElement(win->Id);
         const f32v2 size = elm ? elm->Size : win->Size;
 
-        win->Position = computeMouseAlignedPosition(size);
+        win->Position = computeMouseAlignedPosition(m_Current->Native, size);
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
 
@@ -1047,7 +1053,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
         const bool tight = flags & OverlayDropDownFlag_Tight;
 
-        const bool surpasses = (ppos - csize) < bottomBorder();
+        const bool surpasses = (ppos - csize) < m_Current->Native->GetBottom();
         const LyAtt2 att = {LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
         const LyAlg2 alg = surpasses ? BottomLeft : TopLeft;
 
@@ -1288,8 +1294,9 @@ bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const Overl
         const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
         const bool onDoubleClick = !opened && (flags & OverlayTreeFlag_OpenOnDoubleClick);
         const bool doubleClicked = focusFlags & OverlayFocusQueryFlag_DoubleClicked;
+        const NativeWindow *nw = m_Current->Native;
         if (onArrow)
-            toggleOpen = ly.IsHovered(buttonId, m_MousePos) || (onDoubleClick && doubleClicked);
+            toggleOpen = ly.IsHovered(buttonId, nw->MousePos) || (onDoubleClick && doubleClicked);
         else if (onDoubleClick)
             toggleOpen = doubleClicked;
     }
@@ -1390,7 +1397,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     {
         m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
 
-        const NativeWindow *nw = m_Current->Native;
+        NativeWindow *nw = m_Current->Native;
         const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
 
         TKit::String &str = m_InputWidgetBuffer;
@@ -1407,7 +1414,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             m_RedoStack.Clear();
         }
 
-        if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && m_EventKeys[Key_Z])
+        if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Key_Z])
         {
             const TextInputStateInfo &info = m_UndoStack.GetBack();
             m_RedoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
@@ -1419,7 +1426,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             m_UndoStack.Pop();
             updated = true;
         }
-        if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && m_EventKeys[Key_Y])
+        if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && nw->EventKeys[Key_Y])
         {
             const TextInputStateInfo &info = m_RedoStack.GetBack();
             m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
@@ -1443,7 +1450,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
 
-        if (escapeClears && m_EventKeys[Key_Escape])
+        if (escapeClears && nw->EventKeys[Key_Escape])
         {
             pushUndo();
             str.Clear();
@@ -1480,8 +1487,8 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         if (pressed || clicked)
         {
-            const f32 onPress = m_MousePosOnPress[0] - boxPos;
-            const f32 mpos = m_MousePos[0] - boxPos;
+            const f32 onPress = nw->MousePosOnPress[0] - boxPos;
+            const f32 mpos = nw->MousePos[0] - boxPos;
 
             const bool mustUseCurrent = !clicked && Math::Approximately(mpos, onPress, 1.f);
             const f32 pixelStartPos = mustUseCurrent ? advances[m_CursorStart] : onPress;
@@ -1509,12 +1516,12 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 m_CursorEnd = charCount;
         }
 
-        if (m_OverflowClicks == 2 || (justActive && autoSelectAll))
+        if (nw->OverflowClicks == 2 || (justActive && autoSelectAll))
         {
             m_CursorStart = 0;
             m_CursorEnd = charCount;
         }
-        else if (m_OverflowClicks == 1)
+        else if (nw->OverflowClicks == 1)
         {
             if (m_CursorEnd != 0)
             {
@@ -1531,9 +1538,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 m_CursorEnd = end + 1;
             }
         }
-        else if (m_EventKeys[Key_Left] || m_EventKeys[Key_Right])
+        else if (nw->EventKeys[Key_Left] || nw->EventKeys[Key_Right])
         {
-            const bool left = m_EventKeys[Key_Left];
+            const bool left = nw->EventKeys[Key_Left];
 
             const u32 limit = left ? 0 : charCount;
             const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
@@ -1608,24 +1615,24 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
         const u32 toRemoveEnd = selEnd;
 
-        if (ctrl && m_EventKeys[Key_V])
+        if (ctrl && nw->EventKeys[Key_V])
         {
             const char *cp = Platform::GetClipboard();
 
             // could maybe append one by one, as that = operator is constructing a TKit::String temp
             if (cp && cp[0])
-                m_TextInput = cp;
+                nw->TextInput = cp;
         }
 
         if (toRemoveBegin < toRemoveEnd && !str.IsEmpty())
         {
-            if (ctrl && m_EventKeys[Key_C])
+            if (ctrl && nw->EventKeys[Key_C])
             {
                 const TKit::StackString clipboard{str.begin() + toRemoveBegin, str.begin() + toRemoveEnd};
                 Platform::SetClipboard(clipboard.CString());
             }
 
-            if (m_EventKeys[Key_Backspace] || (!m_TextInput.IsEmpty() && hasHighlight))
+            if (nw->EventKeys[Key_Backspace] || (!nw->TextInput.IsEmpty() && hasHighlight))
             {
                 pushUndo();
 
@@ -1643,14 +1650,14 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         }
 
         const u32 insertionsLeft = capacity - 1 - str.GetSize();
-        const u32 insertions = Math::Min(m_TextInput.GetSize(), insertionsLeft);
+        const u32 insertions = Math::Min(nw->TextInput.GetSize(), insertionsLeft);
 
         updated |= insertions != 0;
         if (insertions != 0)
         {
             pushUndo();
             for (u32 i = 0; i < insertions; ++i)
-                str.Insert(str.begin() + selEnd + i, m_TextInput[i]);
+                str.Insert(str.begin() + selEnd + i, nw->TextInput[i]);
         }
 
         m_CursorStart += insertions;
@@ -1659,7 +1666,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
 
         if (enterCommits)
-            updated = m_EventKeys[Key_Enter];
+            updated = nw->EventKeys[Key_Enter];
         if (updated)
         {
             // copy the new string into the buffer and we are done :)
@@ -1673,7 +1680,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         {
             const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
             if (enterTrue)
-                updated = m_EventKeys[Key_Enter];
+                updated = nw->EventKeys[Key_Enter];
         }
     }
     else
@@ -1711,13 +1718,13 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 
     const NativeWindow *nw = m_Current->Native;
     const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
-    const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
+    const bool dclick = allowDoubleClick && (nw->OverflowClicks == 1);
 
     const bool triggered = hovered && (dclick || (ctrl && (nw->Flags & NativeWindowFlag_LeftMousePressed)));
     const bool persisted =
-        ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(m_MousePos)));
+        ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(nw->MousePos)));
 
-    const bool mustConvert = (triggered || persisted) && !m_EventKeys[Key_Enter];
+    const bool mustConvert = (triggered || persisted) && !nw->EventKeys[Key_Enter];
     if (mustConvert)
         outFlags |= InputConvertFlag_MustConvert;
     if (m_ActiveId != iboxId && m_ActiveIdLastFrame != iboxId)
@@ -1840,7 +1847,9 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
     const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
     const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
-    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse &&
+    const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
+
+    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && pressingMouse &&
                          (allowPickup || lmpressed || m_PressedId == elm->Id);
 
     if (focusHovered && setHovered)
@@ -1851,7 +1860,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
     if (flags & FocusFlag_EnableDragging)
     {
-        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && m_PressingLeftMouse);
+        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && pressingMouse);
         if (dragged)
         {
             m_DraggedId = elm->Id;
@@ -1885,7 +1894,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     if (lclicked)
     {
         outFlags |= OverlayFocusQueryFlag_LeftClicked;
-        if (m_OverflowClicks == 1)
+        if (nw->OverflowClicks == 1)
             outFlags |= OverlayFocusQueryFlag_DoubleClicked;
 
         if (setActive)
@@ -2330,7 +2339,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     const LayoutElement *elm = ly.QueryElement(id);
     const f32v2 size = elm ? elm->Size : f32v2{0.f};
 
-    const f32v2 pos = computeMouseAlignedPosition(size);
+    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
 
     ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
                               .Sizing = fit(),
@@ -2709,10 +2718,11 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
 
     const f32 posOffset = 0.5f * pickerSize;
 
+    const NativeWindow *nw = m_Current->Native;
     if (pickerFlags & OverlayFocusQueryFlag_Pressed)
     {
         circleSize *= 1.2f;
-        pdata->CirclePos = m_MousePos - pickerElm->Position - posOffset;
+        pdata->CirclePos = nw->MousePos - pickerElm->Position - posOffset;
         pdata->CirclePos = Math::Clamp(pdata->CirclePos, -posOffset, posOffset);
 
         hsv[1] = 0.5f + pdata->CirclePos[0] / pickerSize;
@@ -2729,7 +2739,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
 
     if (hueBarFlags & OverlayFocusQueryFlag_Pressed)
     {
-        pdata->HueRodPos = m_MousePos[1] - hueBarElm->Position[1] - posOffset;
+        pdata->HueRodPos = nw->MousePos[1] - hueBarElm->Position[1] - posOffset;
         pdata->HueRodPos = Math::Clamp(pdata->HueRodPos, -posOffset, posOffset);
 
         hsv[0] = 0.5f - pdata->HueRodPos / pickerSize;
@@ -2743,7 +2753,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
 
     if (alphaBarFlags & OverlayFocusQueryFlag_Pressed)
     {
-        pdata->AlphaRodPos = m_MousePos[1] - alphaBarElm->Position[1] - posOffset;
+        pdata->AlphaRodPos = nw->MousePos[1] - alphaBarElm->Position[1] - posOffset;
         pdata->AlphaRodPos = Math::Clamp(pdata->AlphaRodPos, -posOffset, posOffset);
 
         hsv[3] = 0.5f + pdata->AlphaRodPos / pickerSize;
@@ -3036,7 +3046,9 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
     const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
 
     const f32 th = m_Style[OverlayStyle_DragThreshold];
-    const f32 drag = Math::NormSquared(m_MousePos - m_MousePosOnPress);
+
+    const NativeWindow *nw = m_Current->Native;
+    const f32 drag = Math::NormSquared(nw->MousePos - nw->MousePosOnPress);
     if ((m_DragDropId == m_LastItem || drag > th * th) && focusFlags & OverlayFocusQueryFlag_DragSource)
     {
         m_DragDropId = m_LastItem;
@@ -3131,21 +3143,25 @@ void Overlay::Draw()
                 "be a PopId()",
                 m_IdStack.GetSize());
 
-    RenderContext<D2> *ctx = m_Native.Context;
-    ctx->Flush();
     const u32 modalWindow = processWindows();
-    if (modalWindow != 0)
-        m_Native.View->ClearColor.rgba[3] = 1.f;
-    else
-        m_Native.View->ClearColor.rgba[3] = 0.f;
+    for (const NativeWindow &nw : m_NativeWindows)
+    {
+        nw.Context->Flush();
+        if (modalWindow != 0)
+            nw.View->ClearColor.rgba[3] = 1.f;
+        else
+            nw.View->ClearColor.rgba[3] = 0.f;
+    }
 
     u32 idx = 0;
     for (OverlayWindow *win : m_ActiveWindows)
     {
+        const NativeWindow *nw = win->Native;
+        RenderContext<D2> *ctx = nw->Context;
         if (++idx == modalWindow)
         {
             ctx->Push();
-            ctx->Scale(windowDimensions());
+            ctx->Scale(nw->GetDimensions());
             ctx->Alpha(0.2f);
             ctx->Quad();
             ctx->Pop();
@@ -3160,7 +3176,7 @@ void Overlay::Draw()
         m_Tooltip->Layout.EndPanel();
         m_Tooltip->Layout.Compile();
 
-        ctx->Layout(m_Tooltip->Layout);
+        m_Tooltip->Native->Context->Layout(m_Tooltip->Layout);
         m_Tooltip = nullptr;
     }
 
@@ -3183,7 +3199,6 @@ u32 Overlay::processWindows()
                 m_WindowStack.GetSize());
     TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A currently opened tab bar has been detected!");
 
-    updateMainWindowBorders();
     u32 modalWindow = 0;
     for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
     {
@@ -3202,11 +3217,6 @@ u32 Overlay::processWindows()
         }
     }
     m_Current = nullptr;
-
-    const f32v2 mpos = m_Native.View->ScreenToWorld(m_Native.Window->GetNormalizedMousePosition());
-
-    m_MouseDelta = mpos - m_MousePos;
-    m_MousePos = mpos;
 
     m_ActiveIdLastFrame = m_ActiveId;
     if (!(m_StateFlags & StateFlag_ActiveIdMustPersist))
@@ -3228,10 +3238,27 @@ u32 Overlay::processWindows()
                 "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
                 m_PopupCollapseDepth, m_PopupStack.GetSize());
 
+    bool pressingMouse = false;
+    NativeWindow *hovered = nullptr;
+    for (NativeWindow &nw : m_NativeWindows)
+    {
+        nw.UpdateBorders();
+        const f32v2 mpos = nw.View->ScreenToWorld(nw.Window->GetNormalizedMousePosition());
+        nw.MouseDelta = mpos - nw.MousePos;
+        nw.MousePos = mpos;
+        nw.EventKeys.ClearAll();
+        pressingMouse |= nw.Flags & NativeWindowFlag_PressingLeftMouse;
+        if (nw.Flags & NativeWindowFlag_Hovered)
+            hovered = &nw;
+    }
+    // this is gonna bite later
+    if (!hovered)
+        hovered = getMainNativeWindow();
+
     if (m_StateFlags & StateFlag_MustCollapsePopups)
     {
         const u32 collapse = Math::Max(m_PopupCollapseDepth, m_ModalCollapseDepth);
-        if (m_PressingLeftMouse && collapse < m_PopupStack.GetSize())
+        if (pressingMouse && collapse < m_PopupStack.GetSize())
             m_StateFlags |= StateFlag_FocusBlockByPopupCollapse;
         m_PopupStack.Resize(collapse);
     }
@@ -3246,8 +3273,6 @@ u32 Overlay::processWindows()
 
     m_StateFlags &= StateFlagPersist;
 
-    m_EventKeys.ClearAll();
-
     const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_StateFlags & StateFlag_ActiveAllowsInteraction);
     const bool widgetPressed = m_PressedId != NullLayoutId;
     const bool widgetHovered = m_HoveredId != NullLayoutId;
@@ -3258,6 +3283,9 @@ u32 Overlay::processWindows()
     {
         MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow *win) {
+            if (win->Native != hovered)
+                return true;
+
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
             const bool winHovered = win->Flags & (WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
             const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
@@ -3283,7 +3311,7 @@ u32 Overlay::processWindows()
             for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
             {
                 const usz id = ginfo.Ids[i];
-                if (win->Layout.IsHovered(id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding],
+                if (win->Layout.IsHovered(id, hovered->MousePos, m_Style[OverlayStyle_BorderHoverPadding],
                                           /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                 {
                     win->Grab.InteractionColor = OverlayColor_WindowBorderHovered;
@@ -3306,7 +3334,7 @@ u32 Overlay::processWindows()
 
             return true;
         });
-        m_Native.Window->SetMouseCursor(cursor);
+        hovered->Window->SetMouseCursor(cursor);
     }
 
     // remove some state and check whether the window is collapsed
@@ -3322,60 +3350,69 @@ u32 Overlay::processWindows()
     OverlayWindowFlags wflags = 0;
     f32v2 scroll{0.f};
 
-    m_TextInput.Clear();
-    m_Native.Flags = 0;
-    for (const Event &ev : m_Native.Window->GetNewEvents())
+    for (NativeWindow &nw : m_NativeWindows)
     {
-        if (ev.Type == Event_MousePressed)
+        nw.TextInput.Clear();
+        nw.Flags &= NativeWindowFlagPersist;
+        for (const Event &ev : nw.Window->GetNewEvents())
         {
-            if (ev.Mouse.Button == Mouse_Button1)
+            if (ev.Type == Event_MouseEntered)
+                nw.Flags |= NativeWindowFlag_Hovered;
+            else if (ev.Type == Event_MouseLeft)
+                nw.Flags &= ~NativeWindowFlag_Hovered;
+            else if (ev.Type == Event_MousePressed)
             {
-                m_Native.Flags |= NativeWindowFlag_LeftMousePressed;
-                requestCollapsePopups();
-                m_PressingLeftMouse = true;
+                if (ev.Mouse.Button == Mouse_Button1)
+                {
+                    nw.Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
+                    requestCollapsePopups();
+                }
+                if (ev.Mouse.Button == Mouse_Button2)
+                {
+                    nw.Flags |= NativeWindowFlag_RightMousePressed;
+                    requestCollapsePopups();
+                }
             }
-            if (ev.Mouse.Button == Mouse_Button2)
+            else if (ev.Type == Event_MouseReleased)
             {
-                m_Native.Flags |= NativeWindowFlag_RightMousePressed;
-                requestCollapsePopups();
-            }
-        }
-        else if (ev.Type == Event_MouseReleased)
-        {
-            if (ev.Mouse.Button == Mouse_Button1)
-            {
-                m_Native.Flags |= NativeWindowFlag_LeftMouseReleased;
-                if (m_ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
-                    ++m_OverflowClicks;
-                m_PressingLeftMouse = false;
-                m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
-                m_WidgetStates[s_MenuBarId] = 0;
-            }
-            if (ev.Mouse.Button == Mouse_Button2)
-                m_Native.Flags |= NativeWindowFlag_RightMouseReleased;
-        }
-        else if (ev.Type == Event_Scrolled)
-            scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
-        else if (ev.Type == Event_CharInput)
-        {
-            char buf[4];
-            const u32 count = EncodeUTF8(buf, ev.Character);
-            m_TextInput.Insert(m_TextInput.end(), buf, buf + count);
-        }
-        else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
-            m_EventKeys.Set(ev.Key);
-    }
+                if (ev.Mouse.Button == Mouse_Button1)
+                {
+                    nw.Flags |= NativeWindowFlag_LeftMouseReleased;
+                    nw.Flags &= ~NativeWindowFlag_PressingLeftMouse;
 
-    if (m_ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
-        m_OverflowClicks = 0;
+                    if (nw.ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
+                        ++nw.OverflowClicks;
+                    m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
+                    m_WidgetStates[s_MenuBarId] = 0;
+                }
+                if (ev.Mouse.Button == Mouse_Button2)
+                    nw.Flags |= NativeWindowFlag_RightMouseReleased;
+            }
+            else if (ev.Type == Event_Scrolled)
+                scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
+            else if (ev.Type == Event_CharInput)
+            {
+                char buf[4];
+                const u32 count = EncodeUTF8(buf, ev.Character);
+                nw.TextInput.Insert(nw.TextInput.end(), buf, buf + count);
+            }
+            else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
+                nw.EventKeys.Set(ev.Key);
+        }
+
+        if (nw.ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
+            nw.OverflowClicks = 0;
+    }
 
     bool canAssignHover = true;
 
-    const bool pressed = m_Native.Flags & NativeWindowFlag_LeftMousePressed;
     iterateReverseWindows([&](OverlayWindow *win) {
+        const NativeWindow *nw = win->Native;
         const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
         const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
         const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
+        const bool pressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
+
         // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
         // if we are popup locked, we can still allow hovering if no depth > 0 widget previously set hovering id.
         // this is because we want to allow dragging immediately when collapsing the whole popup stack, but we dont
@@ -3384,7 +3421,7 @@ u32 Overlay::processWindows()
 
         const bool winHovered =
             !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
-            win->Layout.IsHovered(win->Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
+            win->Layout.IsHovered(win->Id, nw->MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
 
         const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
 
@@ -3418,10 +3455,10 @@ u32 Overlay::processWindows()
         m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
 
     // now just handle grabbing, which is straightforward
-    if (!m_PressingLeftMouse)
+    if (!(hovered->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         m_Grabbed = nullptr;
-        m_MousePosOnPress = m_MousePos;
+        hovered->MousePosOnPress = hovered->MousePos;
     }
     else if (m_Grabbed)
     {
@@ -3431,7 +3468,7 @@ u32 Overlay::processWindows()
         f32v2 &s = ginfo.Size;
         const f32v2 &ms = m_Grabbed->MinSize;
 
-        const f32v2 &md = m_MouseDelta;
+        const f32v2 &md = hovered->MouseDelta;
 
         const bool noMove = m_Grabbed->Flags & OverlayWindowFlag_NoMove;
         const bool noResize = m_Grabbed->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize);
@@ -3472,18 +3509,23 @@ u32 Overlay::processWindows()
         else
             wsize = m_Grabbed->Size;
 
-        const f32v2 mnlim = {leftBorder() - wsize[0] + m_Grabbed->MinSize[0], bottomBorder() + m_Grabbed->MinSize[1]};
-        const f32v2 mxlim = {rightBorder() - m_Grabbed->MinSize[0], topBorder() + wsize[1] - m_Grabbed->MinSize[1]};
-        m_Grabbed->Position = Math::Clamp(m_Grabbed->Position, mnlim, mxlim);
+        if (hovered == GetMainNativeWindow())
+        {
+            const f32v2 mnlim = {hovered->GetLeft() - wsize[0] + m_Grabbed->MinSize[0],
+                                 hovered->GetBottom() + m_Grabbed->MinSize[1]};
+            const f32v2 mxlim = {hovered->GetRight() - m_Grabbed->MinSize[0],
+                                 hovered->GetTop() + wsize[1] - m_Grabbed->MinSize[1]};
+            m_Grabbed->Position = Math::Clamp(m_Grabbed->Position, mnlim, mxlim);
+        }
     }
 
-    m_HoveredId = NullLayoutId;
-    if (!m_CandidateLayout || !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, m_MousePos))
+    if (!m_CandidateLayout || !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, hovered->MousePos))
         m_HoveredWidgetCandidate = NullLayoutId;
 
     if (m_HoveredWidgetCandidate == NullLayoutId)
         m_WidgetHoverClock.Restart();
 
+    m_HoveredId = NullLayoutId;
     m_CandidateLayout = nullptr;
 
     ScrollBarInfo *vinfo = nullptr;
@@ -3521,7 +3563,7 @@ OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
     win.HeaderIcon = ArrowDownIcon;
     win.Position += m_WindowSpawnOffset;
     win.Layer = toTop();
-    win.Native = &m_Native;
+    win.Native = getMainNativeWindow();
     m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
     return &win;
 }
@@ -3540,7 +3582,7 @@ u32 Overlay::getFormatDecimals(const char *format)
 
 const FontData &Overlay::getFontData() const
 {
-    const Resource font = m_Native.Context->GetState().Font;
+    const Resource font = GetMainNativeWindow()->Context->GetState().Font;
     return Resources::GetFontData(font);
 }
 f32 Overlay::getLineHeight() const
@@ -3552,22 +3594,18 @@ bool Overlay::isAutoResize() const
     return m_CurrentPopupDepth == m_Current->PopupDepth && (m_Current->Flags & OverlayWindowFlag_AutoResize) &&
            !(m_StateFlags & StateFlag_MenuBarActive);
 }
-f32 Overlay::computeWindowMinSize() const
-{
-    return getLineHeight() + 2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
-}
 
-f32v2 Overlay::computeMouseAlignedPosition(const f32v2 &size) const
+f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const
 {
     const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
     const f32v2 offset = f32v2{toffset, -2.f * toffset};
 
-    const f32v2 &br = m_BottomRightBorder;
+    const f32v2 &br = win->BottomRightBorder;
 
-    const f32 rt = m_MousePos[0] + offset[0] + size[0];
-    const f32 rb = m_MousePos[1] + offset[1] - size[1];
+    const f32 rt = win->MousePos[0] + offset[0] + size[0];
+    const f32 rb = win->MousePos[1] + offset[1] - size[1];
 
-    f32v2 pos = m_MousePos + offset;
+    f32v2 pos = win->MousePos + offset;
     if (rt > br[0])
         pos[0] -= rt - br[0];
     if (rb < br[1])
@@ -3659,7 +3697,7 @@ void Overlay::ShowDemo()
     static bool disableGlobal = false;
     if (BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
-        const f32 ftime = Onyx::GetDeltaTime(m_Native.Window).AsMilliseconds();
+        const f32 ftime = Onyx::GetDeltaTime(GetMainNativeWindow()->Window).AsMilliseconds();
         if (PushTree("General", drawLines))
         {
             SetNextTextId("Delta time");
