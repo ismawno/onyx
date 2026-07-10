@@ -394,6 +394,9 @@ enum OverlayStyleVariable : u8
     OverlayStyle_ImageRadius,
     OverlayStyle_TabRadius,
 
+    OverlayStyle_TabPadding,
+    OverlayStyle_TabGap,
+
     OverlayStyle_LineRadius,
     OverlayStyle_LineWidth,
     OverlayStyle_SeparatorTextOffset,
@@ -591,19 +594,6 @@ struct OverlayWindow
     u32 PopupDepth = 0;
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
-
-    bool CheckFlags(const OverlayWindowFlags flags) const
-    {
-        return flags & Flags;
-    }
-    void AddFlags(const OverlayWindowFlags flags)
-    {
-        Flags |= flags;
-    }
-    void RemoveFlags(const OverlayWindowFlags flags)
-    {
-        Flags &= ~flags;
-    }
 };
 
 struct OverlaySpecs
@@ -1254,14 +1244,16 @@ class Overlay
         m_Style.Variables[var] = val;
     }
 
-    void PopStyleVar(const u32 count = 1)
+    void PopStyleVar()
+    {
+        const StyleBackup &b = m_StyleStack.GetBack();
+        m_Style.Variables[b.Index] = b.Old;
+        m_StyleStack.Pop();
+    }
+    void PopStyleVar(const u32 count)
     {
         for (u32 i = 0; i < count; ++i)
-        {
-            const StyleBackup &b = m_StyleStack.GetBack();
-            m_Style.Variables[b.Index] = b.Old;
-            m_StyleStack.Pop();
-        }
+            PopStyleVar();
     }
 
     void PushStyleColor(const OverlayColor color, const Color &col)
@@ -1386,11 +1378,6 @@ class Overlay
     void ShowRendererStatistics();
 
   private:
-    bool checkFlags(const OverlayWindowFlags flags) const
-    {
-        return flags & m_StateFlags;
-    }
-
     static TKit::StringView trimLabel(TKit::StringView label);
 
     bool beginScroll(const ScrollParameterSpecs &specs);

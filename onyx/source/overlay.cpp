@@ -88,6 +88,9 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_ImageRadius] = 0.f;
     vars[OverlayStyle_TabRadius] = 0.f;
 
+    vars[OverlayStyle_TabPadding] = 3.f;
+    vars[OverlayStyle_TabGap] = 4.f;
+
     vars[OverlayStyle_LineRadius] = 0.f;
     vars[OverlayStyle_LineWidth] = 4.f;
     vars[OverlayStyle_SeparatorTextOffset] = 20.f;
@@ -533,7 +536,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const
 
     const bool hovered = elm && elm->IsHovered(m_MousePos, padding);
     const bool windowBlock =
-        !m_Current->CheckFlags(WindowInternalFlag_Focused) && !m_Current->CheckFlags(WindowInternalFlag_Hovered);
+        !(m_Current->Flags & WindowInternalFlag_Focused) && !(m_Current->Flags & WindowInternalFlag_Hovered);
     const bool grabBlock = m_Grabbed;
     const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
     const bool activeBlocked =
@@ -820,7 +823,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     const bool mmnActive = m_StateFlags & StateFlag_MainMenuBarActive;
     const bool verticalLayout =
         (mmnActive && m_CurrentPopupDepth != 0) ||
-        (!mmnActive && (!m_Current->CheckFlags(WindowInternalFlag_MenuBarOpened) || m_CurrentPopupDepth != 0));
+        (!mmnActive && (!(m_Current->Flags & WindowInternalFlag_MenuBarOpened) || m_CurrentPopupDepth != 0));
 
     OverlayColor col = verticalLayout ? OverlayColor_None : OverlayColor_MenuItemIdle;
 
@@ -1696,7 +1699,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
     const bool ctrl = m_Window->IsKeyPressed(Key_LeftControl);
     const bool dclick = allowDoubleClick && (m_OverflowClicks == 1);
 
-    const bool triggered = hovered && (dclick || (ctrl && checkFlags(StateFlag_LeftMousePressed)));
+    const bool triggered = hovered && (dclick || (ctrl && (m_StateFlags & StateFlag_LeftMousePressed)));
     const bool persisted =
         ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(m_MousePos)));
 
@@ -1759,8 +1762,8 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
     const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
 
-    const bool lmpressed = checkFlags(StateFlag_LeftMousePressed);
-    const bool lmreleased = checkFlags(StateFlag_LeftMouseReleased);
+    const bool lmpressed = m_StateFlags & StateFlag_LeftMousePressed;
+    const bool lmreleased = m_StateFlags & StateFlag_LeftMouseReleased;
 
     const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
     const bool focusHovered = isElementHovered(hflags);
@@ -1821,7 +1824,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     }
 
     const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
-    const bool rclicked = focusHovered && checkFlags(StateFlag_RightMouseReleased);
+    const bool rclicked = focusHovered && (m_StateFlags & StateFlag_RightMouseReleased);
     const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && m_PressingLeftMouse &&
                          (allowPickup || lmpressed || m_PressedId == elm->Id);
 
@@ -2061,13 +2064,14 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
                               .Sizing = sizing,
                               .Shape = rect(m_Style[OverlayStyle_SelectableRadius])});
 
+    const f32 padding = m_Style[OverlayStyle_WidgetPadding];
     if (cb)
     {
         ly.BeginPanel(LyPnPar{.FillColor = m_Style[col],
                               .Alignment = Center,
                               .Sizing = {sabs(m_Style[OverlayStyle_WidgetSize]), flex()},
                               .Shape = rect(m_Style[OverlayStyle_SelectableCheckBoxRadius]),
-                              .Padding = 6.f});
+                              .Padding = padding});
 
         if (enabled)
             ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_CheckBoxInner],
@@ -2080,7 +2084,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     ly.BeginPanel(LyPnPar{.Direction = ltr ? LayoutDirection_LeftToRight : LayoutDirection_TopToBottom,
                           .Alignment = CenterLeft,
                           .Sizing = sizing,
-                          .Padding = m_Style[OverlayStyle_WidgetPadding]});
+                          .Padding = padding});
 
     if (!enabled && (flags & OverlaySelectableFlag_SelectOnDoubleClick))
         return focusFlags & OverlayFocusQueryFlag_DoubleClicked;
@@ -2174,7 +2178,7 @@ void Overlay::BeginTabBar(const LayoutId id)
                  .OuterSizing = scrollSizing,
                  .ContentSizing = scrollSizing,
                  .ContentPadding = 0.f,
-                 .ChildGap = m_Style[OverlayStyle_ChildGap],
+                 .ChildGap = m_Style[OverlayStyle_TabGap],
                  .Flags = OverlayScrollFlag_NoVerticalScroll | OverlayScrollFlag_HorizontalScroll});
 
     endScroll();
@@ -2216,6 +2220,7 @@ bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const Overla
     const bool startOpen = flags & OverlayTabFlag_StartOpen;
 
     PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
+    PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
 
     if (enabled)
         ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
@@ -2234,7 +2239,7 @@ bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const Overla
     if (enabled)
         ly.EndPanel();
 
-    PopStyleVar();
+    PopStyleVar(2);
 
     ly.EndPanel();
 
@@ -3238,10 +3243,10 @@ u32 Overlay::processWindows()
         MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow *win) {
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
-            const bool winHovered = win->CheckFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
+            const bool winHovered = win->Flags & (WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
             const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
             const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
-            if (winHovered && win->CheckFlags(WindowInternalFlag_InputHovered))
+            if (winHovered && (win->Flags & WindowInternalFlag_InputHovered))
             {
                 win->Grab.Flags = 0;
                 cursor = MouseCursor_IBeam;
@@ -3252,7 +3257,7 @@ u32 Overlay::processWindows()
                 win->Grab.Flags = 0;
                 return true;
             }
-            if (win->CheckFlags(OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize))
+            if (win->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize))
                 return true;
             // else, check if there is resize hover
 
@@ -3294,7 +3299,7 @@ u32 Overlay::processWindows()
         const bool collapsed =
             !(win->Flags & OverlayWindowFlag_NoCollapse) && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
         win->HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
-        win->RemoveFlags(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_Active);
+        win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_Active);
     };
 
     // check for mouse events
@@ -3363,14 +3368,14 @@ u32 Overlay::processWindows()
             !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
             win->Layout.IsHovered(win->Id, m_MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
 
-        const bool inputHovered = win->CheckFlags(WindowInternalFlag_InputHovered);
+        const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
 
         win->Flags |= wflags;
-        win->RemoveFlags(WindowInternalFlag_InputHovered);
+        win->Flags &= ~WindowInternalFlag_InputHovered;
 
         if (winHovered)
         {
-            win->AddFlags(WindowInternalFlag_Hovered);
+            win->Flags |= WindowInternalFlag_Hovered;
             canAssignHover = false;
             m_StateFlags |= StateFlag_WantCaptureMouse;
         }
@@ -3392,7 +3397,7 @@ u32 Overlay::processWindows()
     });
 
     if (!m_ActiveWindows.IsEmpty())
-        m_ActiveWindows.GetBack()->AddFlags(WindowInternalFlag_Focused);
+        m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
 
     // now just handle grabbing, which is straightforward
     if (!m_PressingLeftMouse)
@@ -4437,6 +4442,8 @@ void Overlay::ShowStyleEditor()
         varSlider("TooltipRadius", OverlayStyle_TooltipRadius, 0.f, 50.f);
         varSlider("ImageRadius", OverlayStyle_ImageRadius, 0.f, 50.f);
         varSlider("TabRadius", OverlayStyle_TabRadius, 0.f, 50.f);
+        varSlider("TabPadding", OverlayStyle_TabPadding, 0.f, 50.f);
+        varSlider("TabGap", OverlayStyle_TabGap, 0.f, 50.f);
         varSlider("LineRadius", OverlayStyle_LineRadius, 0.f, 50.f);
         varSlider("LineWidth", OverlayStyle_LineWidth, 0.f, 50.f);
         varSlider("SeparatorTextOffset", OverlayStyle_SeparatorTextOffset, 0.f, 50.f);
