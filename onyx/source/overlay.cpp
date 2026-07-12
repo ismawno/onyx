@@ -3176,13 +3176,13 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     if (!ownsNative)
         m_Current->Native = nw;
 
-    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
+    const f32v2 pos = computeMouseAlignedPosition(nw, size);
     if (m_Flags & OverlayFlag_WindowPromotions)
     {
         // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
         // interaction for which we would need to store its position) EXCEPT when multi window is involved. thats why we
         // only set the position here
-        m_Current->SetActivePosition(m_Current->ToScreen(pos));
+        m_Current->SetActivePosition(nw->ToScreen(pos));
         if (!Math::Approximately(m_Current->Size, size))
         {
             m_Current->Size = size;
