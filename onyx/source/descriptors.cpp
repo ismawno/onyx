@@ -63,14 +63,18 @@ static void createDescriptorData(const Specs &specs)
     constexpr u32 postProcessStencilAttachments = ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING;
     constexpr u32 compositorColorAttachments = ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING;
 
-    s_DescriptorData->Pool = ONYX_CHECK_VKIT_RESULT(VKit::DescriptorPool::Builder(device)
-                                                        .SetMaxSets(specs.MaxSets)
-                                                        .AddPoolSize(buffer, specs.StorageBufferPoolSize)
-                                                        .AddPoolSize(sampler, specs.SamplerPoolSize)
-                                                        .AddPoolSize(sampledImage, specs.SampledImagePoolSize)
-                                                        .AddPoolSize(combined, specs.CombinedImageSamplerPoolSize)
-                                                        .AddPoolSize(storageImage, specs.StorageImagePoolSize)
-                                                        .Build());
+    s_DescriptorData->Pool = ONYX_CHECK_VKIT_RESULT(
+        VKit::DescriptorPool::Builder(device)
+            .SetMaxSets(specs.MaxSets)
+            .AddPoolSize(buffer, specs.StorageBufferPoolSize)
+            .AddPoolSize(sampler, specs.SamplerPoolSize)
+            .AddPoolSize(sampledImage, specs.SampledImagePoolSize)
+            .AddPoolSize(combined, specs.CombinedImageSamplerPoolSize)
+            .AddPoolSize(storageImage, specs.StorageImagePoolSize)
+            // NOTE(Isma, 11/07/26): Adding this so that render views can deallocate their sets. It is the more
+            // "correct" way, but tbh we could get away with render views leaking their sets
+            .SetFlags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
+            .Build());
 
     VKit::DescriptorSetLayout::Builder flatLayout{device};
     flatLayout.AddBinding2(instances, buffer, vertex | fragment)

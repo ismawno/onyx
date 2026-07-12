@@ -143,8 +143,7 @@ int main()
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 
-    Onyx::Window *win = Onyx::OpenWindow(
-        {.Window = {.PresentMode = Onyx::PresentMode_VSync}, .Flags = Onyx::OpenWindowFlag_EnableImGui});
+    Onyx::Window *win = Onyx::OpenWindow({.Flags = Onyx::OpenWindowFlag_EnableImGui});
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;

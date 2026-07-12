@@ -11,8 +11,8 @@ int main()
     Onyx::Initialize();
     Onyx::Resources::CreateDefaultResources();
 
-    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
-    Onyx::Overlay *ui = win->CreateOverlay();
+    Onyx::Window *win = Onyx::OpenWindow();
+    Onyx::Overlay *ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_WindowPromotions});
 
     f32v2 rdims1 = {800, 600};
     f32v2 rdims2 = {800, 600};

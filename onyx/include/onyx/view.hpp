@@ -91,6 +91,17 @@ template <Dimension D> class RenderView
         return ViewportToScreen(WorldToViewport(worldPos));
     }
 
+    f32v2 ToAbsolute(const f32v2 &normalized) const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        return normalized * extent;
+    }
+    f32v2 ToNormalized(const f32v2 &absolute) const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        return absolute / extent;
+    }
+
     void MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker);
 
     void BeginOpaquePass(Onyx_CommandBuffer cmd);

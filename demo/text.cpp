@@ -10,7 +10,7 @@ int main()
     Onyx::Initialize();
     Onyx::Resources::CreateDefaultResources();
 
-    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
+    Onyx::Window *win = Onyx::OpenWindow();
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 15.f;

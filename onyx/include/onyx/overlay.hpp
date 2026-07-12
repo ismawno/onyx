@@ -13,271 +13,57 @@
 
 namespace Onyx
 {
-enum ResizeEdge : u8
-{
-    ResizeEdge_Left,
-    ResizeEdge_Right,
-    ResizeEdge_Bottom,
-    ResizeEdge_Top,
-    ResizeEdge_Count
-};
-using ResizeFlags = u8;
-using StateFlags = u16;
-
-// NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
-using WidgetStateFlags = u16;
-enum WidgetStateFlagBit : WidgetStateFlags
-{
-    WidgetStateFlag_Opened = 1U << 0,
-    // only used if OnHover focus flags are used
-    WidgetStateFlag_Hovering = 1U << 1,
-};
-
-// public focus query flags -> these flags are given to the user/dev by queries
-using OverlayFocusQueryFlags = u16;
-enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
-{
-    OverlayFocusQueryFlag_Hovered = 1U << 0,
-    OverlayFocusQueryFlag_Pressed = 1U << 1,
-    OverlayFocusQueryFlag_LeftClicked = 1U << 2,
-    OverlayFocusQueryFlag_RightClicked = 1U << 3,
-    OverlayFocusQueryFlag_DoubleClicked = 1U << 4,
-    OverlayFocusQueryFlag_Active = 1U << 5,
-    OverlayFocusQueryFlag_JustActive = 1U << 6,
-    OverlayFocusQueryFlag_PopupOpen = 1U << 7,
-    OverlayFocusQueryFlag_DragSource = 1U << 8,
-    OverlayFocusQueryFlag_DragTarget = 1U << 9,
-    OverlayFocusQueryFlag_DragPayloadDropped = 1U << 10,
-};
-
-// internal focus flags -> these configure how querying focus behave
-using FocusFlags = u32;
-enum FocusFlagBit : FocusFlags
-{
-    FocusFlag_PressedEvenWhenAwayFromHover = 1U << 8,
-    FocusFlag_ClickedOnMousePress = 1U << 9,
-    FocusFlag_KeepActiveOnPressed = 1U << 10,
-    FocusFlag_KeepActiveOnRelease = 1U << 11,
-    FocusFlag_SetActiveOnRelease = 1U << 12,
-    FocusFlag_ToggleActiveOnRelease = 1U << 13,
-    FocusFlag_ActiveAllowsInteraction = 1U << 14,
-    FocusFlag_LeftClickOpensPopup = 1U << 15,
-    FocusFlag_RightClickOpensPopup = 1U << 16,
-    FocusFlag_HoverOpensPopup = 1U << 17,
-    FocusFlag_HoverRequestsPopupCollapse = 1U << 18,
-    FocusFlag_DoNotSetHoveredId = 1U << 19,
-    FocusFlag_DoNotSetPressedId = 1U << 20,
-    FocusFlag_DoNotSetActiveId = 1U << 21,
-    FocusFlag_DoNotProtectPopup = 1U << 22,
-    FocusFlag_EnableDragging = 1U << 23,
-    FocusFlag_AllowPressedPickUp = 1U << 24,
-    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
-                         FocusFlag_DoNotProtectPopup
-};
-
-// same as above, but public
-using OverlayFocusFlags = FocusFlags;
-enum OverlayFocusFlagBit : OverlayFocusFlags
-{
-    OverlayFocusFlag_PressedEvenWhenAwayFromHover = FocusFlag_PressedEvenWhenAwayFromHover
-};
-
-using InputConvertInfoFlags = u8;
-enum InputConvertFlagBit : InputConvertInfoFlags
-{
-    InputConvertFlag_Hovered = OverlayFocusQueryFlag_Hovered,
-    InputConvertFlag_MustConvert = 1U << 1,
-    InputConvertFlag_MustOverrideHighlight = 1U << 2,
-    InputConvertFlag_AllowDoubleClick = 1U << 3,
-};
-
-using OverlayWindowFlags = u32;
-enum OverlayWindowFlagBit : OverlayWindowFlags
-{
-    OverlayWindowFlag_NoScrollBar = 1U << 8,
-    OverlayWindowFlag_NoVerticalScroll = 1U << 9,
-    OverlayWindowFlag_HorizontalScroll = 1U << 10,
-    OverlayWindowFlag_NoResize = 1U << 11,
-    OverlayWindowFlag_NoMove = 1U << 12,
-    OverlayWindowFlag_NoCollapse = 1U << 13,
-    OverlayWindowFlag_NoHeaderBar = 1U << 14,
-    OverlayWindowFlag_NoBringToFocus = 1U << 15,
-    OverlayWindowFlag_AutoResize = 1U << 16,
-    OverlayWindowFlag_BringToTop = 1U << 17,
-    OverlayWindowFlag_Modal = 1U << 18,
-    OverlayWindowFlag_NoCloseButton = 1U << 19,
-    OverlayWindowFlag_MenuBar = 1U << 20,
-};
-
-using OverlayScrollFlags = OverlayWindowFlags;
-enum OverlayScrollFlagBit : OverlayScrollFlags
-{
-    OverlayScrollFlag_Borders = 1U << 0,
-    OverlayScrollFlag_Title = 1U << 1,
-    OverlayScrollFlag_NoBackground = 1U << 2,
-    OverlayScrollFlag_Tight = 1U << 3,
-    OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
-    OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
-    OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
-};
-
-using OverlayInputFlags = u8;
-enum OverlayInputFlagBit : OverlayInputFlags
-{
-    OverlayInputFlag_EnterReturnsTrue = 1U << 0,
-    OverlayInputFlag_EnterCommitsBuffer = 1U << 1,
-    OverlayInputFlag_EscapeClearsAll = 1U << 2,
-    OverlayInputFlag_AutoSelectAll = 1U << 3,
-    OverlayInputFlag_NoHorizontalScroll = 1U << 4,
-    OverlayInputFlag_ElideLeft = 1U << 5,
-    OverlayInputFlag_StepButtons = 1U << 6,
-    OverlayInputFlag_NoUndoRedo = 1U << 7,
-};
-
-using OverlaySelectableFlags = u8;
-enum OverlaySelectableFlagBit : OverlaySelectableFlags
-{
-    OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
-    OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
-    OverlaySelectableFlag_Highlight = 1U << 2,
-    OverlaySelectableFlag_CheckBox = 1U << 3,
-    OverlaySelectableFlag_FlexWidth = 1U << 4,
-    OverlaySelectableFlag_LeftToRight = 1U << 5,
-};
-
-using OverlayDropDownFlags = u8;
-enum OverlayDropDownFlagBit : OverlayDropDownFlags
-{
-    OverlayDropDownFlag_NoArrowButton = 1U << 0,
-    OverlayDropDownFlag_NoPreview = 1U << 1,
-    OverlayDropDownFlag_HeightSmall = 1U << 2,
-    OverlayDropDownFlag_HeightRegular = 1U << 3,
-    OverlayDropDownFlag_HeightLargest = 1U << 4,
-    OverlayDropDownFlag_Tight = 1U << 5,
-};
-
-using OverlayHoveredFlags = u16;
-enum OverlayHoveredFlagBit : OverlayHoveredFlags
-{
-    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
-    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
-    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
-    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
-    OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
-    OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
-    OverlayHoveredFlag_AllowBlockedByDisabled = 1U << 6,
-    OverlayHoveredFlag_AllowBlockedByDrag = 1U << 7,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 8,
-    OverlayHoveredFlag_ShortDelay = 1U << 9,
-    OverlayHoveredFlag_NormalDelay = 1U << 10,
-    OverlayHoveredFlag_Stationary = 1U << 11,
-};
-
-using OverlayHoverQueryFlags = OverlayHoveredFlags;
-enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
-{
-    OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
-    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
-    OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
-    OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
-    OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
-    OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
-    OverlayHoverQueryFlag_BlockedByDisabled = OverlayHoveredFlag_AllowBlockedByDisabled,
-    OverlayHoverQueryFlag_BlockedByDrag = OverlayHoveredFlag_AllowBlockedByDrag,
-    OverlayHoverQueryFlag_Hovered = 1U << 15,
-};
-
-using OverlayColorFlags = u16;
-enum OverlayColorFlagBit : OverlayColorFlags
-{
-    OverlayColorFlag_NoAlpha = 1U << 0,
-    OverlayColorFlag_NoInput = 1U << 1,
-    OverlayColorFlag_NoColorMarkers = 1U << 2,
-    OverlayColorFlag_NoPicker = 1U << 3,
-    OverlayColorFlag_NoTooltip = 1U << 4,
-    OverlayColorFlag_NoPreview = 1U << 5,
-    OverlayColorFlag_NoTooltipLabel = 1U << 6,
-    OverlayColorFlag_NoTooltipColorInfo = 1U << 7,
-    OverlayColorFlag_NoDragDrop = 1U << 8,
-    OverlayColorFlag_HSV = 1U << 9,
-    OverlayColorFlag_Hex = 1U << 10,
-    OverlayColorFlag_Float = 1U << 11,
-};
+/////////////////////////////////////////////
+/// FLAG DEFINITIONS
+/////////////////////////////////////////////
 
 using OverlayButtonFlags = u8;
-enum OverlayButtonFlagBit : OverlayButtonFlags
-{
-    OverlayButtonFlag_SpanFullWidth = 1U << 0,
-    OverlayButtonFlag_Small = 1U << 1,
-    OverlayButtonFlag_TryKeepSquare = 1U << 2,
-};
-
-using OverlayTreeFlags = u8;
-enum OverlayTreeFlagBit : OverlayTreeFlags
-{
-    OverlayTreeFlag_DrawLines = 1U << 0,
-    OverlayTreeFlag_ToggleOnArrow = 1U << 1,
-    OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
-    OverlayTreeFlag_SpanLabelWidth = 1U << 3,
-    OverlayTreeFlag_Framed = 1U << 4,
-    OverlayTreeFlag_NoIndent = 1U << 5,
-    OverlayTreeFlag_StartOpen = 1U << 6,
-};
-
-using OverlaySliderFlags = u8;
-enum OverlaySliderFlagBit : OverlaySliderFlags
-{
-    OverlaySliderFlag_ClampOnInput = 1U << 0,
-    OverlaySliderFlag_Logarithmic = 1U << 1,
-    OverlaySliderFlag_NoRoundToFormat = 1U << 2,
-    OverlaySliderFlag_NoInput = 1U << 3,
-};
-
-using OverlayTabFlags = u8;
-enum OverlayTabFlagBit : OverlayTabFlags
-{
-    OverlayTabFlag_StartOpen = 1U << 0,
-};
-
-using OverlayPopupFlags = OverlayFocusQueryFlags;
-enum OverlayPopupFlagBit : OverlayPopupFlags
-{
-    OverlayPopupFlag_LeftClick = OverlayFocusQueryFlag_LeftClicked,
-    OverlayPopupFlag_RightClick = OverlayFocusQueryFlag_RightClicked
-};
-
+using OverlayColorFlags = u16;
 using OverlayDragDropFlags = u8;
-enum OverlayDragDropFlagBit : OverlayDragDropFlags
-{
-    OverlayDragDropFlag_SourceNoTooltip = 1U << 0,
-
-    OverlayDragDropFlag_TargetNoTooltip = 1U << 1,
-    OverlayDragDropFlag_TargetNoOutline = 1U << 2,
-    OverlayDragDropFlag_TargetNoNotAllowedCursor = 1U << 3,
-    OverlayDragDropFlag_TargetAcceptOnHover = 1U << 4,
-
-    DragDropFlag_PayloadDropped = 1U << 5,
-    DragDropFlag_MustClearTooltip = 1U << 6,
-};
-
-using NextWindowFlags = u8;
-enum NextWindowFlagBit : NextWindowFlags
-{
-    NextWindowFlag_Position = 1U << 0,
-    NextWindowFlag_Size = 1U << 1,
-};
-
-using OverlayTooltipFlags = u8;
-enum OverlayTooltipFlagBit : OverlayTooltipFlags
-{
-    OverlayTooltipFlag_Reset = 1U << 0,
-};
-
+using OverlayDropDownFlags = u8;
 using OverlayFlags = u8;
+using OverlayFocusQueryFlags = u16;
+using OverlayFocusFlags = u32;
+using OverlayHoveredFlags = u16;
+using OverlayHoverQueryFlags = OverlayHoveredFlags;
+using OverlayInputFlags = u8;
+using OverlayPopupFlags = OverlayFocusQueryFlags;
+using OverlayScrollFlags = u32;
+using OverlaySelectableFlags = u8;
+using OverlaySliderFlags = u8;
+using OverlayTabFlags = u8;
+using OverlayTreeFlags = u8;
+using OverlayTooltipFlags = u8;
+using OverlayWindowFlags = OverlayScrollFlags;
+
+using InputConvertInfoFlags = u8;
+using WidgetStateFlags = u16;
+using StateFlags = u16;
+using ResizeFlags = u8;
+using NextWindowFlags = u8;
+using FocusFlags = OverlayFocusFlags;
+using NativeWindowFlags = u8;
+
+/////////////////////////////////////////////
+/// END FLAG DEFINITIONS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// GENERAL
+/////////////////////////////////////////////
+
 enum OverlayFlagBit : OverlayFlags
 {
-    OverlayFlag_MultiWindow = 1U << 0,
+    OverlayFlag_WindowPromotions = 1U << 0,
 };
+
+/////////////////////////////////////////////
+/// END GENERAL
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// STYLING
+/////////////////////////////////////////////
 
 enum OverlayPaletteType : u8
 {
@@ -538,21 +324,428 @@ struct OverlayColorHandle
 #endif
 };
 
-struct NextWindowData
+/////////////////////////////////////////////
+/// END STYLING
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WINDOWS
+/////////////////////////////////////////////
+
+enum ResizeEdge : u8
 {
-    f32v2 Position;
-    f32v2 Size;
-    NextWindowFlags Flags = 0;
+    ResizeEdge_Left,
+    ResizeEdge_Right,
+    ResizeEdge_Bottom,
+    ResizeEdge_Top,
+    ResizeEdge_Count
+};
+
+enum NextWindowFlagBit : NextWindowFlags
+{
+    NextWindowFlag_Position = 1U << 0,
+    NextWindowFlag_Size = 1U << 1,
+};
+
+enum OverlayWindowFlagBit : OverlayWindowFlags
+{
+    OverlayWindowFlag_NoScrollBar = 1U << 8,
+    OverlayWindowFlag_NoVerticalScroll = 1U << 9,
+    OverlayWindowFlag_HorizontalScroll = 1U << 10,
+    OverlayWindowFlag_NoResize = 1U << 11,
+    OverlayWindowFlag_NoMove = 1U << 12,
+    OverlayWindowFlag_NoCollapse = 1U << 13,
+    OverlayWindowFlag_NoHeaderBar = 1U << 14,
+    OverlayWindowFlag_NoBringToFocus = 1U << 15,
+    OverlayWindowFlag_NoPromotions = 1U << 16,
+    OverlayWindowFlag_AutoResize = 1U << 17,
+    OverlayWindowFlag_BringToTop = 1U << 18,
+    OverlayWindowFlag_Modal = 1U << 19,
+    OverlayWindowFlag_NoCloseButton = 1U << 20,
+    OverlayWindowFlag_MenuBar = 1U << 21,
 };
 
 struct GrabInfo
 {
     TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     OverlayColor InteractionColor = OverlayColor_None; // Whether hovered or pressed
-    f32v2 Position;
+    f32v2 ScreenPos;
     f32v2 Size;
     ResizeFlags Flags = 0;
 };
+
+struct NextWindowData
+{
+    f32v2 ScreenPos;
+    f32v2 Size;
+    NextWindowFlags Flags = 0;
+};
+
+struct NativeWindow
+{
+    Window *Window;
+    RenderView<D2> *View;
+    RenderContext<D2> *Context;
+    NativeWindow *Parent = nullptr;
+
+    f32v2 ScreenPos{0.f};
+    // only uses when os actively resizes window, so that child overlay window can adapt if it is a promoted window (has
+    // its own surface)
+    f32v2 EventSize{0.f};
+
+    f32v2 WorldMouse{0.f};
+    f32v2 WorldMouseOnPress{0.f};
+    f32v2 WorldMouseDelta{0.f};
+
+    f32v2 ScreenTopLeftBorder;
+    f32v2 ScreenBottomRightBorder;
+
+    f32v2 WorldTopLeftBorder;
+    f32v2 WorldBottomRightBorder;
+
+    // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
+    // a double click)
+    u32 OverflowClicks = 0;
+    TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
+    TKit::String TextInput{};
+
+    TKit::String InputWidgetBuffer{};
+    TKit::Clock ClickClock{};
+
+    NativeWindowFlags Flags = 0;
+
+    void UpdateBorders()
+    {
+        WorldTopLeftBorder = View->ScreenToWorld(f32v2{0.f});
+        WorldBottomRightBorder = View->ScreenToWorld(f32v2{1.f});
+    }
+
+    f32v2 ToScreen(const f32v2 &world) const
+    {
+        return ScreenPos + View->ToAbsolute(View->WorldToScreen(world));
+    }
+    f32v2 ToWorld(const f32v2 &screen) const
+    {
+        return View->ScreenToWorld(View->ToNormalized(screen - ScreenPos));
+    }
+
+    f32v2 GetWorldTopLeft() const
+    {
+        return WorldTopLeftBorder;
+    }
+    f32v2 GetWorldTopRight() const
+    {
+        return {WorldBottomRightBorder[0], WorldTopLeftBorder[1]};
+    }
+    f32v2 GetWorldBottomLeft() const
+    {
+        return {WorldTopLeftBorder[0], WorldBottomRightBorder[1]};
+    }
+    f32v2 GetWorldBottomRight() const
+    {
+        return WorldBottomRightBorder;
+    }
+    f32 GetWorldLeft() const
+    {
+        return WorldTopLeftBorder[0];
+    }
+    f32 GetWorldRight() const
+    {
+        return WorldBottomRightBorder[0];
+    }
+    f32 GetWorldTop() const
+    {
+        return WorldTopLeftBorder[1];
+    }
+    f32 GetWorldBottom() const
+    {
+        return WorldBottomRightBorder[1];
+    }
+    f32v2 GetDimensions() const
+    {
+        return {GetWorldRight() - GetWorldLeft(), GetWorldTop() - GetWorldBottom()};
+    }
+};
+
+struct OverlayWindow
+{
+    OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
+    {
+    }
+
+    usz Id = NullLayoutId;
+    u64 Layer;
+    NativeWindow *Native;
+
+    GrabInfo Grab{};
+
+    Layout Layout;
+
+    f32v2 ScreenPos;
+
+    f32v2 Size{240.f};
+    f32v2 MinSize;
+
+    f32 LastHeight = 240.f;
+    u32 PopupDepth = 0;
+    CodePoint HeaderIcon;
+    OverlayWindowFlags Flags = 0;
+
+    const f32v2 &GetActivePosition() const;
+    f32v2 &GetActivePosition();
+    void SetActivePosition(const f32v2 &pos);
+
+    void ClampToNative();
+    bool IsFullscreenBlocked() const;
+    bool CanResize() const;
+    bool CanMove() const;
+    bool CanCollapse() const;
+
+    f32v2 ToScreen(const f32v2 &world) const;
+    f32v2 ToWorld(const f32v2 &screen) const;
+
+    f32v2 GetEffectiveSize(const bool autoResize) const
+    {
+        if (!autoResize)
+            return Size;
+
+        const LayoutElement *elm = Layout.QueryElement(Id);
+        return elm ? elm->Size : Size;
+    }
+    f32v2 GetEffectiveSize() const
+    {
+        return GetEffectiveSize(Flags & OverlayWindowFlag_AutoResize);
+    }
+};
+
+/////////////////////////////////////////////
+/// END WINDOWS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// QUERY FLAGS
+/////////////////////////////////////////////
+
+// public focus query flags -> these flags are given to the user/dev by queries
+enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
+{
+    OverlayFocusQueryFlag_Hovered = 1U << 0,
+    OverlayFocusQueryFlag_Pressed = 1U << 1,
+    OverlayFocusQueryFlag_LeftClicked = 1U << 2,
+    OverlayFocusQueryFlag_RightClicked = 1U << 3,
+    OverlayFocusQueryFlag_DoubleClicked = 1U << 4,
+    OverlayFocusQueryFlag_Active = 1U << 5,
+    OverlayFocusQueryFlag_JustActive = 1U << 6,
+    OverlayFocusQueryFlag_PopupOpen = 1U << 7,
+    OverlayFocusQueryFlag_DragSource = 1U << 8,
+    OverlayFocusQueryFlag_DragTarget = 1U << 9,
+    OverlayFocusQueryFlag_DragPayloadDropped = 1U << 10,
+};
+
+// internal focus flags -> these configure how querying focus behave
+enum FocusFlagBit : FocusFlags
+{
+    FocusFlag_PressedEvenWhenAwayFromHover = 1U << 8,
+    FocusFlag_ClickedOnMousePress = 1U << 9,
+    FocusFlag_KeepActiveOnPressed = 1U << 10,
+    FocusFlag_KeepActiveOnRelease = 1U << 11,
+    FocusFlag_SetActiveOnRelease = 1U << 12,
+    FocusFlag_ToggleActiveOnRelease = 1U << 13,
+    FocusFlag_ActiveAllowsInteraction = 1U << 14,
+    FocusFlag_LeftClickOpensPopup = 1U << 15,
+    FocusFlag_RightClickOpensPopup = 1U << 16,
+    FocusFlag_HoverOpensPopup = 1U << 17,
+    FocusFlag_HoverRequestsPopupCollapse = 1U << 18,
+    FocusFlag_DoNotSetHoveredId = 1U << 19,
+    FocusFlag_DoNotSetPressedId = 1U << 20,
+    FocusFlag_DoNotSetActiveId = 1U << 21,
+    FocusFlag_DoNotProtectPopup = 1U << 22,
+    FocusFlag_EnableDragging = 1U << 23,
+    FocusFlag_AllowPressedPickUp = 1U << 24,
+    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
+                         FocusFlag_DoNotProtectPopup
+};
+
+// same as above, but public
+enum OverlayFocusFlagBit : OverlayFocusFlags
+{
+    OverlayFocusFlag_PressedEvenWhenAwayFromHover = FocusFlag_PressedEvenWhenAwayFromHover
+};
+
+enum OverlayHoveredFlagBit : OverlayHoveredFlags
+{
+    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
+    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
+    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
+    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
+    OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
+    OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
+    OverlayHoveredFlag_AllowBlockedByDisabled = 1U << 6,
+    OverlayHoveredFlag_AllowBlockedByDrag = 1U << 7,
+    OverlayHoveredFlag_NoSharedDelay = 1U << 8,
+    OverlayHoveredFlag_ShortDelay = 1U << 9,
+    OverlayHoveredFlag_NormalDelay = 1U << 10,
+    OverlayHoveredFlag_Stationary = 1U << 11,
+};
+
+enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
+{
+    OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
+    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
+    OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
+    OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
+    OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
+    OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
+    OverlayHoverQueryFlag_BlockedByDisabled = OverlayHoveredFlag_AllowBlockedByDisabled,
+    OverlayHoverQueryFlag_BlockedByDrag = OverlayHoveredFlag_AllowBlockedByDrag,
+    OverlayHoverQueryFlag_Hovered = 1U << 15,
+};
+
+/////////////////////////////////////////////
+/// END QUERY FLAGS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WIDGET FLAGS
+/////////////////////////////////////////////
+
+enum OverlayButtonFlagBit : OverlayButtonFlags
+{
+    OverlayButtonFlag_SpanFullWidth = 1U << 0,
+    OverlayButtonFlag_Small = 1U << 1,
+    OverlayButtonFlag_TryKeepSquare = 1U << 2,
+};
+
+enum OverlayColorFlagBit : OverlayColorFlags
+{
+    OverlayColorFlag_NoAlpha = 1U << 0,
+    OverlayColorFlag_NoInput = 1U << 1,
+    OverlayColorFlag_NoColorMarkers = 1U << 2,
+    OverlayColorFlag_NoPicker = 1U << 3,
+    OverlayColorFlag_NoTooltip = 1U << 4,
+    OverlayColorFlag_NoPreview = 1U << 5,
+    OverlayColorFlag_NoTooltipLabel = 1U << 6,
+    OverlayColorFlag_NoTooltipColorInfo = 1U << 7,
+    OverlayColorFlag_NoDragDrop = 1U << 8,
+    OverlayColorFlag_HSV = 1U << 9,
+    OverlayColorFlag_Hex = 1U << 10,
+    OverlayColorFlag_Float = 1U << 11,
+};
+
+enum OverlayDragDropFlagBit : OverlayDragDropFlags
+{
+    OverlayDragDropFlag_SourceNoTooltip = 1U << 0,
+
+    OverlayDragDropFlag_TargetNoTooltip = 1U << 1,
+    OverlayDragDropFlag_TargetNoOutline = 1U << 2,
+    OverlayDragDropFlag_TargetNoNotAllowedCursor = 1U << 3,
+    OverlayDragDropFlag_TargetAcceptOnHover = 1U << 4,
+
+    DragDropFlag_PayloadDropped = 1U << 5,
+    DragDropFlag_MustClearTooltip = 1U << 6,
+};
+
+enum OverlayDropDownFlagBit : OverlayDropDownFlags
+{
+    OverlayDropDownFlag_NoArrowButton = 1U << 0,
+    OverlayDropDownFlag_NoPreview = 1U << 1,
+    OverlayDropDownFlag_HeightSmall = 1U << 2,
+    OverlayDropDownFlag_HeightRegular = 1U << 3,
+    OverlayDropDownFlag_HeightLargest = 1U << 4,
+    OverlayDropDownFlag_Tight = 1U << 5,
+};
+
+enum OverlayInputFlagBit : OverlayInputFlags
+{
+    OverlayInputFlag_EnterReturnsTrue = 1U << 0,
+    OverlayInputFlag_EnterCommitsBuffer = 1U << 1,
+    OverlayInputFlag_EscapeClearsAll = 1U << 2,
+    OverlayInputFlag_AutoSelectAll = 1U << 3,
+    OverlayInputFlag_NoHorizontalScroll = 1U << 4,
+    OverlayInputFlag_ElideLeft = 1U << 5,
+    OverlayInputFlag_StepButtons = 1U << 6,
+    OverlayInputFlag_NoUndoRedo = 1U << 7,
+};
+
+enum OverlayScrollFlagBit : OverlayScrollFlags
+{
+    OverlayScrollFlag_Borders = 1U << 0,
+    OverlayScrollFlag_Title = 1U << 1,
+    OverlayScrollFlag_NoBackground = 1U << 2,
+    OverlayScrollFlag_Tight = 1U << 3,
+    OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
+    OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
+    OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
+};
+
+enum OverlayPopupFlagBit : OverlayPopupFlags
+{
+    OverlayPopupFlag_LeftClick = OverlayFocusQueryFlag_LeftClicked,
+    OverlayPopupFlag_RightClick = OverlayFocusQueryFlag_RightClicked
+};
+
+enum OverlaySelectableFlagBit : OverlaySelectableFlags
+{
+    OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
+    OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
+    OverlaySelectableFlag_Highlight = 1U << 2,
+    OverlaySelectableFlag_CheckBox = 1U << 3,
+    OverlaySelectableFlag_FlexWidth = 1U << 4,
+    OverlaySelectableFlag_LeftToRight = 1U << 5,
+};
+
+enum OverlaySliderFlagBit : OverlaySliderFlags
+{
+    OverlaySliderFlag_ClampOnInput = 1U << 0,
+    OverlaySliderFlag_Logarithmic = 1U << 1,
+    OverlaySliderFlag_NoRoundToFormat = 1U << 2,
+    OverlaySliderFlag_NoInput = 1U << 3,
+};
+
+enum OverlayTabFlagBit : OverlayTabFlags
+{
+    OverlayTabFlag_StartOpen = 1U << 0,
+};
+
+enum OverlayTreeFlagBit : OverlayTreeFlags
+{
+    OverlayTreeFlag_DrawLines = 1U << 0,
+    OverlayTreeFlag_ToggleOnArrow = 1U << 1,
+    OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
+    OverlayTreeFlag_SpanLabelWidth = 1U << 3,
+    OverlayTreeFlag_Framed = 1U << 4,
+    OverlayTreeFlag_NoIndent = 1U << 5,
+    OverlayTreeFlag_StartOpen = 1U << 6,
+};
+
+enum OverlayTooltipFlagBit : OverlayTooltipFlags
+{
+    OverlayTooltipFlag_Reset = 1U << 0,
+};
+
+enum InputConvertFlagBit : InputConvertInfoFlags
+{
+    InputConvertFlag_Hovered = OverlayFocusQueryFlag_Hovered,
+    InputConvertFlag_MustConvert = 1U << 1,
+    InputConvertFlag_MustOverrideHighlight = 1U << 2,
+    InputConvertFlag_AllowDoubleClick = 1U << 3,
+};
+
+// NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
+enum WidgetStateFlagBit : WidgetStateFlags
+{
+    WidgetStateFlag_Opened = 1U << 0,
+    // only used if OnHover focus flags are used
+    WidgetStateFlag_Hovering = 1U << 1,
+};
+
+/////////////////////////////////////////////
+/// END WIDGET FLAGS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WIDGET STATE
+/////////////////////////////////////////////
 
 struct ScrollBarInfo
 {
@@ -579,105 +772,6 @@ struct ScrollParameterSpecs
     f32 ChildGap;
     f32 VerticalOffset = 0.f; // useful for tabs
     OverlayScrollFlags Flags;
-};
-
-using NativeWindowFlags = u8;
-
-struct NativeWindow
-{
-    Window *Window;
-    RenderView<D2> *View;
-    RenderContext<D2> *Context;
-
-    f32v2 MousePos{0.f};
-    f32v2 MousePosOnPress{0.f};
-    f32v2 MouseDelta{0.f};
-
-    f32v2 TopLeftBorder;
-    f32v2 BottomRightBorder;
-
-    // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
-    // a double click)
-    u32 OverflowClicks = 0;
-    TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
-    TKit::String TextInput{};
-
-    TKit::String InputWidgetBuffer{};
-    TKit::Clock ClickClock{};
-
-    NativeWindowFlags Flags = 0;
-
-    void UpdateBorders()
-    {
-        TopLeftBorder = View->ScreenToWorld(f32v2{0.f});
-        BottomRightBorder = View->ScreenToWorld(f32v2{1.f});
-    }
-
-    f32v2 GetTopLeft() const
-    {
-        return TopLeftBorder;
-    }
-    f32v2 GetTopRight() const
-    {
-        return {BottomRightBorder[0], TopLeftBorder[1]};
-    }
-    f32v2 GetBottomLeft() const
-    {
-        return {TopLeftBorder[0], BottomRightBorder[1]};
-    }
-    f32v2 GetBottomRight() const
-    {
-        return BottomRightBorder;
-    }
-    f32 GetLeft() const
-    {
-        return TopLeftBorder[0];
-    }
-    f32 GetRight() const
-    {
-        return BottomRightBorder[0];
-    }
-    f32 GetTop() const
-    {
-        return TopLeftBorder[1];
-    }
-    f32 GetBottom() const
-    {
-        return BottomRightBorder[1];
-    }
-    f32v2 GetDimensions() const
-    {
-        return BottomRightBorder - TopLeftBorder;
-    }
-};
-
-struct OverlayWindow
-{
-    OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
-    {
-    }
-
-    usz Id = NullLayoutId;
-    u64 Layer;
-    NativeWindow *Native;
-
-    GrabInfo Grab{};
-
-    Layout Layout;
-    f32v2 Position{0.f};
-    f32v2 Size{240.f};
-    f32v2 MinSize;
-    f32 LastHeight = 240.f;
-    u32 PopupDepth = 0;
-    CodePoint HeaderIcon;
-    OverlayWindowFlags Flags = 0;
-};
-
-struct OverlaySpecs
-{
-    LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
-    OverlayStyle Style{};
-    OverlayFlags Flags = 0;
 };
 
 struct PickerData
@@ -711,8 +805,26 @@ struct OverlayDragDropPayload
     }
 };
 
+/////////////////////////////////////////////
+/// END WIDGET STATE
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// IMPLEMENTATION
+/////////////////////////////////////////////
+
+struct OverlaySpecs
+{
+    LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
+    OverlayStyle Style{};
+    OverlayFlags Flags = 0;
+};
 class Overlay
 {
+    /////////////////////////////////////////////
+    /// INITIALIZATION
+    /////////////////////////////////////////////
+
     TKIT_NON_COPYABLE(Overlay)
 
   public:
@@ -742,23 +854,14 @@ class Overlay
     Overlay(Window *win, const OverlaySpecs &specs);
     ~Overlay();
 
-    void SetNextWindowPosition(const f32v2 &pos)
-    {
-        m_NextWindow.Position = pos;
-        m_NextWindow.Flags |= NextWindowFlag_Position;
-    }
-    void SetNextWindowSize(const f32v2 &size)
-    {
-        m_NextWindow.Size = size;
-        m_NextWindow.Flags |= NextWindowFlag_Size;
-    }
-    void SetNextTextId(const LayoutId id)
-    {
-        m_TextId = id;
-    }
+    /////////////////////////////////////////////
+    /// END INITIALIZATION
+    /////////////////////////////////////////////
 
-    // windows //
-    // TODO(Isma): Should return id
+    /////////////////////////////////////////////
+    /// WINDOWS/MENUS PUBLIC
+    /////////////////////////////////////////////
+
     bool BeginWindow(TKit::StringView title, bool *opened, OverlayWindowFlags flags = 0);
     bool BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags = 0)
     {
@@ -774,6 +877,17 @@ class Overlay
 
     bool BeginMenu(TKit::StringView label);
     void EndMenu();
+
+    void SetNextWindowPosition(const f32v2 &pos)
+    {
+        m_NextWindow.ScreenPos = pos;
+        m_NextWindow.Flags |= NextWindowFlag_Position;
+    }
+    void SetNextWindowSize(const f32v2 &size)
+    {
+        m_NextWindow.Size = size;
+        m_NextWindow.Flags |= NextWindowFlag_Size;
+    }
 
     bool MenuItem(const TKit::StringView label, const bool enabled = false)
     {
@@ -797,9 +911,13 @@ class Overlay
         return false;
     }
 
-    // /windows //
+    /////////////////////////////////////////////
+    /// END WINDOWS/MENUS PUBLIC
+    /////////////////////////////////////////////
 
-    // widgets //
+    /////////////////////////////////////////////
+    /// WIDGETS PUBLIC
+    /////////////////////////////////////////////
 
     // TODO(Isma): Create unicode overload
     bool Button(TKit::StringView label, OverlayButtonFlags flags = 0);
@@ -974,9 +1092,47 @@ class Overlay
     bool ColorButton(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
     bool ColorEditor(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
 
-    // /widgets //
+    template <TKit::Integer T>
+    bool ListBox(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
+                 const OverlaySelectableFlags flags = 0)
+    {
+        const T val = *current;
+        BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
+                    OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title);
 
-    // display //
+        for (u32 i = 0; i < elements.GetSize(); ++i)
+            if (Selectable(elements[i], val == i, flags))
+                *current = i;
+
+        EndScroll();
+        return val != *current;
+    }
+    template <TKit::Integer T>
+    bool ListBox(const TKit::StringView label, T *current, const TKit::StringView elements,
+                 const OverlaySelectableFlags flags = 0)
+    {
+        const TKit::StackString str{elements.GetData(), elements.GetSize()};
+        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
+
+        TKit::StackArray<TKit::StringView> views{};
+        views.Reserve(splits.GetSize());
+        for (const TKit::StackString &elm : splits)
+            views.Append(elm);
+        return ListBox(label, current, views, flags);
+    }
+
+    /////////////////////////////////////////////
+    /// END WIDGETS PUBLIC
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// DISPLAY PUBLIC
+    /////////////////////////////////////////////
+
+    void SetNextTextId(const LayoutId id)
+    {
+        m_TextId = id;
+    }
 
     void TextRaw(LayoutTextMode mode, TKit::StringView text);
     void TextRaw(const TKit::StringView text)
@@ -1024,9 +1180,16 @@ class Overlay
                                          .TexScale = scale});
     }
 
-    // /display //
+    void BeginDisabled(bool enabled = true);
+    void EndDisabled();
 
-    // popups
+    /////////////////////////////////////////////
+    /// END DISPLAY PUBLIC
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// POPUPS PUBLIC
+    /////////////////////////////////////////////
 
     void OpenPopup(const LayoutId id)
     {
@@ -1100,38 +1263,14 @@ class Overlay
         return DropDown(label, current, views, flags);
     }
 
-    template <TKit::Integer T>
-    bool ListBox(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
-                 const OverlaySelectableFlags flags = 0)
-    {
-        const T val = *current;
-        BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
-                    OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title);
+    /////////////////////////////////////////////
+    /// END POPUPS PUBLIC
+    /////////////////////////////////////////////
 
-        for (u32 i = 0; i < elements.GetSize(); ++i)
-            if (Selectable(elements[i], val == i, flags))
-                *current = i;
+    /////////////////////////////////////////////
+    /// TOOLTIPS PUBLIC
+    /////////////////////////////////////////////
 
-        EndScroll();
-        return val != *current;
-    }
-    template <TKit::Integer T>
-    bool ListBox(const TKit::StringView label, T *current, const TKit::StringView elements,
-                 const OverlaySelectableFlags flags = 0)
-    {
-        const TKit::StackString str{elements.GetData(), elements.GetSize()};
-        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
-
-        TKit::StackArray<TKit::StringView> views{};
-        views.Reserve(splits.GetSize());
-        for (const TKit::StackString &elm : splits)
-            views.Append(elm);
-        return ListBox(label, current, views, flags);
-    }
-
-    // /popups
-
-    // tooltips //
     void BeginTooltip(OverlayTooltipFlags flags = 0);
     void EndTooltip();
     template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
@@ -1158,12 +1297,13 @@ class Overlay
         return SetItemTooltip(0, str, std::forward<Args>(args)...);
     }
 
-    // /tooltips //
+    /////////////////////////////////////////////
+    /// END TOOLTIPS PUBLIC
+    /////////////////////////////////////////////
 
-    // layout //
-
-    void BeginDisabled(bool enabled = true);
-    void EndDisabled();
+    /////////////////////////////////////////////
+    /// LAYOUT PUBLIC
+    /////////////////////////////////////////////
 
     bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
     bool BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
@@ -1313,9 +1453,14 @@ class Overlay
         m_IdStack.Pop();
     }
 
-    // /layout //
+    /////////////////////////////////////////////
+    /// END LAYOUT PUBLIC
+    /////////////////////////////////////////////
 
-    // style //
+    /////////////////////////////////////////////
+    /// STYLE PUBLIC
+    /////////////////////////////////////////////
+
     void PushStyleVar(const OverlayStyleVariable var, const f32 val)
     {
         m_StyleStack.Append(m_Style[var], var);
@@ -1347,9 +1492,13 @@ class Overlay
         m_ColorStack.Pop();
     }
 
-    // /style //
+    /////////////////////////////////////////////
+    /// END STYLE PUBLIC
+    /////////////////////////////////////////////
 
-    // query //
+    /////////////////////////////////////////////
+    /// INTERACTION/INPUT PUBLIC
+    /////////////////////////////////////////////
 
     bool BeginDragDropSource(OverlayDragDropFlags flags = 0);
     void EndDragDropSource();
@@ -1424,7 +1573,14 @@ class Overlay
     }
     bool WantCaptureMouse() const;
     bool WantCaptureKeyboard() const;
-    // /query //
+
+    /////////////////////////////////////////////
+    /// END INTERACTION/INPUT PUBLIC
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// RENDERING PUBLIC
+    /////////////////////////////////////////////
 
     void Draw();
 
@@ -1435,7 +1591,7 @@ class Overlay
     }
     const NativeWindow *GetMainNativeWindow() const
     {
-        return &m_NativeWindows[0];
+        return m_NativeWindows[0];
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
@@ -1443,19 +1599,117 @@ class Overlay
                RenderViewFlag_Outlines;
     }
 
+    /////////////////////////////////////////////
+    /// END RENDERING PUBLIC
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// DEMO
+    /////////////////////////////////////////////
+
     void ShowDemo();
     void ShowStyleEditor();
     void ShowRendererStatistics();
 
-  private:
-    static TKit::StringView trimLabel(TKit::StringView label);
+    /////////////////////////////////////////////
+    /// END DEMO
+    /////////////////////////////////////////////
 
-    bool beginScroll(const ScrollParameterSpecs &specs);
-    void endScroll();
+  private:
+    StateFlags m_StateFlags = 0;
+    OverlayFlags m_Flags = 0;
+
+    /////////////////////////////////////////////
+    /// WINDOWS/MENUS PRIVATE
+    /////////////////////////////////////////////
+
+    OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
+
+    void addActiveWindow(OverlayWindow *win);
+    void drawWindowBorders();
+    bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
+    void popWindowStack();
+    u32 processWindows();
+
+    NativeWindow *createNativeWindow(Window *win);
+    NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims);
+
+    void destroyNativeWindow(NativeWindow *win);
+    void removeNativeWindow(NativeWindow *win);
+
+    void promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
+    void demoteWindow(OverlayWindow *win);
+
+    void demoteAllWindows();
+    void manageWindowPromotions();
+
+    template <typename F> void iterateReverseWindows(F func);
+
+    NativeWindow *getMainNativeWindow()
+    {
+        return m_NativeWindows[0];
+    }
+
+    u64 toTop()
+    {
+        return m_LayerCount++;
+    }
+
+    f32v2 getCurrentEffectiveSize() const
+    {
+        return m_Current->GetEffectiveSize(isAutoResize());
+    }
+    f32 getCurrentEffectiveWidth() const
+    {
+        return getCurrentEffectiveSize()[0];
+    }
+    f32 getCurrentEffectiveHeight() const
+    {
+        return getCurrentEffectiveSize()[1];
+    }
+
+    // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear
+    // search is overall better
+    // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
+    // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
+    // time, so 32 should be plenty
+    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
+    TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
+
+    TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
+    TKit::TierArray<OverlayWindow *> m_WindowStack{};
+    TKit::TierArray<usz> m_WindowIds{};
+
+    NextWindowData m_NextWindow{};
+
+    OverlayWindow *m_Current = nullptr;
+    OverlayWindow *m_Grabbed = nullptr;
+
+    u64 m_LayerCount = 0;
+    f32 m_WindowSpawnOffset = 0.f;
+
+    /////////////////////////////////////////////
+    /// END WINDOWS/MENUS PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// WIDGETS PRIVATE
+    /////////////////////////////////////////////
+
+    static TKit::StringView trimLabel(TKit::StringView label);
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
     void beginHorizontalWidget(usz id, f32 normSize = 0.5f);
     void endHorizontalWidget(TKit::StringView label = {});
+
+    bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
+                      InputConvertInfoFlags cflags = 0);
+
+    bool colorHexInput(f32 *colPtr, const Color &col, OverlayColorFlags flags);
+    bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
+    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
+                     OverlayColorFlags flags, f32 size);
+    usz drawColorPreview(const Color &col, f32 size, bool alpha);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
@@ -1514,7 +1768,7 @@ class Overlay
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
         if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
-            f32 relPos = nw->MousePos[0] - elm->Position[0] - 0.5f * length;
+            f32 relPos = nw->WorldMouse[0] - elm->Position[0] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
                 relPos += 0.5f * innerWidth;
 
@@ -1615,7 +1869,7 @@ class Overlay
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
             const NativeWindow *nw = m_Current->Native;
-            const f32 drag = nw->MousePos[0] - nw->MousePosOnPress[0];
+            const f32 drag = nw->WorldMouse[0] - nw->WorldMouseOnPress[0];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
                                          decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
@@ -1640,10 +1894,6 @@ class Overlay
         ly.EndPanel();
         return *value != pval;
     }
-
-    bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
-                      InputConvertInfoFlags cflags = 0);
-
     template <TKit::Numeric T>
     bool inputNumericBox(T *value, const char *format, const TKit::StringView hint, const OverlayInputFlags flags,
                          const InputConvertInfoFlags cflags = 0)
@@ -1673,6 +1923,177 @@ class Overlay
         }
         return false;
     }
+    WidgetStateFlags getWidgetState(const LayoutId id, const WidgetStateFlags fallback = 0)
+    {
+        return m_WidgetStates.TryInsert(id, fallback);
+    }
+    bool checkWidgetState(const LayoutId id, const WidgetStateFlags flags, const WidgetStateFlags fallback = 0)
+    {
+        return getWidgetState(id, fallback) & flags;
+    }
+    void toggleWidgetState(const LayoutId id, const WidgetStateFlags bit)
+    {
+        const WidgetStateFlags flags = getWidgetState(id);
+        if (flags & bit)
+            m_WidgetStates[id] &= ~bit;
+        else
+            m_WidgetStates[id] |= bit;
+    }
+
+    TKit::String m_InputWidgetBuffer{};
+    u32 m_CursorStart = 0;
+    u32 m_CursorEnd = 0;
+
+    usz m_LastItem = NullLayoutId;
+
+    f64 m_DragValue = 0.;
+
+    TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
+    TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
+    TKit::TierHashMap<usz, TabBarData> m_TabBarData{};
+
+    Color m_PickerOriginal{};
+
+    TabBarData *m_CurrentTabBar = nullptr;
+    u32 m_TabIndex = 0;
+
+    struct TextInputStateInfo
+    {
+        u32 Cursor;
+        TKit::String Text;
+    };
+
+    TKit::TierArray<TextInputStateInfo> m_UndoStack{};
+    TKit::TierArray<TextInputStateInfo> m_RedoStack{};
+
+    // NOTE(Isma, 07/07/26): Persistently saving a LayoutId object may be dangerous bc of the debug name stored:
+    // underlying string may become stale. In practice, this is a throwaway id that gets discarded once used, so its not
+    // that persistent. should be fine
+    LayoutId m_TextId = NullLayoutId;
+
+    /////////////////////////////////////////////
+    /// END WIDGETS PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// POPUPS PRIVATE
+    /////////////////////////////////////////////
+
+    void closePopup(u32 depth);
+    void requestCollapsePopups();
+    f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const;
+
+    TKit::TierArray<usz> m_PopupStack{};
+    u32 m_CurrentPopupDepth = 0;
+    u32 m_PopupCollapseDepth = 0;
+    // so that modals only collapse manually
+    u32 m_ModalCollapseDepth = 0;
+
+    /////////////////////////////////////////////
+    /// END POPUPS PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// TOOLTIPS PRIVATE
+    /////////////////////////////////////////////
+
+    void trashTooltip();
+    void resetTooltip();
+
+    OverlayWindow *m_Tooltip = nullptr;
+    usz m_LastItemTooltipBackup = NullLayoutId;
+
+    /////////////////////////////////////////////
+    /// END TOOLTIPS PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// LAYOUT PRIVATE
+    /////////////////////////////////////////////
+
+    bool beginScroll(const ScrollParameterSpecs &specs);
+    void endScroll();
+    bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
+
+    LayoutSpecs m_LayoutSpecs{};
+    TKit::TierArray<usz> m_IdStack{};
+    TKit::TierArray<f32> m_DisabledStack{};
+
+    TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
+    TKit::TierArray<usz> m_ScrollStack{};
+
+    /////////////////////////////////////////////
+    /// END LAYOUT PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// STYLE PRIVATE
+    /////////////////////////////////////////////
+
+    OverlayStyle m_Style;
+    OverlayStyle m_DefaultStyle;
+    TKit::TierArray<ColorBackup> m_ColorStack{};
+    TKit::TierArray<StyleBackup> m_StyleStack{};
+
+    /////////////////////////////////////////////
+    /// END STYLE PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// INTERACTION/INPUT PRIVATE
+    /////////////////////////////////////////////
+
+    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const;
+    bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
+    {
+        return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
+    }
+    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0, const f32v2 &padding = f32v2{0.f});
+
+    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
+                                                  const f32v2 &padding = f32v2{0.f});
+    InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
+
+    usz m_HoveredId = NullLayoutId;
+    usz m_PressedId = NullLayoutId;
+    usz m_DraggedId = NullLayoutId;
+    usz m_DragDropId = NullLayoutId;
+    usz m_ActiveId = NullLayoutId;
+    usz m_ActiveIdLastFrame = NullLayoutId;
+
+    usz m_HoveredWidgetCandidate = NullLayoutId;
+    const Layout *m_HoveredLayoutCandidate = nullptr;
+    TKit::Clock m_WidgetHoverClock{};
+
+    OverlayDragDropPayload m_DragDropPayload{};
+    OverlayDragDropFlags m_DragDropFlags = 0;
+
+    f32v2 m_ScreenMousePos{0.f};
+    f32v2 m_ScreenMouseDelta{0.f};
+
+    /////////////////////////////////////////////
+    /// END INTERACTION/INPUT PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// RENDERING PRIVATE
+    /////////////////////////////////////////////
+
+    Camera<D2> m_Camera;
+    TKit::FixedArray<DynamicMeshInfo<D2>, 3 * 32> m_DynamicMeshes{};
+    u32 m_DynamicMeshIndex = 0;
+
+    /////////////////////////////////////////////
+    /// END RENDERING PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// HELPERS PRIVATE
+    /////////////////////////////////////////////
+
+    const FontData &getFontData() const;
+    f32 getLineHeight() const;
+    bool isAutoResize() const;
 
     template <TKit::Numeric T> static const char *getFormat(const char *format)
     {
@@ -1700,88 +2121,6 @@ class Overlay
     {
         return roundToFormat(value, getFormatDecimals(format));
     }
-
-    bool colorHexInput(f32 *colPtr, const Color &col, OverlayColorFlags flags);
-    bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
-    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
-                     OverlayColorFlags flags, f32 size);
-    usz drawColorPreview(const Color &col, f32 size, bool alpha);
-
-    void closePopup(u32 depth);
-    void requestCollapsePopups();
-    bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
-    template <typename F> void iterateReverseWindows(F func);
-
-    f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const;
-    u32 processWindows();
-
-    void drawWindowBorders();
-
-    bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
-    void addActiveWindow(OverlayWindow *win);
-    void popWindowStack();
-    u64 toTop()
-    {
-        return m_LayerCount++;
-    }
-
-    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const;
-    bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
-    {
-        return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
-    }
-    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0, const f32v2 &padding = f32v2{0.f});
-
-    WidgetStateFlags getWidgetState(const LayoutId id, const WidgetStateFlags fallback = 0)
-    {
-        return m_WidgetStates.TryInsert(id, fallback);
-    }
-    bool checkWidgetState(const LayoutId id, const WidgetStateFlags flags, const WidgetStateFlags fallback = 0)
-    {
-        return getWidgetState(id, fallback) & flags;
-    }
-    void toggleWidgetState(const LayoutId id, const WidgetStateFlags bit)
-    {
-        const WidgetStateFlags flags = getWidgetState(id);
-        if (flags & bit)
-            m_WidgetStates[id] &= ~bit;
-        else
-            m_WidgetStates[id] |= bit;
-    }
-
-    f32v2 getCurrentEffectiveSize() const
-    {
-        if (isAutoResize())
-            return m_Current->Size;
-
-        const LayoutElement *elm = m_Current->Layout.QueryElement(m_Current->Id);
-        return elm ? elm->Size : m_Current->Size;
-    }
-    f32 getCurrentEffectiveWidth() const
-    {
-        return getCurrentEffectiveSize()[0];
-    }
-    f32 getCurrentEffectiveHeight() const
-    {
-        return getCurrentEffectiveSize()[1];
-    }
-
-    NativeWindow createNativeWindow(Window *win);
-    NativeWindow *getMainNativeWindow()
-    {
-        return &m_NativeWindows[0];
-    }
-
-    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
-                                                  const f32v2 &padding = f32v2{0.f});
-    InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
-
-    // TODO(Isma): Replace with hash map [] operator
-    OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
-
-    const FontData &getFontData() const;
-    f32 getLineHeight() const;
-    bool isAutoResize() const;
 
     LyTxPar getTextParams() const
     {
@@ -1865,99 +2204,11 @@ class Overlay
         return LayoutShape::Dynamic(handle);
     }
 
-    LayoutSpecs m_LayoutSpecs{};
-    Camera<D2> m_Camera;
-    // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear
-    // search is overall better
-
-    // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
-    // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
-    // time, so 32 should be plenty
-    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
-    TKit::StaticArray<NativeWindow, ONYX_MAX_VIEWS> m_NativeWindows{};
-
-    OverlayWindow *m_Current = nullptr;
-    OverlayWindow *m_Grabbed = nullptr;
-
-    f32 m_WindowSpawnOffset = 0.f;
-
-    OverlayStyle m_Style;
-    OverlayStyle m_DefaultStyle;
-    TKit::TierArray<ColorBackup> m_ColorStack{};
-    TKit::TierArray<StyleBackup> m_StyleStack{};
-
-    StateFlags m_StateFlags = 0;
-    // OverlayFlags m_Flags = 0;
-
-    // interaction info
-    usz m_HoveredId = NullLayoutId;
-    usz m_PressedId = NullLayoutId;
-    usz m_DraggedId = NullLayoutId;
-    usz m_DragDropId = NullLayoutId;
-    usz m_ActiveId = NullLayoutId;
-    usz m_ActiveIdLastFrame = NullLayoutId;
-
-    OverlayDragDropPayload m_DragDropPayload{};
-    OverlayDragDropFlags m_DragDropFlags = 0;
-
-    TKit::TierArray<usz> m_ScrollStack{};
-
-    TKit::TierArray<usz> m_PopupStack{};
-    u32 m_CurrentPopupDepth = 0;
-    u32 m_PopupCollapseDepth = 0;
-    // so that modals only collapse manually
-    u32 m_ModalCollapseDepth = 0;
-
-    f64 m_DragValue = 0.;
-
-    // text input info
-    TKit::String m_InputWidgetBuffer{};
-    u32 m_CursorStart = 0;
-    u32 m_CursorEnd = 0;
-    //
-
-    usz m_LastItem = NullLayoutId;
-    usz m_HoveredWidgetCandidate = NullLayoutId;
-    const Layout *m_CandidateLayout = nullptr;
-    TKit::Clock m_WidgetHoverClock{};
-
-    TKit::FixedArray<DynamicMeshInfo<D2>, 3 * 32> m_DynamicMeshes{};
-    u32 m_DynamicMeshIndex = 0;
-
-    TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
-    TKit::TierArray<OverlayWindow *> m_WindowStack{};
-
-    TKit::TierArray<usz> m_WindowIds{};
-    TKit::TierArray<usz> m_IdStack{};
-    TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
-    TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
-    TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
-    TKit::TierHashMap<usz, TabBarData> m_TabBarData{};
-    TKit::TierArray<f32> m_DisabledStack{};
-
-    TabBarData *m_CurrentTabBar = nullptr;
-    u32 m_TabIndex = 0;
-
-    struct TextInputStateInfo
-    {
-        u32 Cursor;
-        TKit::String Text;
-    };
-
-    TKit::TierArray<TextInputStateInfo> m_UndoStack{};
-    TKit::TierArray<TextInputStateInfo> m_RedoStack{};
-
-    usz m_LastItemTooltipBackup = NullLayoutId;
-    OverlayWindow *m_Tooltip = nullptr;
-
-    Color m_PickerOriginal{};
-
-    NextWindowData m_NextWindow{};
-    // NOTE(Isma, 07/07/26): Persistently saving a LayoutId object may be dangerous bc of the debug name stored:
-    // underlying string may become stale. In practice, this is a throwaway id that gets discarded once used, so its not
-    // that persistent. should be fine
-    LayoutId m_TextId = NullLayoutId;
-
-    u64 m_LayerCount = 0;
+    /////////////////////////////////////////////
+    /// END HELPERS PRIVATE
+    /////////////////////////////////////////////
 };
+/////////////////////////////////////////////
+/// END IMPLEMENTATION
+/////////////////////////////////////////////
 } // namespace Onyx

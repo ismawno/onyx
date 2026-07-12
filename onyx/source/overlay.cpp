@@ -6,17 +6,22 @@
 
 namespace Onyx
 {
+/////////////////////////////////////////////
+/// GLOBALS
+/////////////////////////////////////////////
+
 static constexpr f32 s_CheckboardLight = 0.5f;
 static constexpr f32 s_CheckboardDark = 0.3f;
 static const LayoutId s_MenuBarId = LayoutId{"__onyx_id_Menu_bar"};
 
-enum ResizeFlagBit : ResizeFlags
-{
-    ResizeFlag_Left = 1U << 0,
-    ResizeFlag_Right = 1U << 1,
-    ResizeFlag_Bottom = 1U << 2,
-    ResizeFlag_Top = 1U << 3,
-};
+/////////////////////////////////////////////
+/// END GLOBALS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// GENERAL
+/////////////////////////////////////////////
+
 enum StateFlagBit : StateFlags
 {
     StateFlag_ActiveIdMustPersist = 1U << 0,
@@ -43,35 +48,14 @@ enum StateFlagBit : StateFlags
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
                        StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
 };
-enum NativeWindowFlagBit : NativeWindowFlags
-{
-    NativeWindowFlag_LeftMousePressed = 1U << 0,
-    NativeWindowFlag_LeftMouseReleased = 1U << 1,
 
-    NativeWindowFlag_RightMousePressed = 1U << 2,
-    NativeWindowFlag_RightMouseReleased = 1U << 3,
+/////////////////////////////////////////////
+/// END GENERAL
+/////////////////////////////////////////////
 
-    // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
-    // pressed event. this is important for elements that if they are active think they are currently pressed,
-    // causing the firs mouse click outside their bounding box to still qualify as pressed
-    NativeWindowFlag_PressingLeftMouse = 1U << 4,
-    NativeWindowFlag_Hovered = 1U << 5,
-    NativeWindowFlagPersist = NativeWindowFlag_Hovered | NativeWindowFlag_PressingLeftMouse,
-};
-
-enum WindowInternalFlagBit : OverlayWindowFlags
-{
-    WindowInternalFlag_Hovered = 1U << 0,
-    WindowInternalFlag_Focused = 1U << 1,
-    WindowInternalFlag_InputHovered = 1U << 2,
-    WindowInternalFlag_MenuBarOpened = 1U << 3,
-    WindowInternalFlag_ClosePopupButton = 1U << 4,
-    WindowInternalFlag_Active = 1U << 5,
-    WindowInternalFlag_MainMenuBar = 1U << 6,
-    WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
-                                WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
-                                WindowInternalFlag_MainMenuBar,
-};
+/////////////////////////////////////////////
+/// STYLING
+/////////////////////////////////////////////
 
 OverlayStyleVariables CreateDefaultOverlayVariables()
 {
@@ -335,27 +319,76 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     return colors;
 }
 
-NativeWindow Overlay::createNativeWindow(Window *win)
+/////////////////////////////////////////////
+/// END STYLING
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WINDOW FLAGS
+/////////////////////////////////////////////
+
+enum ResizeFlagBit : ResizeFlags
 {
-    NativeWindow nw{};
-    nw.Window = win;
-    nw.View = win->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
+    ResizeFlag_Left = 1U << 0,
+    ResizeFlag_Right = 1U << 1,
+    ResizeFlag_Bottom = 1U << 2,
+    ResizeFlag_Top = 1U << 3,
+};
+enum NativeWindowFlagBit : NativeWindowFlags
+{
+    NativeWindowFlag_LeftMousePressed = 1U << 0,
+    NativeWindowFlag_LeftMouseReleased = 1U << 1,
 
-    nw.Context = CreateRenderContext<D2>();
-    nw.Context->AddTarget(nw.View);
+    NativeWindowFlag_RightMousePressed = 1U << 2,
+    NativeWindowFlag_RightMouseReleased = 1U << 3,
 
-    return nw;
-}
+    // required bc immediate queries to the window cause widgets to see the mouse pressed before the actual mouse
+    // pressed event. this is important for elements that if they are active think they are currently pressed,
+    // causing the firs mouse click outside their bounding box to still qualify as pressed
+    NativeWindowFlag_PressingLeftMouse = 1U << 4,
+    //
+
+    NativeWindowFlag_Hovered = 1U << 5,
+    // used when os window updates size so that child overlay window can follow along
+    NativeWindowFlag_WantUpdateSize = 1U << 6,
+    NativeWindowFlagPersist = NativeWindowFlag_Hovered | NativeWindowFlag_PressingLeftMouse,
+};
+
+enum WindowInternalFlagBit : OverlayWindowFlags
+{
+    WindowInternalFlag_Hovered = 1U << 0,
+    WindowInternalFlag_Focused = 1U << 1,
+    WindowInternalFlag_InputHovered = 1U << 2,
+    WindowInternalFlag_MenuBarOpened = 1U << 3,
+    WindowInternalFlag_ClosePopupButton = 1U << 4,
+    WindowInternalFlag_Active = 1U << 5,
+    WindowInternalFlag_OwnsNative = 1U << 6,
+    WindowInternalFlag_MainMenuBar = 1U << 7,
+
+    // when collapsed, let os window know it must adapt its size
+    WindowInternalFlag_WantUpdateSize = 1U << 8,
+    WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
+                                WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
+                                WindowInternalFlag_MainMenuBar | WindowInternalFlag_OwnsNative,
+};
+
+/////////////////////////////////////////////
+/// END WINDOW FLAGS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// INITIALIZATION
+/////////////////////////////////////////////
 
 Overlay::Overlay(Window *win, const OverlaySpecs &specs)
-    : m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
+    : m_Flags(specs.Flags), m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
 {
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    m_NativeWindows.Append(createNativeWindow(win)).UpdateBorders();
+    createNativeWindow(win);
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
@@ -365,259 +398,79 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
 
 Overlay::~Overlay()
 {
+    const NativeWindow *mainNative = GetMainNativeWindow();
+    for (const OverlayWindow &win : m_OverlayWindows)
+        if (win.Native != mainNative && (win.Flags & WindowInternalFlag_OwnsNative))
+            destroyNativeWindow(win.Native);
+
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         if (Resources::IsResourceValid<D2>(m_DynamicMeshes[i].Handle, Resource_DynamicMesh))
             Resources::DestroyDynamicMesh<D2>(m_DynamicMeshes[i].Handle);
 }
 
-void Overlay::drawWindowBorders()
+/////////////////////////////////////////////
+/// END INITIALIZATION
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WINDOWS/MENUS
+/////////////////////////////////////////////
+
+const f32v2 &OverlayWindow::GetActivePosition() const
 {
-    Layout &ly = GetCurrentLayout();
-    const OverlayColor interaction = m_Current->Grab.InteractionColor;
-    const OverlayColor idle = OverlayColor_WindowBorderIdle;
+    return (Flags & WindowInternalFlag_OwnsNative) ? Native->ScreenPos : ScreenPos;
+}
+f32v2 &OverlayWindow::GetActivePosition()
+{
+    return (Flags & WindowInternalFlag_OwnsNative) ? Native->ScreenPos : ScreenPos;
+}
+void OverlayWindow::SetActivePosition(const f32v2 &pos)
+{
+    // lol
+    ((Flags & WindowInternalFlag_OwnsNative) ? Native->ScreenPos : ScreenPos) = pos;
+}
+void OverlayWindow::ClampToNative()
+{
+    // only works if window does not own native. we may adapt this if we want to clamp per monitor
+    const NativeWindow *nw = Native;
+    const f32v2 dims = nw->GetDimensions();
 
-    GrabInfo &ginfo = m_Current->Grab;
+    const f32v2 wsize = GetEffectiveSize();
+    const f32v2 mnlim = MinSize - wsize;
+    const f32v2 mxlim = dims - MinSize;
 
-    const bool l = ginfo.Flags & ResizeFlag_Left;
-    const bool r = ginfo.Flags & ResizeFlag_Right;
-    const bool b = ginfo.Flags & ResizeFlag_Bottom;
-    const bool t = ginfo.Flags & ResizeFlag_Top;
-
-    const LySz2 hsizing = {sabs(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
-    const LySz2 vsizing = {grow(), sabs(m_Style[OverlayStyle_WindowBorderWidth])};
-
-    const ResizeEdge left = ResizeEdge_Left;
-    const ResizeEdge right = ResizeEdge_Right;
-    const ResizeEdge bottom = ResizeEdge_Bottom;
-    const ResizeEdge top = ResizeEdge_Top;
-
-    const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
-
-    const auto drawLeftBorder = [&] {
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
-        ginfo.Ids[left] =
-            ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = m_Style[l ? interaction : idle], .Sizing = hsizing});
-        ly.EndPanel();
-    };
-    const auto drawRightBorder = [&] {
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
-        ly.Panel(LyPnPar{.Sizing = grow()});
-        ginfo.Ids[right] =
-            ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = m_Style[r ? interaction : idle], .Sizing = hsizing});
-        ly.EndPanel();
-    };
-    const auto drawBottomBorder = [&] {
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
-        ginfo.Ids[bottom] =
-            ly.Panel("__onyx_id_Bottom", LyPnPar{.FillColor = m_Style[b ? interaction : idle], .Sizing = vsizing});
-        ly.EndPanel();
-    };
-    const auto drawTopBorder = [&] {
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
-        ly.Panel(LyPnPar{.Sizing = grow()});
-        ginfo.Ids[top] =
-            ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = m_Style[t ? interaction : idle], .Sizing = vsizing});
-        ly.EndPanel();
-    };
-
-    for (u32 pass = 0; pass < 2; ++pass)
-    {
-        const bool wantHovered = pass == 1;
-        if (l == wantHovered)
-            drawLeftBorder();
-        if (r == wantHovered)
-            drawRightBorder();
-        if (b == wantHovered)
-            drawBottomBorder();
-        if (t == wantHovered)
-            drawTopBorder();
-    }
+    ScreenPos = Math::Clamp(ScreenPos, mnlim, mxlim);
+}
+bool OverlayWindow::IsFullscreenBlocked() const
+{
+    return (Flags & WindowInternalFlag_OwnsNative) && Native->Window->IsFullScreen();
+}
+bool OverlayWindow::CanResize() const
+{
+    return !(Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize)) && !IsFullscreenBlocked();
+}
+bool OverlayWindow::CanMove() const
+{
+    return !(Flags & OverlayWindowFlag_NoMove) && !IsFullscreenBlocked();
+}
+bool OverlayWindow::CanCollapse() const
+{
+    return !(Flags & OverlayWindowFlag_NoCollapse) && !IsFullscreenBlocked();
 }
 
-bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
-                            const f32 contentPadding, const bool drawBar)
+f32v2 OverlayWindow::ToScreen(const f32v2 &world) const
 {
-    Layout &ly = GetCurrentLayout();
-    const LayoutElement *contentArea = ly.QueryElement(contentAreaId);
+    if (Flags & WindowInternalFlag_OwnsNative)
+        return Native->ToScreen(world);
 
-    if (contentArea && contentArea->ChildrenSize[axis] > contentArea->Size[axis])
-    {
-        const f32 size = contentArea->Size[axis];
-        const f32 csize = contentArea->ChildrenSize[axis] + 2.f * contentPadding;
-        OverlayColor col = OverlayColor_ScrollBarIdle;
-
-        const char *name =
-            axis == LayoutAxis_Horizontal ? "__onyx_id_Horizontal_scroll_bar" : "__onyx_id_Vertical_scroll_bar";
-        const LayoutId scrollId = IdFromStack(name);
-
-        const LayoutElement *scrollBar = ly.QueryElement(scrollId);
-        const f32 sign = axis == LayoutAxis_Horizontal ? -1.f : 1.f;
-
-        const f32 sw = m_Style[OverlayStyle_ScrollBarWidth];
-        const f32 mw = 2.f * sw;
-
-        const f32 barSize = Math::Max(mw, size * size / csize);
-
-        const f32 maxBarTravel = size - barSize;
-        const f32 maxElementTravel = csize - size;
-        const f32 barToElement = maxBarTravel > TKIT_F32_EPSILON ? (maxElementTravel / maxBarTravel) : 0.f;
-
-        if (scrollBar)
-        {
-            const OverlayFocusQueryFlags focusFlags =
-                queryAndSetFocusStatus(scrollBar, FocusFlag_PressedEvenWhenAwayFromHover);
-
-            const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
-            const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
-            if (pressed || !Math::ApproachesZero(sinfo.WheelOffset))
-            {
-                const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
-                const f32 unbounded = sinfo.CursorOffset + wheel;
-                const f32 bounded = Math::Clamp(unbounded, -maxBarTravel, 0.f);
-
-                sinfo.BarOffset = sign * bounded;
-                sinfo.ElementOffset = barToElement * sinfo.BarOffset;
-
-                if (pressed)
-                {
-                    col = OverlayColor_ScrollBarPressed;
-                    const NativeWindow *nw = m_Current->Native;
-                    sinfo.CursorOffset += sign * nw->MouseDelta[axis];
-                }
-                else
-                {
-                    sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
-                    sinfo.WheelOffset = 0.f;
-                }
-            }
-            else
-            {
-                sinfo.ElementOffset = sign * Math::Clamp(sign * sinfo.ElementOffset, -maxElementTravel, 0.f);
-                sinfo.BarOffset = barToElement > TKIT_F32_EPSILON ? sinfo.ElementOffset / barToElement : 0.f;
-                sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
-            }
-            if (!pressed && hovered)
-                col = OverlayColor_ScrollBarHovered;
-        }
-        else
-            sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
-
-        if (drawBar)
-        {
-            LySz2 sizing;
-            sizing[axis] = sabs(barSize);
-            sizing[1 - axis] = sabs(sw);
-
-            LyOf2 offset;
-            offset[axis] = oabs(sinfo.BarOffset);
-            offset[1 - axis] = oabs(0.f);
-
-            ly.Panel(scrollId, LyPnPar{.FillColor = m_Style[col],
-                                       .Sizing = sizing,
-                                       .SelfOffset = offset,
-                                       .Shape = rect(m_Style[OverlayStyle_ScrollBarWidth])});
-        }
-        return true;
-    }
-
-    sinfo = ScrollBarInfo{};
-    return false;
+    return Native->View->ToAbsolute(Native->View->WorldToScreen(world));
 }
-
-void Overlay::addActiveWindow(OverlayWindow *win)
+f32v2 OverlayWindow::ToWorld(const f32v2 &screen) const
 {
-    for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
-        if (win->Layer <= m_ActiveWindows[i]->Layer)
-        {
-            m_ActiveWindows.Insert(m_ActiveWindows.begin() + i, win);
-            win->Flags |= WindowInternalFlag_Active;
-            return;
-        }
-    m_ActiveWindows.Append(win);
-    win->Flags |= WindowInternalFlag_Active;
-    return;
-}
-void Overlay::popWindowStack()
-{
-    m_WindowStack.Pop();
-    m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
-}
+    if (Flags & WindowInternalFlag_OwnsNative)
+        return Native->ToWorld(screen);
 
-OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
-{
-    OverlayHoverQueryFlags flags = 0;
-    const usz id = elm ? elm->Id : NullLayoutId;
-
-    const NativeWindow *nw = m_Current->Native;
-    const bool hovered = elm && elm->IsHovered(nw->MousePos, padding);
-    const bool windowBlock =
-        !(m_Current->Flags & WindowInternalFlag_Focused) && !(m_Current->Flags & WindowInternalFlag_Hovered);
-    const bool grabBlock = m_Grabbed;
-    const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
-    const bool activeBlocked =
-        !(m_StateFlags & StateFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
-    const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
-    const bool popupCollapseBlocked = m_StateFlags & StateFlag_FocusBlockByPopupCollapse;
-    const bool disabledBlocked = m_StateFlags & StateFlag_Disabled;
-    const bool dragBlocked = m_DraggedId != NullLayoutId && m_DraggedId != id;
-
-    flags |= OverlayHoverQueryFlag_Hovered * hovered;
-    flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByDisabled * disabledBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByDrag * dragBlocked;
-
-    return flags;
-}
-
-bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFlags flags, const f32v2 &padding)
-{
-    const OverlayHoverQueryFlags qflags = queryHoverStatus(elm, padding);
-    const bool candidate = isElementHovered(qflags, flags);
-
-    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
-    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
-    const bool stationary = flags & OverlayHoveredFlag_Stationary;
-    TKIT_ASSERT(normalDelay + shortDelay != 2,
-                "[ONYX][OVERLAY] Cannot have short delay and normal delay at the same time in tooltip");
-
-    const Layout &ly = GetCurrentLayout();
-    if (candidate)
-    {
-        const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
-        const NativeWindow *nw = m_Current->Native;
-        if (Math::NormSquared(nw->MouseDelta) > statThres)
-        {
-            m_WidgetHoverClock.Restart();
-            return false;
-        }
-        if (!shortDelay && !normalDelay)
-            return true;
-
-        const f32 delay = shortDelay ? m_Style[OverlayStyle_HoverDelayShort] : m_Style[OverlayStyle_HoverDelayNormal];
-        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastItem;
-        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
-
-        m_HoveredWidgetCandidate = m_LastItem;
-        m_CandidateLayout = &ly;
-
-        if (noShared && !wasCandidate)
-            m_WidgetHoverClock.Restart();
-
-        const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
-        return seconds >= delay;
-    }
-    return false;
-}
-
-TKit::StringView Overlay::trimLabel(const TKit::StringView label)
-{
-    const u32 idx = label.FindFirstOf("##");
-    return label.SubString(0, idx);
+    return Native->View->ScreenToWorld(Native->View->ToNormalized(screen));
 }
 
 bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const OverlayWindowFlags flags)
@@ -636,7 +489,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
     if (flags & OverlayWindowFlag_Modal)
         m_ModalCollapseDepth = Math::Max(m_ModalCollapseDepth, m_CurrentPopupDepth);
 
-    const bool noCollapse = flags & OverlayWindowFlag_NoCollapse;
+    const bool noCollapse = !m_Current->CanCollapse();
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
     const bool collapsed = !noCollapse && !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
 
@@ -651,7 +504,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
     addActiveWindow(m_Current);
 
     if (m_NextWindow.Flags & NextWindowFlag_Position)
-        m_Current->Position = m_NextWindow.Position;
+        m_Current->SetActivePosition(m_NextWindow.ScreenPos);
     if (m_NextWindow.Flags & NextWindowFlag_Size)
         m_Current->Size = m_NextWindow.Size;
     m_NextWindow.Flags = 0;
@@ -678,6 +531,10 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
         return sabs(m_Current->Size);
     }();
 
+    const NativeWindow *nw = m_Current->Native;
+    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
+    const f32v2 pos = ownsNative ? nw->GetWorldTopLeft() : m_Current->ToWorld(m_Current->ScreenPos);
+
     m_Current->Id = ly.BeginPanel(
         id,
         LyPnPar{.FillColor =
@@ -685,7 +542,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
                 .Direction = LayoutDirection_TopToBottom,
                 .Alignment = TopLeft,
                 .Sizing = sizing,
-                .SelfOffset = oabs(m_Current->Position),
+                .SelfOffset = oabs(pos),
                 .Padding = m_Style[OverlayStyle_WindowPadding],
                 .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
@@ -708,8 +565,9 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
                               .Padding = m_Style[OverlayStyle_HeaderPadding],
                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-        if (!noCollapse && iconButton("__onyx_id_Collapse_button", m_Current->HeaderIcon))
+        if (!noCollapse && iconButton(IdFromStack("__onyx_id_Collapse_button"), m_Current->HeaderIcon))
         {
+            m_Current->Flags |= WindowInternalFlag_WantUpdateSize;
             if (collapsed)
             {
                 m_Current->Size[1] = m_Current->LastHeight;
@@ -727,9 +585,11 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
         if (!(flags & OverlayWindowFlag_NoCloseButton))
         {
-            if (opened && iconButton("__onyx_id_Close_button", CrossIcon))
+            const LayoutId bid = IdFromStack("__onyx_id_Close_button");
+            if (opened && (iconButton(bid, CrossIcon) || (ownsNative && nw->Window->ShouldClose())))
                 *opened = false;
-            else if ((flags & WindowInternalFlag_ClosePopupButton) && iconButton("__onyx_id_Close_button", CrossIcon))
+            else if ((flags & WindowInternalFlag_ClosePopupButton) &&
+                     (iconButton(bid, CrossIcon) || (ownsNative && nw->Window->ShouldClose())))
                 CloseCurrentPopup();
         }
 
@@ -792,13 +652,14 @@ void Overlay::EndMenuBar()
 
 void Overlay::BeginMainMenuBar()
 {
-    const NativeWindow *nw = m_Current->Native;
-    const f32v2 tl = nw->GetTopLeft();
-    const f32v2 tr = nw->GetTopRight();
+    const NativeWindow *nw = GetMainNativeWindow();
+    const f32v2 tl = nw->GetWorldTopLeft();
+    const f32v2 tr = nw->GetWorldTopRight();
     const f32 xsize = tr[0] - tl[0];
 
     m_Current = getOrCreateOverlayWindow("__onyx_id_Main_menu_bar");
     m_Current->Flags |= WindowInternalFlag_MainMenuBar;
+    m_Current->Flags |= OverlayWindowFlag_NoPromotions;
 
     m_StateFlags |= StateFlag_MainMenuBarActive;
     m_WindowStack.Append(m_Current);
@@ -889,24 +750,24 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         const NativeWindow *nw = m_Current->Native;
         if (verticalLayout)
         {
-            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > nw->GetRight();
+            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > nw->GetWorldRight();
             att = LyAtt2{surpasses ? LayoutAttachment_Left : LayoutAttachment_Right, LayoutAttachment_Top};
             alg = surpasses ? TopRight : TopLeft;
 
             const f32 spill = ppos[1] - csize[1] + psize[1];
-            const f32 bborder = nw->GetBottom();
+            const f32 bborder = nw->GetWorldBottom();
             const f32 yoffset = spill < bborder ? (bborder - spill) : 0.f;
 
             offset = {0.f, yoffset};
         }
         else
         {
-            const bool surpasses = (ppos[1] - csize[1]) < nw->GetBottom();
+            const bool surpasses = (ppos[1] - csize[1]) < nw->GetWorldBottom();
             att = LyAtt2{LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
             alg = surpasses ? BottomLeft : TopLeft;
 
-            const f32 rborder = nw->GetRight();
-            const f32 lborder = nw->GetLeft();
+            const f32 rborder = nw->GetWorldRight();
+            const f32 lborder = nw->GetWorldLeft();
 
             const f32 rspill = ppos[0] + csize[0];
             const f32 lspill = ppos[0];
@@ -948,805 +809,98 @@ void Overlay::EndMenu()
     ly.EndPanel();
 }
 
-void Overlay::CloseCurrentPopup()
+OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
 {
-    TKIT_ASSERT(m_CurrentPopupDepth != 0,
-                "[ONYX][OVERLAY] CloseCurrentPopup() can only be called inside an active popup");
-    closePopup(m_CurrentPopupDepth - 1);
-}
-void Overlay::CloseChildPopup()
-{
-    closePopup(m_CurrentPopupDepth);
-}
-void Overlay::CollapsePopups()
-{
-    closePopup(0);
-}
+    for (u32 i = 0; i < m_WindowIds.GetSize(); ++i)
+        if (id == m_WindowIds[i])
+            return &m_OverlayWindows[i];
 
-bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const OverlayWindowFlags flags)
-{
-    // we cannot apply the id stack here because user must unequivocally reference this from anywhere
-    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != id)
-    {
-        m_WidgetStates[id] = 0;
-        return false;
-    }
-
-    ++m_CurrentPopupDepth;
-    if (getWidgetState(id) == 0)
-    {
-        OverlayWindow *win = getOrCreateOverlayWindow(title);
-        const LayoutElement *elm = win->Layout.QueryElement(win->Id);
-        const f32v2 size = elm ? elm->Size : win->Size;
-
-        win->Position = computeMouseAlignedPosition(m_Current->Native, size);
-    }
-    m_WidgetStates[id] = WidgetStateFlag_Opened;
-
-    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton);
+    m_WindowIds.Append(id);
+    OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
+    win.HeaderIcon = ArrowDownIcon;
+    win.Layer = toTop();
+    win.Native = getMainNativeWindow();
+    win.ScreenPos = 0.5f * win.Native->GetDimensions() + m_WindowSpawnOffset;
+    m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
+    return &win;
 }
 
-void Overlay::EndPopup()
+void Overlay::addActiveWindow(OverlayWindow *win)
 {
-    --m_CurrentPopupDepth;
-    EndWindow();
+    for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
+        if (win->Layer <= m_ActiveWindows[i]->Layer)
+        {
+            m_ActiveWindows.Insert(m_ActiveWindows.begin() + i, win);
+            win->Flags |= WindowInternalFlag_Active;
+            return;
+        }
+    m_ActiveWindows.Append(win);
+    win->Flags |= WindowInternalFlag_Active;
+    return;
 }
 
-bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview,
-                            const OverlayDropDownFlags flags)
+void Overlay::drawWindowBorders()
 {
     Layout &ly = GetCurrentLayout();
-    beginHorizontalWidget(PushId(label), 1.f);
+    const OverlayColor interaction = m_Current->Grab.InteractionColor;
+    const OverlayColor idle = OverlayColor_WindowBorderIdle;
 
-    const LayoutId id = IdFromStack("__onyx_id__Drop_down_box");
-    const LayoutElement *elm = ly.QueryElement(id);
-    OverlayColor boxCol = OverlayColor_DropDownIdle;
+    GrabInfo &ginfo = m_Current->Grab;
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_LeftClickOpensPopup);
+    const bool l = ginfo.Flags & ResizeFlag_Left;
+    const bool r = ginfo.Flags & ResizeFlag_Right;
+    const bool b = ginfo.Flags & ResizeFlag_Bottom;
+    const bool t = ginfo.Flags & ResizeFlag_Top;
 
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        boxCol = OverlayColor_DropDownPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        boxCol = OverlayColor_DropDownHovered;
+    const LySz2 hsizing = {sabs(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
+    const LySz2 vsizing = {grow(), sabs(m_Style[OverlayStyle_WindowBorderWidth])};
 
-    const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
-    const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-    ly.BeginPanel(id,
-                  LyPnPar{.FillColor = m_Style[boxCol],
-                          .Alignment = CenterLeft,
-                          .Sizing = {m_CurrentPopupDepth == 0 ? flex(0.f, 0.5f * getCurrentEffectiveWidth()) : flex(),
-                                     hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)},
-                          .Shape = rect(m_Style[OverlayStyle_DropDownRadius])});
+    const ResizeEdge left = ResizeEdge_Left;
+    const ResizeEdge right = ResizeEdge_Right;
+    const ResizeEdge bottom = ResizeEdge_Bottom;
+    const ResizeEdge top = ResizeEdge_Top;
 
-    if (hasPreview)
-    {
-        ly.BeginPanel(LyPnPar{
-            .Alignment = CenterLeft, .Sizing = {grow(), fit()}, .Padding = m_Style[OverlayStyle_WidgetPadding]});
+    const LayoutFloatingParameters fparams = {.Enable = true, .DrawOnTop = false};
 
-        ly.Text(ly.GenerateNextId(), preview, getTextParams());
+    const auto drawLeftBorder = [&] {
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
+        ginfo.Ids[left] =
+            ly.Panel("__onyx_id_Left", LyPnPar{.FillColor = m_Style[l ? interaction : idle], .Sizing = hsizing});
         ly.EndPanel();
-    }
-
-    // ly.Panel(IdFromStack("__onyx_id_Push"), LyPnPar{.Sizing = grow()});
-
-    const bool dropDownActive = focusFlags & OverlayFocusQueryFlag_PopupOpen;
-    if (!(flags & OverlayDropDownFlag_NoArrowButton))
-    {
-        OverlayColor buttonCol = dropDownActive ? OverlayColor_DropDownButton : OverlayColor_DropDownHovered;
-        ly.BeginPanel(LyPnPar{.FillColor = m_Style[buttonCol],
-                              .Alignment = Center,
-                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
-        ly.Unicode(NullLayoutId, ArrowDownIcon, getUnicodeParams());
+    };
+    const auto drawRightBorder = [&] {
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Sizing = snorm(1.f), .Floating = fparams});
+        ly.Panel(LyPnPar{.Sizing = grow()});
+        ginfo.Ids[right] =
+            ly.Panel("__onyx_id_Right", LyPnPar{.FillColor = m_Style[r ? interaction : idle], .Sizing = hsizing});
         ly.EndPanel();
-    }
-
-    if (dropDownActive)
-    {
-        endHorizontalWidget(label);
-
-        const usz did = IdFromStack("__onyx_id_Drop_down");
-        const LayoutElement *delm = ly.QueryElement(did);
-        const f32 csize = delm ? delm->Size[1] : 0.f;
-
-        const f32 ppos = elm->Position[1];
-        const f32 psize = elm->Size[0];
-
-        const bool tight = flags & OverlayDropDownFlag_Tight;
-
-        const bool surpasses = (ppos - csize) < m_Current->Native->GetBottom();
-        const LyAtt2 att = {LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
-        const LyAlg2 alg = surpasses ? BottomLeft : TopLeft;
-
-        ly.BeginPanel(did, LyPnPar{.FillColor = m_Style[OverlayColor_PopupBackground],
-                                   .Direction = LayoutDirection_TopToBottom,
-                                   .Alignment = TopLeft,
-                                   .Sizing = {fit(psize), fit()},
-                                   .Shape = rect(m_Style[OverlayStyle_DropDownPopupRadius]),
-                                   .Floating = {.Enable = true, .Attachment = att, .Alignment = alg},
-                                   .Padding = tight ? 0.f : m_Style[OverlayStyle_WidgetPadding]});
-
-        const f32 height = (flags & OverlayDropDownFlag_HeightSmall) ? m_Style[OverlayStyle_DropDownHeightSmall]
-                                                                     : m_Style[OverlayStyle_DropDownHeightRegular];
-        const bool largest = flags & OverlayDropDownFlag_HeightLargest;
-
-        const usz sid = IdFromStack("__onyx_id_Scroll");
-        const LySz2 osizing = flex();
-        const LySz2 csizing = {flex(), largest ? fit() : fit(0.f, height)};
-        const f32 cgap = tight ? 0.f : m_Style[OverlayStyle_ChildGap];
-
-        ++m_CurrentPopupDepth;
-        PushStyleVar(OverlayStyle_ScrollBarGap, 0.f);
-        beginScroll({.Id = sid,
-                     .OuterSizing = osizing,
-                     .ContentSizing = csizing,
-                     .ContentPadding = 0.f,
-                     .ChildGap = cgap,
-                     .Flags = OverlayScrollFlag_NoBackground});
-
-        queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
-        return true;
-    }
-    endHorizontalWidget(label);
-    ly.EndPanel();
-    PopId();
-    return false;
-}
-
-void Overlay::BeginDisabled(const bool enabled)
-{
-    m_DisabledStack.Append(m_Style[OverlayStyle_Alpha]);
-    if (enabled)
-    {
-        m_StateFlags |= StateFlag_Disabled;
-        m_Style.Variables[OverlayStyle_Alpha] *= m_Style[OverlayStyle_DisabledAlpha];
-    }
-}
-void Overlay::EndDisabled()
-{
-    m_Style.Variables[OverlayStyle_Alpha] = m_DisabledStack.GetBack();
-    m_DisabledStack.Pop();
-    if (m_DisabledStack.IsEmpty())
-        m_StateFlags &= ~StateFlag_Disabled;
-}
-
-bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
-                          const OverlayScrollFlags flags)
-{
-    const usz id = PushId(label);
-    const bool autoResize = isAutoResize();
-
-    const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
-
-    const bool borders = flags & OverlayScrollFlag_Borders;
-    const bool tight = flags & OverlayScrollFlag_Tight;
-
-    const f32 omw = maxWidth + 2.f * padding;
-    const LySz2 outer = {autoResize ? fit() : grow(0.f, omw), fit()};
-    const LySz2 content = {autoResize ? fit(0.f, maxWidth) : grow(0.f, maxWidth), fit(0.f, maxHeight)};
-
-    Layout &ly = GetCurrentLayout();
-    ly.BeginPanel(LyPnPar{.FillColor = borders ? m_Style[OverlayColor_ScrollAreaBorders] : Color_Transparent,
-                          .Direction = LayoutDirection_TopToBottom,
-                          .Alignment = CenterLeft,
-                          .Sizing = outer,
-                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
-                          .Padding = borders ? padding : 0.f});
-
-    if (flags & OverlayScrollFlag_Title)
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-
-    return beginScroll({.Id = id,
-                        .OuterSizing = outer,
-                        .ContentSizing = content,
-                        .ContentPadding = tight ? 0.f : padding,
-                        .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
-                        .Flags = flags});
-}
-
-bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
-{
-    Layout &ly = GetCurrentLayout();
-    ScrollInfo &sinfo = m_Scrollables[specs.Id];
-    sinfo.Flags = specs.Flags;
-
-    const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
-    const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
-    const bool drawBar = !(specs.Flags & OverlayScrollFlag_NoScrollBar);
-
-    const bool borders = specs.Flags & OverlayScrollFlag_Borders;
-    const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
-    const bool bckg = !(specs.Flags & OverlayScrollFlag_NoBackground);
-    m_LastItem = ly.BeginPanel(
-        specs.Id, LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
-                          .Direction = LayoutDirection_BottomToTop,
-                          .Alignment = TopLeft,
-                          .Sizing = specs.OuterSizing,
-                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
-                          .Padding = borders ? cpadding : 0.f,
-                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
-
-    const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
-    bool appenStack = false;
-    if (!collapsed && (specs.Flags & OverlayScrollFlag_HorizontalScroll))
-        appenStack |= performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
-
-    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_RightToLeft,
-                          .Alignment = TopLeft,
-                          .Sizing = specs.OuterSizing,
-                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
-
-    if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
-        appenStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
-
-    ly.BeginPanel(contentId, LyPnPar{.Direction = specs.Direction,
-                                     .Alignment = TopLeft,
-                                     .Sizing = specs.ContentSizing,
-                                     .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset,
-                                                          -sinfo.Vertical.ElementOffset + specs.VerticalOffset}),
-                                     .Padding = specs.ContentPadding,
-                                     .ChildGap = specs.ChildGap});
-
-    if (isElementHovered(ly.QueryElement(specs.Id)))
-    {
-        if (appenStack)
-            m_ScrollStack.Append(specs.Id);
-        return true;
-    }
-    return false;
-}
-
-void Overlay::endScroll()
-{
-    Layout &ly = GetCurrentLayout();
-    ly.EndPanel();
-    ly.EndPanel();
-    ly.EndPanel();
-}
-
-void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, const LySz2 &innerSizing)
-{
-    Layout &ly = GetCurrentLayout();
-    m_LastItem = ly.BeginPanel(
-        id, LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-    ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
-}
-void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
-{
-    const bool autoResize = isAutoResize();
-    const bool isFloat = m_CurrentPopupDepth != m_Current->PopupDepth;
-    const f32 effW = isFloat ? TKIT_F32_MAX : (normSize * getCurrentEffectiveWidth());
-
-    const f32 mnw = m_Style[OverlayStyle_WidgetMinimumWidth];
-
-    const LySz2 outerSizing = {autoResize ? fit(mnw) : flex(), fit()};
-    const LySz2 innerSizing = {autoResize ? fit(mnw) : flex(0.f, effW), fit()};
-
-    return beginHorizontalWidget(id, outerSizing, innerSizing);
-}
-void Overlay::endHorizontalWidget(TKit::StringView label)
-{
-    Layout &ly = GetCurrentLayout();
-    ly.EndPanel();
-    if (!label.IsEmpty())
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-    ly.EndPanel();
-}
-
-void Overlay::HorizontalSeparator(const TKit::StringView label)
-{
-    Layout &ly = GetCurrentLayout();
-    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
-                          .Alignment = CenterLeft,
-                          .Sizing = {flex(), fit()},
-                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-    const f32 textOffset = m_Style[OverlayStyle_SeparatorTextOffset];
-    const f32 width = m_Style[OverlayStyle_LineWidth];
-
-    ly.Panel(
-        LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
-
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-    ly.Panel(LyPnPar{
-        .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
-    ly.EndPanel();
-}
-
-bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
-{
-    id = PushId(id);
-    Layout &ly = GetCurrentLayout();
-    const bool framed = flags & OverlayTreeFlag_Framed;
-
-    OverlayColor col = framed ? OverlayColor_TreeIdle : OverlayColor_None;
-
-    OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = OverlayColor_TreePressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = OverlayColor_TreeHovered;
-
-    const bool horScroll = m_Current->Flags & OverlayWindowFlag_HorizontalScroll;
-    const bool autoResize = isAutoResize();
-    const LySz growOrFlex = (horScroll || autoResize) ? flex() : grow();
-
-    const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
-    const LySz2 sizing = {spanLabel ? fit() : growOrFlex, fit()};
-
-    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                           .Alignment = CenterLeft,
-                                           .Sizing = sizing,
-                                           .Shape = rect(m_Style[OverlayStyle_TreeRadius]),
-                                           .Padding = m_Style[OverlayStyle_HeaderPadding],
-                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-    const bool startOpen = flags & OverlayTreeFlag_StartOpen;
-    const bool opened = checkWidgetState(id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
-
-    const usz buttonId =
-        ly.BeginPanel(IdFromStack("__onyx_id_Tree_collapse"),
-                      LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
-
-    bool toggleOpen = focusFlags & OverlayFocusQueryFlag_LeftClicked;
-    if (toggleOpen)
-    {
-        const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
-        const bool onDoubleClick = !opened && (flags & OverlayTreeFlag_OpenOnDoubleClick);
-        const bool doubleClicked = focusFlags & OverlayFocusQueryFlag_DoubleClicked;
-        const NativeWindow *nw = m_Current->Native;
-        if (onArrow)
-            toggleOpen = ly.IsHovered(buttonId, nw->MousePos) || (onDoubleClick && doubleClicked);
-        else if (onDoubleClick)
-            toggleOpen = doubleClicked;
-    }
-
-    const CodePoint code = opened ? ArrowDownIcon : ArrowRightIcon;
-    ly.Unicode(NullLayoutId, code, getUnicodeParams());
-
-    ly.EndPanel();
-
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
-    ly.EndPanel();
-
-    if (toggleOpen)
-        toggleWidgetState(id, WidgetStateFlag_Opened);
-
-    if (!opened)
-    {
-        PopId();
-        return false;
-    }
-
-    const bool lines = flags & OverlayTreeFlag_DrawLines;
-    const bool indent = !(flags & OverlayTreeFlag_NoIndent);
-
-    const FontData &fdata = getFontData();
-    const f32 fs = m_Style[OverlayStyle_FontSize];
-
-    const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(ArrowDownIcon)->Advance, m_Style[OverlayStyle_IconWidth]);
-    const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
-
-    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = TopLeft, .Sizing = sizing});
-
-    if (indent)
-    {
-        ly.BeginPanel(LyPnPar{
-            .Direction = LayoutDirection_TopToBottom, .Alignment = Center, .Sizing = {sabs(treeIndent), flex()}});
-
-        if (lines)
-            VerticalLine();
-
+    };
+    const auto drawBottomBorder = [&] {
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
+        ginfo.Ids[bottom] =
+            ly.Panel("__onyx_id_Bottom", LyPnPar{.FillColor = m_Style[b ? interaction : idle], .Sizing = vsizing});
         ly.EndPanel();
-    }
+    };
+    const auto drawTopBorder = [&] {
+        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop, .Sizing = snorm(1.f), .Floating = fparams});
+        ly.Panel(LyPnPar{.Sizing = grow()});
+        ginfo.Ids[top] =
+            ly.Panel("__onyx_id_Top", LyPnPar{.FillColor = m_Style[t ? interaction : idle], .Sizing = vsizing});
+        ly.EndPanel();
+    };
 
-    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                          .Alignment = TopLeft,
-                          .Sizing = sizing,
-                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
-
-    return true;
-}
-
-bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
-                           const InputConvertInfoFlags cflags)
-{
-    TKIT_ASSERT(capacity != 0, "[ONYX][OVERLAY] Buffer capacity for text input cannot be zero");
-    Layout &ly = GetCurrentLayout();
-    const u32 bufSize = u32(std::strlen(buf));
-    TKIT_ASSERT(bufSize < capacity,
-                "[ONYX][OVERLAY] The input character length ({}) must be lower than buffer capacity ({}) as the latter "
-                "must to account for the null terminator",
-                bufSize, capacity);
-
-    const LayoutId iboxId = IdFromStack("__onyx_id_Input_box");
-    const LayoutElement *ibox = ly.QueryElement(iboxId);
-    const bool mustConvert = cflags & InputConvertFlag_MustConvert;
-
-    FocusFlags fflags = FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
-                        FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover;
-    if (mustConvert)
-        fflags |= FocusFlag_AllowPressedPickUp;
-
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ibox, fflags);
-
-    ly.BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
-                                  .Alignment = CenterLeft,
-                                  .Sizing = {grow(), fit()},
-                                  .Shape = rect(m_Style[OverlayStyle_InputBoxRadius]),
-                                  .Padding = m_Style[OverlayStyle_WidgetPadding]});
-
-    // This input text box may be a "converted" slider/drag. this means that the first frame (where layout
-    // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
-    // important. without it, we cannot auto highlight. so we try this proxy, by trying to get the position of
-    // the parent box if thats the case
-    const LayoutElement *box = mustConvert ? ly.QueryElement(IdFromStack("__onyx_id_Drag/Slider_box")) : ibox;
-    const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
-
-    const FontData &fdata = getFontData();
-    const f32 fs = m_Style[OverlayStyle_FontSize];
-
-    LyTxPar tparams = getTextParams();
-    const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
-    const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
-    if (pressed || hovered)
-        m_Current->Flags |= WindowInternalFlag_InputHovered;
-
-    bool updated = false;
-    if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
+    for (u32 pass = 0; pass < 2; ++pass)
     {
-        m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
-
-        NativeWindow *nw = m_Current->Native;
-        const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
-
-        TKit::String &str = m_InputWidgetBuffer;
-        const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
-        const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
-        const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
-
-        if (justActive)
-        {
-            str.Clear();
-            str.Insert(str.end(), buf, buf + bufSize);
-
-            m_UndoStack.Clear();
-            m_RedoStack.Clear();
-        }
-
-        if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Key_Z])
-        {
-            const TextInputStateInfo &info = m_UndoStack.GetBack();
-            m_RedoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
-
-            m_CursorStart = info.Cursor;
-            m_CursorEnd = info.Cursor;
-            str = info.Text;
-
-            m_UndoStack.Pop();
-            updated = true;
-        }
-        if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && nw->EventKeys[Key_Y])
-        {
-            const TextInputStateInfo &info = m_RedoStack.GetBack();
-            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
-
-            m_CursorStart = info.Cursor;
-            m_CursorEnd = info.Cursor;
-            str = info.Text;
-
-            m_RedoStack.Pop();
-            updated = true;
-            updated = true;
-        }
-
-        const auto pushUndo = [&] {
-            if (undoRedo)
-            {
-                m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
-                m_RedoStack.Clear();
-            }
-        };
-
-        const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
-
-        if (escapeClears && nw->EventKeys[Key_Escape])
-        {
-            pushUndo();
-            str.Clear();
-            updated = true;
-            m_CursorStart = 0;
-            m_CursorEnd = 0;
-        }
-
-        TKit::StackArray<f32> advances{};
-        advances.Reserve(str.GetSize() + 1);
-        advances.Append(0.f);
-
-        TKit::StackArray<f32> midAdvances{};
-        midAdvances.Reserve(str.GetSize() + 1);
-        midAdvances.Append(0.f);
-
-        f32 textWidth = 0.f;
-        fdata.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
-            const f32 width = fs * w;
-            // widths.Append(width);
-
-            midAdvances.Append(textWidth + 0.5f * width);
-            textWidth += width;
-            advances.Append(textWidth);
-            return true;
-        });
-
-        const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
-        const bool clicked = focusFlags & OverlayFocusQueryFlag_LeftClicked;
-
-        const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
-        const u32 charCount = str.GetSize();
-        const u32 advCount = charCount + 1;
-
-        if (pressed || clicked)
-        {
-            const f32 onPress = nw->MousePosOnPress[0] - boxPos;
-            const f32 mpos = nw->MousePos[0] - boxPos;
-
-            const bool mustUseCurrent = !clicked && Math::Approximately(mpos, onPress, 1.f);
-            const f32 pixelStartPos = mustUseCurrent ? advances[m_CursorStart] : onPress;
-            const f32 pixelEndPos = mustUseCurrent ? advances[m_CursorEnd] : mpos;
-
-            m_CursorStart = 0;
-            m_CursorEnd = 0;
-
-            bool startReady = false;
-            bool endReady = false;
-            for (u32 i = 0; i < advCount; ++i)
-            {
-                const f32 hw = midAdvances[i];
-                startReady = hw >= pixelStartPos;
-                if (!startReady)
-                    m_CursorStart = i;
-
-                endReady = hw >= pixelEndPos;
-                if (!endReady)
-                    m_CursorEnd = i;
-            }
-            if (!startReady)
-                m_CursorStart = charCount;
-            if (!endReady)
-                m_CursorEnd = charCount;
-        }
-
-        if (nw->OverflowClicks == 2 || (justActive && autoSelectAll))
-        {
-            m_CursorStart = 0;
-            m_CursorEnd = charCount;
-        }
-        else if (nw->OverflowClicks == 1)
-        {
-            if (m_CursorEnd != 0)
-            {
-                u32 start = m_CursorEnd - 1;
-                while (start != 0 && str[start - 1] != ' ')
-                    --start;
-                m_CursorStart = start;
-            }
-            if (m_CursorEnd != charCount)
-            {
-                u32 end = m_CursorEnd - 1;
-                while (end != charCount - 1 && str[end + 1] != ' ')
-                    ++end;
-                m_CursorEnd = end + 1;
-            }
-        }
-        else if (nw->EventKeys[Key_Left] || nw->EventKeys[Key_Right])
-        {
-            const bool left = nw->EventKeys[Key_Left];
-
-            const u32 limit = left ? 0 : charCount;
-            const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
-            if (m_CursorEnd != limit)
-            {
-                const bool lshift = nw->Window->IsKeyPressed(Key_LeftShift);
-                const i32 diff = left ? -1 : 1;
-                if (lshift)
-                    m_CursorEnd += diff;
-                else if (hlen == 0)
-                {
-                    m_CursorEnd += diff;
-                    if (m_CursorStart != limit)
-                        m_CursorStart += diff;
-                }
-                else if (diff * hlen > 0)
-                    m_CursorEnd = m_CursorStart;
-                else
-                    m_CursorStart = m_CursorEnd;
-            }
-        }
-
-        const bool negSel = m_CursorStart > m_CursorEnd;
-        u32 selStart = negSel ? m_CursorEnd : m_CursorStart;
-        u32 selEnd = negSel ? m_CursorStart : m_CursorEnd;
-
-        const f32 selStartAdv = advances[selStart];
-        const f32 selEndAdv = advances[selEnd];
-        const f32 textEndAdv = advances[m_CursorEnd];
-
-        const f32 hLength = selEndAdv - selStartAdv;
-        const bool hasHighlight = hLength != 0.f;
-
-        const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
-        const f32 textOffset =
-            noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
-
-        tparams.Offset[0] = oabs(textOffset);
-        const bool useHint = str.IsEmpty() && !hint.IsEmpty();
-        if (useHint)
-        {
-            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
-            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
-            ly.Text(ly.GenerateNextId(), hint, tparams);
-        }
-        else
-            ly.Text(ly.GenerateNextId(), str, tparams);
-
-        // bc of layout solving, cursor is gonna be offsetted by the text. we have to work out how much to "bring it
-        // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by
-        // -textWidth. same goes for highlight
-
-        f32 offset = textEndAdv - textWidth + textOffset;
-        if (useHint)
-            offset -= fs * fdata.ComputeTextWidth(hint);
-        else
-            // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
-            offset += 0.1f;
-
-        const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
-        ly.Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]},
-                         .Sizing = {sabs(cwidth), grow()},
-                         .SelfOffset = oabs({offset, 0.f})});
-        if (hasHighlight)
-        {
-            const f32 hoffset = negSel ? offset : (offset - hLength);
-            ly.Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputHighlight], 0.4f},
-                             .Sizing = {sabs(hLength), grow()},
-                             .SelfOffset = oabs({hoffset - cwidth, 0.f})});
-        }
-
-        const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
-        const u32 toRemoveEnd = selEnd;
-
-        if (ctrl && nw->EventKeys[Key_V])
-        {
-            const char *cp = Platform::GetClipboard();
-
-            // could maybe append one by one, as that = operator is constructing a TKit::String temp
-            if (cp && cp[0])
-                nw->TextInput = cp;
-        }
-
-        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty())
-        {
-            if (ctrl && nw->EventKeys[Key_C])
-            {
-                const TKit::StackString clipboard{str.begin() + toRemoveBegin, str.begin() + toRemoveEnd};
-                Platform::SetClipboard(clipboard.CString());
-            }
-
-            if (nw->EventKeys[Key_Backspace] || (!nw->TextInput.IsEmpty() && hasHighlight))
-            {
-                pushUndo();
-
-                updated = true;
-                str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
-
-                const u32 removeCount = toRemoveEnd - toRemoveBegin;
-                if (!hasHighlight || negSel)
-                    m_CursorStart -= removeCount;
-                if (!hasHighlight || !negSel)
-                    m_CursorEnd -= removeCount;
-
-                selEnd = toRemoveBegin;
-            }
-        }
-
-        const u32 insertionsLeft = capacity - 1 - str.GetSize();
-        const u32 insertions = Math::Min(nw->TextInput.GetSize(), insertionsLeft);
-
-        updated |= insertions != 0;
-        if (insertions != 0)
-        {
-            pushUndo();
-            for (u32 i = 0; i < insertions; ++i)
-                str.Insert(str.begin() + selEnd + i, nw->TextInput[i]);
-        }
-
-        m_CursorStart += insertions;
-        m_CursorEnd += insertions;
-
-        const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
-
-        if (enterCommits)
-            updated = nw->EventKeys[Key_Enter];
-        if (updated)
-        {
-            // copy the new string into the buffer and we are done :)
-            for (u32 i = 0; i < str.GetSize(); ++i)
-                buf[i] = str[i];
-
-            buf[str.GetSize()] = '\0';
-        }
-
-        if (!enterCommits)
-        {
-            const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
-            if (enterTrue)
-                updated = nw->EventKeys[Key_Enter];
-        }
+        const bool wantHovered = pass == 1;
+        if (l == wantHovered)
+            drawLeftBorder();
+        if (r == wantHovered)
+            drawRightBorder();
+        if (b == wantHovered)
+            drawBottomBorder();
+        if (t == wantHovered)
+            drawTopBorder();
     }
-    else
-    {
-        const bool elide = flags & OverlayInputFlag_ElideLeft;
-        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
-        const bool useHint = bufSize == 0 && !hint.IsEmpty();
-
-        tparams.Offset[0] = oabs(textOffset);
-        if (useHint)
-        {
-            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
-            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
-            ly.Text(ly.GenerateNextId(), hint, tparams);
-        }
-        else
-            ly.Text(ly.GenerateNextId(), buf, tparams);
-    }
-
-    ly.EndPanel();
-
-    return updated;
-}
-
-InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags flags)
-{
-    InputConvertInfoFlags outFlags = flags;
-    const bool allowDoubleClick = flags & InputConvertFlag_AllowDoubleClick;
-    const bool hovered = flags & InputConvertFlag_Hovered;
-
-    Layout &ly = GetCurrentLayout();
-
-    const usz iboxId = IdFromStack("__onyx_id_Input_box");
-    const LayoutElement *ibox = ly.QueryElement(iboxId);
-
-    const NativeWindow *nw = m_Current->Native;
-    const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
-    const bool dclick = allowDoubleClick && (nw->OverflowClicks == 1);
-
-    const bool triggered = hovered && (dclick || (ctrl && (nw->Flags & NativeWindowFlag_LeftMousePressed)));
-    const bool persisted =
-        ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(nw->MousePos)));
-
-    const bool mustConvert = (triggered || persisted) && !nw->EventKeys[Key_Enter];
-    if (mustConvert)
-        outFlags |= InputConvertFlag_MustConvert;
-    if (m_ActiveId != iboxId && m_ActiveIdLastFrame != iboxId)
-        outFlags |= InputConvertFlag_MustOverrideHighlight;
-
-    if (triggered)
-        m_ActiveId = iboxId;
-    return outFlags;
-}
-
-void Overlay::closePopup(const u32 depth)
-{
-    m_StateFlags |= StateFlag_PopupProtectionForbidden | StateFlag_MustCollapsePopups;
-    m_PopupCollapseDepth = depth;
-    // this means only the topmost modal can be collapsed
-    m_ModalCollapseDepth = Math::Min(m_ModalCollapseDepth, depth);
-    m_WidgetStates[s_MenuBarId] = 0;
-}
-void Overlay::requestCollapsePopups()
-{
-    m_StateFlags |= StateFlag_MustCollapsePopups;
-    m_PopupCollapseDepth = 0;
 }
 
 // TODO(Isma): Too much repetition between this and Button()
@@ -1770,183 +924,536 @@ bool Overlay::iconButton(const LayoutId id, const CodePoint code, const LySz ysi
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
 }
 
-OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const FocusFlags flags,
-                                                       const f32v2 &padding)
+void Overlay::popWindowStack()
 {
-    if (!elm)
-        return 0;
-
-    OverlayFocusQueryFlags outFlags = 0;
-    TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
-                "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
-                m_PopupStack.GetSize());
-
-    const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
-
-    const NativeWindow *nw = m_Current->Native;
-    const bool lmpressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
-    const bool lmreleased = nw->Flags & NativeWindowFlag_LeftMouseReleased;
-
-    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
-    const bool focusHovered = isElementHovered(hflags);
-
-    const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
-    const bool setPressed = !(flags & FocusFlag_DoNotSetPressedId);
-    const bool setActive = !(flags & FocusFlag_DoNotSetActiveId);
-    const bool protectPopup =
-        !(flags & FocusFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
-
-    bool lclicked = focusHovered;
-    // NOTE(Isma): Could add a _ClickedOnMousePress for right clicks as well
-    if (flags & FocusFlag_ClickedOnMousePress)
-        lclicked &= lmpressed;
-    else
-        // NOTE(Isma, 03/07/25): If we are not allowed to set pressed id, there is no way we can report left clicks on
-        // release. thats why we allow setting a click event even if pressed id is not set. should not break any widget
-        // focus related deal. this is mostly done for user facing read only queries
-        lclicked &= lmreleased && (!setPressed || m_PressedId == elm->Id);
-
-    // we leniently allow setting hovered id even when blocked by popups, so that windows dont eat into widget hover
-    // signals
-    // we additionally allow grab blocks here. this is required for window popups: their own grab event would block
-    // this hover check, thus disallowing the popup itself to protect itself because of its own interaction
-    const OverlayHoveredFlags popHoverFlags =
-        OverlayHoveredFlag_AllowBlockedByPopup | OverlayHoveredFlag_AllowBlockedByPopupCollapse |
-        OverlayHoveredFlag_AllowBlockedByWindow | OverlayHoverQueryFlag_BlockedByWindowGrab;
-
-    const bool popupHovered = isElementHovered(hflags, popHoverFlags);
-    if (popupHovered && protectPopup)
-    {
-        if (flags & FocusFlag_HoverOpensPopup)
-        {
-            TKIT_ASSERT(flags & FocusFlag_HoverRequestsPopupCollapse,
-                        "[ONYX][OVERLAY] Causing hover to open a popup without forcing a collapse on this level "
-                        "will cause the popup stack to grow indefinitely");
-            OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
-        }
-        if (flags & FocusFlag_HoverRequestsPopupCollapse)
-            requestCollapsePopups();
-        m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth);
-    }
-
-    if (m_CurrentPopupDepth != m_PopupStack.GetSize())
-    {
-        if (m_PopupStack[m_CurrentPopupDepth] == elm->Id)
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
-
-        // hover id is essentially used to stop from windows from moving/resizing when a widget is being hovered. we
-        // want to allow immediate dragging when out of the popup, and close everything, except for intermediate
-        // popups. those must still prevent windows from moving, because the popup hierarchy is still not completely
-        // collapsed. note that we dont allow grab blocks here. we dont want windows to set hovered id
-        if (setHovered && popupHovered && m_CurrentPopupDepth != 0)
-            m_HoveredId = elm->Id;
-
-        return outFlags;
-    }
-
-    const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
-    const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
-    const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
-
-    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && pressingMouse &&
-                         (allowPickup || lmpressed || m_PressedId == elm->Id);
-
-    if (focusHovered && setHovered)
-    {
-        m_HoveredId = elm->Id;
-        outFlags |= OverlayFocusQueryFlag_Hovered;
-    }
-
-    if (flags & FocusFlag_EnableDragging)
-    {
-        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && pressingMouse);
-        if (dragged)
-        {
-            m_DraggedId = elm->Id;
-            m_StateFlags |= StateFlag_DraggedIdMustPersist;
-            outFlags |= OverlayFocusQueryFlag_DragSource;
-        }
-
-        const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
-                                                              OverlayHoveredFlag_AllowBlockedByActiveItem |
-                                                              OverlayHoveredFlag_AllowBlockedByDrag);
-        if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
-        {
-            if (m_DragDropId != NullLayoutId)
-                outFlags |= OverlayFocusQueryFlag_DragTarget;
-            if (lmreleased)
-                outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
-        }
-    }
-
-    if (pressed)
-    {
-        if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
-            outFlags |= OverlayFocusQueryFlag_JustActive;
-
-        if (setActive && !(flags & FocusFlag_SetActiveOnRelease))
-            m_ActiveId = elm->Id;
-        if (setPressed && !(flags & FocusFlag_DoNotSetPressedId))
-            m_PressedId = elm->Id;
-        outFlags |= OverlayFocusQueryFlag_Pressed;
-    }
-    if (lclicked)
-    {
-        outFlags |= OverlayFocusQueryFlag_LeftClicked;
-        if (nw->OverflowClicks == 1)
-            outFlags |= OverlayFocusQueryFlag_DoubleClicked;
-
-        if (setActive)
-        {
-            if (flags & FocusFlag_ToggleActiveOnRelease)
-                m_ActiveId = m_ActiveId == elm->Id ? NullLayoutId : elm->Id;
-            else
-                m_ActiveId = elm->Id;
-        }
-        if (flags & FocusFlag_LeftClickOpensPopup)
-        {
-            OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
-        }
-    }
-    // no rclicked if lclicked, so that popup doesnt increase twice
-    else if (rclicked)
-    {
-        outFlags |= OverlayFocusQueryFlag_RightClicked;
-        if (flags & FocusFlag_RightClickOpensPopup)
-        {
-            OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
-        }
-    }
-
-    // *i think* lmreleased check could be omitted bc pressed id wont be set if mouse is not being pressed rn
-    if (m_PressedId == elm->Id && !lmreleased)
-        m_StateFlags |= StateFlag_PressedIdMustPersist;
-
-    if (m_ActiveId == elm->Id)
-    {
-        const bool unclaimOnPress = lmpressed && (!focusHovered || !(flags & FocusFlag_KeepActiveOnPressed));
-        const bool unclaimOnRelease = lmreleased && !(flags & FocusFlag_KeepActiveOnRelease);
-
-        // NOTE(Isma, 25/06/06): I dont remember what i meant by that
-        // NOTE(Isma): Should allow flagging as active still?
-        if (!unclaimOnPress && !unclaimOnRelease)
-        {
-            m_StateFlags |= StateFlag_ActiveIdMustPersist;
-            outFlags |= OverlayFocusQueryFlag_Active;
-
-            if ((flags & FocusFlag_ActiveAllowsInteraction) && !pressed)
-                m_StateFlags |= StateFlag_ActiveAllowsInteraction;
-            // NOTE(Isma, 25/06/06): Should consider unsetting this only on setActive bool var
-            else
-                m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
-        }
-    }
-
-    return outFlags;
+    m_WindowStack.Pop();
+    m_Current = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
 }
+
+u32 Overlay::processWindows()
+{
+    TKIT_ASSERT(!m_Current, "[ONYX][OVERLAY] Window stack not properly closed! Current window pointer is not null");
+    TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
+                m_CurrentPopupDepth);
+    TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
+                m_WindowStack.GetSize());
+    TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A currently opened tab bar has been detected!");
+
+    u32 modalWindow = 0;
+    for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
+    {
+        m_Current = m_ActiveWindows[i];
+        if (m_Current->Flags & WindowInternalFlag_MainMenuBar)
+        {
+            m_Current->Layout.EndPanel();
+            m_Current->Layout.EndPanel();
+        }
+        else
+        {
+            endScroll();
+            m_Current->Layout.EndPanel();
+            if (m_Current->Flags & OverlayWindowFlag_Modal)
+                modalWindow = i + 1;
+        }
+    }
+    m_Current = nullptr;
+
+    m_ActiveIdLastFrame = m_ActiveId;
+    if (!(m_StateFlags & StateFlag_ActiveIdMustPersist))
+    {
+        m_ActiveId = NullLayoutId;
+        m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
+    }
+
+    if (!(m_StateFlags & StateFlag_PressedIdMustPersist))
+        m_PressedId = NullLayoutId;
+
+    if (!(m_StateFlags & StateFlag_DraggedIdMustPersist))
+    {
+        m_DraggedId = NullLayoutId;
+        m_DragDropId = NullLayoutId;
+    }
+
+    TKIT_ASSERT(m_PopupCollapseDepth <= m_PopupStack.GetSize(),
+                "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
+                m_PopupCollapseDepth, m_PopupStack.GetSize());
+
+    bool pressingMouse = false;
+
+    NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
+    NativeWindow *mainNative = getMainNativeWindow();
+
+    const f32v2 smpos = mainNative->ScreenPos + mainNative->Window->GetAbsoluteMousePosition();
+    m_ScreenMouseDelta = smpos - m_ScreenMousePos;
+    m_ScreenMousePos = smpos;
+
+    for (NativeWindow *nw : m_NativeWindows)
+    {
+        nw->UpdateBorders();
+
+        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
+        const f32v2 mpos = nw->ToWorld(smpos);
+        nw->WorldMouseDelta = mpos - nw->WorldMouse;
+        nw->WorldMouse = mpos;
+
+        nw->EventKeys.ClearAll();
+        pressingMouse |= nw->Flags & NativeWindowFlag_PressingLeftMouse;
+        if (!hovered && nw->Flags & NativeWindowFlag_Hovered)
+            hovered = nw;
+    }
+    if (!hovered)
+        hovered = mainNative;
+
+    if (m_StateFlags & StateFlag_MustCollapsePopups)
+    {
+        const u32 collapse = Math::Max(m_PopupCollapseDepth, m_ModalCollapseDepth);
+        if (pressingMouse && collapse < m_PopupStack.GetSize())
+            m_StateFlags |= StateFlag_FocusBlockByPopupCollapse;
+        m_PopupStack.Resize(collapse);
+    }
+    if (!(m_StateFlags & StateFlag_RequestCaptureMouse))
+        m_StateFlags &= ~StateFlag_WantCaptureMouse;
+
+    if (!(m_StateFlags & StateFlag_RequestCaptureKeyboard))
+        m_StateFlags &= ~StateFlag_WantCaptureKeyboard;
+
+    const bool notAllowed =
+        (m_StateFlags & StateFlag_DragPayloadRejected) && !(m_StateFlags & StateFlag_DragPayloadAccepted);
+
+    m_StateFlags &= StateFlagPersist;
+
+    const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_StateFlags & StateFlag_ActiveAllowsInteraction);
+    const bool widgetPressed = m_PressedId != NullLayoutId;
+    const bool widgetHovered = m_HoveredId != NullLayoutId;
+
+    m_StateFlags |= widgetBlocked * StateFlag_WantCaptureMouse;
+    // if nothing is grabbed, we check mouse cursors here
+    if (!m_Grabbed)
+    {
+        MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
+        iterateReverseWindows([&](OverlayWindow *win) {
+            // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
+            const bool winHovered = win->Flags & (WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
+            const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
+            const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
+            if (winHovered && (win->Flags & WindowInternalFlag_InputHovered))
+            {
+                win->Grab.Flags = 0;
+                cursor = MouseCursor_IBeam;
+                return false;
+            }
+            if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
+            {
+                win->Grab.Flags = 0;
+                return true;
+            }
+            if (!win->CanResize())
+                return true;
+            // else, check if there is resize hover
+
+            const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
+            ResizeFlags rflags = 0;
+            GrabInfo &ginfo = win->Grab;
+            for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
+            {
+                const usz id = ginfo.Ids[i];
+                if (win->Layout.IsHovered(id, hovered->WorldMouse, m_Style[OverlayStyle_BorderHoverPadding],
+                                          /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
+                {
+                    win->Grab.InteractionColor = OverlayColor_WindowBorderHovered;
+                    rflags |= 1U << i;
+                }
+            }
+            ginfo.Flags = rflags;
+
+            const auto cf = [&](const ResizeFlags f) { return f & rflags; };
+            if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
+                cursor = MouseCursor_NESW;
+
+            else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
+                cursor = MouseCursor_NWSE;
+
+            else if (cf(ResizeFlag_Left | ResizeFlag_Right))
+                cursor = MouseCursor_EW;
+            else if (cf(ResizeFlag_Bottom | ResizeFlag_Top))
+                cursor = MouseCursor_NS;
+
+            return true;
+        });
+        hovered->Window->SetMouseCursor(cursor);
+    }
+
+    // check for mouse events
+    OverlayWindowFlags wflags = 0;
+    f32v2 scroll{0.f};
+
+    for (NativeWindow *nw : m_NativeWindows)
+    {
+        nw->TextInput.Clear();
+        nw->Flags &= NativeWindowFlagPersist;
+        for (const Event &ev : nw->Window->GetNewEvents())
+        {
+            if (ev.Type == Event_WindowResized)
+            {
+                nw->EventSize = ev.WindowSize;
+                nw->Flags |= NativeWindowFlag_WantUpdateSize;
+            }
+            else if (ev.Type == Event_WindowMoved)
+                nw->ScreenPos = ev.WindowPos;
+            else if (ev.Type == Event_MouseEntered)
+                nw->Flags |= NativeWindowFlag_Hovered;
+            else if (ev.Type == Event_MouseLeft)
+                nw->Flags &= ~NativeWindowFlag_Hovered;
+            else if (ev.Type == Event_MousePressed)
+            {
+                if (ev.Mouse.Button == Mouse_Button1)
+                {
+                    nw->Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
+                    requestCollapsePopups();
+                }
+                if (ev.Mouse.Button == Mouse_Button2)
+                {
+                    nw->Flags |= NativeWindowFlag_RightMousePressed;
+                    requestCollapsePopups();
+                }
+            }
+            else if (ev.Type == Event_MouseReleased)
+            {
+                if (ev.Mouse.Button == Mouse_Button1)
+                {
+                    nw->Flags |= NativeWindowFlag_LeftMouseReleased;
+                    nw->Flags &= ~NativeWindowFlag_PressingLeftMouse;
+
+                    if (nw->ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
+                        ++nw->OverflowClicks;
+                    m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
+                    m_WidgetStates[s_MenuBarId] = 0;
+                }
+                if (ev.Mouse.Button == Mouse_Button2)
+                    nw->Flags |= NativeWindowFlag_RightMouseReleased;
+            }
+            else if (ev.Type == Event_Scrolled)
+                scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
+            else if (ev.Type == Event_CharInput)
+            {
+                char buf[4];
+                const u32 count = EncodeUTF8(buf, ev.Character);
+                nw->TextInput.Insert(nw->TextInput.end(), buf, buf + count);
+            }
+            else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
+                nw->EventKeys.Set(ev.Key);
+        }
+
+        if (nw->ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
+            nw->OverflowClicks = 0;
+    }
+
+    // remove some state and check whether the window is collapsed
+    for (OverlayWindow *win : m_ActiveWindows)
+    {
+        const bool collapsed =
+            !(win->Flags & OverlayWindowFlag_NoCollapse) && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
+        win->HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
+
+        // we dont clear _Active flag yet as its needed for multi surface later
+        win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
+        if (!(m_Flags & OverlayFlag_WindowPromotions))
+            win->ClampToNative();
+    };
+
+    bool canAssignHover = true;
+
+    iterateReverseWindows([&](OverlayWindow *win) {
+        const NativeWindow *nw = win->Native;
+        const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
+        const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
+        const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
+        const bool pressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
+
+        // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
+        // if we are popup locked, we can still allow hovering if no depth > 0 widget previously set hovering id.
+        // this is because we want to allow dragging immediately when collapsing the whole popup stack, but we dont
+        // want dragging when collapsing all. thats why when popups exist, only widgets that belong to the popup
+        // tree (any depth except 0) are allowed to set hovered id
+
+        const bool winHovered =
+            !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
+            win->Layout.IsHovered(win->Id, nw->WorldMouse, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
+
+        const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
+
+        win->Flags |= wflags;
+        win->Flags &= ~WindowInternalFlag_InputHovered;
+
+        if (winHovered)
+        {
+            win->Flags |= WindowInternalFlag_Hovered;
+            m_StateFlags |= StateFlag_WantCaptureMouse;
+            canAssignHover = false;
+        }
+
+        if (pressed && (win->Grab.Flags != 0 || winHovered))
+        {
+            if (!widgetHovered && !widgetPressed && !inputHovered)
+            {
+                win->Grab.ScreenPos = win->GetActivePosition();
+                // we dont use effective here bc if we are resizing, it means we are using the manual size
+                win->Grab.Size = win->Size;
+                m_Grabbed = win;
+            }
+            const bool noFocus = win->Flags & OverlayWindowFlag_NoBringToFocus;
+            if (!noFocus)
+                win->Layer = toTop();
+            return false;
+        }
+        return true;
+    });
+
+    if (!m_ActiveWindows.IsEmpty())
+        m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
+
+    // now just handle grabbing, which is straightforward
+    if (!(hovered->Flags & NativeWindowFlag_PressingLeftMouse))
+    {
+        m_Grabbed = nullptr;
+        hovered->WorldMouseOnPress = hovered->WorldMouse;
+    }
+    else if (m_Grabbed)
+    {
+        m_Grabbed->Grab.InteractionColor = OverlayColor_WindowBorderPressed;
+        GrabInfo &ginfo = m_Grabbed->Grab;
+
+        NativeWindow *nw = m_Grabbed->Native;
+
+        f32v2 &p = ginfo.ScreenPos;
+        f32v2 &s = ginfo.Size;
+
+        const f32v2 &ms = m_Grabbed->MinSize;
+        const f32v2 &md = m_ScreenMouseDelta;
+
+        const bool move = ginfo.Flags == 0 && m_Grabbed->CanMove();
+        const bool resize = m_Grabbed->CanResize();
+        f32v2 &gpos = m_Grabbed->GetActivePosition();
+
+        if (move)
+        {
+            p += md;
+            gpos = p;
+        }
+        else if (resize)
+        {
+            const auto handleResizeAxis = [&](const u32 idx, const ResizeFlags canonical, const ResizeFlags mirrored) {
+                const f32 step = md[idx];
+                if (ginfo.Flags & canonical)
+                {
+                    s[idx] -= step;
+                    p[idx] += step;
+                }
+                else if (ginfo.Flags & mirrored)
+                    s[idx] += step;
+
+                if (s[idx] >= ms[idx])
+                {
+                    gpos[idx] = p[idx];
+                    m_Grabbed->Size[idx] = s[idx];
+                }
+            };
+            handleResizeAxis(0, ResizeFlag_Left, ResizeFlag_Right);
+            handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom);
+        }
+
+        if (!(m_Grabbed->Flags & WindowInternalFlag_OwnsNative))
+            m_Grabbed->ClampToNative();
+        else if (resize || move)
+        {
+            nw->Window->SetPosition(i32v2{gpos});
+            nw->Window->SetScreenDimensions(u32v2{m_Grabbed->GetEffectiveSize()});
+            nw->UpdateBorders();
+        }
+    }
+
+    if (!m_HoveredLayoutCandidate ||
+        !m_HoveredLayoutCandidate->IsHovered(m_HoveredWidgetCandidate, hovered->WorldMouse))
+        m_HoveredWidgetCandidate = NullLayoutId;
+
+    if (m_HoveredWidgetCandidate == NullLayoutId)
+        m_WidgetHoverClock.Restart();
+
+    m_HoveredId = NullLayoutId;
+    m_HoveredLayoutCandidate = nullptr;
+
+    ScrollBarInfo *vinfo = nullptr;
+    ScrollBarInfo *hinfo = nullptr;
+
+    const u32 size = m_ScrollStack.GetSize();
+    for (u32 i = size - 1; i < size; --i)
+    {
+        const usz id = m_ScrollStack[i];
+        ScrollInfo &sinfo = m_Scrollables[id];
+        if (!vinfo && !(sinfo.Flags & OverlayWindowFlag_NoVerticalScroll))
+            vinfo = &sinfo.Vertical;
+        if (!hinfo && (sinfo.Flags & OverlayWindowFlag_HorizontalScroll))
+            hinfo = &sinfo.Horizontal;
+    }
+
+    if (vinfo)
+        vinfo->WheelOffset += scroll[1];
+    if (hinfo)
+        hinfo->WheelOffset += scroll[0];
+
+    m_ScrollStack.Clear();
+    m_DragDropFlags = 0;
+
+    return modalWindow;
+}
+
+NativeWindow *Overlay::createNativeWindow(Window *win)
+{
+    TKit::TierAllocator *tier = GetTier();
+    NativeWindow *nw = tier->Create<NativeWindow>();
+
+    m_NativeWindows.Append(nw);
+    nw->Window = win;
+    nw->View = win->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
+
+    nw->Context = CreateRenderContext<D2>();
+    nw->Context->AddTarget(nw->View);
+    nw->UpdateBorders();
+
+    return nw;
+}
+NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims)
+{
+    WindowSpecs specs{};
+    specs.Position = i32v2{pos};
+    specs.Dimensions = u32v2{dims};
+    specs.PresentMode = GetMainNativeWindow()->Window->GetPresentMode();
+    specs.Flags = WindowFlag_Floating | WindowFlag_InstallCallbacks | WindowFlag_Visible;
+
+    Window *win = OpenWindow({.Window = specs, .Flags = OpenWindowFlag_ManualClose});
+    NativeWindow *nw = createNativeWindow(win);
+    nw->ScreenPos = pos;
+    return nw;
+}
+
+void Overlay::destroyNativeWindow(NativeWindow *win)
+{
+    DestroyRenderContext(win->Context);
+    CloseWindow(win->Window);
+
+    TKit::TierAllocator *tier = GetTier();
+    tier->Destroy(win);
+}
+void Overlay::removeNativeWindow(NativeWindow *win)
+{
+    for (u32 i = 0; i < m_NativeWindows.GetSize(); ++i)
+        if (m_NativeWindows[i] == win)
+        {
+            TKIT_ASSERT(i != 0, "[ONYX][OVERLAY] Main native window can never be removed!");
+            destroyNativeWindow(win);
+            m_NativeWindows.RemoveUnordered(m_NativeWindows.begin() + i);
+            return;
+        }
+    TKIT_FATAL("[ONYX][OVERLAY] Native window to remove was not found!");
+}
+
+void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims)
+{
+    NativeWindow *parent = win->Native;
+    win->Native = createNativeWindow(pos, dims);
+    win->Native->Parent = parent;
+    win->Layer = toTop();
+    win->Flags |= WindowInternalFlag_OwnsNative;
+    win->ScreenPos = f32v2{0.f};
+}
+
+void Overlay::demoteWindow(OverlayWindow *win)
+{
+    NativeWindow *parent = win->Native->Parent;
+    win->ScreenPos = win->Native->ScreenPos - parent->ScreenPos;
+
+    removeNativeWindow(win->Native);
+    win->Native = parent;
+    win->Flags &= ~WindowInternalFlag_OwnsNative;
+}
+
+void Overlay::demoteAllWindows()
+{
+    const NativeWindow *mainNative = GetMainNativeWindow();
+    for (OverlayWindow &win : m_OverlayWindows)
+    {
+        NativeWindow *nw = win.Native;
+        nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
+        win.Flags &= ~WindowInternalFlag_WantUpdateSize;
+
+        // if tooltip native parent is not null, it means the tooltip is owning the native window
+        if (nw != mainNative && (win.Flags & WindowInternalFlag_OwnsNative))
+            demoteWindow(&win);
+    }
+}
+
+static bool isOutsideNative(const NativeWindow *nw, const f32v2 &pos, const f32v2 &size)
+{
+    const f32v2 dims = nw->GetDimensions();
+    const f32 l = nw->ScreenPos[0];
+    const f32 t = nw->ScreenPos[1];
+
+    const f32 r = l + dims[0];
+    const f32 b = t + dims[1];
+
+    const f32 wl = pos[0];
+    const f32 wr = pos[0] + size[0];
+    const f32 wt = pos[1];
+    const f32 wb = pos[1] + size[1];
+    return wl < l || wb > b || wr > r || wt < t;
+}
+
+void Overlay::manageWindowPromotions()
+{
+    for (OverlayWindow &win : m_OverlayWindows)
+    {
+        const bool active = win.Flags & WindowInternalFlag_Active;
+        const bool canPromote = !(win.Flags & OverlayWindowFlag_NoPromotions);
+
+        NativeWindow *nw = win.Native;
+        const bool ownsNative = win.Flags & WindowInternalFlag_OwnsNative;
+        if (ownsNative)
+        {
+            const bool nativeWants = nw->Flags & NativeWindowFlag_WantUpdateSize;
+            const bool childWants = win.Flags & WindowInternalFlag_WantUpdateSize;
+            if (nativeWants)
+                win.Size = nw->EventSize;
+            else if (childWants)
+                nw->Window->SetScreenDimensions(u32v2{win.Size});
+        }
+        nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
+        win.Flags &= ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active);
+
+        const f32v2 wsize = win.GetEffectiveSize();
+        const f32v2 wpos = ownsNative ? nw->ScreenPos : (nw->ScreenPos + win.ScreenPos);
+
+        const bool outsideNative = isOutsideNative(ownsNative ? nw->Parent : nw, wpos, wsize);
+        if (ownsNative && (!canPromote || (!active || (m_Grabbed != &win && !outsideNative))))
+            demoteWindow(&win);
+        else if (!ownsNative && canPromote && outsideNative && active)
+            promoteWindow(&win, wpos, wsize);
+    }
+}
+
+template <typename F> void Overlay::iterateReverseWindows(const F func)
+{
+    for (u32 i = m_ActiveWindows.GetSize() - 1; i < m_ActiveWindows.GetSize(); --i)
+        if (!func(m_ActiveWindows[i]))
+            return;
+}
+
+/////////////////////////////////////////////
+/// END WINDOWS/MENUS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// WIDGETS
+/////////////////////////////////////////////
 
 bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flags)
 {
@@ -2280,98 +1787,6 @@ bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const Overla
 
     return true;
 }
-
-void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
-{
-    LyTxPar params = getTextParams();
-    params.Mode = mode;
-
-    Layout &ly = GetCurrentLayout();
-    // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-    // UPDATE: text has no id until explicitly set
-    ly.Text(m_TextId, text, params);
-    if (m_TextId != NullLayoutId)
-    {
-        m_LastItem = m_TextId;
-        m_TextId = NullLayoutId;
-    }
-}
-void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const TKit::StringView text)
-{
-    PushDirection(LayoutDirection_LeftToRight);
-
-    LyTxPar params = getTextParams();
-    params.Mode = mode;
-
-    Layout &ly = GetCurrentLayout();
-    ly.Unicode(NullLayoutId, icon, getUnicodeParams());
-
-    ly.Text(m_TextId, text, params);
-    if (m_TextId != NullLayoutId)
-    {
-        m_LastItem = m_TextId;
-        m_TextId = NullLayoutId;
-    }
-    PopDirection();
-}
-
-void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
-{
-    m_LastItemTooltipBackup = m_LastItem;
-    if (m_Tooltip && (flags & OverlayTooltipFlag_Reset))
-    {
-        m_Tooltip->Layout.Reset();
-        m_Tooltip->Flags &= ~WindowInternalFlag_Active;
-    }
-
-    const LayoutId id = "__onyx_id_Tooltip";
-    m_Current = getOrCreateOverlayWindow(id);
-    PushId(id);
-
-    m_Tooltip = m_Current;
-    m_WindowStack.Append(m_Current);
-
-    if (m_Current->Flags & WindowInternalFlag_Active)
-        return;
-
-    Layout &ly = GetCurrentLayout();
-
-    const LayoutElement *elm = ly.QueryElement(id);
-    const f32v2 size = elm ? elm->Size : f32v2{0.f};
-
-    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
-
-    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
-                              .Sizing = fit(),
-                              .SelfOffset = oabs(pos),
-                              .Shape = rect(m_Style[OverlayStyle_TooltipRadius]),
-                              .Padding = m_Style[OverlayStyle_TooltipPadding]});
-
-    ly.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
-                          .Direction = LayoutDirection_TopToBottom,
-                          .Alignment = TopLeft,
-                          .Sizing = fit(),
-                          .Shape = rect(m_Style[OverlayStyle_TooltipRadius]),
-                          .Padding = m_Style[OverlayStyle_ContentAreaPadding],
-                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
-}
-
-bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
-{
-    if (!IsItemHovered(flags))
-        return false;
-
-    BeginTooltip(OverlayTooltipFlag_Reset);
-    return true;
-}
-
-void Overlay::EndTooltip()
-{
-    PopId();
-    popWindowStack();
-    m_LastItem = m_LastItemTooltipBackup;
-}
-
 bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
                         const OverlayInputFlags flags)
 {
@@ -2484,6 +1899,133 @@ void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const
 
     m_LastItem = id;
     PopId();
+}
+bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
+                          const f32 size, const OverlayColorFlags flags)
+{
+    PushId(label);
+    f32 *colPtr = color.Data;
+
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+    bool changed = colorPicker(label, colPtr, col, original, flags, size);
+
+    const bool inputs = !(flags & OverlayColorFlag_NoInput);
+    if (inputs)
+    {
+        beginHorizontalWidget(PushId("__onyx_id_RGB"), 1.f);
+        changed |= colorDrag(colPtr, col, flags);
+        endHorizontalWidget();
+        PopId();
+
+        beginHorizontalWidget(PushId("__onyx_id_HSV"), 1.f);
+        changed |= colorDrag(colPtr, col, flags | OverlayColorFlag_HSV);
+        endHorizontalWidget();
+        PopId();
+
+        changed |= colorHexInput(colPtr, col, flags);
+    }
+    PopId();
+    return changed;
+}
+
+bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+{
+    f32 *colPtr = color.Data;
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+
+    ColorPreview(label, col, flags);
+    bool changed = false;
+
+    const LayoutId id = IdFromStack(label);
+    if (!(flags & OverlayColorFlag_NoPicker) &&
+        BeginPopupContextItem(
+            label, OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_BringToTop,
+            OverlayPopupFlag_LeftClick))
+    {
+        if (!checkWidgetState(id, WidgetStateFlag_Opened))
+            m_PickerOriginal = col;
+
+        changed = ColorPicker(label, color, &m_PickerOriginal, m_Style[OverlayStyle_ColorPickerSize], flags);
+        EndPopup();
+        m_WidgetStates[id] = WidgetStateFlag_Opened;
+    }
+    else
+        m_WidgetStates[id] = 0;
+
+    return changed;
+}
+
+bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+{
+    f32 *colPtr = color.Data;
+    const bool inputs = !(flags & OverlayColorFlag_NoInput);
+
+    if (inputs)
+        beginHorizontalWidget(PushId(label));
+    else
+        beginHorizontalWidget(PushId(label), fit(), fit());
+
+    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
+    const u32 count = 3 + alpha;
+    TKIT_ASSERT(count <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
+                                     "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
+
+    bool changed = false;
+
+    const Color col =
+        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+
+    if (inputs)
+    {
+        if (flags & OverlayColorFlag_Hex)
+            colorHexInput(colPtr, col, flags);
+        else
+            colorDrag(colPtr, col, flags);
+    }
+
+    const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
+    const usz oldItem = m_LastItem;
+
+    if (!(flags & OverlayColorFlag_NoPreview))
+    {
+        PushStyleVar(OverlayStyle_ColorPreviewSize, lh);
+        PushStyleVar(OverlayStyle_ColorTooltipSize, 2.f * lh);
+        ColorButton(label, color, flags);
+        PopStyleVar(2);
+    }
+
+    m_LastItem = oldItem;
+
+    endHorizontalWidget(label);
+    PopId();
+
+    if (!(flags & OverlayColorFlag_NoDragDrop))
+    {
+        if (BeginDragDropSource())
+        {
+            SetDragDropPayload("__onyx_id_Color", colPtr, count);
+            PushStyleVar(OverlayStyle_ColorTooltipSize, m_Style[OverlayStyle_ColorDragTooltipSize]);
+            ColorPreviewTooltip(label, col, OverlayColorFlag_NoTooltipColorInfo);
+            PopStyleVar();
+            EndDragDropSource();
+        }
+        if (BeginDragDropTarget())
+        {
+            if (const auto pl = AcceptDragDropPayload("__onyx_id_Color"))
+            {
+                const u32 size = Math::Min(count, pl.Size);
+                const f32 *payload = rcast<f32 *>(pl.Data);
+                for (u32 i = 0; i < size; ++i)
+                    colPtr[i] = payload[i];
+            }
+            EndDragDropTarget();
+        }
+    }
+    return changed;
 }
 
 bool Overlay::colorHexInput(f32 *colPtr, const Color &col, const OverlayColorFlags flags)
@@ -2722,7 +2264,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     if (pickerFlags & OverlayFocusQueryFlag_Pressed)
     {
         circleSize *= 1.2f;
-        pdata->CirclePos = nw->MousePos - pickerElm->Position - posOffset;
+        pdata->CirclePos = nw->WorldMouse - pickerElm->Position - posOffset;
         pdata->CirclePos = Math::Clamp(pdata->CirclePos, -posOffset, posOffset);
 
         hsv[1] = 0.5f + pdata->CirclePos[0] / pickerSize;
@@ -2739,7 +2281,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
 
     if (hueBarFlags & OverlayFocusQueryFlag_Pressed)
     {
-        pdata->HueRodPos = nw->MousePos[1] - hueBarElm->Position[1] - posOffset;
+        pdata->HueRodPos = nw->WorldMouse[1] - hueBarElm->Position[1] - posOffset;
         pdata->HueRodPos = Math::Clamp(pdata->HueRodPos, -posOffset, posOffset);
 
         hsv[0] = 0.5f - pdata->HueRodPos / pickerSize;
@@ -2753,7 +2295,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
 
     if (alphaBarFlags & OverlayFocusQueryFlag_Pressed)
     {
-        pdata->AlphaRodPos = nw->MousePos[1] - alphaBarElm->Position[1] - posOffset;
+        pdata->AlphaRodPos = nw->WorldMouse[1] - alphaBarElm->Position[1] - posOffset;
         pdata->AlphaRodPos = Math::Clamp(pdata->AlphaRodPos, -posOffset, posOffset);
 
         hsv[3] = 0.5f + pdata->AlphaRodPos / pickerSize;
@@ -2911,133 +2453,1055 @@ usz Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
     return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
 }
 
-bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
-                          const f32 size, const OverlayColorFlags flags)
+TKit::StringView Overlay::trimLabel(const TKit::StringView label)
 {
-    PushId(label);
-    f32 *colPtr = color.Data;
-
-    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
-    const Color col =
-        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
-    bool changed = colorPicker(label, colPtr, col, original, flags, size);
-
-    const bool inputs = !(flags & OverlayColorFlag_NoInput);
-    if (inputs)
-    {
-        beginHorizontalWidget(PushId("__onyx_id_RGB"), 1.f);
-        changed |= colorDrag(colPtr, col, flags);
-        endHorizontalWidget();
-        PopId();
-
-        beginHorizontalWidget(PushId("__onyx_id_HSV"), 1.f);
-        changed |= colorDrag(colPtr, col, flags | OverlayColorFlag_HSV);
-        endHorizontalWidget();
-        PopId();
-
-        changed |= colorHexInput(colPtr, col, flags);
-    }
-    PopId();
-    return changed;
+    const u32 idx = label.FindFirstOf("##");
+    return label.SubString(0, idx);
 }
-
-bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, const LySz2 &innerSizing)
 {
-    f32 *colPtr = color.Data;
-    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
-    const Color col =
-        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+    Layout &ly = GetCurrentLayout();
+    m_LastItem = ly.BeginPanel(
+        id, LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ColorPreview(label, col, flags);
-    bool changed = false;
-
-    const LayoutId id = IdFromStack(label);
-    if (!(flags & OverlayColorFlag_NoPicker) &&
-        BeginPopupContextItem(
-            label, OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_BringToTop,
-            OverlayPopupFlag_LeftClick))
-    {
-        if (!checkWidgetState(id, WidgetStateFlag_Opened))
-            m_PickerOriginal = col;
-
-        changed = ColorPicker(label, color, &m_PickerOriginal, m_Style[OverlayStyle_ColorPickerSize], flags);
-        EndPopup();
-        m_WidgetStates[id] = WidgetStateFlag_Opened;
-    }
-    else
-        m_WidgetStates[id] = 0;
-
-    return changed;
+    ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
-
-bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 {
-    f32 *colPtr = color.Data;
-    const bool inputs = !(flags & OverlayColorFlag_NoInput);
+    const bool autoResize = isAutoResize();
+    const bool isFloat = m_CurrentPopupDepth != m_Current->PopupDepth;
+    const f32 effW = isFloat ? TKIT_F32_MAX : (normSize * getCurrentEffectiveWidth());
 
-    if (inputs)
-        beginHorizontalWidget(PushId(label));
-    else
-        beginHorizontalWidget(PushId(label), fit(), fit());
+    const f32 mnw = m_Style[OverlayStyle_WidgetMinimumWidth];
 
-    const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
-    const u32 count = 3 + alpha;
-    TKIT_ASSERT(count <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
-                                     "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
+    const LySz2 outerSizing = {autoResize ? fit(mnw) : flex(), fit()};
+    const LySz2 innerSizing = {autoResize ? fit(mnw) : flex(0.f, effW), fit()};
 
-    bool changed = false;
+    return beginHorizontalWidget(id, outerSizing, innerSizing);
+}
+void Overlay::endHorizontalWidget(TKit::StringView label)
+{
+    Layout &ly = GetCurrentLayout();
+    ly.EndPanel();
+    if (!label.IsEmpty())
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.EndPanel();
+}
+bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
+                           const InputConvertInfoFlags cflags)
+{
+    TKIT_ASSERT(capacity != 0, "[ONYX][OVERLAY] Buffer capacity for text input cannot be zero");
+    Layout &ly = GetCurrentLayout();
+    const u32 bufSize = u32(std::strlen(buf));
+    TKIT_ASSERT(bufSize < capacity,
+                "[ONYX][OVERLAY] The input character length ({}) must be lower than buffer capacity ({}) as the latter "
+                "must to account for the null terminator",
+                bufSize, capacity);
 
-    const Color col =
-        alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
+    const LayoutId iboxId = IdFromStack("__onyx_id_Input_box");
+    const LayoutElement *ibox = ly.QueryElement(iboxId);
+    const bool mustConvert = cflags & InputConvertFlag_MustConvert;
 
-    if (inputs)
+    FocusFlags fflags = FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
+                        FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover;
+    if (mustConvert)
+        fflags |= FocusFlag_AllowPressedPickUp;
+
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ibox, fflags);
+
+    ly.BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
+                                  .Alignment = CenterLeft,
+                                  .Sizing = {grow(), fit()},
+                                  .Shape = rect(m_Style[OverlayStyle_InputBoxRadius]),
+                                  .Padding = m_Style[OverlayStyle_WidgetPadding]});
+
+    // This input text box may be a "converted" slider/drag. this means that the first frame (where layout
+    // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
+    // important. without it, we cannot auto highlight. so we try this proxy, by trying to get the position of
+    // the parent box if thats the case
+    const LayoutElement *box = mustConvert ? ly.QueryElement(IdFromStack("__onyx_id_Drag/Slider_box")) : ibox;
+    const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
+
+    const FontData &fdata = getFontData();
+    const f32 fs = m_Style[OverlayStyle_FontSize];
+
+    LyTxPar tparams = getTextParams();
+    const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
+    const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
+    if (pressed || hovered)
+        m_Current->Flags |= WindowInternalFlag_InputHovered;
+
+    bool updated = false;
+    if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
     {
-        if (flags & OverlayColorFlag_Hex)
-            colorHexInput(colPtr, col, flags);
-        else
-            colorDrag(colPtr, col, flags);
-    }
+        m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
 
-    const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
-    const usz oldItem = m_LastItem;
+        NativeWindow *nw = m_Current->Native;
+        const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
 
-    if (!(flags & OverlayColorFlag_NoPreview))
-    {
-        PushStyleVar(OverlayStyle_ColorPreviewSize, lh);
-        PushStyleVar(OverlayStyle_ColorTooltipSize, 2.f * lh);
-        ColorButton(label, color, flags);
-        PopStyleVar(2);
-    }
+        TKit::String &str = m_InputWidgetBuffer;
+        const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
+        const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
+        const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
 
-    m_LastItem = oldItem;
-
-    endHorizontalWidget(label);
-    PopId();
-
-    if (!(flags & OverlayColorFlag_NoDragDrop))
-    {
-        if (BeginDragDropSource())
+        if (justActive)
         {
-            SetDragDropPayload("__onyx_id_Color", colPtr, count);
-            PushStyleVar(OverlayStyle_ColorTooltipSize, m_Style[OverlayStyle_ColorDragTooltipSize]);
-            ColorPreviewTooltip(label, col, OverlayColorFlag_NoTooltipColorInfo);
-            PopStyleVar();
-            EndDragDropSource();
+            str.Clear();
+            str.Insert(str.end(), buf, buf + bufSize);
+
+            m_UndoStack.Clear();
+            m_RedoStack.Clear();
         }
-        if (BeginDragDropTarget())
+
+        if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Key_Z])
         {
-            if (const auto pl = AcceptDragDropPayload("__onyx_id_Color"))
+            const TextInputStateInfo &info = m_UndoStack.GetBack();
+            m_RedoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+
+            m_CursorStart = info.Cursor;
+            m_CursorEnd = info.Cursor;
+            str = info.Text;
+
+            m_UndoStack.Pop();
+            updated = true;
+        }
+        if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && nw->EventKeys[Key_Y])
+        {
+            const TextInputStateInfo &info = m_RedoStack.GetBack();
+            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+
+            m_CursorStart = info.Cursor;
+            m_CursorEnd = info.Cursor;
+            str = info.Text;
+
+            m_RedoStack.Pop();
+            updated = true;
+            updated = true;
+        }
+
+        const auto pushUndo = [&] {
+            if (undoRedo)
             {
-                const u32 size = Math::Min(count, pl.Size);
-                const f32 *payload = rcast<f32 *>(pl.Data);
-                for (u32 i = 0; i < size; ++i)
-                    colPtr[i] = payload[i];
+                m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+                m_RedoStack.Clear();
             }
-            EndDragDropTarget();
+        };
+
+        const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
+
+        if (escapeClears && nw->EventKeys[Key_Escape])
+        {
+            pushUndo();
+            str.Clear();
+            updated = true;
+            m_CursorStart = 0;
+            m_CursorEnd = 0;
+        }
+
+        TKit::StackArray<f32> advances{};
+        advances.Reserve(str.GetSize() + 1);
+        advances.Append(0.f);
+
+        TKit::StackArray<f32> midAdvances{};
+        midAdvances.Reserve(str.GetSize() + 1);
+        midAdvances.Append(0.f);
+
+        f32 textWidth = 0.f;
+        fdata.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
+            const f32 width = fs * w;
+            // widths.Append(width);
+
+            midAdvances.Append(textWidth + 0.5f * width);
+            textWidth += width;
+            advances.Append(textWidth);
+            return true;
+        });
+
+        const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
+        const bool clicked = focusFlags & OverlayFocusQueryFlag_LeftClicked;
+
+        const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
+        const u32 charCount = str.GetSize();
+        const u32 advCount = charCount + 1;
+
+        if (pressed || clicked)
+        {
+            const f32 onPress = nw->WorldMouseOnPress[0] - boxPos;
+            const f32 mpos = nw->WorldMouse[0] - boxPos;
+
+            const bool mustUseCurrent = !clicked && Math::Approximately(mpos, onPress, 1.f);
+            const f32 pixelStartPos = mustUseCurrent ? advances[m_CursorStart] : onPress;
+            const f32 pixelEndPos = mustUseCurrent ? advances[m_CursorEnd] : mpos;
+
+            m_CursorStart = 0;
+            m_CursorEnd = 0;
+
+            bool startReady = false;
+            bool endReady = false;
+            for (u32 i = 0; i < advCount; ++i)
+            {
+                const f32 hw = midAdvances[i];
+                startReady = hw >= pixelStartPos;
+                if (!startReady)
+                    m_CursorStart = i;
+
+                endReady = hw >= pixelEndPos;
+                if (!endReady)
+                    m_CursorEnd = i;
+            }
+            if (!startReady)
+                m_CursorStart = charCount;
+            if (!endReady)
+                m_CursorEnd = charCount;
+        }
+
+        if (nw->OverflowClicks == 2 || (justActive && autoSelectAll))
+        {
+            m_CursorStart = 0;
+            m_CursorEnd = charCount;
+        }
+        else if (nw->OverflowClicks == 1)
+        {
+            if (m_CursorEnd != 0)
+            {
+                u32 start = m_CursorEnd - 1;
+                while (start != 0 && str[start - 1] != ' ')
+                    --start;
+                m_CursorStart = start;
+            }
+            if (m_CursorEnd != charCount)
+            {
+                u32 end = m_CursorEnd - 1;
+                while (end != charCount - 1 && str[end + 1] != ' ')
+                    ++end;
+                m_CursorEnd = end + 1;
+            }
+        }
+        else if (nw->EventKeys[Key_Left] || nw->EventKeys[Key_Right])
+        {
+            const bool left = nw->EventKeys[Key_Left];
+
+            const u32 limit = left ? 0 : charCount;
+            const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
+            if (m_CursorEnd != limit)
+            {
+                const bool lshift = nw->Window->IsKeyPressed(Key_LeftShift);
+                const i32 diff = left ? -1 : 1;
+                if (lshift)
+                    m_CursorEnd += diff;
+                else if (hlen == 0)
+                {
+                    m_CursorEnd += diff;
+                    if (m_CursorStart != limit)
+                        m_CursorStart += diff;
+                }
+                else if (diff * hlen > 0)
+                    m_CursorEnd = m_CursorStart;
+                else
+                    m_CursorStart = m_CursorEnd;
+            }
+        }
+
+        const bool negSel = m_CursorStart > m_CursorEnd;
+        u32 selStart = negSel ? m_CursorEnd : m_CursorStart;
+        u32 selEnd = negSel ? m_CursorStart : m_CursorEnd;
+
+        const f32 selStartAdv = advances[selStart];
+        const f32 selEndAdv = advances[selEnd];
+        const f32 textEndAdv = advances[m_CursorEnd];
+
+        const f32 hLength = selEndAdv - selStartAdv;
+        const bool hasHighlight = hLength != 0.f;
+
+        const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
+        const f32 textOffset =
+            noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
+
+        tparams.Offset[0] = oabs(textOffset);
+        const bool useHint = str.IsEmpty() && !hint.IsEmpty();
+        if (useHint)
+        {
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
+            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
+            ly.Text(ly.GenerateNextId(), hint, tparams);
+        }
+        else
+            ly.Text(ly.GenerateNextId(), str, tparams);
+
+        // bc of layout solving, cursor is gonna be offsetted by the text. we have to work out how much to "bring it
+        // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by
+        // -textWidth. same goes for highlight
+
+        f32 offset = textEndAdv - textWidth + textOffset;
+        if (useHint)
+            offset -= fs * fdata.ComputeTextWidth(hint);
+        else
+            // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
+            offset += 0.1f;
+
+        const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
+        ly.Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]},
+                         .Sizing = {sabs(cwidth), grow()},
+                         .SelfOffset = oabs({offset, 0.f})});
+        if (hasHighlight)
+        {
+            const f32 hoffset = negSel ? offset : (offset - hLength);
+            ly.Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputHighlight], 0.4f},
+                             .Sizing = {sabs(hLength), grow()},
+                             .SelfOffset = oabs({hoffset - cwidth, 0.f})});
+        }
+
+        const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
+        const u32 toRemoveEnd = selEnd;
+
+        if (ctrl && nw->EventKeys[Key_V])
+        {
+            const char *cp = Platform::GetClipboard();
+
+            // could maybe append one by one, as that = operator is constructing a TKit::String temp
+            if (cp && cp[0])
+                nw->TextInput = cp;
+        }
+
+        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty())
+        {
+            if (ctrl && nw->EventKeys[Key_C])
+            {
+                const TKit::StackString clipboard{str.begin() + toRemoveBegin, str.begin() + toRemoveEnd};
+                Platform::SetClipboard(clipboard.CString());
+            }
+
+            if (nw->EventKeys[Key_Backspace] || (!nw->TextInput.IsEmpty() && hasHighlight))
+            {
+                pushUndo();
+
+                updated = true;
+                str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
+
+                const u32 removeCount = toRemoveEnd - toRemoveBegin;
+                if (!hasHighlight || negSel)
+                    m_CursorStart -= removeCount;
+                if (!hasHighlight || !negSel)
+                    m_CursorEnd -= removeCount;
+
+                selEnd = toRemoveBegin;
+            }
+        }
+
+        const u32 insertionsLeft = capacity - 1 - str.GetSize();
+        const u32 insertions = Math::Min(nw->TextInput.GetSize(), insertionsLeft);
+
+        updated |= insertions != 0;
+        if (insertions != 0)
+        {
+            pushUndo();
+            for (u32 i = 0; i < insertions; ++i)
+                str.Insert(str.begin() + selEnd + i, nw->TextInput[i]);
+        }
+
+        m_CursorStart += insertions;
+        m_CursorEnd += insertions;
+
+        const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
+
+        if (enterCommits)
+            updated = nw->EventKeys[Key_Enter];
+        if (updated)
+        {
+            // copy the new string into the buffer and we are done :)
+            for (u32 i = 0; i < str.GetSize(); ++i)
+                buf[i] = str[i];
+
+            buf[str.GetSize()] = '\0';
+        }
+
+        if (!enterCommits)
+        {
+            const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
+            if (enterTrue)
+                updated = nw->EventKeys[Key_Enter];
         }
     }
-    return changed;
+    else
+    {
+        const bool elide = flags & OverlayInputFlag_ElideLeft;
+        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
+        const bool useHint = bufSize == 0 && !hint.IsEmpty();
+
+        tparams.Offset[0] = oabs(textOffset);
+        if (useHint)
+        {
+            tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
+            // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
+            ly.Text(ly.GenerateNextId(), hint, tparams);
+        }
+        else
+            ly.Text(ly.GenerateNextId(), buf, tparams);
+    }
+
+    ly.EndPanel();
+
+    return updated;
 }
+
+/////////////////////////////////////////////
+/// END WIDGETS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// DISPLAY
+/////////////////////////////////////////////
+
+void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
+{
+    LyTxPar params = getTextParams();
+    params.Mode = mode;
+
+    Layout &ly = GetCurrentLayout();
+    // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
+    // UPDATE: text has no id until explicitly set
+    ly.Text(m_TextId, text, params);
+    if (m_TextId != NullLayoutId)
+    {
+        m_LastItem = m_TextId;
+        m_TextId = NullLayoutId;
+    }
+}
+void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const TKit::StringView text)
+{
+    PushDirection(LayoutDirection_LeftToRight);
+
+    LyTxPar params = getTextParams();
+    params.Mode = mode;
+
+    Layout &ly = GetCurrentLayout();
+    ly.Unicode(NullLayoutId, icon, getUnicodeParams());
+
+    ly.Text(m_TextId, text, params);
+    if (m_TextId != NullLayoutId)
+    {
+        m_LastItem = m_TextId;
+        m_TextId = NullLayoutId;
+    }
+    PopDirection();
+}
+
+void Overlay::BeginDisabled(const bool enabled)
+{
+    m_DisabledStack.Append(m_Style[OverlayStyle_Alpha]);
+    if (enabled)
+    {
+        m_StateFlags |= StateFlag_Disabled;
+        m_Style.Variables[OverlayStyle_Alpha] *= m_Style[OverlayStyle_DisabledAlpha];
+    }
+}
+void Overlay::EndDisabled()
+{
+    m_Style.Variables[OverlayStyle_Alpha] = m_DisabledStack.GetBack();
+    m_DisabledStack.Pop();
+    if (m_DisabledStack.IsEmpty())
+        m_StateFlags &= ~StateFlag_Disabled;
+}
+
+/////////////////////////////////////////////
+/// END DISPLAY
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// POPUPS
+/////////////////////////////////////////////
+
+void Overlay::CloseCurrentPopup()
+{
+    TKIT_ASSERT(m_CurrentPopupDepth != 0,
+                "[ONYX][OVERLAY] CloseCurrentPopup() can only be called inside an active popup");
+    closePopup(m_CurrentPopupDepth - 1);
+}
+void Overlay::CloseChildPopup()
+{
+    closePopup(m_CurrentPopupDepth);
+}
+void Overlay::CollapsePopups()
+{
+    closePopup(0);
+}
+
+bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const OverlayWindowFlags flags)
+{
+    // we cannot apply the id stack here because user must unequivocally reference this from anywhere
+    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != id)
+    {
+        m_WidgetStates[id] = 0;
+        return false;
+    }
+
+    ++m_CurrentPopupDepth;
+    if (getWidgetState(id) == 0)
+    {
+        OverlayWindow *win = getOrCreateOverlayWindow(title);
+        const LayoutElement *elm = win->Layout.QueryElement(win->Id);
+        const f32v2 size = elm ? elm->Size : win->Size;
+
+        win->SetActivePosition(win->ToScreen(computeMouseAlignedPosition(m_Current->Native, size)));
+    }
+    m_WidgetStates[id] = WidgetStateFlag_Opened;
+
+    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton);
+}
+
+void Overlay::EndPopup()
+{
+    --m_CurrentPopupDepth;
+    EndWindow();
+}
+bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview,
+                            const OverlayDropDownFlags flags)
+{
+    Layout &ly = GetCurrentLayout();
+    beginHorizontalWidget(PushId(label), 1.f);
+
+    const LayoutId id = IdFromStack("__onyx_id__Drop_down_box");
+    const LayoutElement *elm = ly.QueryElement(id);
+    OverlayColor boxCol = OverlayColor_DropDownIdle;
+
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_LeftClickOpensPopup);
+
+    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        boxCol = OverlayColor_DropDownPressed;
+    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        boxCol = OverlayColor_DropDownHovered;
+
+    const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
+    const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+    ly.BeginPanel(id,
+                  LyPnPar{.FillColor = m_Style[boxCol],
+                          .Alignment = CenterLeft,
+                          .Sizing = {m_CurrentPopupDepth == 0 ? flex(0.f, 0.5f * getCurrentEffectiveWidth()) : flex(),
+                                     hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)},
+                          .Shape = rect(m_Style[OverlayStyle_DropDownRadius])});
+
+    if (hasPreview)
+    {
+        ly.BeginPanel(LyPnPar{
+            .Alignment = CenterLeft, .Sizing = {grow(), fit()}, .Padding = m_Style[OverlayStyle_WidgetPadding]});
+
+        ly.Text(ly.GenerateNextId(), preview, getTextParams());
+        ly.EndPanel();
+    }
+
+    // ly.Panel(IdFromStack("__onyx_id_Push"), LyPnPar{.Sizing = grow()});
+
+    const bool dropDownActive = focusFlags & OverlayFocusQueryFlag_PopupOpen;
+    if (!(flags & OverlayDropDownFlag_NoArrowButton))
+    {
+        OverlayColor buttonCol = dropDownActive ? OverlayColor_DropDownButton : OverlayColor_DropDownHovered;
+        ly.BeginPanel(LyPnPar{.FillColor = m_Style[buttonCol],
+                              .Alignment = Center,
+                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+        ly.Unicode(NullLayoutId, ArrowDownIcon, getUnicodeParams());
+        ly.EndPanel();
+    }
+
+    if (dropDownActive)
+    {
+        endHorizontalWidget(label);
+
+        const usz did = IdFromStack("__onyx_id_Drop_down");
+        const LayoutElement *delm = ly.QueryElement(did);
+        const f32 csize = delm ? delm->Size[1] : 0.f;
+
+        const f32 ppos = elm->Position[1];
+        const f32 psize = elm->Size[0];
+
+        const bool tight = flags & OverlayDropDownFlag_Tight;
+
+        const bool surpasses = (ppos - csize) < m_Current->Native->GetWorldBottom();
+        const LyAtt2 att = {LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
+        const LyAlg2 alg = surpasses ? BottomLeft : TopLeft;
+
+        ly.BeginPanel(did, LyPnPar{.FillColor = m_Style[OverlayColor_PopupBackground],
+                                   .Direction = LayoutDirection_TopToBottom,
+                                   .Alignment = TopLeft,
+                                   .Sizing = {fit(psize), fit()},
+                                   .Shape = rect(m_Style[OverlayStyle_DropDownPopupRadius]),
+                                   .Floating = {.Enable = true, .Attachment = att, .Alignment = alg},
+                                   .Padding = tight ? 0.f : m_Style[OverlayStyle_WidgetPadding]});
+
+        const f32 height = (flags & OverlayDropDownFlag_HeightSmall) ? m_Style[OverlayStyle_DropDownHeightSmall]
+                                                                     : m_Style[OverlayStyle_DropDownHeightRegular];
+        const bool largest = flags & OverlayDropDownFlag_HeightLargest;
+
+        const usz sid = IdFromStack("__onyx_id_Scroll");
+        const LySz2 osizing = flex();
+        const LySz2 csizing = {flex(), largest ? fit() : fit(0.f, height)};
+        const f32 cgap = tight ? 0.f : m_Style[OverlayStyle_ChildGap];
+
+        ++m_CurrentPopupDepth;
+        PushStyleVar(OverlayStyle_ScrollBarGap, 0.f);
+        beginScroll({.Id = sid,
+                     .OuterSizing = osizing,
+                     .ContentSizing = csizing,
+                     .ContentPadding = 0.f,
+                     .ChildGap = cgap,
+                     .Flags = OverlayScrollFlag_NoBackground});
+
+        queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
+        return true;
+    }
+    endHorizontalWidget(label);
+    ly.EndPanel();
+    PopId();
+    return false;
+}
+
+void Overlay::closePopup(const u32 depth)
+{
+    m_StateFlags |= StateFlag_PopupProtectionForbidden | StateFlag_MustCollapsePopups;
+    m_PopupCollapseDepth = depth;
+    // this means only the topmost modal can be collapsed
+    m_ModalCollapseDepth = Math::Min(m_ModalCollapseDepth, depth);
+    m_WidgetStates[s_MenuBarId] = 0;
+}
+void Overlay::requestCollapsePopups()
+{
+    m_StateFlags |= StateFlag_MustCollapsePopups;
+    m_PopupCollapseDepth = 0;
+}
+f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const
+{
+    const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
+    const f32v2 offset = f32v2{toffset, -2.f * toffset};
+
+    f32v2 pos = win->WorldMouse + offset;
+    if (m_Flags & OverlayFlag_WindowPromotions)
+        return pos;
+
+    const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
+    const f32 rb = win->WorldMouse[1] + offset[1] - size[1];
+    const f32v2 &br = win->WorldBottomRightBorder;
+    if (rt > br[0])
+        pos[0] -= rt - br[0];
+    if (rb < br[1])
+        pos[1] -= rb - br[1];
+
+    return pos;
+}
+
+/////////////////////////////////////////////
+/// END POPUPS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// TOOLTIPS
+/////////////////////////////////////////////
+void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
+{
+    m_LastItemTooltipBackup = m_LastItem;
+    if (flags & OverlayTooltipFlag_Reset)
+        trashTooltip();
+
+    const LayoutId id = "__onyx_id_Tooltip";
+    NativeWindow *nw = m_Current->Native;
+    m_Current = getOrCreateOverlayWindow(id);
+    m_Current->Flags |= OverlayWindowFlag_AutoResize;
+
+    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
+    if (!ownsNative)
+        m_Current->Native = nw;
+
+    PushId(id);
+
+    m_Tooltip = m_Current;
+    m_WindowStack.Append(m_Current);
+
+    if (m_Current->Flags & WindowInternalFlag_Active)
+        return;
+
+    m_Current->Flags |= WindowInternalFlag_Active;
+
+    Layout &ly = GetCurrentLayout();
+
+    const LayoutElement *elm = ly.QueryElement(id);
+
+    // we set non zero size so that native windows created wrt this size dont throw an error
+    const f32v2 size = elm ? elm->Size : f32v2{10.f};
+
+    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
+    if (m_Flags & OverlayFlag_WindowPromotions)
+    {
+        m_Current->SetActivePosition(m_Current->ToScreen(pos));
+        if (!Math::Approximately(m_Current->Size, size))
+        {
+            m_Current->Size = size;
+            if (ownsNative)
+                m_Current->Flags |= WindowInternalFlag_WantUpdateSize;
+        }
+    }
+
+    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
+                              .Sizing = fit(),
+                              .SelfOffset = oabs(ownsNative ? m_Current->Native->GetWorldTopLeft() : pos),
+                              .Shape = rect(m_Style[OverlayStyle_TooltipRadius]),
+                              .Padding = m_Style[OverlayStyle_TooltipPadding]});
+
+    ly.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
+                          .Direction = LayoutDirection_TopToBottom,
+                          .Alignment = TopLeft,
+                          .Sizing = fit(),
+                          .Shape = rect(m_Style[OverlayStyle_TooltipRadius]),
+                          .Padding = m_Style[OverlayStyle_ContentAreaPadding],
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
+}
+
+bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
+{
+    if (!IsItemHovered(flags))
+        return false;
+
+    BeginTooltip(OverlayTooltipFlag_Reset);
+    return true;
+}
+
+void Overlay::EndTooltip()
+{
+    PopId();
+    popWindowStack();
+    m_LastItem = m_LastItemTooltipBackup;
+}
+
+void Overlay::trashTooltip()
+{
+    if (!m_Tooltip)
+        return;
+    m_Tooltip->Layout.Reset();
+
+    if (m_Tooltip->Flags & WindowInternalFlag_OwnsNative)
+        removeNativeWindow(m_Tooltip->Native);
+
+    m_Tooltip->Flags &= ~(WindowInternalFlag_Active | WindowInternalFlag_OwnsNative);
+    m_Tooltip->Native = getMainNativeWindow();
+    m_Tooltip = nullptr;
+}
+void Overlay::resetTooltip()
+{
+    if (!m_Tooltip)
+        return;
+    m_Tooltip->Layout.Reset();
+    m_Tooltip->Flags &= ~WindowInternalFlag_Active;
+    m_Tooltip = nullptr;
+}
+
+/////////////////////////////////////////////
+/// END TOOLTIPS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// LAYOUT
+/////////////////////////////////////////////
+
+bool Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
+                          const OverlayScrollFlags flags)
+{
+    const usz id = PushId(label);
+    const bool autoResize = isAutoResize();
+
+    const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
+
+    const bool borders = flags & OverlayScrollFlag_Borders;
+    const bool tight = flags & OverlayScrollFlag_Tight;
+
+    const f32 omw = maxWidth + 2.f * padding;
+    const LySz2 outer = {autoResize ? fit() : grow(0.f, omw), fit()};
+    const LySz2 content = {autoResize ? fit(0.f, maxWidth) : grow(0.f, maxWidth), fit(0.f, maxHeight)};
+
+    Layout &ly = GetCurrentLayout();
+    ly.BeginPanel(LyPnPar{.FillColor = borders ? m_Style[OverlayColor_ScrollAreaBorders] : Color_Transparent,
+                          .Direction = LayoutDirection_TopToBottom,
+                          .Alignment = CenterLeft,
+                          .Sizing = outer,
+                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
+                          .Padding = borders ? padding : 0.f});
+
+    if (flags & OverlayScrollFlag_Title)
+        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+
+    return beginScroll({.Id = id,
+                        .OuterSizing = outer,
+                        .ContentSizing = content,
+                        .ContentPadding = tight ? 0.f : padding,
+                        .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
+                        .Flags = flags});
+}
+void Overlay::HorizontalSeparator(const TKit::StringView label)
+{
+    Layout &ly = GetCurrentLayout();
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
+                          .Alignment = CenterLeft,
+                          .Sizing = {flex(), fit()},
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    const f32 textOffset = m_Style[OverlayStyle_SeparatorTextOffset];
+    const f32 width = m_Style[OverlayStyle_LineWidth];
+
+    ly.Panel(
+        LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
+
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Panel(LyPnPar{
+        .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
+    ly.EndPanel();
+}
+
+bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
+{
+    id = PushId(id);
+    Layout &ly = GetCurrentLayout();
+    const bool framed = flags & OverlayTreeFlag_Framed;
+
+    OverlayColor col = framed ? OverlayColor_TreeIdle : OverlayColor_None;
+
+    OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
+    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        col = OverlayColor_TreePressed;
+    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        col = OverlayColor_TreeHovered;
+
+    const bool horScroll = m_Current->Flags & OverlayWindowFlag_HorizontalScroll;
+    const bool autoResize = isAutoResize();
+    const LySz growOrFlex = (horScroll || autoResize) ? flex() : grow();
+
+    const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
+    const LySz2 sizing = {spanLabel ? fit() : growOrFlex, fit()};
+
+    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                           .Alignment = CenterLeft,
+                                           .Sizing = sizing,
+                                           .Shape = rect(m_Style[OverlayStyle_TreeRadius]),
+                                           .Padding = m_Style[OverlayStyle_HeaderPadding],
+                                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    const bool startOpen = flags & OverlayTreeFlag_StartOpen;
+    const bool opened = checkWidgetState(id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
+
+    const usz buttonId =
+        ly.BeginPanel(IdFromStack("__onyx_id_Tree_collapse"),
+                      LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+
+    bool toggleOpen = focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    if (toggleOpen)
+    {
+        const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
+        const bool onDoubleClick = !opened && (flags & OverlayTreeFlag_OpenOnDoubleClick);
+        const bool doubleClicked = focusFlags & OverlayFocusQueryFlag_DoubleClicked;
+        const NativeWindow *nw = m_Current->Native;
+        if (onArrow)
+            toggleOpen = ly.IsHovered(buttonId, nw->WorldMouse) || (onDoubleClick && doubleClicked);
+        else if (onDoubleClick)
+            toggleOpen = doubleClicked;
+    }
+
+    const CodePoint code = opened ? ArrowDownIcon : ArrowRightIcon;
+    ly.Unicode(NullLayoutId, code, getUnicodeParams());
+
+    ly.EndPanel();
+
+    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.EndPanel();
+
+    if (toggleOpen)
+        toggleWidgetState(id, WidgetStateFlag_Opened);
+
+    if (!opened)
+    {
+        PopId();
+        return false;
+    }
+
+    const bool lines = flags & OverlayTreeFlag_DrawLines;
+    const bool indent = !(flags & OverlayTreeFlag_NoIndent);
+
+    const FontData &fdata = getFontData();
+    const f32 fs = m_Style[OverlayStyle_FontSize];
+
+    const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(ArrowDownIcon)->Advance, m_Style[OverlayStyle_IconWidth]);
+    const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
+
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = TopLeft, .Sizing = sizing});
+
+    if (indent)
+    {
+        ly.BeginPanel(LyPnPar{
+            .Direction = LayoutDirection_TopToBottom, .Alignment = Center, .Sizing = {sabs(treeIndent), flex()}});
+
+        if (lines)
+            VerticalLine();
+
+        ly.EndPanel();
+    }
+
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                          .Alignment = TopLeft,
+                          .Sizing = sizing,
+                          .ChildGap = m_Style[OverlayStyle_ChildGap]});
+
+    return true;
+}
+bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
+{
+    Layout &ly = GetCurrentLayout();
+    ScrollInfo &sinfo = m_Scrollables[specs.Id];
+    sinfo.Flags = specs.Flags;
+
+    const bool noHeader = m_Current->Flags & OverlayWindowFlag_NoHeaderBar;
+    const bool collapsed = !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
+    const bool drawBar = !(specs.Flags & OverlayScrollFlag_NoScrollBar);
+
+    const bool borders = specs.Flags & OverlayScrollFlag_Borders;
+    const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
+    const bool bckg = !(specs.Flags & OverlayScrollFlag_NoBackground);
+    m_LastItem = ly.BeginPanel(
+        specs.Id, LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
+                          .Direction = LayoutDirection_BottomToTop,
+                          .Alignment = TopLeft,
+                          .Sizing = specs.OuterSizing,
+                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
+                          .Padding = borders ? cpadding : 0.f,
+                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
+
+    const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
+    bool appenStack = false;
+    if (!collapsed && (specs.Flags & OverlayScrollFlag_HorizontalScroll))
+        appenStack |= performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
+
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_RightToLeft,
+                          .Alignment = TopLeft,
+                          .Sizing = specs.OuterSizing,
+                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
+
+    if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
+        appenStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
+
+    ly.BeginPanel(contentId, LyPnPar{.Direction = specs.Direction,
+                                     .Alignment = TopLeft,
+                                     .Sizing = specs.ContentSizing,
+                                     .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset,
+                                                          -sinfo.Vertical.ElementOffset + specs.VerticalOffset}),
+                                     .Padding = specs.ContentPadding,
+                                     .ChildGap = specs.ChildGap});
+
+    if (isElementHovered(ly.QueryElement(specs.Id)))
+    {
+        if (appenStack)
+            m_ScrollStack.Append(specs.Id);
+        return true;
+    }
+    return false;
+}
+
+void Overlay::endScroll()
+{
+    Layout &ly = GetCurrentLayout();
+    ly.EndPanel();
+    ly.EndPanel();
+    ly.EndPanel();
+}
+bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, const LayoutAxis axis,
+                            const f32 contentPadding, const bool drawBar)
+{
+    Layout &ly = GetCurrentLayout();
+    const LayoutElement *contentArea = ly.QueryElement(contentAreaId);
+
+    if (contentArea && contentArea->ChildrenSize[axis] > contentArea->Size[axis])
+    {
+        const f32 size = contentArea->Size[axis];
+        const f32 csize = contentArea->ChildrenSize[axis] + 2.f * contentPadding;
+        OverlayColor col = OverlayColor_ScrollBarIdle;
+
+        const char *name =
+            axis == LayoutAxis_Horizontal ? "__onyx_id_Horizontal_scroll_bar" : "__onyx_id_Vertical_scroll_bar";
+        const LayoutId scrollId = IdFromStack(name);
+
+        const LayoutElement *scrollBar = ly.QueryElement(scrollId);
+        const f32 sign = axis == LayoutAxis_Horizontal ? -1.f : 1.f;
+
+        const f32 sw = m_Style[OverlayStyle_ScrollBarWidth];
+        const f32 mw = 2.f * sw;
+
+        const f32 barSize = Math::Max(mw, size * size / csize);
+
+        const f32 maxBarTravel = size - barSize;
+        const f32 maxElementTravel = csize - size;
+        const f32 barToElement = maxBarTravel > TKIT_F32_EPSILON ? (maxElementTravel / maxBarTravel) : 0.f;
+
+        if (scrollBar)
+        {
+            const OverlayFocusQueryFlags focusFlags =
+                queryAndSetFocusStatus(scrollBar, FocusFlag_PressedEvenWhenAwayFromHover);
+
+            const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
+            const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
+            if (pressed || !Math::ApproachesZero(sinfo.WheelOffset))
+            {
+                const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
+                const f32 unbounded = sinfo.CursorOffset + wheel;
+                const f32 bounded = Math::Clamp(unbounded, -maxBarTravel, 0.f);
+
+                sinfo.BarOffset = sign * bounded;
+                sinfo.ElementOffset = barToElement * sinfo.BarOffset;
+
+                if (pressed)
+                {
+                    col = OverlayColor_ScrollBarPressed;
+                    const NativeWindow *nw = m_Current->Native;
+                    sinfo.CursorOffset += sign * nw->WorldMouseDelta[axis];
+                }
+                else
+                {
+                    sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
+                    sinfo.WheelOffset = 0.f;
+                }
+            }
+            else
+            {
+                sinfo.ElementOffset = sign * Math::Clamp(sign * sinfo.ElementOffset, -maxElementTravel, 0.f);
+                sinfo.BarOffset = barToElement > TKIT_F32_EPSILON ? sinfo.ElementOffset / barToElement : 0.f;
+                sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
+            }
+            if (!pressed && hovered)
+                col = OverlayColor_ScrollBarHovered;
+        }
+        else
+            sinfo.CursorOffset = sign * sinfo.BarOffset; // this indirectly saves the WheelOffset state
+
+        if (drawBar)
+        {
+            LySz2 sizing;
+            sizing[axis] = sabs(barSize);
+            sizing[1 - axis] = sabs(sw);
+
+            LyOf2 offset;
+            offset[axis] = oabs(sinfo.BarOffset);
+            offset[1 - axis] = oabs(0.f);
+
+            ly.Panel(scrollId, LyPnPar{.FillColor = m_Style[col],
+                                       .Sizing = sizing,
+                                       .SelfOffset = offset,
+                                       .Shape = rect(m_Style[OverlayStyle_ScrollBarWidth])});
+        }
+        return true;
+    }
+
+    sinfo = ScrollBarInfo{};
+    return false;
+}
+
+/////////////////////////////////////////////
+/// END LAYOUT
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// INTERACTION/INPUT
+/////////////////////////////////////////////
 
 bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 {
@@ -3048,7 +3512,7 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
     const f32 th = m_Style[OverlayStyle_DragThreshold];
 
     const NativeWindow *nw = m_Current->Native;
-    const f32 drag = Math::NormSquared(nw->MousePos - nw->MousePosOnPress);
+    const f32 drag = Math::NormSquared(nw->WorldMouse - nw->WorldMouseOnPress);
     if ((m_DragDropId == m_LastItem || drag > th * th) && focusFlags & OverlayFocusQueryFlag_DragSource)
     {
         m_DragDropId = m_LastItem;
@@ -3062,11 +3526,8 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 void Overlay::EndDragDropSource()
 {
     EndTooltip();
-    if (m_Tooltip && (m_DragDropFlags & (OverlayDragDropFlag_SourceNoTooltip | DragDropFlag_MustClearTooltip)))
-    {
-        m_Tooltip->Layout.Reset();
-        m_Tooltip = nullptr;
-    }
+    if (m_DragDropFlags & (OverlayDragDropFlag_SourceNoTooltip | DragDropFlag_MustClearTooltip))
+        trashTooltip();
 
     m_DragDropFlags = 0;
 }
@@ -3091,11 +3552,7 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
         }
         if (flags & OverlayDragDropFlag_TargetNoTooltip)
         {
-            if (m_Tooltip)
-            {
-                m_Tooltip->Layout.Reset();
-                m_Tooltip = nullptr;
-            }
+            trashTooltip();
             m_DragDropFlags |= DragDropFlag_MustClearTooltip;
         }
     }
@@ -3136,6 +3593,293 @@ bool Overlay::WantCaptureKeyboard() const
     return m_StateFlags & StateFlag_WantCaptureKeyboard;
 }
 
+OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
+{
+    OverlayHoverQueryFlags flags = 0;
+    const usz id = elm ? elm->Id : NullLayoutId;
+
+    const NativeWindow *nw = m_Current->Native;
+    const bool hovered = elm && elm->IsHovered(nw->WorldMouse, padding);
+    const bool windowBlock =
+        !(m_Current->Flags & WindowInternalFlag_Focused) && !(m_Current->Flags & WindowInternalFlag_Hovered);
+    const bool grabBlock = m_Grabbed;
+    const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
+    const bool activeBlocked =
+        !(m_StateFlags & StateFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
+    const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
+    const bool popupCollapseBlocked = m_StateFlags & StateFlag_FocusBlockByPopupCollapse;
+    const bool disabledBlocked = m_StateFlags & StateFlag_Disabled;
+    const bool dragBlocked = m_DraggedId != NullLayoutId && m_DraggedId != id;
+
+    flags |= OverlayHoverQueryFlag_Hovered * hovered;
+    flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
+    flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
+    flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
+    flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByDisabled * disabledBlocked;
+    flags |= OverlayHoverQueryFlag_BlockedByDrag * dragBlocked;
+
+    return flags;
+}
+
+bool Overlay::isElementHovered(const LayoutElement *elm, const OverlayHoveredFlags flags, const f32v2 &padding)
+{
+    const OverlayHoverQueryFlags qflags = queryHoverStatus(elm, padding);
+    const bool candidate = isElementHovered(qflags, flags);
+
+    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
+    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
+    const bool stationary = flags & OverlayHoveredFlag_Stationary;
+    TKIT_ASSERT(normalDelay + shortDelay != 2,
+                "[ONYX][OVERLAY] Cannot have short delay and normal delay at the same time in tooltip");
+
+    const Layout &ly = GetCurrentLayout();
+    if (candidate)
+    {
+        const f32 statThres = stationary ? m_Style[OverlayStyle_HoverStationaryThreshold] : TKIT_F32_MAX;
+        const NativeWindow *nw = m_Current->Native;
+        if (Math::NormSquared(nw->WorldMouseDelta) > statThres)
+        {
+            m_WidgetHoverClock.Restart();
+            return false;
+        }
+        if (!shortDelay && !normalDelay)
+            return true;
+
+        const f32 delay = shortDelay ? m_Style[OverlayStyle_HoverDelayShort] : m_Style[OverlayStyle_HoverDelayNormal];
+        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastItem;
+        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
+
+        m_HoveredWidgetCandidate = m_LastItem;
+        m_HoveredLayoutCandidate = &ly;
+
+        if (noShared && !wasCandidate)
+            m_WidgetHoverClock.Restart();
+
+        const f32 seconds = m_WidgetHoverClock.GetElapsed().AsSeconds();
+        return seconds >= delay;
+    }
+    return false;
+}
+
+InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags flags)
+{
+    InputConvertInfoFlags outFlags = flags;
+    const bool allowDoubleClick = flags & InputConvertFlag_AllowDoubleClick;
+    const bool hovered = flags & InputConvertFlag_Hovered;
+
+    Layout &ly = GetCurrentLayout();
+
+    const usz iboxId = IdFromStack("__onyx_id_Input_box");
+    const LayoutElement *ibox = ly.QueryElement(iboxId);
+
+    const NativeWindow *nw = m_Current->Native;
+    const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
+    const bool dclick = allowDoubleClick && (nw->OverflowClicks == 1);
+
+    const bool triggered = hovered && (dclick || (ctrl && (nw->Flags & NativeWindowFlag_LeftMousePressed)));
+    const bool persisted =
+        ibox && (m_ActiveId == iboxId || (m_ActiveIdLastFrame == iboxId && ibox->IsHovered(nw->WorldMouse)));
+
+    const bool mustConvert = (triggered || persisted) && !nw->EventKeys[Key_Enter];
+    if (mustConvert)
+        outFlags |= InputConvertFlag_MustConvert;
+    if (m_ActiveId != iboxId && m_ActiveIdLastFrame != iboxId)
+        outFlags |= InputConvertFlag_MustOverrideHighlight;
+
+    if (triggered)
+        m_ActiveId = iboxId;
+    return outFlags;
+}
+
+OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm, const FocusFlags flags,
+                                                       const f32v2 &padding)
+{
+    if (!elm)
+        return 0;
+
+    OverlayFocusQueryFlags outFlags = 0;
+    TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
+                "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
+                m_PopupStack.GetSize());
+
+    const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
+
+    const NativeWindow *nw = m_Current->Native;
+    const bool lmpressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
+    const bool lmreleased = nw->Flags & NativeWindowFlag_LeftMouseReleased;
+
+    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
+    const bool focusHovered = isElementHovered(hflags);
+
+    const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
+    const bool setPressed = !(flags & FocusFlag_DoNotSetPressedId);
+    const bool setActive = !(flags & FocusFlag_DoNotSetActiveId);
+    const bool protectPopup =
+        !(flags & FocusFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
+
+    bool lclicked = focusHovered;
+    // NOTE(Isma): Could add a _ClickedOnMousePress for right clicks as well
+    if (flags & FocusFlag_ClickedOnMousePress)
+        lclicked &= lmpressed;
+    else
+        // NOTE(Isma, 03/07/25): If we are not allowed to set pressed id, there is no way we can report left clicks on
+        // release. thats why we allow setting a click event even if pressed id is not set. should not break any widget
+        // focus related deal. this is mostly done for user facing read only queries
+        lclicked &= lmreleased && (!setPressed || m_PressedId == elm->Id);
+
+    // we leniently allow setting hovered id even when blocked by popups, so that windows dont eat into widget hover
+    // signals
+    // we additionally allow grab blocks here. this is required for window popups: their own grab event would block
+    // this hover check, thus disallowing the popup itself to protect itself because of its own interaction
+    const OverlayHoveredFlags popHoverFlags =
+        OverlayHoveredFlag_AllowBlockedByPopup | OverlayHoveredFlag_AllowBlockedByPopupCollapse |
+        OverlayHoveredFlag_AllowBlockedByWindow | OverlayHoverQueryFlag_BlockedByWindowGrab;
+
+    const bool popupHovered = isElementHovered(hflags, popHoverFlags);
+    if (popupHovered && protectPopup)
+    {
+        if (flags & FocusFlag_HoverOpensPopup)
+        {
+            TKIT_ASSERT(flags & FocusFlag_HoverRequestsPopupCollapse,
+                        "[ONYX][OVERLAY] Causing hover to open a popup without forcing a collapse on this level "
+                        "will cause the popup stack to grow indefinitely");
+            OpenPopup(elm->Id);
+            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+        }
+        if (flags & FocusFlag_HoverRequestsPopupCollapse)
+            requestCollapsePopups();
+        m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth);
+    }
+
+    if (m_CurrentPopupDepth != m_PopupStack.GetSize())
+    {
+        if (m_PopupStack[m_CurrentPopupDepth] == elm->Id)
+            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+
+        // hover id is essentially used to stop from windows from moving/resizing when a widget is being hovered. we
+        // want to allow immediate dragging when out of the popup, and close everything, except for intermediate
+        // popups. those must still prevent windows from moving, because the popup hierarchy is still not completely
+        // collapsed. note that we dont allow grab blocks here. we dont want windows to set hovered id
+        if (setHovered && popupHovered && m_CurrentPopupDepth != 0)
+            m_HoveredId = elm->Id;
+
+        return outFlags;
+    }
+
+    const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
+    const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
+    const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
+
+    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && pressingMouse &&
+                         (allowPickup || lmpressed || m_PressedId == elm->Id);
+
+    if (focusHovered && setHovered)
+    {
+        m_HoveredId = elm->Id;
+        outFlags |= OverlayFocusQueryFlag_Hovered;
+    }
+
+    if (flags & FocusFlag_EnableDragging)
+    {
+        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && pressingMouse);
+        if (dragged)
+        {
+            m_DraggedId = elm->Id;
+            m_StateFlags |= StateFlag_DraggedIdMustPersist;
+            outFlags |= OverlayFocusQueryFlag_DragSource;
+        }
+
+        const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
+                                                              OverlayHoveredFlag_AllowBlockedByActiveItem |
+                                                              OverlayHoveredFlag_AllowBlockedByDrag);
+        if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
+        {
+            if (m_DragDropId != NullLayoutId)
+                outFlags |= OverlayFocusQueryFlag_DragTarget;
+            if (lmreleased)
+                outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
+        }
+    }
+
+    if (pressed)
+    {
+        if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
+            outFlags |= OverlayFocusQueryFlag_JustActive;
+
+        if (setActive && !(flags & FocusFlag_SetActiveOnRelease))
+            m_ActiveId = elm->Id;
+        if (setPressed && !(flags & FocusFlag_DoNotSetPressedId))
+            m_PressedId = elm->Id;
+        outFlags |= OverlayFocusQueryFlag_Pressed;
+    }
+    if (lclicked)
+    {
+        outFlags |= OverlayFocusQueryFlag_LeftClicked;
+        if (nw->OverflowClicks == 1)
+            outFlags |= OverlayFocusQueryFlag_DoubleClicked;
+
+        if (setActive)
+        {
+            if (flags & FocusFlag_ToggleActiveOnRelease)
+                m_ActiveId = m_ActiveId == elm->Id ? NullLayoutId : elm->Id;
+            else
+                m_ActiveId = elm->Id;
+        }
+        if (flags & FocusFlag_LeftClickOpensPopup)
+        {
+            OpenPopup(elm->Id);
+            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+        }
+    }
+    // no rclicked if lclicked, so that popup doesnt increase twice
+    else if (rclicked)
+    {
+        outFlags |= OverlayFocusQueryFlag_RightClicked;
+        if (flags & FocusFlag_RightClickOpensPopup)
+        {
+            OpenPopup(elm->Id);
+            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+        }
+    }
+
+    // *i think* lmreleased check could be omitted bc pressed id wont be set if mouse is not being pressed rn
+    if (m_PressedId == elm->Id && !lmreleased)
+        m_StateFlags |= StateFlag_PressedIdMustPersist;
+
+    if (m_ActiveId == elm->Id)
+    {
+        const bool unclaimOnPress = lmpressed && (!focusHovered || !(flags & FocusFlag_KeepActiveOnPressed));
+        const bool unclaimOnRelease = lmreleased && !(flags & FocusFlag_KeepActiveOnRelease);
+
+        // NOTE(Isma, 25/06/06): I dont remember what i meant by that
+        // NOTE(Isma): Should allow flagging as active still?
+        if (!unclaimOnPress && !unclaimOnRelease)
+        {
+            m_StateFlags |= StateFlag_ActiveIdMustPersist;
+            outFlags |= OverlayFocusQueryFlag_Active;
+
+            if ((flags & FocusFlag_ActiveAllowsInteraction) && !pressed)
+                m_StateFlags |= StateFlag_ActiveAllowsInteraction;
+            // NOTE(Isma, 25/06/06): Should consider unsetting this only on setActive bool var
+            else
+                m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
+        }
+    }
+
+    return outFlags;
+}
+
+/////////////////////////////////////////////
+/// END INTERACTION/INPUT
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// RENDERING
+/////////////////////////////////////////////
+
 void Overlay::Draw()
 {
     TKIT_ASSERT(m_IdStack.IsEmpty(),
@@ -3144,13 +3888,15 @@ void Overlay::Draw()
                 m_IdStack.GetSize());
 
     const u32 modalWindow = processWindows();
-    for (const NativeWindow &nw : m_NativeWindows)
+    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+
+    for (const NativeWindow *nw : m_NativeWindows)
     {
-        nw.Context->Flush();
+        nw->Context->Flush();
         if (modalWindow != 0)
-            nw.View->ClearColor.rgba[3] = 1.f;
+            nw->View->ClearColor.rgba[3] = 1.f;
         else
-            nw.View->ClearColor.rgba[3] = 0.f;
+            nw->View->ClearColor.rgba[3] = 0.f;
     }
 
     u32 idx = 0;
@@ -3168,6 +3914,10 @@ void Overlay::Draw()
         }
         win->Layout.Compile();
         ctx->Layout(win->Layout);
+
+        // we still need that flag below
+        if (!windowPromotions)
+            win->Flags &= ~WindowInternalFlag_Active;
     }
 
     if (m_Tooltip)
@@ -3175,410 +3925,27 @@ void Overlay::Draw()
         m_Tooltip->Layout.EndPanel();
         m_Tooltip->Layout.EndPanel();
         m_Tooltip->Layout.Compile();
-
         m_Tooltip->Native->Context->Layout(m_Tooltip->Layout);
-        m_Tooltip = nullptr;
+        if (windowPromotions && (m_Tooltip->Flags & WindowInternalFlag_OwnsNative))
+            m_Tooltip->Native->Window->SetPosition(i32v2{m_Tooltip->Native->ScreenPos});
     }
 
     m_ActiveWindows.Clear();
+    const NativeWindow *mainNative = GetMainNativeWindow();
+    if (!windowPromotions || mainNative->Window->ShouldClose())
+        demoteAllWindows();
+    else
+        manageWindowPromotions();
+    resetTooltip();
 }
 
-template <typename F> void Overlay::iterateReverseWindows(const F func)
-{
-    for (u32 i = m_ActiveWindows.GetSize() - 1; i < m_ActiveWindows.GetSize(); --i)
-        if (!func(m_ActiveWindows[i]))
-            return;
-}
+/////////////////////////////////////////////
+/// END RENDERING
+/////////////////////////////////////////////
 
-u32 Overlay::processWindows()
-{
-    TKIT_ASSERT(!m_Current, "[ONYX][OVERLAY] Window stack not properly closed! Current window pointer is not null");
-    TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
-                m_CurrentPopupDepth);
-    TKIT_ASSERT(m_WindowStack.IsEmpty(), "[ONYX][OVERLAY] Window stack not properly closed! {} windows remaining",
-                m_WindowStack.GetSize());
-    TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A currently opened tab bar has been detected!");
-
-    u32 modalWindow = 0;
-    for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
-    {
-        m_Current = m_ActiveWindows[i];
-        if (m_Current->Flags & WindowInternalFlag_MainMenuBar)
-        {
-            m_Current->Layout.EndPanel();
-            m_Current->Layout.EndPanel();
-        }
-        else
-        {
-            endScroll();
-            m_Current->Layout.EndPanel();
-            if (m_Current->Flags & OverlayWindowFlag_Modal)
-                modalWindow = i + 1;
-        }
-    }
-    m_Current = nullptr;
-
-    m_ActiveIdLastFrame = m_ActiveId;
-    if (!(m_StateFlags & StateFlag_ActiveIdMustPersist))
-    {
-        m_ActiveId = NullLayoutId;
-        m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
-    }
-
-    if (!(m_StateFlags & StateFlag_PressedIdMustPersist))
-        m_PressedId = NullLayoutId;
-
-    if (!(m_StateFlags & StateFlag_DraggedIdMustPersist))
-    {
-        m_DraggedId = NullLayoutId;
-        m_DragDropId = NullLayoutId;
-    }
-
-    TKIT_ASSERT(m_PopupCollapseDepth <= m_PopupStack.GetSize(),
-                "[ONYX][OVERLAY] Cannot have a popup depth ({}) greater than the popup stack ({})",
-                m_PopupCollapseDepth, m_PopupStack.GetSize());
-
-    bool pressingMouse = false;
-    NativeWindow *hovered = nullptr;
-    for (NativeWindow &nw : m_NativeWindows)
-    {
-        nw.UpdateBorders();
-        const f32v2 mpos = nw.View->ScreenToWorld(nw.Window->GetNormalizedMousePosition());
-        nw.MouseDelta = mpos - nw.MousePos;
-        nw.MousePos = mpos;
-        nw.EventKeys.ClearAll();
-        pressingMouse |= nw.Flags & NativeWindowFlag_PressingLeftMouse;
-        if (nw.Flags & NativeWindowFlag_Hovered)
-            hovered = &nw;
-    }
-    // this is gonna bite later
-    if (!hovered)
-        hovered = getMainNativeWindow();
-
-    if (m_StateFlags & StateFlag_MustCollapsePopups)
-    {
-        const u32 collapse = Math::Max(m_PopupCollapseDepth, m_ModalCollapseDepth);
-        if (pressingMouse && collapse < m_PopupStack.GetSize())
-            m_StateFlags |= StateFlag_FocusBlockByPopupCollapse;
-        m_PopupStack.Resize(collapse);
-    }
-    if (!(m_StateFlags & StateFlag_RequestCaptureMouse))
-        m_StateFlags &= ~StateFlag_WantCaptureMouse;
-
-    if (!(m_StateFlags & StateFlag_RequestCaptureKeyboard))
-        m_StateFlags &= ~StateFlag_WantCaptureKeyboard;
-
-    const bool notAllowed =
-        (m_StateFlags & StateFlag_DragPayloadRejected) && !(m_StateFlags & StateFlag_DragPayloadAccepted);
-
-    m_StateFlags &= StateFlagPersist;
-
-    const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_StateFlags & StateFlag_ActiveAllowsInteraction);
-    const bool widgetPressed = m_PressedId != NullLayoutId;
-    const bool widgetHovered = m_HoveredId != NullLayoutId;
-
-    m_StateFlags |= widgetBlocked * StateFlag_WantCaptureMouse;
-    // if nothing is grabbed, we check mouse cursors here
-    if (!m_Grabbed)
-    {
-        MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
-        iterateReverseWindows([&](OverlayWindow *win) {
-            if (win->Native != hovered)
-                return true;
-
-            // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
-            const bool winHovered = win->Flags & (WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
-            const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
-            const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
-            if (winHovered && (win->Flags & WindowInternalFlag_InputHovered))
-            {
-                win->Grab.Flags = 0;
-                cursor = MouseCursor_IBeam;
-                return false;
-            }
-            if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
-            {
-                win->Grab.Flags = 0;
-                return true;
-            }
-            if (win->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize))
-                return true;
-            // else, check if there is resize hover
-
-            const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
-            ResizeFlags rflags = 0;
-            GrabInfo &ginfo = win->Grab;
-            for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
-            {
-                const usz id = ginfo.Ids[i];
-                if (win->Layout.IsHovered(id, hovered->MousePos, m_Style[OverlayStyle_BorderHoverPadding],
-                                          /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
-                {
-                    win->Grab.InteractionColor = OverlayColor_WindowBorderHovered;
-                    rflags |= 1U << i;
-                }
-            }
-            ginfo.Flags = rflags;
-
-            const auto cf = [&](const ResizeFlags f) { return f & rflags; };
-            if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
-                cursor = MouseCursor_NESW;
-
-            else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
-                cursor = MouseCursor_NWSE;
-
-            else if (cf(ResizeFlag_Left | ResizeFlag_Right))
-                cursor = MouseCursor_EW;
-            else if (cf(ResizeFlag_Bottom | ResizeFlag_Top))
-                cursor = MouseCursor_NS;
-
-            return true;
-        });
-        hovered->Window->SetMouseCursor(cursor);
-    }
-
-    // remove some state and check whether the window is collapsed
-    for (OverlayWindow *win : m_ActiveWindows)
-    {
-        const bool collapsed =
-            !(win->Flags & OverlayWindowFlag_NoCollapse) && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
-        win->HeaderIcon = collapsed ? ArrowRightIcon : ArrowDownIcon;
-        win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_Active);
-    };
-
-    // check for mouse events
-    OverlayWindowFlags wflags = 0;
-    f32v2 scroll{0.f};
-
-    for (NativeWindow &nw : m_NativeWindows)
-    {
-        nw.TextInput.Clear();
-        nw.Flags &= NativeWindowFlagPersist;
-        for (const Event &ev : nw.Window->GetNewEvents())
-        {
-            if (ev.Type == Event_MouseEntered)
-                nw.Flags |= NativeWindowFlag_Hovered;
-            else if (ev.Type == Event_MouseLeft)
-                nw.Flags &= ~NativeWindowFlag_Hovered;
-            else if (ev.Type == Event_MousePressed)
-            {
-                if (ev.Mouse.Button == Mouse_Button1)
-                {
-                    nw.Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
-                    requestCollapsePopups();
-                }
-                if (ev.Mouse.Button == Mouse_Button2)
-                {
-                    nw.Flags |= NativeWindowFlag_RightMousePressed;
-                    requestCollapsePopups();
-                }
-            }
-            else if (ev.Type == Event_MouseReleased)
-            {
-                if (ev.Mouse.Button == Mouse_Button1)
-                {
-                    nw.Flags |= NativeWindowFlag_LeftMouseReleased;
-                    nw.Flags &= ~NativeWindowFlag_PressingLeftMouse;
-
-                    if (nw.ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
-                        ++nw.OverflowClicks;
-                    m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
-                    m_WidgetStates[s_MenuBarId] = 0;
-                }
-                if (ev.Mouse.Button == Mouse_Button2)
-                    nw.Flags |= NativeWindowFlag_RightMouseReleased;
-            }
-            else if (ev.Type == Event_Scrolled)
-                scroll += m_Style[OverlayStyle_ScrollSensitivity] * ev.ScrollOffset;
-            else if (ev.Type == Event_CharInput)
-            {
-                char buf[4];
-                const u32 count = EncodeUTF8(buf, ev.Character);
-                nw.TextInput.Insert(nw.TextInput.end(), buf, buf + count);
-            }
-            else if (ev.Type == Event_KeyPressed || ev.Type == Event_KeyRepeat)
-                nw.EventKeys.Set(ev.Key);
-        }
-
-        if (nw.ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
-            nw.OverflowClicks = 0;
-    }
-
-    bool canAssignHover = true;
-
-    iterateReverseWindows([&](OverlayWindow *win) {
-        const NativeWindow *nw = win->Native;
-        const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
-        const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
-        const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
-        const bool pressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
-
-        // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
-        // if we are popup locked, we can still allow hovering if no depth > 0 widget previously set hovering id.
-        // this is because we want to allow dragging immediately when collapsing the whole popup stack, but we dont
-        // want dragging when collapsing all. thats why when popups exist, only widgets that belong to the popup
-        // tree (any depth except 0) are allowed to set hovered id
-
-        const bool winHovered =
-            !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
-            win->Layout.IsHovered(win->Id, nw->MousePos, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
-
-        const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
-
-        win->Flags |= wflags;
-        win->Flags &= ~WindowInternalFlag_InputHovered;
-
-        if (winHovered)
-        {
-            win->Flags |= WindowInternalFlag_Hovered;
-            canAssignHover = false;
-            m_StateFlags |= StateFlag_WantCaptureMouse;
-        }
-
-        if (pressed && (win->Grab.Flags != 0 || winHovered))
-        {
-            if (!widgetHovered && !widgetPressed && !inputHovered)
-            {
-                win->Grab.Position = win->Position;
-                win->Grab.Size = win->Size;
-                m_Grabbed = win;
-            }
-            const bool noFocus = win->Flags & OverlayWindowFlag_NoBringToFocus;
-            if (!noFocus)
-                win->Layer = toTop();
-            return false;
-        }
-        return true;
-    });
-
-    if (!m_ActiveWindows.IsEmpty())
-        m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
-
-    // now just handle grabbing, which is straightforward
-    if (!(hovered->Flags & NativeWindowFlag_PressingLeftMouse))
-    {
-        m_Grabbed = nullptr;
-        hovered->MousePosOnPress = hovered->MousePos;
-    }
-    else if (m_Grabbed)
-    {
-        m_Grabbed->Grab.InteractionColor = OverlayColor_WindowBorderPressed;
-        GrabInfo &ginfo = m_Grabbed->Grab;
-        f32v2 &p = ginfo.Position;
-        f32v2 &s = ginfo.Size;
-        const f32v2 &ms = m_Grabbed->MinSize;
-
-        const f32v2 &md = hovered->MouseDelta;
-
-        const bool noMove = m_Grabbed->Flags & OverlayWindowFlag_NoMove;
-        const bool noResize = m_Grabbed->Flags & (OverlayWindowFlag_NoResize | OverlayWindowFlag_AutoResize);
-
-        if (ginfo.Flags == 0 && !noMove)
-        {
-            p += md;
-            m_Grabbed->Position = p;
-        }
-        else if (!noResize)
-        {
-            const auto handleResizeAxis = [&](const u32 idx, const ResizeFlags canonical, const ResizeFlags mirrored,
-                                              const f32 sign = 1.f) {
-                const f32 step = md[idx];
-                if (ginfo.Flags & canonical)
-                {
-                    s[idx] -= sign * step;
-                    p[idx] += step;
-                }
-                else if (ginfo.Flags & mirrored)
-                    s[idx] += sign * step;
-
-                if (s[idx] >= ms[idx])
-                {
-                    m_Grabbed->Position[idx] = p[idx];
-                    m_Grabbed->Size[idx] = s[idx];
-                }
-            };
-            handleResizeAxis(0, ResizeFlag_Left, ResizeFlag_Right);
-            handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom, -1.f);
-        }
-        f32v2 wsize;
-        if (m_Grabbed->Flags & OverlayWindowFlag_AutoResize)
-        {
-            const LayoutElement *winRoot = m_Grabbed->Layout.QueryElement(m_Grabbed->Id);
-            wsize = winRoot ? winRoot->Size : m_Grabbed->Size;
-        }
-        else
-            wsize = m_Grabbed->Size;
-
-        if (hovered == GetMainNativeWindow())
-        {
-            const f32v2 mnlim = {hovered->GetLeft() - wsize[0] + m_Grabbed->MinSize[0],
-                                 hovered->GetBottom() + m_Grabbed->MinSize[1]};
-            const f32v2 mxlim = {hovered->GetRight() - m_Grabbed->MinSize[0],
-                                 hovered->GetTop() + wsize[1] - m_Grabbed->MinSize[1]};
-            m_Grabbed->Position = Math::Clamp(m_Grabbed->Position, mnlim, mxlim);
-        }
-    }
-
-    if (!m_CandidateLayout || !m_CandidateLayout->IsHovered(m_HoveredWidgetCandidate, hovered->MousePos))
-        m_HoveredWidgetCandidate = NullLayoutId;
-
-    if (m_HoveredWidgetCandidate == NullLayoutId)
-        m_WidgetHoverClock.Restart();
-
-    m_HoveredId = NullLayoutId;
-    m_CandidateLayout = nullptr;
-
-    ScrollBarInfo *vinfo = nullptr;
-    ScrollBarInfo *hinfo = nullptr;
-
-    const u32 size = m_ScrollStack.GetSize();
-    for (u32 i = size - 1; i < size; --i)
-    {
-        const usz id = m_ScrollStack[i];
-        ScrollInfo &sinfo = m_Scrollables[id];
-        if (!vinfo && !(sinfo.Flags & OverlayWindowFlag_NoVerticalScroll))
-            vinfo = &sinfo.Vertical;
-        if (!hinfo && (sinfo.Flags & OverlayWindowFlag_HorizontalScroll))
-            hinfo = &sinfo.Horizontal;
-    }
-
-    if (vinfo)
-        vinfo->WheelOffset += scroll[1];
-    if (hinfo)
-        hinfo->WheelOffset += scroll[0];
-
-    m_ScrollStack.Clear();
-    m_DragDropFlags = 0;
-    return modalWindow;
-}
-
-OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
-{
-    for (u32 i = 0; i < m_WindowIds.GetSize(); ++i)
-        if (id == m_WindowIds[i])
-            return &m_OverlayWindows[i];
-
-    m_WindowIds.Append(id);
-    OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
-    win.HeaderIcon = ArrowDownIcon;
-    win.Position += m_WindowSpawnOffset;
-    win.Layer = toTop();
-    win.Native = getMainNativeWindow();
-    m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
-    return &win;
-}
-
-u32 Overlay::getFormatDecimals(const char *format)
-{
-    for (const char *cc = format; *cc != 0; ++cc)
-    {
-        const char c0 = cc[0];
-        const char c1 = cc[1];
-        if (c0 == '.' && c1 >= '0' && c1 <= '9')
-            return c1 - '0';
-    }
-    return 0;
-}
+/////////////////////////////////////////////
+/// HELPERS
+/////////////////////////////////////////////
 
 const FontData &Overlay::getFontData() const
 {
@@ -3594,25 +3961,25 @@ bool Overlay::isAutoResize() const
     return m_CurrentPopupDepth == m_Current->PopupDepth && (m_Current->Flags & OverlayWindowFlag_AutoResize) &&
            !(m_StateFlags & StateFlag_MenuBarActive);
 }
-
-f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const
+u32 Overlay::getFormatDecimals(const char *format)
 {
-    const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
-    const f32v2 offset = f32v2{toffset, -2.f * toffset};
-
-    const f32v2 &br = win->BottomRightBorder;
-
-    const f32 rt = win->MousePos[0] + offset[0] + size[0];
-    const f32 rb = win->MousePos[1] + offset[1] - size[1];
-
-    f32v2 pos = win->MousePos + offset;
-    if (rt > br[0])
-        pos[0] -= rt - br[0];
-    if (rb < br[1])
-        pos[1] -= rb - br[1];
-
-    return pos;
+    for (const char *cc = format; *cc != 0; ++cc)
+    {
+        const char c0 = cc[0];
+        const char c1 = cc[1];
+        if (c0 == '.' && c1 >= '0' && c1 <= '9')
+            return c1 - '0';
+    }
+    return 0;
 }
+
+/////////////////////////////////////////////
+/// END HELPERS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// DEMO
+/////////////////////////////////////////////
 
 void Overlay::ShowDemo()
 {
@@ -3623,85 +3990,91 @@ void Overlay::ShowDemo()
     static bool enableMainMenu = false;
 
     const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines;
+    Overlay *ov = this;
 
     const auto editWindowFlags = [&](Onyx::OverlayWindowFlags *flags) {
-        CheckBoxFlags("OverlayWindowFlag_NoResize", flags, Onyx::OverlayWindowFlag_NoResize);
-        CheckBoxFlags("OverlayWindowFlag_NoMove", flags, Onyx::OverlayWindowFlag_NoMove);
-        CheckBoxFlags("OverlayWindowFlag_NoCollapse", flags, Onyx::OverlayWindowFlag_NoCollapse);
-        CheckBoxFlags("OverlayWindowFlag_NoScrollBar", flags, Onyx::OverlayWindowFlag_NoScrollBar);
-        CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", flags, Onyx::OverlayWindowFlag_NoHeaderBar);
-        CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-        CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
-        CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
-        CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
-        CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
-        CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
-        CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
-        CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoResize", flags, Onyx::OverlayWindowFlag_NoResize);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoMove", flags, Onyx::OverlayWindowFlag_NoMove);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoCollapse", flags, Onyx::OverlayWindowFlag_NoCollapse);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoScrollBar", flags, Onyx::OverlayWindowFlag_NoScrollBar);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", flags, Onyx::OverlayWindowFlag_NoHeaderBar);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", flags, Onyx::OverlayWindowFlag_NoBringToFocus);
+        ov->CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
+        ov->CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+        ov->CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
+        ov->CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
+        ov->CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
     };
     const auto drawMenus = [&] {
-        if (BeginMenu("Options"))
+        if (ov->BeginMenu("Options"))
         {
-            MenuItem("Window settings", &enableSettings);
-            MenuItem("Renderer stats", &enableRenderer);
-            MenuItem("Style editor", &enableStyleEditor);
-            MenuItem("Main menu bar", &enableMainMenu);
-            EndMenu();
+            ov->MenuItem("Window settings", &enableSettings);
+            ov->MenuItem("Renderer stats", &enableRenderer);
+            ov->MenuItem("Style editor", &enableStyleEditor);
+            ov->MenuItem("Main menu bar", &enableMainMenu);
+            ov->EndMenu();
         }
-        if (BeginMenu("Menu"))
+        if (ov->BeginMenu("Menu"))
         {
             static bool selected = false;
-            HorizontalSeparator("This is a demo menu");
-            MenuItem("New");
-            MenuItem("Open");
-            if (BeginMenu("Open as..."))
+            ov->HorizontalSeparator("This is a demo menu");
+            ov->MenuItem("New");
+            ov->MenuItem("Open");
+            if (ov->BeginMenu("Open as..."))
             {
-                MenuItem("File 1");
-                MenuItem("File 2");
-                MenuItem("File 3");
-                MenuItem("File 4");
-                if (BeginMenu("More..."))
+                ov->MenuItem("File 1");
+                ov->MenuItem("File 2");
+                ov->MenuItem("File 3");
+                ov->MenuItem("File 4");
+                if (ov->BeginMenu("More..."))
                 {
-                    MenuItem("Nothing to see here");
-                    EndMenu();
+                    ov->MenuItem("Nothing to see here");
+                    ov->EndMenu();
                 }
-                EndMenu();
+                ov->EndMenu();
             }
-            if (BeginMenu("Options"))
+            if (ov->BeginMenu("Options"))
             {
                 static f32 val = 3.f;
-                HorizontalSlider("Slider", &val, -10.f, 10.f);
-                Button("Press me");
+                ov->HorizontalSlider("Slider", &val, -10.f, 10.f);
+                ov->Button("Press me");
 
-                BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
+                ov->BeginScroll("Scroll", 100.f, Onyx::OverlayScrollFlag_Borders);
                 for (u32 i = 0; i < 10; ++i)
-                    Text("Bla bla");
-                EndScroll();
+                    ov->Text("Bla bla");
+                ov->EndScroll();
 
                 static u32 element = 0;
-                DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
-                EndMenu();
+                ov->DropDown("Drop down", &element, "Hello 1#Hello 2#Hello 3");
+                ov->EndMenu();
             }
-            MenuItem("Select", &selected);
-            EndMenu();
+            ov->MenuItem("Select", &selected);
+            ov->EndMenu();
         }
     };
 
     if (enableMainMenu)
     {
-        BeginMainMenuBar();
+        ov->BeginMainMenuBar();
         drawMenus();
-        EndMainMenuBar();
+        ov->EndMainMenuBar();
     }
 
     static bool disableGlobal = false;
-    if (BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
+    if (ov->BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
-        const f32 ftime = Onyx::GetDeltaTime(GetMainNativeWindow()->Window).AsMilliseconds();
-        if (PushTree("General", drawLines))
+        if (ov->PushTree("Configuration"))
         {
-            SetNextTextId("Delta time");
-            Text("Delta time: {:.2f} ms", ftime);
+            ov->CheckBoxFlags("OverlayFlag_WindowPromotions", &m_Flags, Onyx::OverlayFlag_WindowPromotions);
+            ov->PopTree();
+        }
+        const f32 ftime = Onyx::GetDeltaTime(GetMainNativeWindow()->Window).AsMilliseconds();
+        if (ov->PushTree("General", drawLines))
+        {
+            ov->SetNextTextId("Delta time");
+            ov->Text("Delta time: {:.2f} ms", ftime);
             if (BeginItemTooltip())
             {
                 TextRaw("I am a tooltip!");
@@ -3711,16 +4084,16 @@ void Overlay::ShowDemo()
             static bool disableLocal = false;
             static bool dummy = false;
 
-            CheckBox("Disable other sections", &disableGlobal);
-            CheckBox("Disable items below", &disableLocal);
+            ov->CheckBox("Disable other sections", &disableGlobal);
+            ov->CheckBox("Disable items below", &disableLocal);
 
-            BeginDisabled(disableLocal);
-            TextRaw("I can be disabled");
-            CheckBox("I can be disabled##CB", &dummy);
-            Button("I can be disabled##Button");
-            EndDisabled();
+            ov->BeginDisabled(disableLocal);
+            ov->TextRaw("I can be disabled");
+            ov->CheckBox("I can be disabled##CB", &dummy);
+            ov->Button("I can be disabled##ov->Button");
+            ov->EndDisabled();
 
-            PopTree();
+            ov->PopTree();
         }
 
         if (BeginMenuBar())
@@ -3729,60 +4102,60 @@ void Overlay::ShowDemo()
             EndMenuBar();
         }
 
-        BeginDisabled(disableGlobal);
-        if (PushTree("Buttons", drawLines))
+        ov->BeginDisabled(disableGlobal);
+        if (ov->PushTree("Buttons", drawLines))
         {
             static bool helloText = false;
-            if (Button("This is a button"))
+            if (ov->Button("This is a button"))
                 helloText = !helloText;
 
             if (helloText)
-                Text("Hi!");
+                ov->Text("Hi!");
 
-            Button("I have a twin##Cant see me");
-            Button("I have a twin##Cant see me eiter");
-            Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
+            ov->Button("I have a twin##Cant see me");
+            ov->Button("I have a twin##Cant see me eiter");
+            ov->Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
 
-            PushDirection(Onyx::LayoutDirection_LeftToRight, 0.f);
-            TextRaw("A small button can be easily ");
-            Button("embedded", Onyx::OverlayButtonFlag_Small);
-            TextRaw(" in text");
-            PopDirection();
+            ov->PushDirection(Onyx::LayoutDirection_LeftToRight, 0.f);
+            ov->TextRaw("A small button can be easily ");
+            ov->Button("embedded", Onyx::OverlayButtonFlag_Small);
+            ov->TextRaw(" in text");
+            ov->PopDirection();
 
-            PushDirection(Onyx::LayoutDirection_LeftToRight);
             static u32 radio = 0;
-            RadioButton("I am enabled!", &radio, 0);
-            RadioButton("I am not :(", &radio, 1);
+            ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+            ov->RadioButton("I am enabled!", &radio, 0);
+            ov->RadioButton("I am not :(", &radio, 1);
 
-            PopDirection();
-            PopTree();
+            ov->PopDirection();
+            ov->PopTree();
         }
 
-        if (PushTree("Color editor", drawLines))
+        if (ov->PushTree("Color editor", drawLines))
         {
             static Onyx::OverlayColorFlags cflags = 0;
-            CheckBoxFlags("OverlayColorFlag_NoAlpha", &cflags, Onyx::OverlayColorFlag_NoAlpha);
-            CheckBoxFlags("OverlayColorFlag_NoInput", &cflags, Onyx::OverlayColorFlag_NoInput);
-            CheckBoxFlags("OverlayColorFlag_NoColorMarkers", &cflags, Onyx::OverlayColorFlag_NoColorMarkers);
-            CheckBoxFlags("OverlayColorFlag_NoPicker", &cflags, Onyx::OverlayColorFlag_NoPicker);
-            CheckBoxFlags("OverlayColorFlag_NoTooltip", &cflags, Onyx::OverlayColorFlag_NoTooltip);
-            CheckBoxFlags("OverlayColorFlag_NoPreview", &cflags, Onyx::OverlayColorFlag_NoPreview);
-            CheckBoxFlags("OverlayColorFlag_NoTooltipLabel", &cflags, Onyx::OverlayColorFlag_NoTooltipLabel);
-            CheckBoxFlags("OverlayColorFlag_HSV", &cflags, Onyx::OverlayColorFlag_HSV);
-            CheckBoxFlags("OverlayColorFlag_Hex", &cflags, Onyx::OverlayColorFlag_Hex);
-            CheckBoxFlags("OverlayColorFlag_Float", &cflags, Onyx::OverlayColorFlag_Float);
+            ov->CheckBoxFlags("OverlayColorFlag_NoAlpha", &cflags, Onyx::OverlayColorFlag_NoAlpha);
+            ov->CheckBoxFlags("OverlayColorFlag_NoInput", &cflags, Onyx::OverlayColorFlag_NoInput);
+            ov->CheckBoxFlags("OverlayColorFlag_NoColorMarkers", &cflags, Onyx::OverlayColorFlag_NoColorMarkers);
+            ov->CheckBoxFlags("OverlayColorFlag_NoPicker", &cflags, Onyx::OverlayColorFlag_NoPicker);
+            ov->CheckBoxFlags("OverlayColorFlag_NoTooltip", &cflags, Onyx::OverlayColorFlag_NoTooltip);
+            ov->CheckBoxFlags("OverlayColorFlag_NoPreview", &cflags, Onyx::OverlayColorFlag_NoPreview);
+            ov->CheckBoxFlags("OverlayColorFlag_NoTooltipLabel", &cflags, Onyx::OverlayColorFlag_NoTooltipLabel);
+            ov->CheckBoxFlags("OverlayColorFlag_HSV", &cflags, Onyx::OverlayColorFlag_HSV);
+            ov->CheckBoxFlags("OverlayColorFlag_Hex", &cflags, Onyx::OverlayColorFlag_Hex);
+            ov->CheckBoxFlags("OverlayColorFlag_Float", &cflags, Onyx::OverlayColorFlag_Float);
 
             static Onyx::Color col = Onyx::Color_Red;
-            ColorEditor("Color", &col, cflags);
-            ColorPreview("Preview", col, cflags);
-            ColorButton("Button", &col, cflags);
-            ColorPicker("Picker", &col, cflags);
-            PopTree();
+            ov->ColorEditor("Color", &col, cflags);
+            ov->ColorPreview("Preview", col, cflags);
+            ov->ColorButton("ov->Button", &col, cflags);
+            ov->ColorPicker("Picker", &col, cflags);
+            ov->PopTree();
         }
 
-        if (PushTree("Drag & Drop"))
+        if (ov->PushTree("Drag & Drop"))
         {
-            TextRaw(
+            ov->TextRaw(
                 TextMode_Wrapped,
                 "Generally drag & drop is enabled by default in color editors. Here it is "
                 "disabled explicitly by using OverlayColorFlag_NoDragDrop for demonstration "
@@ -3790,130 +4163,135 @@ void Overlay::ShowDemo()
                 "now) that provide drag & drop capabilities out of the box, but they can be set up for any UI element");
 
             static Onyx::OverlayDragDropFlags dflags = 0;
-            CheckBoxFlags("OverlayDragDropFlag_SourceNoTooltip", &dflags, Onyx::OverlayDragDropFlag_SourceNoTooltip);
+            ov->CheckBoxFlags("OverlayDragDropFlag_SourceNoTooltip", &dflags,
+                              Onyx::OverlayDragDropFlag_SourceNoTooltip);
 
-            CheckBoxFlags("OverlayDragDropFlag_TargetNoTooltip", &dflags, Onyx::OverlayDragDropFlag_TargetNoTooltip);
-            CheckBoxFlags("OverlayDragDropFlag_TargetNoOutline", &dflags, Onyx::OverlayDragDropFlag_TargetNoOutline);
-            CheckBoxFlags("OverlayDragDropFlag_TargetNoNotAllowedCursor", &dflags,
-                          Onyx::OverlayDragDropFlag_TargetNoNotAllowedCursor);
-            CheckBoxFlags("OverlayDragDropFlag_TargetAcceptOnHover", &dflags,
-                          Onyx::OverlayDragDropFlag_TargetAcceptOnHover);
+            ov->CheckBoxFlags("OverlayDragDropFlag_TargetNoTooltip", &dflags,
+                              Onyx::OverlayDragDropFlag_TargetNoTooltip);
+            ov->CheckBoxFlags("OverlayDragDropFlag_TargetNoOutline", &dflags,
+                              Onyx::OverlayDragDropFlag_TargetNoOutline);
+            ov->CheckBoxFlags("OverlayDragDropFlag_TargetNoNotAllowedCursor", &dflags,
+                              Onyx::OverlayDragDropFlag_TargetNoNotAllowedCursor);
+            ov->CheckBoxFlags("OverlayDragDropFlag_TargetAcceptOnHover", &dflags,
+                              Onyx::OverlayDragDropFlag_TargetAcceptOnHover);
 
             static Onyx::Color col1 = Color_Orange;
             static Onyx::Color col2 = Color_Cyan;
 
-            ColorEditor("Pick me up!", &col1, OverlayColorFlag_NoDragDrop);
-            if (BeginDragDropSource(dflags))
+            ov->ColorEditor("Pick me up!", &col1, OverlayColorFlag_NoDragDrop);
+            if (ov->BeginDragDropSource(dflags))
             {
-                SetDragDropPayload("COLOR", &col1);
-                PushStyleVar(OverlayStyle_ColorTooltipSize, 32.f);
-                ColorPreviewTooltip("Color", col1, OverlayColorFlag_NoTooltipColorInfo);
-                PopStyleVar();
-                EndDragDropSource();
+                ov->SetDragDropPayload("COLOR", &col1);
+                ov->PushStyleVar(OverlayStyle_ColorTooltipSize, 32.f);
+                ov->ColorPreviewTooltip("Color", col1, OverlayColorFlag_NoTooltipColorInfo);
+                ov->PopStyleVar();
+                ov->EndDragDropSource();
             }
 
-            ColorEditor("Drop something on me!", &col2, OverlayColorFlag_NoDragDrop);
-            if (BeginDragDropTarget(dflags))
+            ov->ColorEditor("Drop something on me!", &col2, OverlayColorFlag_NoDragDrop);
+            if (ov->BeginDragDropTarget(dflags))
             {
-                if (const auto pl = AcceptDragDropPayload("COLOR"))
+                if (const auto pl = ov->AcceptDragDropPayload("COLOR"))
                     col2 = *rcast<Color *>(pl.Data);
-                EndDragDropTarget();
+                ov->EndDragDropTarget();
             }
 
             static f32 val1 = 1.f;
             static f32 val2 = 2.f;
             static f32 val3 = 3.f;
 
-            HorizontalSlider("Pick me up!##Slider", &val1, 0.f, 10.f);
-            if (BeginDragDropSource(dflags))
+            ov->HorizontalSlider("Pick me up!##Slider", &val1, 0.f, 10.f);
+            if (ov->BeginDragDropSource(dflags))
             {
-                SetDragDropPayload("VALUE", &val1);
-                Text("Value: {}", val1);
-                EndDragDropSource();
+                ov->SetDragDropPayload("VALUE", &val1);
+                ov->Text("Value: {}", val1);
+                ov->EndDragDropSource();
             }
 
-            HorizontalSlider("Drop something on me!##Slider", &val2, 0.f, 10.f);
-            if (BeginDragDropTarget(dflags))
+            ov->HorizontalSlider("Drop something on me!##Slider", &val2, 0.f, 10.f);
+            if (ov->BeginDragDropTarget(dflags))
             {
-                if (const auto pl = AcceptDragDropPayload("VALUE"))
+                if (const auto pl = ov->AcceptDragDropPayload("VALUE"))
                     val2 = *rcast<f32 *>(pl.Data);
-                EndDragDropTarget();
+                ov->EndDragDropTarget();
             }
 
             HorizontalDrag("You can do both here!##Drag", &val3, 0.1f, 0.f, 10.f);
-            if (BeginDragDropSource(dflags))
+            if (ov->BeginDragDropSource(dflags))
             {
-                SetDragDropPayload("VALUE", &val3);
-                Text("Value: {}", val3);
-                EndDragDropSource();
+                ov->SetDragDropPayload("VALUE", &val3);
+                ov->Text("Value: {}", val3);
+                ov->EndDragDropSource();
             }
-            if (BeginDragDropTarget(dflags))
+            if (ov->BeginDragDropTarget(dflags))
             {
-                if (const auto pl = AcceptDragDropPayload("VALUE"))
+                if (const auto pl = ov->AcceptDragDropPayload("VALUE"))
                     val3 = *rcast<f32 *>(pl.Data);
-                EndDragDropTarget();
+                ov->EndDragDropTarget();
             }
 
-            PopTree();
+            ov->PopTree();
         }
 
-        if (PushTree("Dropdowns", drawLines))
+        if (ov->PushTree("Dropdowns", drawLines))
         {
             static Onyx::OverlayDropDownFlags dflags = 0;
-            CheckBoxFlags("OverlayDropDownFlag_NoArrowButton", &dflags, Onyx::OverlayDropDownFlag_NoArrowButton);
-            CheckBoxFlags("OverlayDropDownFlag_NoPreview", &dflags, Onyx::OverlayDropDownFlag_NoPreview);
-            CheckBoxFlags("OverlayDropDownFlag_HeightSmall", &dflags, Onyx::OverlayDropDownFlag_HeightSmall);
-            CheckBoxFlags("OverlayDropDownFlag_HeightRegular", &dflags, Onyx::OverlayDropDownFlag_HeightRegular);
-            CheckBoxFlags("OverlayDropDownFlag_HeightLargest", &dflags, Onyx::OverlayDropDownFlag_HeightLargest);
-            CheckBoxFlags("OverlayDropDownFlag_Tight", &dflags, Onyx::OverlayDropDownFlag_Tight);
-            if (BeginDropDown("Hello", "Some preview", dflags))
+            ov->CheckBoxFlags("OverlayDropDownFlag_NoArrowButton", &dflags, Onyx::OverlayDropDownFlag_NoArrowButton);
+            ov->CheckBoxFlags("OverlayDropDownFlag_NoPreview", &dflags, Onyx::OverlayDropDownFlag_NoPreview);
+            ov->CheckBoxFlags("OverlayDropDownFlag_HeightSmall", &dflags, Onyx::OverlayDropDownFlag_HeightSmall);
+            ov->CheckBoxFlags("OverlayDropDownFlag_HeightRegular", &dflags, Onyx::OverlayDropDownFlag_HeightRegular);
+            ov->CheckBoxFlags("OverlayDropDownFlag_HeightLargest", &dflags, Onyx::OverlayDropDownFlag_HeightLargest);
+            ov->CheckBoxFlags("OverlayDropDownFlag_Tight", &dflags, Onyx::OverlayDropDownFlag_Tight);
+            if (ov->BeginDropDown("Hello", "Some preview", dflags))
             {
                 static bool dummy = false;
-                TextRaw("Some text");
-                Button("I am a button in a drop down!");
-                CheckBox("You can pretty much put whatever you want in here...", &dummy);
+                ov->TextRaw("Some text");
+                ov->Button("I am a button in a drop down!");
+                ov->CheckBox("You can pretty much put whatever you want in here...", &dummy);
 
-                if (BeginDropDown("Even another dropdown!", "I am another preview", dflags))
+                if (ov->BeginDropDown("Even another dropdown!", "I am another preview", dflags))
                 {
                     for (u32 i = 0; i < 10; ++i)
-                        TextRaw("Bla bla");
-                    EndDropDown();
+                        ov->TextRaw("Bla bla");
+                    ov->EndDropDown();
                 }
 
-                EndDropDown();
+                ov->EndDropDown();
             }
             const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3", "Element 4",
                                                                  "Element 5", "Element 6", "Element 7", "Element 8"};
             static u32 idx = 0;
-            DropDown("One-liner 1", &idx, elements, dflags);
-            DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", dflags);
-            PopTree();
+            ov->DropDown("One-liner 1", &idx, elements, dflags);
+            ov->DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", dflags);
+            ov->PopTree();
         }
 
-        if (PushTree("Inputs", drawLines))
+        if (ov->PushTree("Inputs", drawLines))
         {
             static Onyx::OverlayInputFlags iflags = 0;
-            CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
-            CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags, Onyx::OverlayInputFlag_EnterCommitsBuffer);
-            CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
-            CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
-            CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags, Onyx::OverlayInputFlag_NoHorizontalScroll);
-            CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
-            CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
-            CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
+            ov->CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
+            ov->CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags,
+                              Onyx::OverlayInputFlag_EnterCommitsBuffer);
+            ov->CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
+            ov->CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
+            ov->CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags,
+                              Onyx::OverlayInputFlag_NoHorizontalScroll);
+            ov->CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
+            ov->CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
+            ov->CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
 
             static char buf1[32] = "This is some nice text";
-            InputText("Text 1", buf1, 32, "I am a little hint", iflags);
+            ov->InputText("ov->Text 1", buf1, 32, "I am a little hint", iflags);
 
             static i32 iival = 4;
-            InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
+            ov->InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
 
             static f32 ifval = 8.f;
-            InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
-            PopTree();
+            ov->InputNumeric("Some float", &ifval, "{:.3f}", nullptr, iflags);
+            ov->PopTree();
         }
 
-        if (PushTree("Progress bars", drawLines))
+        if (ov->PushTree("Progress bars", drawLines))
         {
             constexpr u32 top = 1200;
             static u32 current = 0;
@@ -3921,9 +4299,9 @@ void Overlay::ShowDemo()
             static TKit::Clock clock{};
             static bool manual = false;
 
-            CheckBox("Manual", &manual);
+            ov->CheckBox("Manual", &manual);
             if (manual)
-                HorizontalSlider("AAA", &current, 0u, top);
+                ov->HorizontalSlider("AAA", &current, 0u, top);
             else
             {
                 time += clock.Restart().AsSeconds();
@@ -3931,115 +4309,116 @@ void Overlay::ShowDemo()
             }
             const f32 pct = f32(current) / f32(top);
 
-            ProgressBar("PB 1", pct, "{:.1f}%", 100.f * pct);
-            ProgressBar("PB 2", pct, "{}/{}", current, top);
-            ProgressBar("Indeterminate", "Waiting...", -time);
+            ov->ProgressBar("PB 1", pct, "{:.1f}%", 100.f * pct);
+            ov->ProgressBar("PB 2", pct, "{}/{}", current, top);
+            ov->ProgressBar("Indeterminate", "Waiting...", -time);
 
-            PopTree();
+            ov->PopTree();
         }
 
-        if (PushTree("Popups", drawLines))
+        if (ov->PushTree("Popups", drawLines))
         {
             static Onyx::OverlayWindowFlags pflags =
                 Onyx::OverlayWindowFlag_BringToTop | Onyx::OverlayWindowFlag_AutoResize;
             editWindowFlags(&pflags);
 
-            if (Button("Open popup"))
-                OpenPopup("Popup example");
+            if (ov->Button("Open popup"))
+                ov->OpenPopup("Popup example");
 
-            if (BeginPopup("Popup example", pflags))
+            if (ov->BeginPopup("Popup example", pflags))
             {
-                TextRaw("I am a popup");
-                if (Button("Another one?"))
-                    OpenPopup("Yes, another one");
+                ov->TextRaw("I am a popup");
+                if (ov->Button("Another one?"))
+                    ov->OpenPopup("Yes, another one");
 
-                SetItemTooltip("This will open another popup!");
+                ov->SetItemTooltip("This will open another popup!");
 
-                if (BeginPopup("Yes, another one", pflags))
+                if (ov->BeginPopup("Yes, another one", pflags))
                 {
-                    TextRaw("Hi!");
+                    ov->TextRaw("Hi!");
 
                     static u32 value = 3;
-                    SetNextTextId("Text id");
-                    Text("Right click me and change the value!: {}", value);
-                    if (BeginPopupContextItem("Value edit",
-                                              Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_BringToTop))
+                    ov->SetNextTextId("Text id");
+                    ov->Text("Right click me and change the value!: {}", value);
+                    if (ov->BeginPopupContextItem("Value edit", Onyx::OverlayWindowFlag_AutoResize |
+                                                                    Onyx::OverlayWindowFlag_BringToTop))
                     {
-                        InputNumeric("Value", &value);
-                        EndPopup();
+                        ov->InputNumeric("Value", &value);
+                        ov->EndPopup();
                     }
 
-                    if (Button("Close##Two"))
-                        CloseCurrentPopup();
-                    EndPopup();
+                    if (ov->Button("Close##Two"))
+                        ov->CloseCurrentPopup();
+                    ov->EndPopup();
                 }
 
-                if (Button("Close##One"))
-                    CloseCurrentPopup();
-                EndPopup();
+                if (ov->Button("Close##One"))
+                    ov->CloseCurrentPopup();
+                ov->EndPopup();
             }
-            PopTree();
+            ov->PopTree();
         }
 
-        if (PushTree("Queries", drawLines))
+        if (ov->PushTree("Queries", drawLines))
         {
-            HorizontalSeparator("Hover flags");
+            ov->HorizontalSeparator("Hover flags");
             static Onyx::OverlayHoveredFlags hflags = 0;
 
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopup", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
-            CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDrag", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByDrag);
-            CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopup", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
+            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDrag", &hflags,
+                              Onyx::OverlayHoveredFlag_AllowBlockedByDrag);
+            ov->CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
 
-            BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
-            CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
-            EndDisabled();
+            ov->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
+            ov->CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
+            ov->EndDisabled();
 
-            BeginDisabled(hflags & Onyx::OverlayHoveredFlag_ShortDelay);
-            CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
-            EndDisabled();
+            ov->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_ShortDelay);
+            ov->CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
+            ov->EndDisabled();
 
-            CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
+            ov->CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
 
-            HorizontalSeparator("Focus flags");
+            ov->HorizontalSeparator("Focus flags");
             static Onyx::OverlayFocusFlags fflags = 0;
-            CheckBoxFlags("OverlayFocusFlag_PressedEvenWhenAwayFromHover", &fflags,
-                          Onyx::OverlayFocusFlag_PressedEvenWhenAwayFromHover);
+            ov->CheckBoxFlags("OverlayFocusFlag_PressedEvenWhenAwayFromHover", &fflags,
+                              Onyx::OverlayFocusFlag_PressedEvenWhenAwayFromHover);
 
-            HorizontalSeparator("The experiment");
-            if (PushTree("I am to be queried"))
-                PopTree();
+            ov->HorizontalSeparator("The experiment");
+            if (ov->PushTree("I am to be queried"))
+                ov->PopTree();
 
             const bool hovered = IsItemHovered(hflags);
             const bool opened = IsItemOpened();
             const Onyx::OverlayHoverQueryFlags hqflags = QueryItemHoverStatus();
             const Onyx::OverlayFocusQueryFlags fqflags = QueryItemFocusStatus(fflags);
 
-            HorizontalSeparator("Hovering info");
-            Text("Hovered: {}", hovered);
-            Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
-            Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
-            Text("Blocked by pressed item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
-            Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
-            Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
-            Text("Blocked by popup collapse : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
-            Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
-            Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
+            ov->HorizontalSeparator("Hovering info");
+            ov->Text("Hovered: {}", hovered);
+            ov->Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
+            ov->Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
+            ov->Text("Blocked by pressed item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
+            ov->Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
+            ov->Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
+            ov->Text("Blocked by popup collapse : {}",
+                     bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
+            ov->Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
+            ov->Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
 
-            HorizontalSeparator("Focus info");
+            ov->HorizontalSeparator("Focus info");
 
             static TKit::Clock lclickClock{};
             static TKit::Clock rclickClock{};
@@ -4052,254 +4431,256 @@ void Overlay::ShowDemo()
             if (fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked)
                 dclickClock.Restart();
 
-            Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
-            Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
-            Text("Left clicked: {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
-            Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
-            Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
-            Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
-            Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
-            Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
+            ov->Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
+            ov->Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
+            ov->Text("Left clicked: {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
+            ov->Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
+            ov->Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
+            ov->Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
+            ov->Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
+            ov->Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
 
-            HorizontalSeparator("State info");
-            Text("Opened: {}", opened);
+            ov->HorizontalSeparator("State info");
+            ov->Text("Opened: {}", opened);
 
-            HorizontalSeparator("Focus info");
-            Text("Want capture mouse: {}", WantCaptureMouse());
-            Text("Want capture keyboard: {}", WantCaptureKeyboard());
+            ov->HorizontalSeparator("Focus info");
+            ov->Text("Want capture mouse: {}", WantCaptureMouse());
+            ov->Text("Want capture keyboard: {}", WantCaptureKeyboard());
 
-            PopTree();
+            ov->PopTree();
         }
 
-        if (PushTree("Selectables", drawLines))
+        if (ov->PushTree("Selectables", drawLines))
         {
             static Onyx::OverlaySelectableFlags sflags = 0;
 
-            CheckBoxFlags("OverlaySelectableFlag_SpanLabelWidth", &sflags, Onyx::OverlaySelectableFlag_SpanLabelWidth);
-            CheckBoxFlags("OverlaySelectableFlag_SelectOnDoubleClick", &sflags,
-                          Onyx::OverlaySelectableFlag_SelectOnDoubleClick);
-            CheckBoxFlags("OverlaySelectableFlag_Highlight", &sflags, Onyx::OverlaySelectableFlag_Highlight);
-            CheckBoxFlags("OverlaySelectableFlag_CheckBox", &sflags, Onyx::OverlaySelectableFlag_CheckBox);
+            ov->CheckBoxFlags("OverlaySelectableFlag_SpanLabelWidth", &sflags,
+                              Onyx::OverlaySelectableFlag_SpanLabelWidth);
+            ov->CheckBoxFlags("OverlaySelectableFlag_SelectOnDoubleClick", &sflags,
+                              Onyx::OverlaySelectableFlag_SelectOnDoubleClick);
+            ov->CheckBoxFlags("OverlaySelectableFlag_Highlight", &sflags, Onyx::OverlaySelectableFlag_Highlight);
+            ov->CheckBoxFlags("OverlaySelectableFlag_CheckBox", &sflags, Onyx::OverlaySelectableFlag_CheckBox);
 
-            Selectable("I am not selected at all##One", false, sflags);
-            Selectable("I am permanently selected", true, sflags);
-            Selectable("I am not selected at all##Two", false, sflags);
+            ov->Selectable("I am not selected at all##One", false, sflags);
+            ov->Selectable("I am permanently selected", true, sflags);
+            ov->Selectable("I am not selected at all##Two", false, sflags);
 
             static bool enabled[3] = {false, false, false};
-            Selectable("I can be toggled on and off##One", &enabled[0], sflags);
-            Selectable("I can be toggled on and off##Two", &enabled[1], sflags);
+            ov->Selectable("I can be toggled on and off##One", &enabled[0], sflags);
+            ov->Selectable("I can be toggled on and off##Two", &enabled[1], sflags);
 
-            BeginSelectable(&enabled[2], sflags);
-            TextRaw("I am a fancy selectable");
-            TextRaw("I even have multiple lines");
-            EndSelectable();
+            ov->BeginSelectable(&enabled[2], sflags);
+            ov->TextRaw("I am a fancy selectable");
+            ov->TextRaw("I even have multiple lines");
+            ov->EndSelectable();
 
             const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3", "Element 4",
                                                                  "Element 5", "Element 6", "Element 7", "Element 8"};
 
             static u32 idx = 0;
-            ListBox("List box 1", &idx, elements, sflags);
-            ListBox("List box 2##You should not see this", &idx, "I am#part of#the same#string", sflags);
+            ov->ListBox("List box 1", &idx, elements, sflags);
+            ov->ListBox("List box 2##You should not see this", &idx, "I am#part of#the same#string", sflags);
 
-            PopTree();
+            ov->PopTree();
         }
 
-        if (PushTree("Scroll area", drawLines))
+        if (ov->PushTree("Scroll area", drawLines))
         {
             static f32v2 dimensions = {400.f, 200.f};
             static bool xunlim = true;
             static Onyx::OverlayScrollFlags sflags = 0;
-            CheckBoxFlags("OverlayScrollFlag_Borders", &sflags, Onyx::OverlayScrollFlag_Borders);
-            CheckBoxFlags("OverlayScrollFlag_Title", &sflags, Onyx::OverlayScrollFlag_Title);
-            CheckBoxFlags("OverlayScrollFlag_NoBackground", &sflags, Onyx::OverlayScrollFlag_NoBackground);
-            CheckBoxFlags("OverlayScrollFlag_NoScrollBar", &sflags, Onyx::OverlayScrollFlag_NoScrollBar);
-            CheckBoxFlags("OverlayScrollFlag_NoVerticalScroll", &sflags, Onyx::OverlayScrollFlag_NoVerticalScroll);
-            CheckBoxFlags("OverlayScrollFlag_HorizontalScroll", &sflags, Onyx::OverlayScrollFlag_HorizontalScroll);
+            ov->CheckBoxFlags("OverlayScrollFlag_Borders", &sflags, Onyx::OverlayScrollFlag_Borders);
+            ov->CheckBoxFlags("OverlayScrollFlag_Title", &sflags, Onyx::OverlayScrollFlag_Title);
+            ov->CheckBoxFlags("OverlayScrollFlag_NoBackground", &sflags, Onyx::OverlayScrollFlag_NoBackground);
+            ov->CheckBoxFlags("OverlayScrollFlag_NoScrollBar", &sflags, Onyx::OverlayScrollFlag_NoScrollBar);
+            ov->CheckBoxFlags("OverlayScrollFlag_NoVerticalScroll", &sflags, Onyx::OverlayScrollFlag_NoVerticalScroll);
+            ov->CheckBoxFlags("OverlayScrollFlag_HorizontalScroll", &sflags, Onyx::OverlayScrollFlag_HorizontalScroll);
 
-            CheckBox("Unlimited width", &xunlim);
+            ov->CheckBox("Unlimited width", &xunlim);
             if (xunlim)
-                HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
+                ov->HorizontalSlider("Maximum height", &dimensions[1], 50.f, 800.f, "{:.0f}");
             else
-                HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
+                ov->HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
-            const bool focused = BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
+            const bool focused = ov->BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
 
             if (focused)
-                TextRaw("I am focused!");
+                ov->TextRaw("I am focused!");
             else
-                TextRaw("I am not focused");
+                ov->TextRaw("I am not focused");
 
-            TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
-                    "showcase the feature");
-            Button("I am a useless button");
-            if (PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
+            ov->TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
+                        "showcase the feature");
+            ov->Button("I am a useless button");
+            if (ov->PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
             {
                 for (u32 i = 0; i < 10; ++i)
-                    Text("Bla bla");
-                PopTree();
+                    ov->Text("Bla bla");
+                ov->PopTree();
             }
 
-            BeginScroll("I am yet another scroll", 200.f, 200.f, sflags);
-            if (PushTree("Some more content"))
+            ov->BeginScroll("I am yet another scroll", 200.f, 200.f, sflags);
+            if (ov->PushTree("Some more content"))
             {
                 for (u32 i = 0; i < 10; ++i)
-                    Text("Bla bla");
-                PopTree();
+                    ov->Text("Bla bla");
+                ov->PopTree();
             }
-            EndScroll();
+            ov->EndScroll();
 
-            EndScroll();
-            PopTree();
+            ov->EndScroll();
+            ov->PopTree();
         }
 
-        if (PushTree("Sliders/Drags", drawLines))
+        if (ov->PushTree("Sliders/Drags", drawLines))
         {
             static Onyx::OverlaySliderFlags sflags = 0;
-            CheckBoxFlags("OverlaySliderFlag_ClampOnInput", &sflags, Onyx::OverlaySliderFlag_ClampOnInput);
-            CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
-            CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
-            CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
+            ov->CheckBoxFlags("OverlaySliderFlag_ClampOnInput", &sflags, Onyx::OverlaySliderFlag_ClampOnInput);
+            ov->CheckBoxFlags("OverlaySliderFlag_Logarithmic", &sflags, Onyx::OverlaySliderFlag_Logarithmic);
+            ov->CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
+            ov->CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
 
-            HorizontalSeparator("Sliders");
+            ov->HorizontalSeparator("Sliders");
             static f32 fval[2] = {4, 7};
-            Text("Underlying values: {:.2f}, {:.2f}", fval[0], fval[1]);
+            ov->Text("Underlying values: {:.2f}, {:.2f}", fval[0], fval[1]);
 
-            HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
-            HorizontalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
+            ov->HorizontalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            ov->HorizontalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
 
             static i32 ival = 7;
-            Text("Underlying value: {}", ival);
-            HorizontalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
-            HorizontalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
+            ov->Text("Underlying value: {}", ival);
+            ov->HorizontalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
+            ov->HorizontalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
 
-            HorizontalSeparator("Drags");
+            ov->HorizontalSeparator("Drags");
             static f32 speed = 0.1f;
-            HorizontalSlider("Drag speed", &speed, 1e-2f, 10.f, "{:.2f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
+            ov->HorizontalSlider("Drag speed", &speed, 1e-2f, 10.f, "{:.2f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
 
-            HorizontalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
-            HorizontalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
+            ov->HorizontalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            ov->HorizontalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
 
-            HorizontalDrag("My drag int", &ival, speed, -3, 28, nullptr, 1, sflags);
-            HorizontalDrag("My small drag int", &ival, speed, 0, 2, nullptr, 1, sflags);
+            ov->HorizontalDrag("My drag int", &ival, speed, -3, 28, nullptr, 1, sflags);
+            ov->HorizontalDrag("My small drag int", &ival, speed, 0, 2, nullptr, 1, sflags);
 
             static u32 uval2[3] = {7, 2, 5};
-            HorizontalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
-            PopTree();
+            ov->HorizontalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
+            ov->PopTree();
         }
 
-        if (PushTree("Tabs", drawLines))
+        if (ov->PushTree("Tabs", drawLines))
         {
-            TextRaw(TextMode_Wrapped,
-                    "Tab features are currently pretty minimal at the moment and the styling is not great either");
+            ov->TextRaw(TextMode_Wrapped,
+                        "Tab features are currently pretty minimal at the moment and the styling is not great either");
             static bool tab1 = true;
-            CheckBox("Enable tab 1", &tab1);
+            ov->CheckBox("Enable tab 1", &tab1);
 
-            BeginTabBar();
-            if (BeginTab("Tab 1", &tab1, OverlayTabFlag_StartOpen))
+            ov->BeginTabBar();
+            if (ov->BeginTab("Tab 1", &tab1, OverlayTabFlag_StartOpen))
             {
-                TextRaw("I am tab 1");
-                EndTab();
+                ov->TextRaw("I am tab 1");
+                ov->EndTab();
             }
-            if (BeginTab("Tab 2"))
+            if (ov->BeginTab("Tab 2"))
             {
-                TextRaw("I am tab 2");
-                EndTab();
+                ov->TextRaw("I am tab 2");
+                ov->EndTab();
             }
-            EndTabBar();
-            PopTree();
+            ov->EndTabBar();
+            ov->PopTree();
         }
 
-        if (PushTree("Text", drawLines))
+        if (ov->PushTree("Text", drawLines))
         {
-            TextRaw("This is some raw text");
-            TextRaw(Onyx::TextMode_Wrapped,
-                    "This is some text that should wrap because it is too long to fit into the width of the window");
-            TextIconRaw(Onyx::BulletIcon, "A bullet!");
-            TextIcon(Onyx::ArrowRightIcon, "Here is the delta time again: {:.2f} ms", ftime);
-            PopTree();
+            ov->TextRaw("This is some raw text");
+            ov->TextRaw(
+                Onyx::TextMode_Wrapped,
+                "This is some text that should wrap because it is too long to fit into the width of the window");
+            ov->TextIconRaw(Onyx::BulletIcon, "A bullet!");
+            ov->TextIcon(Onyx::ArrowRightIcon, "Here is the delta time again: {:.2f} ms", ftime);
+            ov->PopTree();
         }
 
-        if (PushTree("Tooltips", drawLines))
+        if (ov->PushTree("Tooltips", drawLines))
         {
-            Button("I am an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (IsItemHovered())
-                SetTooltip("I am instant!");
+            ov->Button("I am an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ov->IsItemHovered())
+                ov->SetTooltip("I am instant!");
 
-            Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
-                SetTooltip("I am a bit delayed!");
+            ov->Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+                ov->SetTooltip("I am a bit delayed!");
 
-            Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
-                SetTooltip("I am delayed!");
+            ov->Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
+                ov->SetTooltip("I am delayed!");
 
-            Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-            if (IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
-                SetTooltip("I am stationary!");
-            PopTree();
+            ov->Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
+            if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
+                ov->SetTooltip("I am stationary!");
+            ov->PopTree();
         }
 
-        if (PushTree("Trees", drawLines))
+        if (ov->PushTree("Trees", drawLines))
         {
             static Onyx::OverlayTreeFlags tflags = 0;
-            CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, drawLines);
-            CheckBoxFlags("OverlayTreeFlag_ToggleOnArrow", &tflags, Onyx::OverlayTreeFlag_ToggleOnArrow);
-            CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
-            CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
-            CheckBoxFlags("OverlayTreeFlag_Framed", &tflags, Onyx::OverlayTreeFlag_Framed);
-            CheckBoxFlags("OverlayTreeFlag_NoIndent", &tflags, Onyx::OverlayTreeFlag_NoIndent);
+            ov->CheckBoxFlags("OverlayTreeFlag_DrawLines", &tflags, drawLines);
+            ov->CheckBoxFlags("OverlayTreeFlag_ToggleOnArrow", &tflags, Onyx::OverlayTreeFlag_ToggleOnArrow);
+            ov->CheckBoxFlags("OverlayTreeFlag_OpenOnDoubleClick", &tflags, Onyx::OverlayTreeFlag_OpenOnDoubleClick);
+            ov->CheckBoxFlags("OverlayTreeFlag_SpanLabelWidth", &tflags, Onyx::OverlayTreeFlag_SpanLabelWidth);
+            ov->CheckBoxFlags("OverlayTreeFlag_Framed", &tflags, Onyx::OverlayTreeFlag_Framed);
+            ov->CheckBoxFlags("OverlayTreeFlag_NoIndent", &tflags, Onyx::OverlayTreeFlag_NoIndent);
 
-            if (PushTree("Click me", tflags))
+            if (ov->PushTree("Click me", tflags))
             {
-                if (PushTree("Simple example", tflags))
+                if (ov->PushTree("Simple example", tflags))
                 {
-                    Button("Hello");
-                    PopTree();
+                    ov->Button("Hello");
+                    ov->PopTree();
                 }
-                if (PushTree("I am open", tflags | Onyx::OverlayTreeFlag_StartOpen))
+                if (ov->PushTree("I am open", tflags | Onyx::OverlayTreeFlag_StartOpen))
                 {
-                    Text("You can see me");
-                    PopTree();
+                    ov->Text("You can see me");
+                    ov->PopTree();
                 }
-                PopTree();
+                ov->PopTree();
             }
-            PopTree();
+            ov->PopTree();
         }
-        EndDisabled();
-        EndWindow();
+        ov->EndDisabled();
+        ov->EndWindow();
     }
 
-    if (BeginWindow("Window settings", &enableSettings, wflags))
+    if (ov->BeginWindow("Window settings", &enableSettings, wflags))
     {
         editWindowFlags(&wflags);
-        EndWindow();
+        ov->EndWindow();
     }
-    if (BeginWindow("Renderer statistics", &enableRenderer, wflags))
+    if (ov->BeginWindow("Renderer statistics", &enableRenderer, wflags))
     {
-        ShowRendererStatistics();
-        EndWindow();
+        ov->ShowRendererStatistics();
+        ov->EndWindow();
     }
-    if (BeginWindow("Style editor", &enableStyleEditor, wflags))
+    if (ov->BeginWindow("Style editor", &enableStyleEditor, wflags))
     {
-        ShowStyleEditor();
-        EndWindow();
+        ov->ShowStyleEditor();
+        ov->EndWindow();
     }
 
-    if (BeginWindow("Overlay demo"))
+    if (ov->BeginWindow("Overlay demo"))
     {
-        if (PushTree("Miscellaneous", drawLines))
+        if (ov->PushTree("Miscellaneous", drawLines))
         {
-            TextRaw(Onyx::TextMode_Wrapped, "Nothing to see here! This is extra content to demonstrate "
-                                            "appending multiple times to a window after it has "
-                                            "been closed");
-            if (BeginMenu("A rogue menu item"))
+            ov->TextRaw(Onyx::TextMode_Wrapped, "Nothing to see here! This is extra content to demonstrate "
+                                                "appending multiple times to a window after it has "
+                                                "been closed");
+            if (ov->BeginMenu("A rogue menu item"))
             {
                 drawMenus();
-                EndMenu();
+                ov->EndMenu();
             }
-            PopTree();
+            ov->PopTree();
         }
-        EndWindow();
+        ov->EndWindow();
     }
 }
 
@@ -4543,4 +4924,7 @@ void Overlay::ShowStyleEditor()
 
     EndTabBar();
 }
+/////////////////////////////////////////////
+/// END DEMO
+/////////////////////////////////////////////
 } // namespace Onyx

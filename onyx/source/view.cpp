@@ -90,12 +90,12 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 {
     m_ViewBit = allocateViewBit();
 
-    m_BlendSet = ONYX_CHECK_VKIT_RESULT(
-        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Blend)));
-    m_PostProcessSet = ONYX_CHECK_VKIT_RESULT(
-        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)));
-    m_CompositorSet = ONYX_CHECK_VKIT_RESULT(
-        Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Compositor)));
+    const VKit::DescriptorPool &pool = Descriptors::GetDescriptorPool();
+    m_BlendSet = ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Blend)));
+    m_PostProcessSet =
+        ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)));
+    m_CompositorSet =
+        ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Compositor)));
     if (IsDebugUtilsEnabled())
     {
         const auto &device = GetDevice();
@@ -111,6 +111,11 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
+    const VKit::DescriptorPool &pool = Descriptors::GetDescriptorPool();
+    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_BlendSet));
+    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_PostProcessSet));
+    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_CompositorSet));
+
     drainWork();
     destroyFramebuffers();
 

@@ -12,6 +12,8 @@ enum OpenWindowFlagBit : OpenWindowFlags
 #ifdef ONYX_ENABLE_IMGUI
     OpenWindowFlag_EnableImGui = 1U << 0,
 #endif
+    OpenWindowFlag_ManualClose = 1U << 1,
+    OpenWindowFlag_NoDefaultDeltaTime = 1U << 2,
 };
 
 struct OpenWindowSpecs
@@ -36,7 +38,7 @@ bool CanRenderImGui(Window *window);
 #endif
 
 template <Dimension D> RenderContext<D> *CreateRenderContext(u32 immediateDynamicMeshCapacity = 0);
-template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx);
+template <Dimension D> void DestroyRenderContext(RenderContext<D> *ctx);
 
 RenderTexture *CreateRenderTexture(const u32v2 &dimensions);
 void DestroyRenderTexture(RenderTexture *rtex);

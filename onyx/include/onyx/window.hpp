@@ -105,18 +105,7 @@ class Window final : public RenderTarget
         return m_Window;
     }
 
-    void EnableVSync()
-    {
-        SetPresentMode(PresentMode_VSync);
-    }
-    void DisableVSync(const PresentMode presentMode = PresentMode_Immediate)
-    {
-        SetPresentMode(presentMode);
-    }
-    bool IsVSync() const
-    {
-        return m_PresentMode == PresentMode_VSync;
-    }
+    bool IsFullScreen() const;
 
     void Show();
     void Focus();
@@ -210,7 +199,8 @@ class Window final : public RenderTarget
         return info;
     }
 
-    Overlay *CreateOverlay(const OverlaySpecs *specs = nullptr);
+    Overlay *CreateOverlay();
+    Overlay *CreateOverlay(const OverlaySpecs &specs);
     void DestroyOverlay(Overlay *overlay);
 
     template <Dimension D>

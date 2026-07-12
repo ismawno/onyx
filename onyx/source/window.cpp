@@ -46,6 +46,28 @@ Window *Window::FromHandle(Onyx_WindowHandle *window)
     return scast<Window *>(glfwGetWindowUserPointer(window));
 }
 
+bool Window::IsFullScreen() const
+{
+    GLFWmonitor *monitor = glfwGetWindowMonitor(m_Window);
+    if (monitor)
+        return true;
+
+    monitor = glfwGetPrimaryMonitor();
+    if (!monitor)
+        return false;
+
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+    i32 mx;
+    i32 my;
+    glfwGetMonitorPos(monitor, &mx, &my);
+
+    const u32v2 dims = GetScreenDimensions();
+    const i32v2 pos = GetPosition();
+
+    return pos[0] == mx && pos[1] == my && dims[0] == u32(mode->width) && dims[1] == u32(mode->height);
+}
+
 void Window::Show()
 {
     glfwShowWindow(m_Window);
@@ -324,7 +346,6 @@ Window::Window(const WindowSpecs &specs)
         m_Cursors[i] = glfwCreateStandardCursor(toGlfwCursor(MouseCursor(i)));
 
     TKIT_ASSERT(m_Window, "[ONYX][WINDOW] Failed to create window");
-    u32v2 pos;
     if (specs.Position != i32v2{TKIT_I32_MAX})
     {
         TKIT_ASSERT(specs.Position[0] < TKIT_I32_MAX,
@@ -337,13 +358,6 @@ Window::Window(const WindowSpecs &specs)
                     specs.Position[0], specs.Position[1]);
 
         glfwSetWindowPos(m_Window, specs.Position[0], specs.Position[1]);
-        pos = specs.Position;
-    }
-    else
-    {
-        i32 x, y;
-        glfwGetWindowPos(m_Window, &x, &y);
-        pos = u32v2{x, y};
     }
     m_PresentMode = specs.PresentMode;
     m_Present = Execution::GetQueue(VKit::Queue_Present);
@@ -739,10 +753,14 @@ void Window::FlushEvents()
     m_Events.Clear();
 }
 
-Overlay *Window::CreateOverlay(const OverlaySpecs *specs)
+Overlay *Window::CreateOverlay()
+{
+    return CreateOverlay({});
+}
+Overlay *Window::CreateOverlay(const OverlaySpecs &specs)
 {
     TKit::TierAllocator *tier = GetTier();
-    Overlay *ov = tier->Create<Overlay>(this, specs ? *specs : OverlaySpecs{});
+    Overlay *ov = tier->Create<Overlay>(this, specs);
     return m_Overlays.Append(ov);
 }
 void Window::DestroyOverlay(Overlay *overlay)

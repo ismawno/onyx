@@ -29,6 +29,7 @@ struct WindowData
 #    endif
     bool ImGuiRendered = false;
 #endif
+    OpenWindowFlags Flags = 0;
 
     bool IsDue() const
     {
@@ -54,14 +55,6 @@ struct ApiData
     TKit::Clock FrameClock{};
     TKit::Clock TimeClock{};
     TKit::Timespan DeltaTime{};
-
-    template <Dimension D> auto &GetContexts()
-    {
-        if constexpr (D == D2)
-            return Contexts2;
-        else
-            return Contexts3;
-    }
 };
 
 static TKit::Storage<ApiData> s_Data{};
@@ -189,6 +182,11 @@ Window *OpenWindow(const OpenWindowSpecs &specs)
     if (specs.Flags & OpenWindowFlag_EnableImGui)
         initializeImGui(wdata);
 #endif
+
+    wdata.Flags = specs.Flags;
+    if (specs.Window.PresentMode == PresentMode_Immediate && !(specs.Flags & OpenWindowFlag_NoDefaultDeltaTime))
+        wdata.DeltaTarget = wdata.Window->GetMonitorDeltaTime();
+
     return wdata.Window;
 }
 void CloseWindow(Window *window)
@@ -224,7 +222,7 @@ template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediate
 {
     return Renderer::CreateContext<D>(immediateDynamicMeshCapacity);
 }
-template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx)
+template <Dimension D> void DestroyRenderContext(RenderContext<D> *ctx)
 {
     Renderer::DestroyContext<D>(ctx);
 }
@@ -313,7 +311,8 @@ void Render(const RenderInfo &info)
     {
         Window *win = wdata.Window;
         for (const Event &event : win->GetNewEvents())
-            if (win->IsVSync() && (event.Type == Event_SwapchainRecreated || event.Type == Event_WindowMoved))
+            if (win->GetPresentMode() == PresentMode_VSync &&
+                (event.Type == Event_SwapchainRecreated || event.Type == Event_WindowMoved))
                 wdata.DeltaTarget = win->GetMonitorDeltaTime();
 
         win->FlushEvents();
@@ -400,7 +399,7 @@ void Render(const RenderInfo &info)
             {
                 acwin.PlatformWindowStart = platformWindowStart;
                 for (u32 i = 0; i < ImGuiBackend::GetPlatformWindowCount(); ++i)
-                    if (ImGuiBackend::AcquirePlatformWindowImage(i, Poll))
+                    if (ImGuiBackend::AcquirePlatformWindowImage(i, info.AcquireImageTimeout))
                     {
                         platformWindowIndices.Append(i);
                         ++platformWindowStart;
@@ -450,8 +449,11 @@ void Render(const RenderInfo &info)
     }
 
     for (u32 i = 0; i < s_Data->Windows.GetSize(); ++i)
-        if (s_Data->Windows[i].Window->ShouldClose())
+    {
+        const WindowData &wdata = s_Data->Windows[i];
+        if (!(wdata.Flags & OpenWindowFlag_ManualClose) && wdata.Window->ShouldClose())
             closeWindow(i);
+    }
 
     if (!s_Data->Windows.IsEmpty())
     {
@@ -477,5 +479,8 @@ void Render(const RenderInfo &info)
 
 template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
 template RenderContext<D3> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
+
+template void DestroyRenderContext(RenderContext<D2> *ctx);
+template void DestroyRenderContext(RenderContext<D3> *ctx);
 
 } // namespace Onyx
