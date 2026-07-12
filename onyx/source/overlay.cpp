@@ -1031,13 +1031,13 @@ u32 Overlay::processWindows()
     {
         nw->UpdateBorders();
 
-        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
-        const f32v2 mpos = nw->ToWorld(smpos);
+        const f32v2 localSmpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
+        const f32v2 mpos = nw->ToWorld(localSmpos);
         nw->WorldMouseDelta = mpos - nw->WorldMouse;
         nw->WorldMouse = mpos;
 
         nw->EventKeys.ClearAll();
-        pressingMouse |= nw->Flags & NativeWindowFlag_PressingLeftMouse;
+        pressingMouse |= bool(nw->Flags & NativeWindowFlag_PressingLeftMouse);
         if (!m_Grabbed && (!hovered || hovered->Layer < nw->Layer) && nw->Window->IsHovered())
             hovered = nw;
     }

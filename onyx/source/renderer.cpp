@@ -2907,9 +2907,9 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
             {
                 const LightData &data = lightData[i];
 
-                constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
-                constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
-                constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
+                static constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
+                static constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
+                static constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
 
                 if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
                     continue;
