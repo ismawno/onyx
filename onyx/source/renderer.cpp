@@ -2770,6 +2770,8 @@ using MeshDrawCommands =
 // per cull mode per draw cmd
 using DynMeshDrawCommands = PerCullPerCmd;
 
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4127)
 template <Dimension D>
 static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightValue, const VkCommandBuffer cmd,
                                const RenderPass rpass, const VKit::PipelineLayout &playout,
@@ -2862,6 +2864,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         drawCulledMeshes(Geometry_Dynamic, dynMeshCmds);
     }
 }
+TKIT_COMPILER_WARNING_IGNORE_POP()
 
 template <Dimension D> static f32m4 createTransform(const TransformData<D> &transform)
 {

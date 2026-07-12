@@ -420,8 +420,11 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .SetColorWriteMask(pass == PipelinePass_Outlined ? full : 0)
         .EndColorAttachment();
 
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4127)
     if (D == D3 && geo != Geometry_Circle && geo != Geometry_Glyph)
         builder.AddDynamicState(VK_DYNAMIC_STATE_CULL_MODE_EXT);
+    TKIT_COMPILER_WARNING_IGNORE_POP()
 
     if (!opaque)
         builder.BeginColorAttachment()

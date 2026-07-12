@@ -145,6 +145,8 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
 template <Dimension D>
 void checkTexture(const Resource tex, const Resource material = NullHandle, const TextureSlot slot = TextureSlot_Count)
 {
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4127)
     if (material == NullHandle)
     {
         TKIT_ASSERT(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
@@ -168,6 +170,7 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
             "an explicit null texture",
             tex, material);
     }
+    TKIT_COMPILER_WARNING_IGNORE_POP()
 }
 template <Dimension D> void checkMaterial(const Resource material)
 {
