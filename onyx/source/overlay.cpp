@@ -3172,13 +3172,13 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     // we set non zero size so that native windows created wrt this size dont throw an error
     const f32v2 size = elm ? elm->Size : f32v2{10.f};
 
-    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
     const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
+    if (!ownsNative)
+        m_Current->Native = nw;
+
+    const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
     if (m_Flags & OverlayFlag_WindowPromotions)
     {
-        if (!ownsNative)
-            m_Current->Native = nw;
-
         // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
         // interaction for which we would need to store its position) EXCEPT when multi window is involved. thats why we
         // only set the position here
