@@ -449,10 +449,9 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer c
     Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
-    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
-
-    if (hasPostProcess && !transparent)
+    if (!transparent)
     {
+        const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
         VKit::DeviceImage &colorImg =
             hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
         VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
@@ -466,22 +465,25 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer c
                                        .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
                                        .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
                                    });
-        outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                  {
-                                      .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                      .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+        if (hasPostProcess)
+        {
+            outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                      {
+                                          .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+                                          .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
 
-                                      .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                      .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                  });
-        depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   {
-                                       .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                          .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                      });
+            depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                       {
+                                           .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
+                                           .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
 
-                                       .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
-                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                   });
+                                           .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
+                                           .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                       });
+        }
     }
 }
 
