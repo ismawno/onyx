@@ -46,6 +46,11 @@ Window *Window::FromHandle(Onyx_WindowHandle *window)
     return scast<Window *>(glfwGetWindowUserPointer(window));
 }
 
+Onyx_MonitorHandle *Window::GetMonitor() const
+{
+    return Platform::GetMonitor(m_Window);
+}
+
 bool Window::IsFullScreen() const
 {
     GLFWmonitor *monitor = glfwGetWindowMonitor(m_Window);
@@ -66,6 +71,13 @@ bool Window::IsFullScreen() const
     const i32v2 pos = GetPosition();
 
     return pos[0] == mx && pos[1] == my && dims[0] == u32(mode->width) && dims[1] == u32(mode->height);
+}
+bool Window::IsHovered() const
+{
+    const f32v2 mpos = GetAbsoluteMousePosition();
+    const f32v2 dims = f32v2{GetScreenDimensions()};
+
+    return mpos[0] >= 0.f && mpos[0] < dims[0] && mpos[1] >= 0.f && mpos[1] < dims[1];
 }
 
 void Window::Show()
@@ -219,6 +231,8 @@ void Window::SetPosition(const i32v2 &pos)
 }
 void Window::SetScreenDimensions(const u32v2 &dim)
 {
+    TKIT_ASSERT(dim[0] != 0 && dim[1] != 0,
+                "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", dim[0], dim[1]);
 #if defined(TKIT_OS_APPLE) && !defined(ONYX_GLFW_OSX_WINDOW_POS_FIX)
     i32 x;
     i32 y;
@@ -325,6 +339,10 @@ static u32 toGlfwCursor(const MouseCursor cursor)
 
 Window::Window(const WindowSpecs &specs)
 {
+    TKIT_ASSERT(specs.Dimensions[0] != 0 && specs.Dimensions[1] != 0,
+                "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", specs.Dimensions[0],
+                specs.Dimensions[1]);
+
     TKit::TierAllocator *tier = GetTier();
     m_Swapchain = tier->Create<VKit::Swapchain>();
 

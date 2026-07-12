@@ -64,8 +64,10 @@
 #define ONYX_DECLARE_PLATFORM_HANDLES()                                                                                \
     struct GLFWwindow;                                                                                                 \
     struct GLFWcursor;                                                                                                 \
+    struct GLFWmonitor;                                                                                                \
     using Onyx_WindowHandle = GLFWwindow;                                                                              \
-    using Onyx_CursorHandle = GLFWcursor;
+    using Onyx_CursorHandle = GLFWcursor;                                                                              \
+    using Onyx_MonitorHandle = GLFWmonitor;
 
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX

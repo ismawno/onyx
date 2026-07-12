@@ -348,10 +348,9 @@ enum NativeWindowFlagBit : NativeWindowFlags
     NativeWindowFlag_PressingLeftMouse = 1U << 4,
     //
 
-    NativeWindowFlag_Hovered = 1U << 5,
     // used when os window updates size so that child overlay window can follow along
     NativeWindowFlag_WantUpdateSize = 1U << 6,
-    NativeWindowFlagPersist = NativeWindowFlag_Hovered | NativeWindowFlag_PressingLeftMouse,
+    NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -367,9 +366,14 @@ enum WindowInternalFlagBit : OverlayWindowFlags
 
     // when collapsed, let os window know it must adapt its size
     WindowInternalFlag_WantUpdateSize = 1U << 8,
+
+    // this... is a one use flag needed because the layout system queries with one frame of delay. used when auto resize
+    // is at play and we need to sync the derived size with the reported window size
+    WindowInternalFlag_AllowForLayoutToCatchUp = 1U << 9,
     WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
                                 WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
-                                WindowInternalFlag_MainMenuBar | WindowInternalFlag_OwnsNative,
+                                WindowInternalFlag_MainMenuBar | WindowInternalFlag_OwnsNative |
+                                WindowInternalFlag_AllowForLayoutToCatchUp,
 };
 
 /////////////////////////////////////////////
@@ -435,11 +439,18 @@ void OverlayWindow::ClampToNative()
     const NativeWindow *nw = Native;
     const f32v2 dims = nw->GetDimensions();
 
-    const f32v2 wsize = GetEffectiveSize();
-    const f32v2 mnlim = MinSize - wsize;
+    const f32v2 mnlim = MinSize - Size;
     const f32v2 mxlim = dims - MinSize;
 
     ScreenPos = Math::Clamp(ScreenPos, mnlim, mxlim);
+}
+void OverlayWindow::SyncNativeSize()
+{
+    if (!(Flags & WindowInternalFlag_OwnsNative))
+        return;
+
+    if (!Math::Approximately(Size, Native->Size))
+        Flags |= WindowInternalFlag_WantUpdateSize;
 }
 bool OverlayWindow::IsFullscreenBlocked() const
 {
@@ -455,7 +466,7 @@ bool OverlayWindow::CanMove() const
 }
 bool OverlayWindow::CanCollapse() const
 {
-    return !(Flags & OverlayWindowFlag_NoCollapse) && !IsFullscreenBlocked();
+    return !(Flags & (OverlayWindowFlag_NoCollapse | OverlayWindowFlag_NoHeaderBar)) && !IsFullscreenBlocked();
 }
 
 f32v2 OverlayWindow::ToScreen(const f32v2 &world) const
@@ -473,7 +484,7 @@ f32v2 OverlayWindow::ToWorld(const f32v2 &screen) const
     return Native->View->ScreenToWorld(Native->View->ToNormalized(screen));
 }
 
-bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const OverlayWindowFlags flags)
+bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWindowFlags flags)
 {
     if (opened && !(*opened))
         return false;
@@ -484,6 +495,10 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->PopupDepth = m_CurrentPopupDepth;
 
+    // we just dont support auto resize if we are fullscreen
+    if (m_Current->IsFullscreenBlocked())
+        flags &= ~OverlayWindowFlag_AutoResize;
+
     if (flags & OverlayWindowFlag_BringToTop)
         m_Current->Layer = toTop();
     if (flags & OverlayWindowFlag_Modal)
@@ -491,7 +506,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
     const bool noCollapse = !m_Current->CanCollapse();
     const bool noHeader = flags & OverlayWindowFlag_NoHeaderBar;
-    const bool collapsed = !noCollapse && !noHeader && m_Current->HeaderIcon == ArrowRightIcon;
+    const bool collapsed = !noCollapse && m_Current->HeaderIcon == ArrowRightIcon;
 
     m_WindowStack.Append(m_Current);
     if (m_Current->Flags & WindowInternalFlag_Active)
@@ -509,6 +524,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
         m_Current->Size = m_NextWindow.Size;
     m_NextWindow.Flags = 0;
 
+    const bool wasAutoresize = m_Current->Flags & OverlayWindowFlag_AutoResize;
+
     m_Current->Flags &= WindowInternalFlagPersist;
     m_Current->MinSize =
         getLineHeight() + 2.f * (m_Style[OverlayStyle_WindowPadding] + m_Style[OverlayStyle_HeaderPadding]);
@@ -520,8 +537,32 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
     const usz scrollId = IdFromStack(nid);
     ScrollInfo &sinfo = m_Scrollables[scrollId];
+
+    NativeWindow *nw = m_Current->Native;
+    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
+
+    if (autoResize && !wasAutoresize)
+        m_Current->SizeBeforeAutoResize = m_Current->Size;
+    else if (!autoResize && wasAutoresize)
+        m_Current->Size = m_Current->SizeBeforeAutoResize;
+
     if (autoResize)
+    {
         sinfo = ScrollInfo{};
+
+        if (!(m_Current->Flags & WindowInternalFlag_AllowForLayoutToCatchUp))
+        {
+            const LayoutElement *elm = ly.QueryElement(m_Current->Id);
+            if (elm)
+                m_Current->Size = elm->Size;
+        }
+        else
+            m_Current->Flags &= ~WindowInternalFlag_AllowForLayoutToCatchUp;
+
+        m_Current->SyncNativeSize();
+    }
+    else if (wasAutoresize)
+        m_Current->SyncNativeSize();
 
     // ugly
     const LySz2 sizing = [&]() -> LySz2 {
@@ -531,8 +572,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
         return sabs(m_Current->Size);
     }();
 
-    const NativeWindow *nw = m_Current->Native;
-    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
     const f32v2 pos = ownsNative ? nw->GetWorldTopLeft() : m_Current->ToWorld(m_Current->ScreenPos);
 
     m_Current->Id = ly.BeginPanel(
@@ -567,7 +606,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
 
         if (!noCollapse && iconButton(IdFromStack("__onyx_id_Collapse_button"), m_Current->HeaderIcon))
         {
-            m_Current->Flags |= WindowInternalFlag_WantUpdateSize;
+            m_Current->Flags |= WindowInternalFlag_AllowForLayoutToCatchUp;
             if (collapsed)
             {
                 m_Current->Size[1] = m_Current->LastHeight;
@@ -578,6 +617,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, const Over
                 m_Current->LastHeight = m_Current->Size[1];
                 m_Current->Size[1] = m_Current->MinSize[1];
             }
+            m_Current->SyncNativeSize();
         }
 
         ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams());
@@ -980,13 +1020,13 @@ u32 Overlay::processWindows()
 
     bool pressingMouse = false;
 
-    NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
     NativeWindow *mainNative = getMainNativeWindow();
 
     const f32v2 smpos = mainNative->ScreenPos + mainNative->Window->GetAbsoluteMousePosition();
     m_ScreenMouseDelta = smpos - m_ScreenMousePos;
     m_ScreenMousePos = smpos;
 
+    NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
     for (NativeWindow *nw : m_NativeWindows)
     {
         nw->UpdateBorders();
@@ -998,7 +1038,7 @@ u32 Overlay::processWindows()
 
         nw->EventKeys.ClearAll();
         pressingMouse |= nw->Flags & NativeWindowFlag_PressingLeftMouse;
-        if (!hovered && nw->Flags & NativeWindowFlag_Hovered)
+        if (!m_Grabbed && (!hovered || hovered->Layer < nw->Layer) && nw->Window->IsHovered())
             hovered = nw;
     }
     if (!hovered)
@@ -1095,15 +1135,17 @@ u32 Overlay::processWindows()
         {
             if (ev.Type == Event_WindowResized)
             {
-                nw->EventSize = ev.WindowSize;
+                nw->Size = ev.WindowSize;
                 nw->Flags |= NativeWindowFlag_WantUpdateSize;
             }
             else if (ev.Type == Event_WindowMoved)
                 nw->ScreenPos = ev.WindowPos;
             else if (ev.Type == Event_MouseEntered)
-                nw->Flags |= NativeWindowFlag_Hovered;
-            else if (ev.Type == Event_MouseLeft)
-                nw->Flags &= ~NativeWindowFlag_Hovered;
+            {
+                nw->Layer = toTop();
+                if (nw->Owner)
+                    nw->Owner->Layer = toTop();
+            }
             else if (ev.Type == Event_MousePressed)
             {
                 if (ev.Mouse.Button == Mouse_Button1)
@@ -1162,7 +1204,6 @@ u32 Overlay::processWindows()
     };
 
     bool canAssignHover = true;
-
     iterateReverseWindows([&](OverlayWindow *win) {
         const NativeWindow *nw = win->Native;
         const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
@@ -1267,7 +1308,7 @@ u32 Overlay::processWindows()
         else if (resize || move)
         {
             nw->Window->SetPosition(i32v2{gpos});
-            nw->Window->SetScreenDimensions(u32v2{m_Grabbed->GetEffectiveSize()});
+            nw->Window->SetScreenDimensions(u32v2{m_Grabbed->Size});
             nw->UpdateBorders();
         }
     }
@@ -1362,6 +1403,7 @@ void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &d
     NativeWindow *parent = win->Native;
     win->Native = createNativeWindow(pos, dims);
     win->Native->Parent = parent;
+    win->Native->Owner = win;
     win->Layer = toTop();
     win->Flags |= WindowInternalFlag_OwnsNative;
     win->ScreenPos = f32v2{0.f};
@@ -1379,7 +1421,6 @@ void Overlay::demoteWindow(OverlayWindow *win)
 
 void Overlay::demoteAllWindows()
 {
-    const NativeWindow *mainNative = GetMainNativeWindow();
     for (OverlayWindow &win : m_OverlayWindows)
     {
         NativeWindow *nw = win.Native;
@@ -1387,7 +1428,7 @@ void Overlay::demoteAllWindows()
         win.Flags &= ~WindowInternalFlag_WantUpdateSize;
 
         // if tooltip native parent is not null, it means the tooltip is owning the native window
-        if (nw != mainNative && (win.Flags & WindowInternalFlag_OwnsNative))
+        if (win.Flags & WindowInternalFlag_OwnsNative)
             demoteWindow(&win);
     }
 }
@@ -1422,14 +1463,17 @@ void Overlay::manageWindowPromotions()
             const bool nativeWants = nw->Flags & NativeWindowFlag_WantUpdateSize;
             const bool childWants = win.Flags & WindowInternalFlag_WantUpdateSize;
             if (nativeWants)
-                win.Size = nw->EventSize;
+                win.Size = nw->Size;
             else if (childWants)
+            {
                 nw->Window->SetScreenDimensions(u32v2{win.Size});
+                nw->Size = win.Size;
+            }
         }
         nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
         win.Flags &= ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active);
 
-        const f32v2 wsize = win.GetEffectiveSize();
+        const f32v2 &wsize = win.Size;
         const f32v2 wpos = ownsNative ? nw->ScreenPos : (nw->ScreenPos + win.ScreenPos);
 
         const bool outsideNative = isOutsideNative(ownsNative ? nw->Parent : nw, wpos, wsize);
@@ -2470,7 +2514,7 @@ void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 {
     const bool autoResize = isAutoResize();
     const bool isFloat = m_CurrentPopupDepth != m_Current->PopupDepth;
-    const f32 effW = isFloat ? TKIT_F32_MAX : (normSize * getCurrentEffectiveWidth());
+    const f32 effW = isFloat ? TKIT_F32_MAX : (normSize * m_Current->Size[0]);
 
     const f32 mnw = m_Style[OverlayStyle_WidgetMinimumWidth];
 
@@ -2939,10 +2983,12 @@ bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const 
     if (getWidgetState(id) == 0)
     {
         OverlayWindow *win = getOrCreateOverlayWindow(title);
-        const LayoutElement *elm = win->Layout.QueryElement(win->Id);
-        const f32v2 size = elm ? elm->Size : win->Size;
+        if (!(win->Flags & WindowInternalFlag_OwnsNative))
+            // we dont handle size because BeginWindow does that for us
+            win->Native = m_Current->Native;
 
-        win->SetActivePosition(win->ToScreen(computeMouseAlignedPosition(m_Current->Native, size)));
+        const f32v2 &size = win->Size;
+        win->SetActivePosition(win->ToScreen(computeMouseAlignedPosition(win->Native, size)));
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
 
@@ -2973,11 +3019,12 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
     const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+
+    const f32 maxWidth = m_CurrentPopupDepth == 0 ? (0.5f * m_Current->Size[0]) : TKIT_F32_MAX;
     ly.BeginPanel(id,
                   LyPnPar{.FillColor = m_Style[boxCol],
                           .Alignment = CenterLeft,
-                          .Sizing = {m_CurrentPopupDepth == 0 ? flex(0.f, 0.5f * getCurrentEffectiveWidth()) : flex(),
-                                     hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)},
+                          .Sizing = {flex(0.f, maxWidth), hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)},
                           .Shape = rect(m_Style[OverlayStyle_DropDownRadius])});
 
     if (hasPreview)
@@ -3067,18 +3114,21 @@ void Overlay::requestCollapsePopups()
     m_StateFlags |= StateFlag_MustCollapsePopups;
     m_PopupCollapseDepth = 0;
 }
+static f32v2 getMonitorDimensions()
+{
+    return f32v2{Platform::GetVideoMode(Platform::GetMainMonitor()).Dimensions};
+}
 f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const
 {
     const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
     const f32v2 offset = f32v2{toffset, -2.f * toffset};
 
     f32v2 pos = win->WorldMouse + offset;
-    if (m_Flags & OverlayFlag_WindowPromotions)
-        return pos;
+    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
 
+    const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
     const f32 rb = win->WorldMouse[1] + offset[1] - size[1];
-    const f32v2 &br = win->WorldBottomRightBorder;
     if (rt > br[0])
         pos[0] -= rt - br[0];
     if (rb < br[1])
@@ -3105,10 +3155,6 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->Flags |= OverlayWindowFlag_AutoResize;
 
-    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
-    if (!ownsNative)
-        m_Current->Native = nw;
-
     PushId(id);
 
     m_Tooltip = m_Current;
@@ -3127,8 +3173,15 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     const f32v2 size = elm ? elm->Size : f32v2{10.f};
 
     const f32v2 pos = computeMouseAlignedPosition(m_Current->Native, size);
+    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
     if (m_Flags & OverlayFlag_WindowPromotions)
     {
+        if (!ownsNative)
+            m_Current->Native = nw;
+
+        // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
+        // interaction for which we would need to store its position) EXCEPT when multi window is involved. thats why we
+        // only set the position here
         m_Current->SetActivePosition(m_Current->ToScreen(pos));
         if (!Math::Approximately(m_Current->Size, size))
         {

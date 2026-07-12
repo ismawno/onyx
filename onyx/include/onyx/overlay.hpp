@@ -381,6 +381,7 @@ struct NextWindowData
     NextWindowFlags Flags = 0;
 };
 
+struct OverlayWindow;
 struct NativeWindow
 {
     Window *Window;
@@ -388,10 +389,15 @@ struct NativeWindow
     RenderContext<D2> *Context;
     NativeWindow *Parent = nullptr;
 
+    OverlayWindow *Owner = nullptr;
+
+    u64 Layer = 0;
+
     f32v2 ScreenPos{0.f};
     // only uses when os actively resizes window, so that child overlay window can adapt if it is a promoted window (has
-    // its own surface)
-    f32v2 EventSize{0.f};
+    // its own surface) OR auto resize is on, which means this size and the reported size of the overlay window may
+    // differ
+    f32v2 Size{0.f};
 
     f32v2 WorldMouse{0.f};
     f32v2 WorldMouseOnPress{0.f};
@@ -484,6 +490,8 @@ struct OverlayWindow
     f32v2 ScreenPos;
 
     f32v2 Size{240.f};
+    // its nice when disabling auto resize to recover old size
+    f32v2 SizeBeforeAutoResize{240.f};
     f32v2 MinSize;
 
     f32 LastHeight = 240.f;
@@ -496,6 +504,8 @@ struct OverlayWindow
     void SetActivePosition(const f32v2 &pos);
 
     void ClampToNative();
+    void SyncNativeSize();
+
     bool IsFullscreenBlocked() const;
     bool CanResize() const;
     bool CanMove() const;
@@ -503,19 +513,6 @@ struct OverlayWindow
 
     f32v2 ToScreen(const f32v2 &world) const;
     f32v2 ToWorld(const f32v2 &screen) const;
-
-    f32v2 GetEffectiveSize(const bool autoResize) const
-    {
-        if (!autoResize)
-            return Size;
-
-        const LayoutElement *elm = Layout.QueryElement(Id);
-        return elm ? elm->Size : Size;
-    }
-    f32v2 GetEffectiveSize() const
-    {
-        return GetEffectiveSize(Flags & OverlayWindowFlag_AutoResize);
-    }
 };
 
 /////////////////////////////////////////////
@@ -1653,19 +1650,6 @@ class Overlay
     u64 toTop()
     {
         return m_LayerCount++;
-    }
-
-    f32v2 getCurrentEffectiveSize() const
-    {
-        return m_Current->GetEffectiveSize(isAutoResize());
-    }
-    f32 getCurrentEffectiveWidth() const
-    {
-        return getCurrentEffectiveSize()[0];
-    }
-    f32 getCurrentEffectiveHeight() const
-    {
-        return getCurrentEffectiveSize()[1];
     }
 
     // NOTE(Isma, 25/06/06): Could be a hash map, but assuming the window count will be small enough that a linear

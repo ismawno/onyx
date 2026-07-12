@@ -104,8 +104,10 @@ class Window final : public RenderTarget
     {
         return m_Window;
     }
+    Onyx_MonitorHandle *GetMonitor() const;
 
     bool IsFullScreen() const;
+    bool IsHovered() const;
 
     void Show();
     void Focus();

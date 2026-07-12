@@ -85,4 +85,22 @@ void PollEvents()
     glfwPollEvents();
 }
 
+Onyx_MonitorHandle *GetMonitor(Onyx_WindowHandle *win)
+{
+    return glfwGetWindowMonitor(win);
+}
+Onyx_MonitorHandle *GetMainMonitor()
+{
+    return glfwGetPrimaryMonitor();
+}
+VideoMode GetVideoMode(Onyx_MonitorHandle *monitor)
+{
+    VideoMode mode;
+    const GLFWvidmode *vmode = glfwGetVideoMode(monitor);
+    mode.Dimensions = {vmode->width, vmode->height};
+    mode.RgbBits = {vmode->redBits, vmode->greenBits, vmode->blueBits};
+    mode.RefreshRate = u32(vmode->refreshRate);
+    return mode;
+}
+
 } // namespace Onyx::Platform
