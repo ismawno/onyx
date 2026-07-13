@@ -3125,6 +3125,8 @@ f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 
 
     f32v2 pos = win->WorldMouse + offset;
     const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+    if (windowPromotions)
+        return pos;
 
     const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
@@ -3169,8 +3171,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 
     const LayoutElement *elm = ly.QueryElement(id);
 
-    // we set non zero size so that native windows created wrt this size dont throw an error
-    const f32v2 size = elm ? elm->Size : f32v2{10.f};
+    const f32v2 size = elm ? elm->Size : m_Current->Size;
 
     const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
     if (!ownsNative)
