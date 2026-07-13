@@ -392,7 +392,8 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    createNativeWindow(win);
+    NativeWindow *nw = createNativeWindow(win);
+    nw->ScreenPos = f32v2{nw->Window->GetPosition()};
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
@@ -3125,8 +3126,6 @@ f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 
 
     f32v2 pos = win->WorldMouse + offset;
     const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
-    if (windowPromotions)
-        return pos;
 
     const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
@@ -3153,7 +3152,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
         trashTooltip();
 
     const LayoutId id = "__onyx_id_Tooltip";
-    NativeWindow *nw = m_Current->Native;
+    OverlayWindow *parent = m_Current;
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->Flags |= OverlayWindowFlag_AutoResize;
 
@@ -3175,15 +3174,22 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 
     const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
     if (!ownsNative)
-        m_Current->Native = nw;
+        m_Current->Native = parent->Native;
 
-    const f32v2 pos = computeMouseAlignedPosition(nw, size);
+    const f32v2 pos = computeMouseAlignedPosition(parent->Native, size);
     if (m_Flags & OverlayFlag_WindowPromotions)
     {
         // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
         // interaction for which we would need to store its position) EXCEPT when multi window is involved. thats why we
         // only set the position here
-        m_Current->SetActivePosition(nw->ToScreen(pos));
+
+        const f32v2 scpos = parent->ToScreen(pos);
+        const bool parentOwns = parent->Flags & WindowInternalFlag_OwnsNative;
+        if (ownsNative)
+            m_Current->Native->ScreenPos = parentOwns ? scpos : (parent->Native->ScreenPos + scpos);
+        else
+            m_Current->ScreenPos = parentOwns ? (scpos - parent->Native->ScreenPos) : scpos;
+
         if (!Math::Approximately(m_Current->Size, size))
         {
             m_Current->Size = size;
