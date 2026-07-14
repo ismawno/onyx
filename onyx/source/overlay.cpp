@@ -355,8 +355,7 @@ enum NativeWindowFlagBit : NativeWindowFlags
     NativeWindowFlag_RepresentsFloatElement = 1U << 7,
     NativeWindowFlag_ActivePromotedFloatElement = 1U << 8,
 
-    NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
-                              NativeWindowFlag_ActivePromotedFloatElement,
+    NativeWindowFlagPersist = NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -1158,6 +1157,7 @@ u32 Overlay::processWindows()
     {
         nw->TextInput.Clear();
         nw->Flags &= NativeWindowFlagPersist;
+        nw->Flags |= nw->Window->IsMousePressed(Mouse_Button1) * NativeWindowFlag_PressingLeftMouse;
         for (const Event &ev : nw->Window->GetNewEvents())
         {
             if (ev.Type == Event_WindowResized)
@@ -1176,15 +1176,10 @@ u32 Overlay::processWindows()
             else if (ev.Type == Event_MousePressed)
             {
                 if (ev.Mouse.Button == Mouse_Button1)
-                {
-                    nw->Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
-                    requestCollapsePopups();
-                }
+                    nw->Flags |= NativeWindowFlag_LeftMousePressed;
                 if (ev.Mouse.Button == Mouse_Button2)
-                {
                     nw->Flags |= NativeWindowFlag_RightMousePressed;
-                    requestCollapsePopups();
-                }
+                requestCollapsePopups();
             }
             else if (ev.Type == Event_MouseReleased)
             {
@@ -1434,6 +1429,7 @@ void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &d
     win->Layer = toTop();
     win->Flags |= WindowInternalFlag_OwnsNative;
     win->ScreenPos = f32v2{0.f};
+    // TODO(Isma): Guard this once overlay driving all windows is implemented
     parent->ScreenPos = f32v2{parent->Window->GetPosition()};
 }
 
