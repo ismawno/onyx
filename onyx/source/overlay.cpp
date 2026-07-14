@@ -357,8 +357,8 @@ enum NativeWindowFlagBit : NativeWindowFlags
 
     NativeWindowFlag_CheckParentForGrab = 1U << 9,
 
-    NativeWindowFlagPersist = NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement |
-                              NativeWindowFlag_CheckParentForGrab,
+    NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
+                              NativeWindowFlag_ActivePromotedFloatElement | NativeWindowFlag_CheckParentForGrab,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -1160,7 +1160,6 @@ u32 Overlay::processWindows()
     {
         nw->TextInput.Clear();
         nw->Flags &= NativeWindowFlagPersist;
-        nw->Flags |= nw->Window->IsMousePressed(Mouse_Button1) * NativeWindowFlag_PressingLeftMouse;
         for (const Event &ev : nw->Window->GetNewEvents())
         {
             if (ev.Type == Event_WindowResized)
@@ -1179,7 +1178,7 @@ u32 Overlay::processWindows()
             else if (ev.Type == Event_MousePressed)
             {
                 if (ev.Mouse.Button == Mouse_Button1)
-                    nw->Flags |= NativeWindowFlag_LeftMousePressed;
+                    nw->Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
                 if (ev.Mouse.Button == Mouse_Button2)
                     nw->Flags |= NativeWindowFlag_RightMousePressed;
                 requestCollapsePopups();
@@ -1189,6 +1188,7 @@ u32 Overlay::processWindows()
                 if (ev.Mouse.Button == Mouse_Button1)
                 {
                     nw->Flags |= NativeWindowFlag_LeftMouseReleased;
+                    nw->Flags &= ~NativeWindowFlag_PressingLeftMouse;
 
                     if (nw->ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
                         ++nw->OverflowClicks;
@@ -1277,13 +1277,17 @@ u32 Overlay::processWindows()
     if (!m_ActiveWindows.IsEmpty())
         m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
 
-    NativeWindow *gnw = m_Grabbed ? m_Grabbed->Native : nullptr;
-    if (gnw && gnw->Flags & NativeWindowFlag_CheckParentForGrab)
-        gnw = gnw->Parent;
+    NativeWindow *gchild = m_Grabbed ? m_Grabbed->Native : nullptr;
+    NativeWindow *gnw;
+    if (gchild && gchild->Flags & NativeWindowFlag_CheckParentForGrab)
+        gnw = gchild->Parent;
+    else
+        gnw = gchild;
+
     // now just handle grabbing, which is straightforward
     if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
-        gnw->Flags &= ~NativeWindowFlag_CheckParentForGrab;
+        gchild->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed = nullptr;
         hovered->WorldMouseOnPress = hovered->WorldMouse;
     }
