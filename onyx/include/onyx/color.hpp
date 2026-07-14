@@ -33,16 +33,16 @@ constexpr f32 ToSrgb(const f32 c)
 }
 
 // TODO(Isma, 02/07/26): If we end up supporting HDR, this will have to go
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 inline void CheckRgba(const f32v4 &rgba)
 {
-    TKIT_ASSERT(rgba[0] <= 1.f && rgba[0] >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1], but was {}",
+    TKIT_ENSURE(rgba[0] <= 1.f && rgba[0] >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1], but was {}",
                 rgba[0]);
-    TKIT_ASSERT(rgba[1] <= 1.f && rgba[1] >= 0.f, "[ONYX][COLOR] Green value must be in the range [0, 1], but was {}",
+    TKIT_ENSURE(rgba[1] <= 1.f && rgba[1] >= 0.f, "[ONYX][COLOR] Green value must be in the range [0, 1], but was {}",
                 rgba[1]);
-    TKIT_ASSERT(rgba[2] <= 1.f && rgba[2] >= 0.f, "[ONYX][COLOR] Blue value must be in the range [0, 1], but was {}",
+    TKIT_ENSURE(rgba[2] <= 1.f && rgba[2] >= 0.f, "[ONYX][COLOR] Blue value must be in the range [0, 1], but was {}",
                 rgba[2]);
-    TKIT_ASSERT(rgba[3] <= 1.f && rgba[3] >= 0.f, "[ONYX][COLOR] Alpha value must be in the range [0, 1], but was {}",
+    TKIT_ENSURE(rgba[3] <= 1.f && rgba[3] >= 0.f, "[ONYX][COLOR] Alpha value must be in the range [0, 1], but was {}",
                 rgba[3]);
 }
 #    define CHECK_RGBA(rgba) Detail::CheckRgba(rgba)

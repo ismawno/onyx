@@ -2069,7 +2069,7 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
 
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const u32 count = 3 + alpha;
-    TKIT_ASSERT(count <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
+    TKIT_ENSURE(count <= color.Size, "[ONYX][OVERLAY] Specified color has no alpha! Must pass "
                                      "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
 
     bool changed = false;

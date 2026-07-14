@@ -18,31 +18,29 @@ void HandleVulkanResult(const VkResult result);
 
 template <typename T> auto CheckVKitError(TKit::Result<T, VKit::Error> &&result)
 {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     if (!result)
     {
         const auto &error = result.GetError();
         if (error.GetCode() == VKit::Error_VulkanError)
             HandleVulkanResult(error.GetVulkanResult());
 
-        TKIT_FATAL("{}", error.ToString());
+        TKIT_PANIC("{}", error.ToString());
     }
 #endif
+
+    TKIT_ASSERT(result, "{}", result.GetError().ToString());
     if constexpr (!std::same_as<T, void>)
         return *result;
 }
 
-#ifdef TKIT_ENABLE_ASSERTS
 inline void CheckVKitError(const VkResult result)
 {
+#ifdef TKIT_ENABLE_ENSURE
     HandleVulkanResult(result);
+#endif
     VKIT_CHECK_RESULT(result);
 }
-#else
-inline void CheckVKitError(const VkResult)
-{
-}
-#endif
 
 const VKit::Instance &GetInstance();
 const VKit::Vulkan::InstanceTable *GetInstanceTable();

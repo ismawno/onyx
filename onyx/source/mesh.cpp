@@ -24,7 +24,7 @@ template <typename Vertex> static void tidyMeshData(MeshData<Vertex> &data, cons
                     --j;
         }
 }
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, const u32 offset = 0)
 {
     Index mx = 0;
@@ -33,7 +33,7 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
             mx = i;
 
     mx -= Index(offset);
-    TKIT_ASSERT(mx < data.Vertices.GetSize(),
+    TKIT_ENSURE(mx < data.Vertices.GetSize(),
                 "[ONYX][MESH] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
                 "{}, size: {}",
                 mx, data.Vertices.GetSize());
@@ -45,7 +45,7 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
         counts[i - Index(offset)]++;
     for (const u32 c : counts)
     {
-        TKIT_ASSERT(c != 0, "[ONYX][MESH] Found unused vertices in a mesh");
+        TKIT_ENSURE(c != 0, "[ONYX][MESH] Found unused vertices in a mesh");
     }
 }
 #    define VALIDATE_MESH_DATA(...) validateMeshData(__VA_ARGS__)

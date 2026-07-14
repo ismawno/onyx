@@ -951,7 +951,7 @@ template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &
     return getRendererData<D>().Descriptors[pass];
 }
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 template <typename Range> static void validateRanges(const char *name, const Pool<Range> &pool)
 {
     const auto &ranges = pool.Ranges;
@@ -960,14 +960,14 @@ template <typename Range> static void validateRanges(const char *name, const Poo
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         const Range &range = ranges[i];
-        TKIT_ASSERT(info.Size >= range.Offset + range.Size,
+        TKIT_ENSURE(info.Size >= range.Offset + range.Size,
                     "[ONYX][RENDERER] A {} memory range with index {} ({} total) exceeds buffer "
                     "size. Buffer size is {} bytes, which is smaller than offset + size = {} + {} = {}",
                     name, i, ranges.GetSize(), info.Size, range.Offset, range.Size, range.Offset + range.Size);
         if (i != 0)
         {
             const Range &prange = ranges[i - 1];
-            TKIT_ASSERT(prange.Offset + prange.Size == range.Offset,
+            TKIT_ENSURE(prange.Offset + prange.Size == range.Offset,
                         "[ONYX][RENDERER] A {} memory range pair with indices {} and {} ({} total) are not perfectly "
                         "next to each other, meaning offset{} + size{} != offset{} -> {} + {} = {} != {}",
                         name, i, i - 1, ranges.GetSize(), i - 1, i - 1, i, prange.Offset, prange.Size,
@@ -975,7 +975,7 @@ template <typename Range> static void validateRanges(const char *name, const Poo
         }
         size += range.Size;
     }
-    TKIT_ASSERT(size == info.Size,
+    TKIT_ENSURE(size == info.Size,
                 "[ONYX][RENDERER] The sum of the {} memory range sizes ({:L}) does not equal the one of the "
                 "buffer ({:L})",
                 name, size, info.Size);
@@ -2323,7 +2323,7 @@ TransferSubmitInfo Transfer(VKit::Queue *tqueue, const VkCommandBuffer command, 
     transfer<D2>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight, maxLights);
     transfer<D3>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight, maxLights);
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     validateRanges<D2>();
     validateRanges<D3>();
 #endif
@@ -2944,7 +2944,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     else
                     {
                         ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
                         if (rtype != Resource_DynamicMesh)
                         {
                             ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
@@ -3158,7 +3158,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
         else
         {
             ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
             if (rtype != Resource_DynamicMesh)
             {
                 ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
@@ -3672,7 +3672,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
 
 template <Dimension D> void coalesce(const u32 maxRanges)
 {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     validateRanges<D>();
 #endif
     RendererData<D> &rdata = getRendererData<D>();
@@ -3711,7 +3711,7 @@ template <Dimension D> void coalesce(const u32 maxRanges)
         return false;
     });
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     validateRanges<D>();
 #endif
 }

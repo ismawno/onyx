@@ -308,7 +308,7 @@ struct OverlayColorHandle
     }
     OverlayColorHandle(f32v3 *data) : Data(&data->At(0))
     {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
         Size = 3;
 #endif
     }
@@ -319,7 +319,7 @@ struct OverlayColorHandle
     {
     }
     f32 *Data;
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     u32 Size = 4;
 #endif
 };

@@ -192,7 +192,7 @@ struct Specs
 #endif
     Renderer::Specs *RendererSpecs = nullptr;
     Platform::Specs *PlatformSpecs = nullptr;
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 #    ifdef TKIT_OS_APPLE
     InitializationFlags Flags =
         InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |

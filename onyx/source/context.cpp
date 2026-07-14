@@ -111,7 +111,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, rtype, dim);                                                    \
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, rtype, dim);
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 template <Dimension D>
 void checkSampler(const Resource sampler, const Resource material = NullHandle,
                   const TextureSlot slot = TextureSlot_Count)
@@ -120,14 +120,14 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     TKIT_MSVC_WARNING_IGNORE(4127)
     if (material == NullHandle)
     {
-        TKIT_ASSERT(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ENSURE(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} is invalid and is not "
                     "an explicit null sampler",
                     sampler);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ASSERT(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ENSURE(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null sampler",
@@ -135,7 +135,7 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     }
     else
     {
-        TKIT_ASSERT(
+        TKIT_ENSURE(
             IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
             "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null sampler",
@@ -150,14 +150,14 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     TKIT_MSVC_WARNING_IGNORE(4127)
     if (material == NullHandle)
     {
-        TKIT_ASSERT(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ENSURE(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} is invalid and is not "
                     "an explicit null texture",
                     tex);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ASSERT(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ENSURE(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null texture",
@@ -165,7 +165,7 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     }
     else
     {
-        TKIT_ASSERT(
+        TKIT_ENSURE(
             IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
             "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null texture",
@@ -175,7 +175,7 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
 }
 template <Dimension D> void checkMaterial(const Resource material)
 {
-    TKIT_ASSERT(IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
+    TKIT_ENSURE(IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
                 "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
                 material);
     if (!IsResourceNull(material))
@@ -260,7 +260,7 @@ template <Dimension D>
 static InstanceData<D> createInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                           const u32 depthCounter)
 {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     checkMaterial<D>(state.Material);
     checkSampler<D>(state.Sampler);
     checkTexture<D>(state.Texture);

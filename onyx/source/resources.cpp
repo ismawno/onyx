@@ -716,13 +716,13 @@ static void destroyTexture(const Resource handle)
     s_Textures->Resources.Remove(tid);
 }
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 void checkNotTextureAtlas(const Resource handle)
 {
     for (const FontPoolData &fpool : s_FontData->Pools)
         for (const FontDataInfo &finfo : fpool.Meshes)
         {
-            TKIT_ASSERT(finfo.AtlasTexture != handle,
+            TKIT_ENSURE(finfo.AtlasTexture != handle,
                         "[ONYX][RESOURCES] Attempting to destroy texture with handle {:#010x}, which is a font atlas "
                         "managed by an active font! It is not possible to directly destroy or manage font atlases "
                         "through the texture API",
@@ -733,7 +733,7 @@ void checkNotTextureAtlas(const Resource handle)
 
 void DestroyTexture(const Resource handle)
 {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     checkNotTextureAtlas(handle);
 #endif
     destroyTexture(handle);
@@ -774,7 +774,7 @@ static void updateTexture(const Resource handle, const VkImageView view, const R
 
 void UpdateTexture(const Resource handle, const Resource image, const u32 viewIndex)
 {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     checkNotTextureAtlas(handle);
 #endif
     VKit::DeviceImage &img = getImage(handle).Image;

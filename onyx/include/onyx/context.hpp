@@ -784,7 +784,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addGlyphData(Resource glyph, const f32m<D> &transform);
     void addDynamicData(Resource mesh, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     void checkMaterial(Resource material);
 #endif
 

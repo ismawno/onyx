@@ -20,17 +20,17 @@ void Layout::insertId(const LayoutId id, const u32 idx)
     if (id == NullLayoutId)
         return;
 
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     if (id.__DebugName.IsEmpty())
     {
-        TKIT_ASSERT(!m_InsertedElements.Contains(id.Id),
+        TKIT_ENSURE(!m_InsertedElements.Contains(id.Id),
                     "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
                     "already exists in the layout (id name not available)",
                     id.Id);
     }
     else
     {
-        TKIT_ASSERT(!m_InsertedElements.Contains(id.Id),
+        TKIT_ENSURE(!m_InsertedElements.Contains(id.Id),
                     "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
                     "already exists in the layout. Debug name: {}",
                     id.Id, id.__DebugName);

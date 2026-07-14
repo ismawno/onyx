@@ -24,7 +24,7 @@ void Initialize(const Specs &specs)
     glfwSetErrorCallback(glfwErrorCallback);
 #endif
     glfwInitHint(GLFW_PLATFORM, specs.Platform);
-    TKIT_CHECK_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX][PLATFORM] GLFW failed to initialize");
+    TKIT_ENSURE_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX][PLATFORM] GLFW failed to initialize");
 
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX][PLATFORM] Vulkan is not supported, according to GLFW");
 }

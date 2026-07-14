@@ -379,13 +379,13 @@ struct LayoutId
     }
     LayoutId(const char *id) : LayoutId(TKit::StringView{id})
     {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
         __DebugName = id;
 #endif
     }
     LayoutId(const TKit::StringView id) : Id(TKit::Hash(id))
     {
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
         __DebugName = id;
 #endif
     }
@@ -404,7 +404,7 @@ struct LayoutId
     }
 
     usz Id;
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
     TKit::StringView __DebugName{};
 #endif
 };
