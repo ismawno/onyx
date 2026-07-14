@@ -355,6 +355,8 @@ enum NativeWindowFlagBit : NativeWindowFlags
     NativeWindowFlag_RepresentsFloatElement = 1U << 7,
     NativeWindowFlag_ActivePromotedFloatElement = 1U << 8,
 
+    // this flag allows for persisting the m_Grabbed field when promoting windows. this currently doesnt work in linux
+    // as glfw fires a mouse release event on window creation
     NativeWindowFlag_CheckParentForGrab = 1U << 9,
 
     NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
