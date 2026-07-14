@@ -355,6 +355,8 @@ enum NativeWindowFlagBit : NativeWindowFlags
     NativeWindowFlag_RepresentsFloatElement = 1U << 7,
     NativeWindowFlag_ActivePromotedFloatElement = 1U << 8,
 
+    NativeWindowFlag_CheckParentForGrab = 1U << 9,
+
     NativeWindowFlagPersist = NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement,
 };
 
@@ -1274,8 +1276,14 @@ u32 Overlay::processWindows()
     if (!m_ActiveWindows.IsEmpty())
         m_ActiveWindows.GetBack()->Flags |= WindowInternalFlag_Focused;
 
+    NativeWindow *gnw = m_Grabbed ? m_Grabbed->Native : nullptr;
+    if (gnw && gnw->Flags & NativeWindowFlag_CheckParentForGrab)
+    {
+        gnw->Flags &= ~NativeWindowFlag_CheckParentForGrab;
+        gnw = gnw->Parent;
+    }
     // now just handle grabbing, which is straightforward
-    if (!(hovered->Flags & NativeWindowFlag_PressingLeftMouse))
+    if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         m_Grabbed = nullptr;
         hovered->WorldMouseOnPress = hovered->WorldMouse;
@@ -1430,6 +1438,11 @@ void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &d
     win->ScreenPos = f32v2{0.f};
     // TODO(Isma): Guard this once overlay driving all windows is implemented
     parent->ScreenPos = f32v2{parent->Window->GetPosition()};
+    if (win == m_Grabbed)
+    {
+        win->Native->Flags |= NativeWindowFlag_CheckParentForGrab;
+        win->Grab.ScreenPos = win->GetActivePosition();
+    }
 }
 
 void Overlay::demoteWindow(OverlayWindow *win)
