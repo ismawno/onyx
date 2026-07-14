@@ -1395,13 +1395,13 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
 
     return nw;
 }
-NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims)
+NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims, const WindowFlags flags)
 {
     WindowSpecs specs{};
     specs.Position = i32v2{pos};
     specs.Dimensions = u32v2{dims};
     specs.PresentMode = GetMainNativeWindow()->Window->GetPresentMode();
-    specs.Flags = WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
+    specs.Flags = flags | WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
 
     Window *win = OpenWindow({.Window = specs, .Flags = OpenWindowFlag_ManualClose});
     NativeWindow *nw = createNativeWindow(win);
@@ -4086,7 +4086,7 @@ void Overlay::Draw()
                         NativeWindow *floatNative;
                         if (it == m_FloatWindows.end())
                         {
-                            floatNative = createNativeWindow(scpos, size);
+                            floatNative = createNativeWindow(scpos, size, WindowFlag_Floating);
                             floatNative->Parent = nw;
                             floatNative->Flags |=
                                 NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement;

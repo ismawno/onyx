@@ -1630,7 +1630,7 @@ class Overlay
     u32 processWindows();
 
     NativeWindow *createNativeWindow(Window *win);
-    NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims);
+    NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims, WindowFlags flags = 0);
 
     void destroyNativeWindow(NativeWindow *win);
     void removeNativeWindow(NativeWindow *win);
