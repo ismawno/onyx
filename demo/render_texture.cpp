@@ -28,10 +28,16 @@ int main()
     Onyx::RenderView<D2> *rview2 =
         rt2->CreateRenderView<D2>(&ui->GetCamera(), Onyx::RenderViewFlag_NormalizedCoordinates);
 
+    // main context targets window view -> sample shapes will render to main window
+    // main context targets render texture view -> sample shapes will render to render texture
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(wview);
     ctx->AddTarget(rview1);
 
+    // overlay's context targets its internal view (by default, not explicitly set here) and we also make it target the
+    // second render texture's view
+    // this means rt2 will only show the ui being drawn, NOT the shapes directly. for that, another view must be created
+    // for rt2 with `cam` and make ctx target that one as well
     const Onyx::NativeWindow *nw = ui->GetMainNativeWindow();
     nw->Context->AddTarget(rview2);
 

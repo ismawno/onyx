@@ -859,6 +859,11 @@ void Overlay::EndMenu()
     ly.EndPanel();
 }
 
+bool Overlay::IsCurrentWindowPromoted() const
+{
+    return m_Current && (m_Current->Flags & WindowInternalFlag_OwnsNative);
+}
+
 OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
 {
     for (u32 i = 0; i < m_WindowIds.GetSize(); ++i)
@@ -1039,6 +1044,7 @@ u32 Overlay::processWindows()
     NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
     for (NativeWindow *nw : m_NativeWindows)
     {
+        // nw->ScreenPos = f32v2{nw->Window->GetPosition()};
         nw->UpdateBorders();
         if (nw->Flags & NativeWindowFlag_RepresentsFloatElement)
         {
@@ -1390,7 +1396,7 @@ NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims)
     specs.Position = i32v2{pos};
     specs.Dimensions = u32v2{dims};
     specs.PresentMode = GetMainNativeWindow()->Window->GetPresentMode();
-    specs.Flags = WindowFlag_Floating | WindowFlag_InstallCallbacks | WindowFlag_Visible;
+    specs.Flags = WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
 
     Window *win = OpenWindow({.Window = specs, .Flags = OpenWindowFlag_ManualClose});
     NativeWindow *nw = createNativeWindow(win);
@@ -1428,6 +1434,7 @@ void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &d
     win->Layer = toTop();
     win->Flags |= WindowInternalFlag_OwnsNative;
     win->ScreenPos = f32v2{0.f};
+    parent->ScreenPos = f32v2{parent->Window->GetPosition()};
 }
 
 void Overlay::demoteWindow(OverlayWindow *win)

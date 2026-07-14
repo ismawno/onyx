@@ -907,6 +907,11 @@ class Overlay
         }
         return false;
     }
+    const NativeWindow *GetMainNativeWindow() const
+    {
+        return m_NativeWindows[0];
+    }
+    bool IsCurrentWindowPromoted() const;
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PUBLIC
@@ -1585,10 +1590,6 @@ class Overlay
     Camera<D2> &GetCamera()
     {
         return m_Camera;
-    }
-    const NativeWindow *GetMainNativeWindow() const
-    {
-        return m_NativeWindows[0];
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
