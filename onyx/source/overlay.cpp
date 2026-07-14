@@ -357,7 +357,8 @@ enum NativeWindowFlagBit : NativeWindowFlags
 
     NativeWindowFlag_CheckParentForGrab = 1U << 9,
 
-    NativeWindowFlagPersist = NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement,
+    NativeWindowFlagPersist = NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement |
+                              NativeWindowFlag_CheckParentForGrab,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -1278,13 +1279,11 @@ u32 Overlay::processWindows()
 
     NativeWindow *gnw = m_Grabbed ? m_Grabbed->Native : nullptr;
     if (gnw && gnw->Flags & NativeWindowFlag_CheckParentForGrab)
-    {
-        gnw->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         gnw = gnw->Parent;
-    }
     // now just handle grabbing, which is straightforward
     if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
+        gnw->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed = nullptr;
         hovered->WorldMouseOnPress = hovered->WorldMouse;
     }
