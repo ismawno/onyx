@@ -1186,7 +1186,6 @@ u32 Overlay::processWindows()
                 if (ev.Mouse.Button == Mouse_Button1)
                 {
                     nw->Flags |= NativeWindowFlag_LeftMouseReleased;
-                    nw->Flags &= ~NativeWindowFlag_PressingLeftMouse;
 
                     if (nw->ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
                         ++nw->OverflowClicks;
