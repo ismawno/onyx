@@ -203,6 +203,16 @@ enum LayoutAttachment : u8
     LayoutAttachment_Top = LayoutAttachment_Mirrored,
 };
 
+using LayoutElementFlags = u8;
+enum LayoutElementFlabBit : LayoutElementFlags
+{
+    LayoutElementFlag_FloatEnable = 1U << 0,
+    LayoutElementFlag_FloatDrawOnTop = 1U << 1,
+    LayoutElementFlag_FloatClip = 1U << 2,
+    LayoutElementFlag_ForceBlend = 1U << 3,
+    LayoutElementFlag_Drawable = 1U << 4,
+};
+
 struct LayoutFloatingParameters
 {
     // NOTE(Isma): Should maybe use flags here? 3 bools already
@@ -234,8 +244,6 @@ struct LayoutElement
     vec2<LayoutOffsetType> SelfOffsetType;
     vec2<LayoutAttachment> FloatAttachment;
     vec2<Alignment> FloatAlignment;
-    bool FloatClip;
-    bool DrawOnTop;
 
     f32v4 Padding; // left right bottom top
 
@@ -262,7 +270,7 @@ struct LayoutElement
     LayoutTextMode TextMode;
     LayoutOverflowMode SelfOverflow;
     LayoutOverflowMode ChildOverflow;
-    bool ForceBlend;
+    LayoutElementFlags Flags = 0;
 
     // NOTE(Isma, 25/06/26): Bool arg. not very nice but a bit overkill setting up flags for an option
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
@@ -270,6 +278,7 @@ struct LayoutElement
 
 struct LayoutDrawInfo
 {
+    usz Id;
     TKit::String Text;
     f32v2 Position;
     f32v2 Size;
@@ -277,6 +286,8 @@ struct LayoutDrawInfo
     f32v2 ClipMax;
     Color FillColor;
     Color OutlineColor;
+    u32 Depth;
+    u32 DepthCounter;
     f32 Radius;
     f32 OutlineWidth;
     u32 Unicode;
@@ -287,10 +298,9 @@ struct LayoutDrawInfo
     f32v2 TexScale;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
-    bool ForceBlend;
+    LayoutElementFlags Flags;
 };
 
-// TODO(Isma): Add texture handle as well, next to material. Trigger an assert if both are provided
 struct LayoutPanelParameters
 {
     Color FillColor = Color_Transparent;

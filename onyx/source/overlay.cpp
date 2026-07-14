@@ -44,6 +44,7 @@ enum StateFlagBit : StateFlags
 
     StateFlag_DragPayloadAccepted = 1U << 14,
     StateFlag_DragPayloadRejected = 1U << 15,
+    StateFlag_ActivePromotedFloatElement = 1U << 16,
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
                        StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
@@ -350,7 +351,12 @@ enum NativeWindowFlagBit : NativeWindowFlags
 
     // used when os window updates size so that child overlay window can follow along
     NativeWindowFlag_WantUpdateSize = 1U << 6,
-    NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse,
+
+    NativeWindowFlag_RepresentsFloatElement = 1U << 7,
+    NativeWindowFlag_ActivePromotedFloatElement = 1U << 8,
+
+    NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
+                              NativeWindowFlag_ActivePromotedFloatElement,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -403,10 +409,13 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
 
 Overlay::~Overlay()
 {
-    const NativeWindow *mainNative = GetMainNativeWindow();
     for (const OverlayWindow &win : m_OverlayWindows)
-        if (win.Native != mainNative && (win.Flags & WindowInternalFlag_OwnsNative))
+        if (win.Flags & WindowInternalFlag_OwnsNative)
             destroyNativeWindow(win.Native);
+
+    for (NativeWindow *nw : m_NativeWindows)
+        if (nw->Flags & NativeWindowFlag_RepresentsFloatElement)
+            destroyNativeWindow(nw);
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         if (Resources::IsResourceValid<D2>(m_DynamicMeshes[i].Handle, Resource_DynamicMesh))
@@ -450,7 +459,7 @@ void OverlayWindow::SyncNativeSize()
     if (!(Flags & WindowInternalFlag_OwnsNative))
         return;
 
-    if (!Math::Approximately(Size, Native->Size))
+    if (!Math::Approximately(Size, Native->Size, 1.f))
         Flags |= WindowInternalFlag_WantUpdateSize;
 }
 bool OverlayWindow::IsFullscreenBlocked() const
@@ -788,27 +797,27 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         LyAlg2 alg;
         f32v2 offset;
 
-        const NativeWindow *nw = m_Current->Native;
+        const f32v4 borders = getWorldEffectiveBorders();
+        const f32 lborder = borders[0];
+        const f32 rborder = borders[2];
+        const f32 bborder = borders[3];
+
         if (verticalLayout)
         {
-            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > nw->GetWorldRight();
+            const bool surpasses = (ppos[0] + psize[0] + csize[0]) > rborder;
             att = LyAtt2{surpasses ? LayoutAttachment_Left : LayoutAttachment_Right, LayoutAttachment_Top};
             alg = surpasses ? TopRight : TopLeft;
 
             const f32 spill = ppos[1] - csize[1] + psize[1];
-            const f32 bborder = nw->GetWorldBottom();
             const f32 yoffset = spill < bborder ? (bborder - spill) : 0.f;
 
             offset = {0.f, yoffset};
         }
         else
         {
-            const bool surpasses = (ppos[1] - csize[1]) < nw->GetWorldBottom();
+            const bool surpasses = (ppos[1] - csize[1]) < bborder;
             att = LyAtt2{LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
             alg = surpasses ? BottomLeft : TopLeft;
-
-            const f32 rborder = nw->GetWorldRight();
-            const f32 lborder = nw->GetWorldLeft();
 
             const f32 rspill = ppos[0] + csize[0];
             const f32 lspill = ppos[0];
@@ -1031,6 +1040,17 @@ u32 Overlay::processWindows()
     for (NativeWindow *nw : m_NativeWindows)
     {
         nw->UpdateBorders();
+        if (nw->Flags & NativeWindowFlag_RepresentsFloatElement)
+        {
+            // forward the events to the parent
+            for (const Event &ev : nw->Window->GetNewEvents())
+                if (ev.Type == Event_MousePressed || ev.Type == Event_MouseReleased || ev.Type == Event_CharInput ||
+                    ev.Type == Event_Scrolled)
+                    nw->Parent->Window->PushEvent(ev);
+
+            nw->Window->FlushEvents();
+            continue;
+        }
 
         const f32v2 localSmpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
         const f32v2 mpos = nw->ToWorld(localSmpos);
@@ -1432,6 +1452,14 @@ void Overlay::demoteAllWindows()
         if (win.Flags & WindowInternalFlag_OwnsNative)
             demoteWindow(&win);
     }
+    removeAllFloatWindows();
+}
+void Overlay::removeAllFloatWindows()
+{
+    for (NativeWindow *nw : m_NativeWindows)
+        if (nw->Flags & NativeWindowFlag_RepresentsFloatElement)
+            removeNativeWindow(nw);
+    m_FloatWindows.Clear();
 }
 
 static bool isOutsideNative(const NativeWindow *nw, const f32v2 &pos, const f32v2 &size)
@@ -1483,6 +1511,24 @@ void Overlay::manageWindowPromotions()
         else if (!ownsNative && canPromote && outsideNative && active)
             promoteWindow(&win, wpos, wsize);
     }
+    if (!(m_StateFlags & StateFlag_ActivePromotedFloatElement))
+        removeAllFloatWindows();
+    else
+        for (auto it = m_FloatWindows.begin(); it != m_FloatWindows.end();)
+        {
+            NativeWindow *nw = it->Value;
+            if (!(nw->Flags & NativeWindowFlag_ActivePromotedFloatElement))
+            {
+                removeNativeWindow(nw);
+                it = m_FloatWindows.Remove(it);
+            }
+            else
+            {
+                nw->Flags &= ~NativeWindowFlag_ActivePromotedFloatElement;
+                ++it;
+            }
+        }
+    m_StateFlags &= ~StateFlag_ActivePromotedFloatElement;
 }
 
 template <typename F> void Overlay::iterateReverseWindows(const F func)
@@ -3063,7 +3109,10 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
         const bool tight = flags & OverlayDropDownFlag_Tight;
 
-        const bool surpasses = (ppos - csize) < m_Current->Native->GetWorldBottom();
+        const f32v4 borders = getWorldEffectiveBorders();
+        const f32 bborder = borders[3];
+
+        const bool surpasses = (ppos - csize) < bborder;
         const LyAtt2 att = {LayoutAttachment_Left, surpasses ? LayoutAttachment_Top : LayoutAttachment_Bottom};
         const LyAlg2 alg = surpasses ? BottomLeft : TopLeft;
 
@@ -3190,7 +3239,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
         else
             m_Current->ScreenPos = parentOwns ? (scpos - parent->Native->ScreenPos) : scpos;
 
-        if (!Math::Approximately(m_Current->Size, size))
+        if (!Math::Approximately(m_Current->Size, size, 1.f))
         {
             m_Current->Size = size;
             if (ownsNative)
@@ -3962,7 +4011,7 @@ void Overlay::Draw()
     u32 idx = 0;
     for (OverlayWindow *win : m_ActiveWindows)
     {
-        const NativeWindow *nw = win->Native;
+        NativeWindow *nw = win->Native;
         RenderContext<D2> *ctx = nw->Context;
         if (++idx == modalWindow)
         {
@@ -3973,11 +4022,100 @@ void Overlay::Draw()
             ctx->Pop();
         }
         win->Layout.Compile();
-        ctx->Layout(win->Layout);
 
-        // we still need that flag below
-        if (!windowPromotions)
+        if (windowPromotions)
+        {
+            ctx->BeginLayoutElements();
+
+            struct FloatRedirect
+            {
+                RenderContext<D2> *Context;
+                f32v2 Offset;
+                u32 Depth;
+            };
+
+            TKit::StaticArray<FloatRedirect, ONYX_MAX_VIEWS> stack{};
+
+            u32 depth = 0;
+            f32v2 offset{0.f};
+            for (const LayoutDrawInfo &info : win->Layout.GetDrawInfo())
+            {
+                if (info.Depth <= depth && !stack.IsEmpty())
+                {
+                    ctx->EndLayoutElements();
+
+                    const FloatRedirect &rd = stack.GetBack();
+                    ctx = rd.Context;
+                    offset = rd.Offset;
+                    depth = rd.Depth;
+                    stack.Pop();
+                }
+                const LayoutElementFlags relFlags =
+                    LayoutElementFlag_FloatEnable | LayoutElementFlag_FloatDrawOnTop | LayoutElementFlag_FloatClip;
+                const LayoutElementFlags reqFlags = LayoutElementFlag_FloatEnable | LayoutElementFlag_FloatDrawOnTop;
+
+                if ((info.Flags & relFlags) == reqFlags)
+                {
+                    const f32v2 &size = info.Size;
+                    // subtract size bc real positions are at bottom left
+                    const f32v2 scpos = nw->ToScreen(f32v2{info.Position[0], info.Position[1] + size[1]});
+
+                    if (!Math::ApproachesZero(size[0], 1.f) && !Math::ApproachesZero(size[1], 1.f) &&
+                        isOutsideNative(nw, scpos, size))
+                    {
+                        m_StateFlags |= StateFlag_ActivePromotedFloatElement;
+                        const auto it = m_FloatWindows.Find(info.Id);
+                        NativeWindow *floatNative;
+                        if (it == m_FloatWindows.end())
+                        {
+                            floatNative = createNativeWindow(scpos, size);
+                            floatNative->Parent = nw;
+                            floatNative->Flags |=
+                                NativeWindowFlag_RepresentsFloatElement | NativeWindowFlag_ActivePromotedFloatElement;
+                            m_FloatWindows[info.Id] = floatNative;
+                        }
+                        else
+                        {
+                            floatNative = it->Value;
+                            floatNative->Flags |= NativeWindowFlag_ActivePromotedFloatElement;
+                        }
+
+                        stack.Append(ctx, offset, depth);
+                        depth = info.Depth;
+
+                        ctx = floatNative->Context;
+                        offset = floatNative->GetWorldBottomLeft() - info.Position;
+
+                        ctx->Flush();
+                        ctx->BeginLayoutElements();
+                    }
+                }
+                if (!(info.Flags & LayoutElementFlag_Drawable))
+                    continue;
+
+                if (stack.IsEmpty())
+                    ctx->LayoutElement(info);
+                else
+                {
+                    LayoutDrawInfo elm = info;
+                    elm.Position += offset;
+                    if (elm.ClipMin[0] != TKIT_F32_MAX)
+                    {
+                        elm.ClipMax += offset;
+                        elm.ClipMin += offset;
+                    }
+                    ctx->LayoutElement(elm);
+                }
+            }
+            for (const FloatRedirect &rd : stack)
+                rd.Context->EndLayoutElements();
+            ctx->EndLayoutElements();
+        }
+        else
+        {
             win->Flags &= ~WindowInternalFlag_Active;
+            ctx->Layout(win->Layout);
+        }
     }
 
     if (m_Tooltip)
@@ -4031,6 +4169,26 @@ u32 Overlay::getFormatDecimals(const char *format)
             return c1 - '0';
     }
     return 0;
+}
+
+f32v4 Overlay::getWorldEffectiveBorders() const
+{
+    const NativeWindow *nw = m_Current->Native;
+    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+    f32v2 topLeft;
+    f32v2 bottomRight;
+    if (windowPromotions)
+    {
+        const f32v2 mdims = getMonitorDimensions();
+        topLeft = nw->ToWorld(f32v2{0.f});
+        bottomRight = nw->ToWorld(mdims);
+    }
+    else
+    {
+        topLeft = nw->GetWorldTopLeft();
+        bottomRight = nw->GetWorldBottomRight();
+    }
+    return f32v4{topLeft[0], topLeft[1], bottomRight[0], bottomRight[1]};
 }
 
 /////////////////////////////////////////////

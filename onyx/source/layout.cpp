@@ -55,16 +55,17 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
         current.Type = LayoutElement_Floating;
         current.FloatAttachment = params.Floating.Attachment;
         current.FloatAlignment = params.Floating.Alignment;
-        current.FloatClip = params.Floating.Clip;
-        current.DrawOnTop = params.Floating.DrawOnTop;
+        current.Flags |= LayoutElementFlag_FloatEnable;
+        current.Flags |= params.Floating.Clip * LayoutElementFlag_FloatClip;
+        current.Flags |= params.Floating.DrawOnTop * LayoutElementFlag_FloatDrawOnTop;
     }
     else
-    {
         current.Type = LayoutElement_Panel;
-        current.DrawOnTop = false;
-    }
+
+    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
 
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
+
     m_ElementStack.Append(c);
     if (p != TKIT_U32_MAX)
     {
@@ -75,7 +76,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
             ++parent.NonFloatChildCount;
 
         current.SelfOverflow = parent.ChildOverflow;
-        current.DrawOnTop |= parent.DrawOnTop;
+        current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
     }
     else
     {
@@ -109,7 +110,6 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     current.Alignment = params.Alignment;
     current.ChildOverflow = params.Overflow;
     current.Shape = params.Shape;
-    current.ForceBlend = params.ForceBlend;
 
     if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
     {
@@ -164,7 +164,8 @@ usz Layout::OpenPanel(const LayoutId id)
     TKIT_ASSERT(m_InsertedElements.Contains(id),
                 "[ONYX][LAYOUT] Can only open a panel that was previously inserted into the layout");
 
-    m_ElementStack.Append(m_InsertedElements[id]);
+    const u32 c = m_InsertedElements[id];
+    m_ElementStack.Append(c);
     return id;
 }
 
@@ -197,7 +198,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
 
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
-    current.DrawOnTop = parent.DrawOnTop;
+    current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
 
     for (u32 i = 0; i < 2; ++i)
     {
@@ -215,7 +216,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.TexScale = params.TexScale;
     current.Material = params.Material;
     current.TextMode = params.Mode;
-    current.ForceBlend = params.ForceBlend;
+    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
 
@@ -256,7 +257,7 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
 
     current.Alignment = parent.Alignment;
     current.SelfOverflow = parent.ChildOverflow;
-    current.DrawOnTop = parent.DrawOnTop;
+    current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
     for (u32 i = 0; i < 2; ++i)
     {
         current.SelfOffset[i] = params.Offset[i].Offset;
@@ -271,7 +272,7 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.TexOffset = params.TexOffset;
     current.TexScale = params.TexScale;
     current.Material = params.Material;
-    current.ForceBlend = params.ForceBlend;
+    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
     const Resource glyph = Resources::GetGlyph(current.Font, code);
@@ -661,7 +662,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                     else if (fatt == LayoutAttachment_Center)
                         cpos += 0.5f * psize;
 
-                    if (child.FloatClip)
+                    if (child.Flags & LayoutElementFlag_FloatClip)
                         clipChild(child);
                     else
                     {
@@ -740,9 +741,25 @@ void Layout::Compile()
     floats.Reserve(m_Elements.GetSize());
 
     m_DrawInfo.Clear();
-
-    for (const LayoutElement &elm : m_Elements)
+    struct DepthInfo
     {
+        u32 Element;
+        u32 Depth;
+    };
+
+    TKit::StackArray<DepthInfo> dfsStack{};
+    dfsStack.Reserve(count);
+    dfsStack.Append(0, 0);
+
+    while (!dfsStack.IsEmpty())
+    {
+        const DepthInfo dinfo = dfsStack.GetBack();
+        dfsStack.Pop();
+        const LayoutElement &elm = m_Elements[dinfo.Element];
+
+        for (u32 i = elm.Children.GetSize() - 1; i < elm.Children.GetSize(); --i)
+            dfsStack.Append(elm.Children[i], dinfo.Depth + 1);
+
         if (elm.Id != NullLayoutId)
         {
             // persisting all past elements costs too much memory in the long run. this is at the cost of more "one
@@ -761,8 +778,11 @@ void Layout::Compile()
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
+        const bool drawable = sized && (fill || outline);
 
         LayoutDrawInfo info;
+        info.Id = elm.Id;
+        info.Depth = dinfo.Depth;
         info.Texture = elm.Texture;
         info.TexOffset = elm.TexOffset;
         info.TexScale = elm.TexScale;
@@ -786,7 +806,7 @@ void Layout::Compile()
         info.ClipMin = elm.ClipMin;
         info.ClipMax = elm.ClipMax;
         info.ShapeType = elm.Shape.Type;
-        info.ForceBlend = elm.ForceBlend;
+        info.Flags = elm.Flags | drawable * LayoutElementFlag_Drawable;
         switch (elm.Shape.Type)
         {
         case LayoutShape_Circle:
@@ -814,10 +834,8 @@ void Layout::Compile()
             break;
         }
 
-        if ((!fill && !outline) || !sized)
-            continue;
-
-        if (elm.DrawOnTop)
+        // TODO(Isma): Avoid this re direction with a smart trick with depth counter
+        if (elm.Flags & LayoutElementFlag_FloatDrawOnTop)
             floats.Append(info);
         else
             m_DrawInfo.Append(info);

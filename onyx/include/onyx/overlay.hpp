@@ -37,12 +37,12 @@ using OverlayTooltipFlags = u8;
 using OverlayWindowFlags = OverlayScrollFlags;
 
 using InputConvertInfoFlags = u8;
-using WidgetStateFlags = u16;
-using StateFlags = u16;
+using WidgetStateFlags = u8;
+using StateFlags = u32;
 using ResizeFlags = u8;
 using NextWindowFlags = u8;
 using FocusFlags = OverlayFocusFlags;
-using NativeWindowFlags = u8;
+using NativeWindowFlags = u16;
 
 /////////////////////////////////////////////
 /// END FLAG DEFINITIONS
@@ -1638,6 +1638,7 @@ class Overlay
     void demoteWindow(OverlayWindow *win);
 
     void demoteAllWindows();
+    void removeAllFloatWindows();
     void manageWindowPromotions();
 
     template <typename F> void iterateReverseWindows(F func);
@@ -1659,6 +1660,7 @@ class Overlay
     // time, so 32 should be plenty
     TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
+    TKit::TierHashMap<usz, NativeWindow *> m_FloatWindows{};
 
     TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
     TKit::TierArray<OverlayWindow *> m_WindowStack{};
@@ -2078,6 +2080,8 @@ class Overlay
     const FontData &getFontData() const;
     f32 getLineHeight() const;
     bool isAutoResize() const;
+
+    f32v4 getWorldEffectiveBorders() const;
 
     template <TKit::Numeric T> static const char *getFormat(const char *format)
     {

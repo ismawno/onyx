@@ -551,6 +551,18 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Layout(const Onyx::Layout &layout);
 
+    void BeginLayoutElements()
+    {
+        Push();
+        AlignX(Alignment_Left);
+        AlignY(Alignment_Bottom);
+    }
+    void LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D = nullptr);
+    void EndLayoutElements()
+    {
+        Pop();
+    }
+
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});
 
@@ -775,6 +787,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Resource material);
 #endif
+
+    void translateLayoutElement(const LayoutDrawInfo &info, u32 *depth);
+    void scaleLayoutElement(const LayoutDrawInfo &info);
 
     Resource getDynamicMeshHandle(const DynamicMeshData<D> *data)
     {

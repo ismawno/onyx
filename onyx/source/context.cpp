@@ -59,10 +59,11 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
 
 template <Dimension D> void IRenderContext<D>::Flush()
 {
-    TKIT_ASSERT(m_StateStack.IsEmpty(),
-                "[ONYX][CONTEXT] Mismatched Push() call found. For every Push(), there must be a Pop(). Stack has {} "
-                "entries left",
-                m_StateStack.GetSize());
+    TKIT_ASSERT(
+        m_StateStack.IsEmpty(),
+        "[ONYX][CONTEXT] Mismatched Push()/Pop() pair found. For every Push(), there must be a Pop(). Stack has {} "
+        "entries left",
+        m_StateStack.GetSize());
 
     m_State = ContextState<D>{};
     m_DefaultResources = Resources::GetDefaultResources();
@@ -760,108 +761,111 @@ void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLight
     p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
 }
 
+template <Dimension D>
+void IRenderContext<D>::translateLayoutElement(const LayoutDrawInfo &info, [[maybe_unused]] u32 *depth)
+{
+    if constexpr (D == D2)
+        Translate(info.Position, Transform_Intrinsic);
+    else
+    {
+        const f32 z = depth ? (1.f - f32(++(*depth)) / f32(1U << 24)) : 0.f;
+        Translate(f32v3{info.Position, z}, Transform_Intrinsic);
+    }
+}
+template <Dimension D> void IRenderContext<D>::scaleLayoutElement(const LayoutDrawInfo &info)
+{
+    if constexpr (D == D2)
+        Scale(info.Size, Transform_Intrinsic);
+    else
+        Scale(f32v3{info.Size, 1.f}, Transform_Intrinsic);
+}
+
 template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout)
 {
     u32 depth = 0;
-    const auto translate = [this, &depth](const LayoutDrawInfo &info) {
-        if constexpr (D == D2)
-        {
-            TKIT_UNUSED(depth);
-            Translate(info.Position, Transform_Intrinsic);
-        }
-        else
-        {
-            const f32 z = 1.f - f32(++depth) / f32(1U << 24);
-            Translate(f32v3{info.Position, z}, Transform_Intrinsic);
-        }
-    };
-    const auto scale = [this](const LayoutDrawInfo &info) {
-        if constexpr (D == D2)
-            Scale(info.Size, Transform_Intrinsic);
-        else
-            Scale(f32v3{info.Size, 1.f}, Transform_Intrinsic);
-    };
-    Push();
-    AlignX(Alignment_Left);
-    AlignY(Alignment_Bottom);
+    BeginLayoutElements();
     for (const LayoutDrawInfo &info : layout.GetDrawInfo())
+        if (info.Flags & LayoutElementFlag_Drawable)
+            LayoutElement(info, &depth);
+    EndLayoutElements();
+}
+template <Dimension D> void IRenderContext<D>::LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D)
+{
+    Push();
+    RenderFlags(element.RenderFlags);
+    Texture(element.Texture, element.TexOffset, element.TexScale);
+    Material(element.Material);
+    FillColor(element.FillColor);
+    OutlineColor(element.OutlineColor);
+    OutlineWidth(element.OutlineWidth);
+    if (element.Flags & LayoutElementFlag_ForceBlend)
+        Blend();
+
+    ClipRect<D> rect;
+    if constexpr (D == D2)
     {
-        Push();
-        RenderFlags(info.RenderFlags);
-        Texture(info.Texture, info.TexOffset, info.TexScale);
-        Material(info.Material);
-        FillColor(info.FillColor);
-        OutlineColor(info.OutlineColor);
-        OutlineWidth(info.OutlineWidth);
-        if (info.ForceBlend)
-            Blend();
+        rect.Min = element.ClipMin;
+        rect.Max = element.ClipMax;
+    }
+    else
+    {
+        // NOTE(Isma): A reasonably large number to not clip in the z axis
+        rect.Min = f32v3{element.ClipMin, -1e8};
+        rect.Max = f32v3{element.ClipMax, 1e8};
+    }
+    Clip(rect);
 
-        ClipRect<D> rect;
-        if constexpr (D == D2)
-        {
-            rect.Min = info.ClipMin;
-            rect.Max = info.ClipMax;
-        }
-        else
-        {
-            // NOTE(Isma): A reasonably large number to not clip in the z axis
-            rect.Min = f32v3{info.ClipMin, -1e8};
-            rect.Max = f32v3{info.ClipMax, 1e8};
-        }
-        Clip(rect);
+    switch (element.ShapeType)
+    {
+    case LayoutShape_Circle:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
+        Circle();
+        break;
 
-        switch (info.ShapeType)
-        {
-        case LayoutShape_Circle:
-            translate(info);
-            scale(info);
-            Circle();
-            break;
+    case LayoutShape_Static:
+    case LayoutShape_Rectangle:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
+        StaticMesh(element.Handle);
+        break;
 
-        case LayoutShape_Static:
-        case LayoutShape_Rectangle:
-            translate(info);
-            scale(info);
-            StaticMesh(info.Handle);
-            break;
+    case LayoutShape_Dynamic:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
+        DynamicMesh(element.Handle);
+        break;
 
-        case LayoutShape_Dynamic:
-            translate(info);
-            scale(info);
-            DynamicMesh(info.Handle);
-            break;
+    case LayoutShape_RoundedRectangle:
+        translateLayoutElement(element, depthCounter3D);
+        ParametricMesh(
+            element.Handle,
+            RoundedRectParameters{.Width = element.Size[0], .Height = element.Size[1], .Radius = element.Radius});
+        break;
+    case LayoutShape_Glyph:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
 
-        case LayoutShape_RoundedRectangle:
-            translate(info);
-            ParametricMesh(info.Handle,
-                           RoundedRectParameters{.Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
-            break;
-        case LayoutShape_Glyph:
-            translate(info);
-            scale(info);
+        Glyph(element.Handle);
+        break;
+    case LayoutShape_Text:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
 
-            Glyph(info.Handle);
-            break;
-        case LayoutShape_Text:
-            translate(info);
-            scale(info);
+        Font(element.Handle);
+        Text(element.Text);
+        break;
 
-            Font(info.Handle);
-            Text(info.Text);
-            break;
+    case LayoutShape_Unicode:
+        translateLayoutElement(element, depthCounter3D);
+        scaleLayoutElement(element);
 
-        case LayoutShape_Unicode:
-            translate(info);
-            scale(info);
+        Font(element.Handle);
+        Unicode(element.Unicode);
+        break;
 
-            Font(info.Handle);
-            Unicode(info.Unicode);
-            break;
-
-        default:
-            break;
-        }
-        Pop();
+    default:
+        break;
     }
     Pop();
 }
