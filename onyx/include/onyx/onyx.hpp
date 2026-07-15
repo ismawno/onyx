@@ -46,6 +46,10 @@ void SetTargetDeltaTime(Window *win, TKit::Timespan target);
 bool CanRenderImGui(Window *window);
 #endif
 
+Overlay *CreateFloatingOverlay(const OverlaySpecs &specs);
+Overlay *CreateFloatingOverlay();
+void DestroyFloatingOverlay(const Overlay *ov);
+
 template <Dimension D> RenderContext<D> *CreateRenderContext(u32 immediateDynamicMeshCapacity = 0);
 template <Dimension D> void DestroyRenderContext(RenderContext<D> *ctx);
 

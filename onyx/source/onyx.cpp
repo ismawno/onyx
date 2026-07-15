@@ -1,5 +1,6 @@
 #include "pch.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/overlay.hpp"
 #include "platform.hpp"
 #include "renderer.hpp"
 #include "resources.hpp"
@@ -51,6 +52,8 @@ struct ApiData
 
     TKit::TierArray<RenderContext<D2> *> Contexts2{};
     TKit::TierArray<RenderContext<D3> *> Contexts3{};
+
+    TKit::StaticArray<Overlay *, ONYX_MAX_VIEWS> Overlays{};
 
     TKit::Clock FrameClock{};
     TKit::Clock TimeClock{};
@@ -202,6 +205,46 @@ bool CanRenderImGui(Window *window)
 }
 #endif
 
+Overlay *CreateFloatingOverlay(const OverlaySpecs &specs)
+{
+    TKit::TierAllocator *tier = GetTier();
+    Overlay *ov = tier->Create<Overlay>(nullptr, specs);
+    return s_Data->Overlays.Append(ov);
+}
+Overlay *CreateFloatingOverlay()
+{
+    return CreateFloatingOverlay({});
+}
+
+static void destroyOverlay(Overlay *ov)
+{
+    TKit::TierAllocator *tier = GetTier();
+    tier->Destroy(ov);
+}
+static void destroyOverlay(const u32 idx)
+{
+    Overlay *ov = s_Data->Overlays[idx];
+    destroyOverlay(ov);
+    s_Data->Overlays.RemoveUnordered(s_Data->Overlays.begin() + idx);
+}
+
+static u32 getOverlayIndex(const Overlay *ov)
+{
+    for (u32 i = 0; i < s_Data->Overlays.GetSize(); ++i)
+        if (s_Data->Overlays[i] == ov)
+            return i;
+
+    TKIT_FATAL("[ONYX] Failed to find overlay. Ensure the overlay you are trying to destroy was created using the "
+               "'CreateFloatingOverlay()' function");
+    return TKIT_U32_MAX;
+}
+
+void DestroyFloatingOverlay(const Overlay *ov)
+{
+    const u32 idx = getOverlayIndex(ov);
+    destroyOverlay(idx);
+}
+
 template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediateDynamicMeshCapacity)
 {
     return Renderer::CreateContext<D>(immediateDynamicMeshCapacity);
@@ -246,11 +289,17 @@ bool Running()
             for (u32 i = s_Data->Windows.GetSize() - 1; i < s_Data->Windows.GetSize(); --i)
                 if (!(s_Data->Windows[i].Flags & OpenWindowFlag_DoNotDestroyOnQuit))
                     closeWindow(i);
+        if (s_Data->Quit & QuitFlag_DestroyFloatingOverlays)
+        {
+            for (Overlay *ov : s_Data->Overlays)
+                destroyOverlay(ov);
+            s_Data->Overlays.Clear();
+        }
 
         s_Data->Quit = 0;
         return false;
     }
-    return !s_Data->Windows.IsEmpty();
+    return !s_Data->Windows.IsEmpty() || !s_Data->Overlays.IsEmpty();
 }
 void Quit(const QuitFlags flags)
 {

@@ -402,8 +402,13 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
-    NativeWindow *nw = createNativeWindow(win);
-    nw->ScreenPos = f32v2{nw->Window->GetPosition()};
+    if (win)
+    {
+        NativeWindow *nw = createNativeWindow(win);
+        nw->ScreenPos = f32v2{nw->Window->GetPosition()};
+    }
+    else
+        m_Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
@@ -506,7 +511,31 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     const LayoutId id = title; /* forcing titles to be unique for now */ // PushId(title);
     const LayoutId nid = PushId(id);
 
-    m_Current = getOrCreateOverlayWindow(id);
+    OverlayWindow *win = getOrCreateOverlayWindow(id);
+
+    const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
+    // if ownsNative is true, ->Native cannot be null
+    if (m_NextWindow.Flags & NextWindowFlag_Position)
+    {
+        if (ownsNative)
+        {
+            win->SetActivePosition(m_NextWindow.ScreenPos);
+            win->Native->Window->SetPosition(i32v2{m_NextWindow.ScreenPos});
+        }
+        else
+            win->ScreenPos = m_NextWindow.ScreenPos;
+    }
+    if (m_NextWindow.Flags & NextWindowFlag_Size)
+    {
+        win->Size = m_NextWindow.Size;
+        if (ownsNative)
+            win->SyncNativeSize();
+    }
+    m_NextWindow.Flags = 0;
+
+    assignNativeWindowSomehow(win);
+
+    m_Current = win;
     m_Current->PopupDepth = m_CurrentPopupDepth;
 
     // we just dont support auto resize if we are fullscreen
@@ -532,12 +561,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     }
     addActiveWindow(m_Current);
 
-    if (m_NextWindow.Flags & NextWindowFlag_Position)
-        m_Current->SetActivePosition(m_NextWindow.ScreenPos);
-    if (m_NextWindow.Flags & NextWindowFlag_Size)
-        m_Current->Size = m_NextWindow.Size;
-    m_NextWindow.Flags = 0;
-
     const bool wasAutoresize = m_Current->Flags & OverlayWindowFlag_AutoResize;
 
     m_Current->Flags &= WindowInternalFlagPersist;
@@ -553,8 +576,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     ScrollInfo &sinfo = m_Scrollables[scrollId];
 
     NativeWindow *nw = m_Current->Native;
-    const bool ownsNative = m_Current->Flags & WindowInternalFlag_OwnsNative;
-
     if (autoResize && !wasAutoresize)
         m_Current->SizeBeforeAutoResize = m_Current->Size;
     else if (!autoResize && wasAutoresize)
@@ -704,8 +725,11 @@ void Overlay::EndMenuBar()
     PopId();
 }
 
-void Overlay::BeginMainMenuBar()
+bool Overlay::BeginMainMenuBar()
 {
+    if (m_Flags & OverlayFlag_FloatingMode)
+        return false;
+
     const NativeWindow *nw = GetMainNativeWindow();
     const f32v2 tl = nw->GetWorldTopLeft();
     const f32v2 tr = nw->GetWorldTopRight();
@@ -719,7 +743,7 @@ void Overlay::BeginMainMenuBar()
     m_WindowStack.Append(m_Current);
 
     if (m_Current->Flags & WindowInternalFlag_Active)
-        return;
+        return true;
 
     addActiveWindow(m_Current);
     Layout &ly = GetCurrentLayout();
@@ -736,6 +760,7 @@ void Overlay::BeginMainMenuBar()
                                                              .Alignment = CenterLeft,
                                                              .Sizing = {grow(), fit()},
                                                              .Shape = rect(OverlayStyle_MenuBarRadius)});
+    return true;
 }
 
 void Overlay::EndMainMenuBar()
@@ -878,10 +903,20 @@ OverlayWindow *Overlay::getOrCreateOverlayWindow(const LayoutId id)
     OverlayWindow &win = m_OverlayWindows.Append(m_LayoutSpecs);
     win.HeaderIcon = ArrowDownIcon;
     win.Layer = toTop();
-    win.Native = getMainNativeWindow();
-    win.ScreenPos = 0.5f * win.Native->GetDimensions() + m_WindowSpawnOffset;
+    win.Native = getMainNativeWindow(); // which may be null
     m_WindowSpawnOffset += m_Style[OverlayStyle_WindowSpawnDelta];
     return &win;
+}
+
+void Overlay::assignNativeWindowSomehow(OverlayWindow *win)
+{
+    if (win->Native)
+        return;
+
+    NativeWindow *nw = getMainNativeWindow();
+    if (!nw)
+        nw = m_Current ? m_Current->Native : promoteWindow(win, win->ScreenPos, win->Size);
+    win->Native = nw;
 }
 
 void Overlay::addActiveWindow(OverlayWindow *win)
@@ -1039,8 +1074,6 @@ u32 Overlay::processWindows()
 
     bool pressingMouse = false;
 
-    NativeWindow *mainNative = getMainNativeWindow();
-
     NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
     for (NativeWindow *nw : m_NativeWindows)
     {
@@ -1071,8 +1104,6 @@ u32 Overlay::processWindows()
         if (!m_Grabbed && (!hovered || hovered->Layer < nw->Layer) && nw->Window->IsHovered())
             hovered = nw;
     }
-    if (!hovered)
-        hovered = mainNative;
 
     if (m_StateFlags & StateFlag_MustCollapsePopups)
     {
@@ -1098,7 +1129,7 @@ u32 Overlay::processWindows()
 
     m_StateFlags |= widgetBlocked * StateFlag_WantCaptureMouse;
     // if nothing is grabbed, we check mouse cursors here
-    if (!m_Grabbed)
+    if (!m_Grabbed && hovered)
     {
         MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseWindows([&](OverlayWindow *win) {
@@ -1286,12 +1317,14 @@ u32 Overlay::processWindows()
     else
         gnw = gchild;
 
+    if (hovered && !(hovered->Flags & NativeWindowFlag_PressingLeftMouse))
+        hovered->WorldMouseOnPress = hovered->WorldMouse;
+
     // now just handle grabbing, which is straightforward
     if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         gchild->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed = nullptr;
-        hovered->WorldMouseOnPress = hovered->WorldMouse;
     }
     else if (m_Grabbed)
     {
@@ -1347,7 +1380,7 @@ u32 Overlay::processWindows()
         }
     }
 
-    if (!m_HoveredLayoutCandidate ||
+    if (!hovered || !m_HoveredLayoutCandidate ||
         !m_HoveredLayoutCandidate->IsHovered(m_HoveredWidgetCandidate, hovered->WorldMouse))
         m_HoveredWidgetCandidate = NullLayoutId;
 
@@ -1402,7 +1435,9 @@ NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims, c
     WindowSpecs specs{};
     specs.Position = i32v2{pos};
     specs.Dimensions = u32v2{dims};
-    specs.PresentMode = GetMainNativeWindow()->Window->GetPresentMode();
+
+    const NativeWindow *mainNative = GetMainNativeWindow();
+    specs.PresentMode = mainNative ? mainNative->Window->GetPresentMode() : PresentMode_Immediate;
     specs.Flags = flags | WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
 
     Window *win = OpenWindow(
@@ -1425,7 +1460,8 @@ void Overlay::removeNativeWindow(NativeWindow *win)
     for (u32 i = 0; i < m_NativeWindows.GetSize(); ++i)
         if (m_NativeWindows[i] == win)
         {
-            TKIT_ASSERT(i != 0, "[ONYX][OVERLAY] Main native window can never be removed!");
+            TKIT_ASSERT((m_Flags & OverlayFlag_FloatingMode) || i != 0,
+                        "[ONYX][OVERLAY] Main native window can never be removed when not in floating mode!");
             destroyNativeWindow(win);
             m_NativeWindows.RemoveUnordered(m_NativeWindows.begin() + i);
             return;
@@ -1433,7 +1469,7 @@ void Overlay::removeNativeWindow(NativeWindow *win)
     TKIT_FATAL("[ONYX][OVERLAY] Native window to remove was not found!");
 }
 
-void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims)
+NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims)
 {
     NativeWindow *parent = win->Native;
     win->Native = createNativeWindow(pos, dims);
@@ -1442,19 +1478,24 @@ void Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &d
     win->Layer = toTop();
     win->Flags |= WindowInternalFlag_OwnsNative;
     win->ScreenPos = f32v2{0.f};
-    // TODO(Isma): Guard this once overlay driving all windows is implemented
-    parent->ScreenPos = f32v2{parent->Window->GetPosition()};
+
+    if (parent)
+        parent->ScreenPos = f32v2{parent->Window->GetPosition()};
     if (win == m_Grabbed)
     {
         win->Native->Flags |= NativeWindowFlag_CheckParentForGrab;
         win->Grab.ScreenPos = win->GetActivePosition();
     }
+    return win->Native;
 }
 
 void Overlay::demoteWindow(OverlayWindow *win)
 {
     NativeWindow *parent = win->Native->Parent;
-    win->ScreenPos = win->Native->ScreenPos - parent->ScreenPos;
+    if (parent)
+        win->ScreenPos = win->Native->ScreenPos - parent->ScreenPos;
+    else
+        win->ScreenPos = win->Native->ScreenPos;
 
     removeNativeWindow(win->Native);
     win->Native = parent;
@@ -1507,6 +1548,11 @@ void Overlay::manageWindowPromotions()
         const bool canPromote = !(win.Flags & OverlayWindowFlag_NoPromotions);
 
         NativeWindow *nw = win.Native;
+        TKIT_ASSERT(!active || nw, "[ONYX][OVERLAY] If a window is active, it cannot have a null native window");
+
+        if (!nw)
+            continue;
+
         const bool ownsNative = win.Flags & WindowInternalFlag_OwnsNative;
         if (ownsNative)
         {
@@ -1523,6 +1569,14 @@ void Overlay::manageWindowPromotions()
         nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
         win.Flags &= ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active);
 
+        // if a window owns a native and that native doesnt have a parent (meaning not even main window is parented ->
+        // main window does not exist -> we are in floating mode, so we cannot demote)
+        if (ownsNative && !nw->Parent)
+        {
+            if (!active)
+                demoteWindow(&win);
+            continue;
+        }
         const f32v2 &wsize = win.Size;
         const f32v2 wpos = ownsNative ? nw->ScreenPos : (nw->ScreenPos + win.ScreenPos);
 
@@ -1811,10 +1865,9 @@ void Overlay::BeginTabBar(const LayoutId id)
     const LayoutId tid = PushId(id);
 
     Layout &ly = GetCurrentLayout();
-    ly.BeginPanel(LyPnPar{.FillColor = m_Style[OverlayColor_ScrollAreaBorders],
-                          .Direction = LayoutDirection_TopToBottom,
+    ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
                           .Alignment = CenterLeft,
-                          .Sizing = scrollSizing,
+                          .Sizing = {grow(), fit()},
                           .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius])});
     beginScroll({.Id = tid,
                  .Direction = LayoutDirection_LeftToRight,
@@ -3223,6 +3276,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 
     const LayoutId id = "__onyx_id_Tooltip";
     OverlayWindow *parent = m_Current;
+
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->Flags |= OverlayWindowFlag_AutoResize;
 
@@ -4082,7 +4136,7 @@ void Overlay::Draw()
                     const f32v2 scpos = nw->ToScreen(f32v2{info.Position[0], info.Position[1] + size[1]});
 
                     if (!Math::ApproachesZero(size[0], 1.f) && !Math::ApproachesZero(size[1], 1.f) &&
-                        isOutsideNative(nw, scpos, size))
+                        (!stack.IsEmpty() || isOutsideNative(nw, scpos, size)))
                     {
                         m_StateFlags |= StateFlag_ActivePromotedFloatElement;
                         const auto it = m_FloatWindows.Find(info.Id);
@@ -4099,6 +4153,10 @@ void Overlay::Draw()
                         {
                             floatNative = it->Value;
                             floatNative->Flags |= NativeWindowFlag_ActivePromotedFloatElement;
+                            const i32v2 ipos = i32v2{scpos};
+                            const i32v2 wpos = floatNative->Window->GetPosition();
+                            if (ipos[0] != wpos[0] || ipos[1] != wpos[1])
+                                floatNative->Window->SetPosition(ipos);
                         }
 
                         stack.Append(ctx, offset, depth);
@@ -4293,9 +4351,8 @@ void Overlay::ShowDemo()
         }
     };
 
-    if (enableMainMenu)
+    if (enableMainMenu && ov->BeginMainMenuBar())
     {
-        ov->BeginMainMenuBar();
         drawMenus();
         ov->EndMainMenuBar();
     }

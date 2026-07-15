@@ -4007,6 +4007,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
         displayRanges<D>(ov, "Transfer", arena.Transfer);
         displayRanges<D>(ov, "Graphics", arena.Graphics);
         plotRanges<D>(ov, arena.Transfer, arena.Graphics);
+        ov->PopTree();
     }
     if (ov->PushTree("Index buffer", OverlayTreeFlag_DrawLines))
     {
@@ -4014,6 +4015,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
         displayRanges<D>(ov, "Transfer", arena.Transfer);
         displayRanges<D>(ov, "Graphics", arena.Graphics);
         plotRanges<D>(ov, arena.Transfer, arena.Graphics);
+        ov->PopTree();
     }
     ov->PopId();
 }

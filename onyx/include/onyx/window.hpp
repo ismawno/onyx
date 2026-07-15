@@ -2,7 +2,6 @@
 
 #include "onyx/dimension.hpp"
 #include "onyx/input.hpp"
-#include "onyx/color.hpp"
 #include "onyx/core.hpp"
 #include "onyx/render_target.hpp"
 #include "tkit/profiling/clock.hpp"

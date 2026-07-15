@@ -55,6 +55,9 @@ using NativeWindowFlags = u16;
 enum OverlayFlagBit : OverlayFlags
 {
     OverlayFlag_WindowPromotions = 1U << 0,
+
+    // internal
+    OverlayFlag_FloatingMode = 1U << 1,
 };
 
 /////////////////////////////////////////////
@@ -490,7 +493,7 @@ struct OverlayWindow
 
     Layout Layout;
 
-    f32v2 ScreenPos;
+    f32v2 ScreenPos{120.f};
 
     f32v2 Size{240.f};
     // its nice when disabling auto resize to recover old size
@@ -872,7 +875,7 @@ class Overlay
     bool BeginMenuBar();
     void EndMenuBar();
 
-    void BeginMainMenuBar();
+    bool BeginMainMenuBar();
     void EndMainMenuBar();
 
     bool BeginMenu(TKit::StringView label);
@@ -912,7 +915,7 @@ class Overlay
     }
     const NativeWindow *GetMainNativeWindow() const
     {
-        return m_NativeWindows[0];
+        return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
     bool IsCurrentWindowPromoted() const;
 
@@ -1625,6 +1628,7 @@ class Overlay
     /////////////////////////////////////////////
 
     OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
+    void assignNativeWindowSomehow(OverlayWindow *win);
 
     void addActiveWindow(OverlayWindow *win);
     void drawWindowBorders();
@@ -1638,7 +1642,7 @@ class Overlay
     void destroyNativeWindow(NativeWindow *win);
     void removeNativeWindow(NativeWindow *win);
 
-    void promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
+    NativeWindow *promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
     void demoteWindow(OverlayWindow *win);
 
     void demoteAllWindows();
@@ -1649,7 +1653,7 @@ class Overlay
 
     NativeWindow *getMainNativeWindow()
     {
-        return m_NativeWindows[0];
+        return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
 
     u64 toTop()
