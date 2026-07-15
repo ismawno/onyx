@@ -4362,7 +4362,12 @@ void Overlay::ShowDemo()
     {
         if (ov->PushTree("Configuration"))
         {
+            ov->BeginDisabled(m_Flags & OverlayFlag_FloatingMode);
             ov->CheckBoxFlags("OverlayFlag_WindowPromotions", &m_Flags, Onyx::OverlayFlag_WindowPromotions);
+            ov->EndDisabled();
+            if (m_Flags & OverlayFlag_FloatingMode)
+                ov->SetItemTooltip(
+                    "When in floating mode, window promotions must be on or terrible things will happen");
             ov->PopTree();
         }
         const f32 ftime = Onyx::GetDeltaTime(GetMainNativeWindow()->Window).AsMilliseconds();
