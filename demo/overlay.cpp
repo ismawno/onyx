@@ -15,6 +15,13 @@ int main()
     while (Onyx::Running())
     {
         ui->ShowDemo();
+        if (ui->BeginWindow("Overlay demo"))
+        {
+            if (ui->Button("Quit"))
+                Onyx::Quit();
+            ui->EndWindow();
+        }
+
         ui->Draw();
 
         Onyx::Transfer();

@@ -12,8 +12,17 @@ enum OpenWindowFlagBit : OpenWindowFlags
 #ifdef ONYX_ENABLE_IMGUI
     OpenWindowFlag_EnableImGui = 1U << 0,
 #endif
-    OpenWindowFlag_ManualClose = 1U << 1,
-    OpenWindowFlag_NoDefaultDeltaTime = 1U << 2,
+    OpenWindowFlag_DoNotDestroyOnQuit = 1U << 1,
+    OpenWindowFlag_DoNotDestroyOnShouldClose = 1U << 2,
+    OpenWindowFlag_NoDefaultDeltaTime = 1U << 3,
+};
+
+using QuitFlags = u8;
+enum QuitFlagBit : QuitFlags
+{
+    QuitFlag_Quit = 1U << 0,
+    QuitFlag_DestroyWindows = 1U << 1,
+    QuitFlag_DestroyFloatingOverlays = 1U << 2,
 };
 
 struct OpenWindowSpecs
@@ -44,7 +53,7 @@ RenderTexture *CreateRenderTexture(const u32v2 &dimensions);
 void DestroyRenderTexture(RenderTexture *rtex);
 
 bool Running();
-void Quit();
+void Quit(QuitFlags flags = 0);
 
 struct TransferInfo
 {

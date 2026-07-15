@@ -399,6 +399,9 @@ struct NativeWindow
     // differ
     f32v2 Size{0.f};
 
+    f32v2 ScreenMousePos{0.f};
+    f32v2 ScreenMouseDelta{0.f};
+
     f32v2 WorldMouse{0.f};
     f32v2 WorldMouseOnPress{0.f};
     f32v2 WorldMouseDelta{0.f};
@@ -1661,7 +1664,7 @@ class Overlay
     // time, so 32 should be plenty
     TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
-    TKit::TierHashMap<usz, NativeWindow *> m_FloatWindows{};
+    TKit::StaticHashMap<usz, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
 
     TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
     TKit::TierArray<OverlayWindow *> m_WindowStack{};
@@ -2054,9 +2057,6 @@ class Overlay
 
     OverlayDragDropPayload m_DragDropPayload{};
     OverlayDragDropFlags m_DragDropFlags = 0;
-
-    f32v2 m_ScreenMousePos{0.f};
-    f32v2 m_ScreenMouseDelta{0.f};
 
     /////////////////////////////////////////////
     /// END INTERACTION/INPUT PRIVATE

@@ -55,6 +55,7 @@ struct ApiData
     TKit::Clock FrameClock{};
     TKit::Clock TimeClock{};
     TKit::Timespan DeltaTime{};
+    QuitFlags Quit = 0;
 };
 
 static TKit::Storage<ApiData> s_Data{};
@@ -108,23 +109,6 @@ static void shutdownImGui(WindowData &wdata)
 #    endif
 }
 #endif
-
-void InitializeApi()
-{
-    s_Data.Construct();
-}
-void TerminateApi()
-{
-    TKit::TierAllocator *tier = GetTier();
-#ifdef ONYX_ENABLE_IMGUI
-    for (WindowData &wdata : s_Data->Windows)
-        if (wdata.ImContext)
-            shutdownImGui(wdata);
-#endif
-    for (RenderTexture *rtex : s_Data->RenderTextures)
-        tier->Destroy(rtex);
-    s_Data.Destruct();
-}
 
 static u32 getWindowIndex(const Window *window)
 {
@@ -255,13 +239,22 @@ bool Running()
 {
     // a bit weird to have it here, but it works
     Platform::PollEvents();
+    //
+    if (s_Data->Quit & QuitFlag_Quit)
+    {
+        if (s_Data->Quit & QuitFlag_DestroyWindows)
+            for (u32 i = s_Data->Windows.GetSize() - 1; i < s_Data->Windows.GetSize(); --i)
+                if (!(s_Data->Windows[i].Flags & OpenWindowFlag_DoNotDestroyOnQuit))
+                    closeWindow(i);
+
+        s_Data->Quit = 0;
+        return false;
+    }
     return !s_Data->Windows.IsEmpty();
 }
-void Quit()
+void Quit(const QuitFlags flags)
 {
-    for (WindowData &wdata : s_Data->Windows)
-        cleanupWindowData(wdata);
-    s_Data->Windows.Clear();
+    s_Data->Quit = flags | QuitFlag_Quit;
 }
 
 void Transfer(const TransferInfo &info)
@@ -451,7 +444,7 @@ void Render(const RenderInfo &info)
     for (u32 i = 0; i < s_Data->Windows.GetSize(); ++i)
     {
         const WindowData &wdata = s_Data->Windows[i];
-        if (!(wdata.Flags & OpenWindowFlag_ManualClose) && wdata.Window->ShouldClose())
+        if (!(wdata.Flags & OpenWindowFlag_DoNotDestroyOnShouldClose) && wdata.Window->ShouldClose())
             closeWindow(i);
     }
 
@@ -475,6 +468,21 @@ void Render(const RenderInfo &info)
     }
     s_Data->DeltaTime = s_Data->FrameClock.Restart();
     TKIT_PROFILE_MARK_FRAME();
+}
+
+void InitializeApi()
+{
+    s_Data.Construct();
+}
+void TerminateApi()
+{
+    TKit::TierAllocator *tier = GetTier();
+    for (WindowData &wdata : s_Data->Windows)
+        cleanupWindowData(wdata);
+
+    for (RenderTexture *rtex : s_Data->RenderTextures)
+        tier->Destroy(rtex);
+    s_Data.Destruct();
 }
 
 template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);

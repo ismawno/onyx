@@ -1041,10 +1041,6 @@ u32 Overlay::processWindows()
 
     NativeWindow *mainNative = getMainNativeWindow();
 
-    const f32v2 smpos = mainNative->ScreenPos + mainNative->Window->GetAbsoluteMousePosition();
-    m_ScreenMouseDelta = smpos - m_ScreenMousePos;
-    m_ScreenMousePos = smpos;
-
     NativeWindow *hovered = m_Grabbed ? m_Grabbed->Native : nullptr;
     for (NativeWindow *nw : m_NativeWindows)
     {
@@ -1062,8 +1058,11 @@ u32 Overlay::processWindows()
             continue;
         }
 
-        const f32v2 localSmpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
-        const f32v2 mpos = nw->ToWorld(localSmpos);
+        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
+        nw->ScreenMouseDelta = smpos - nw->ScreenMousePos;
+        nw->ScreenMousePos = smpos;
+
+        const f32v2 mpos = nw->ToWorld(smpos);
         nw->WorldMouseDelta = mpos - nw->WorldMouse;
         nw->WorldMouse = mpos;
 
@@ -1281,7 +1280,8 @@ u32 Overlay::processWindows()
 
     NativeWindow *gchild = m_Grabbed ? m_Grabbed->Native : nullptr;
     NativeWindow *gnw;
-    if (gchild && gchild->Flags & NativeWindowFlag_CheckParentForGrab)
+    const bool checkParent = gchild && gchild->Flags & NativeWindowFlag_CheckParentForGrab;
+    if (checkParent)
         gnw = gchild->Parent;
     else
         gnw = gchild;
@@ -1304,7 +1304,7 @@ u32 Overlay::processWindows()
         f32v2 &s = ginfo.Size;
 
         const f32v2 &ms = m_Grabbed->MinSize;
-        const f32v2 &md = m_ScreenMouseDelta;
+        const f32v2 &md = checkParent ? gnw->ScreenMouseDelta : nw->ScreenMouseDelta;
 
         const bool move = ginfo.Flags == 0 && m_Grabbed->CanMove();
         const bool resize = m_Grabbed->CanResize();
@@ -1405,7 +1405,8 @@ NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims, c
     specs.PresentMode = GetMainNativeWindow()->Window->GetPresentMode();
     specs.Flags = flags | WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
 
-    Window *win = OpenWindow({.Window = specs, .Flags = OpenWindowFlag_ManualClose});
+    Window *win = OpenWindow(
+        {.Window = specs, .Flags = OpenWindowFlag_DoNotDestroyOnQuit | OpenWindowFlag_DoNotDestroyOnShouldClose});
     NativeWindow *nw = createNativeWindow(win);
     nw->ScreenPos = pos;
     return nw;
@@ -4149,8 +4150,7 @@ void Overlay::Draw()
     }
 
     m_ActiveWindows.Clear();
-    const NativeWindow *mainNative = GetMainNativeWindow();
-    if (!windowPromotions || mainNative->Window->ShouldClose())
+    if (!windowPromotions)
         demoteAllWindows();
     else
         manageWindowPromotions();
@@ -4807,13 +4807,13 @@ void Overlay::ShowDemo()
 
         if (ov->PushTree("Tabs", drawLines))
         {
-            ov->TextRaw(TextMode_Wrapped,
+            ov->TextRaw(Onyx::TextMode_Wrapped,
                         "Tab features are currently pretty minimal at the moment and the styling is not great either");
             static bool tab1 = true;
             ov->CheckBox("Enable tab 1", &tab1);
 
             ov->BeginTabBar();
-            if (ov->BeginTab("Tab 1", &tab1, OverlayTabFlag_StartOpen))
+            if (ov->BeginTab("Tab 1", &tab1, Onyx::OverlayTabFlag_StartOpen))
             {
                 ov->TextRaw("I am tab 1");
                 ov->EndTab();
