@@ -100,13 +100,13 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_ListBoxMaxHeight] = 140.f;
 
     vars[OverlayStyle_TooltipOffset] = 12.f;
-    vars[OverlayStyle_TooltipPadding] = 4.f;
+    vars[OverlayStyle_TooltipPadding] = 2.f;
 
     vars[OverlayStyle_MainMenuBarPadding] = 4.f;
     vars[OverlayStyle_MinimumMenuWidth] = 150.f;
 
     vars[OverlayStyle_WindowPadding] = 8.f;
-    vars[OverlayStyle_WindowBorderWidth] = 4.f;
+    vars[OverlayStyle_WindowBorderWidth] = 3.f;
     vars[OverlayStyle_WindowSpawnDelta] = 32.f;
 
     vars[OverlayStyle_HeaderPadding] = 4.f;
@@ -677,7 +677,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                                            .Direction = LayoutDirection_LeftToRight,
                                            .Alignment = CenterLeft,
                                            .Sizing = {flex(), fit()},
-                                           .Shape = rect(OverlayStyle_MenuBarRadius)});
+                                           .Shape = rect(m_Style[OverlayStyle_MenuBarRadius])});
         // To be opened by menu bar calls
         ly.EndPanel();
     }
@@ -737,7 +737,7 @@ bool Overlay::BeginMainMenuBar()
 
     m_Current = getOrCreateOverlayWindow("__onyx_id_Main_menu_bar");
     m_Current->Flags |= WindowInternalFlag_MainMenuBar;
-    m_Current->Flags |= OverlayWindowFlag_NoPromotions;
+    m_Current->Flags |= OverlayWindowFlag_NoPromotion;
 
     m_StateFlags |= StateFlag_MainMenuBarActive;
     m_WindowStack.Append(m_Current);
@@ -759,7 +759,7 @@ bool Overlay::BeginMainMenuBar()
                                                              .Direction = LayoutDirection_LeftToRight,
                                                              .Alignment = CenterLeft,
                                                              .Sizing = {grow(), fit()},
-                                                             .Shape = rect(OverlayStyle_MenuBarRadius)});
+                                                             .Shape = rect(m_Style[OverlayStyle_MenuBarRadius])});
     return true;
 }
 
@@ -1545,7 +1545,7 @@ void Overlay::manageWindowPromotions()
     for (OverlayWindow &win : m_OverlayWindows)
     {
         const bool active = win.Flags & WindowInternalFlag_Active;
-        const bool canPromote = !(win.Flags & OverlayWindowFlag_NoPromotions);
+        const bool canPromote = !(win.Flags & OverlayWindowFlag_NoPromotion);
 
         NativeWindow *nw = win.Native;
         TKIT_ASSERT(!active || nw, "[ONYX][OVERLAY] If a window is active, it cannot have a null native window");
@@ -3109,7 +3109,8 @@ bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const 
             win->Native = m_Current->Native;
 
         const f32v2 &size = win->Size;
-        win->SetActivePosition(win->ToScreen(computeMouseAlignedPosition(win->Native, size)));
+        win->SetActivePosition(
+            win->ToScreen(computeMouseAlignedPosition(win->Native, size, !(flags & OverlayWindowFlag_NoPromotion))));
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
 
@@ -3242,13 +3243,13 @@ static f32v2 getMonitorDimensions()
 {
     return f32v2{Platform::GetVideoMode(Platform::GetMainMonitor()).Dimensions};
 }
-f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const
+f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size, const bool allowPromotions) const
 {
     const f32 toffset = m_Style[OverlayStyle_TooltipOffset];
     const f32v2 offset = f32v2{toffset, -2.f * toffset};
 
     f32v2 pos = win->WorldMouse + offset;
-    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+    const bool windowPromotions = allowPromotions && (m_Flags & OverlayFlag_WindowPromotions);
 
     const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
@@ -3300,7 +3301,11 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
     if (!ownsNative)
         m_Current->Native = parent->Native;
 
-    const f32v2 pos = computeMouseAlignedPosition(parent->Native, size);
+    const bool noProm = flags & OverlayTooltipFlag_NoPromotion;
+    if (noProm)
+        m_Current->Flags |= OverlayWindowFlag_NoPromotion;
+
+    const f32v2 pos = computeMouseAlignedPosition(parent->Native, size, !noProm);
     if (m_Flags & OverlayFlag_WindowPromotions)
     {
         // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
@@ -4297,9 +4302,10 @@ void Overlay::ShowDemo()
         ov->CheckBoxFlags("OverlayWindowFlag_NoScrollBar", flags, Onyx::OverlayWindowFlag_NoScrollBar);
         ov->CheckBoxFlags("OverlayWindowFlag_NoHeaderBar", flags, Onyx::OverlayWindowFlag_NoHeaderBar);
         ov->CheckBoxFlags("OverlayWindowFlag_NoBringToFocus", flags, Onyx::OverlayWindowFlag_NoBringToFocus);
-        ov->CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
+        ov->CheckBoxFlags("OverlayWindowFlag_NoPromotion", flags, Onyx::OverlayWindowFlag_NoPromotion);
         ov->CheckBoxFlags("OverlayWindowFlag_NoVerticalScroll", flags, Onyx::OverlayWindowFlag_NoVerticalScroll);
         ov->CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
+        ov->CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
         ov->CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
         ov->CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
         ov->CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
@@ -4904,21 +4910,24 @@ void Overlay::ShowDemo()
 
         if (ov->PushTree("Tooltips", drawLines))
         {
+            static Onyx::OverlayTooltipFlags tflags = 0;
+            ov->CheckBoxFlags("OverlayTooltipFlag_NoPromotion", &tflags, Onyx::OverlayTooltipFlag_NoPromotion);
+
             ov->Button("I am an instant tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
             if (ov->IsItemHovered())
-                ov->SetTooltip("I am instant!");
+                ov->SetTooltip(tflags, "I am instant!");
 
             ov->Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
             if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
-                ov->SetTooltip("I am a bit delayed!");
+                ov->SetTooltip(tflags, "I am a bit delayed!");
 
             ov->Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
             if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
-                ov->SetTooltip("I am delayed!");
+                ov->SetTooltip(tflags, "I am delayed!");
 
             ov->Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
             if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
-                ov->SetTooltip("I am stationary!");
+                ov->SetTooltip(tflags, "I am stationary!");
             ov->PopTree();
         }
 

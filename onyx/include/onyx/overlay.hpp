@@ -360,7 +360,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_NoCollapse = 1U << 13,
     OverlayWindowFlag_NoHeaderBar = 1U << 14,
     OverlayWindowFlag_NoBringToFocus = 1U << 15,
-    OverlayWindowFlag_NoPromotions = 1U << 16,
+    OverlayWindowFlag_NoPromotion = 1U << 16,
     OverlayWindowFlag_AutoResize = 1U << 17,
     OverlayWindowFlag_BringToTop = 1U << 18,
     OverlayWindowFlag_Modal = 1U << 19,
@@ -724,6 +724,7 @@ enum OverlayTreeFlagBit : OverlayTreeFlags
 enum OverlayTooltipFlagBit : OverlayTooltipFlags
 {
     OverlayTooltipFlag_Reset = 1U << 0,
+    OverlayTooltipFlag_NoPromotion = 1U << 1
 };
 
 enum InputConvertFlagBit : InputConvertInfoFlags
@@ -1281,11 +1282,16 @@ class Overlay
 
     void BeginTooltip(OverlayTooltipFlags flags = 0);
     void EndTooltip();
-    template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    template <typename... Args>
+    void SetTooltip(const OverlayTooltipFlags flags, const fmt::format_string<Args...> str, Args &&...args)
     {
-        BeginTooltip(OverlayTooltipFlag_Reset);
+        BeginTooltip(flags | OverlayTooltipFlag_Reset);
         Text(str, std::forward<Args>(args)...);
         EndTooltip();
+    }
+    template <typename... Args> void SetTooltip(const fmt::format_string<Args...> str, Args &&...args)
+    {
+        SetTooltip(0, str, std::forward<Args>(args)...);
     }
 
     bool BeginItemTooltip(OverlayHoveredFlags flags = 0);
@@ -1975,7 +1981,7 @@ class Overlay
 
     void closePopup(u32 depth);
     void requestCollapsePopups();
-    f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size) const;
+    f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size, bool allowPromotions) const;
 
     TKit::TierArray<usz> m_PopupStack{};
     u32 m_CurrentPopupDepth = 0;
