@@ -205,6 +205,9 @@ enum OverlayStyleVariable : u8
     OverlayStyle_SliderRadius,
     OverlayStyle_SliderInnerRadius,
 
+    OverlayStyle_VerticalSliderWidth,
+    OverlayStyle_VerticalSliderHeight,
+
     OverlayStyle_Alpha,
     OverlayStyle_DisabledAlpha,
 
@@ -260,7 +263,11 @@ enum OverlayStyleVariable : u8
     OverlayStyle_ColorPickerPreviewSize,
     OverlayStyle_ColorPickerTooltipSize,
 
-    OverlayStyle_Count
+    OverlayStyle_Count,
+
+    OverlayStyle_DragRadius = OverlayStyle_SliderRadius,
+    OverlayStyle_VerticalDragWidth = OverlayStyle_VerticalSliderWidth,
+    OverlayStyle_VerticalDragHeight = OverlayStyle_VerticalSliderHeight,
 };
 
 using OverlayPalette = TKit::FixedArray<Color, OverlayPalette_Count>;
@@ -1050,6 +1057,37 @@ class Overlay
     {
         return HorizontalSlider(label, Math::AsPointer(*value), mn, mx, format, N, flags);
     }
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool VerticalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
+                        const u32 count = 1, const OverlaySliderFlags flags = 0)
+    {
+        TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
+
+        Layout &ly = GetCurrentLayout();
+        const LayoutId id = PushId(label);
+        ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                  .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalSliderHeight])},
+                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        bool changed = false;
+        const TKit::StringView tlabel = trimLabel(label);
+        for (u32 i = 0; i < count; ++i)
+        {
+            T &val = value[i];
+            PushId(i);
+            changed |= verticalSliderBox(tlabel, &val, mn, mx, format, flags);
+            PopId();
+        }
+
+        ly.EndPanel();
+        PopId();
+        return changed;
+    }
+    template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
+    bool VerticalSlider(const TKit::StringView label, vec<T, N> *value, const U mn, const U mx,
+                        const char *format = nullptr, const OverlaySliderFlags flags = 0)
+    {
+        return VerticalSlider(label, Math::AsPointer(*value), mn, mx, format, N, flags);
+    }
 
     template <TKit::Numeric T, std::convertible_to<T> U = T>
     bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
@@ -1076,6 +1114,37 @@ class Overlay
                         const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
+    }
+
+    template <TKit::Numeric T, std::convertible_to<T> U = T>
+    bool VerticalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
+                      const U mx = T(0), const char *format = nullptr, const u32 count = 1,
+                      const OverlaySliderFlags flags = 0)
+    {
+        Layout &ly = GetCurrentLayout();
+        const LayoutId id = PushId(label);
+
+        ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                  .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
+                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        bool changed = false;
+        const TKit::StringView tlabel = trimLabel(label);
+        for (u32 i = 0; i < count; ++i)
+        {
+            T &val = value[i];
+            PushId(i);
+            changed |= verticalDragBox(tlabel, &val, speed, mn, mx, format, flags);
+            PopId();
+        }
+        ly.EndPanel();
+        PopId();
+        return changed;
+    }
+    template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
+    bool VerticalDrag(const TKit::StringView label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
+                      const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
+    {
+        return VerticalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
     void ColorPreviewTooltip(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
@@ -1711,29 +1780,19 @@ class Overlay
                      OverlayColorFlags flags, f32 size);
     usz drawColorPreview(const Color &col, f32 size, bool alpha);
 
-    template <TKit::Numeric T, std::convertible_to<T> U>
-    bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
+    struct SliderBoxInfo
     {
-        Layout &ly = GetCurrentLayout();
-        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_box");
+        const char *Format;
+        f32 InnerWidth;
+        f32 Offset;
+        OverlayColor Color;
+        FocusFlags Flags;
+    };
 
-        const LayoutElement *elm = ly.QueryElement(id);
-
-        const T pval = *value;
-        if (!(flags & OverlaySliderFlag_NoInput))
-        {
-            const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0);
-
-            if (cflags & InputConvertFlag_MustConvert)
-            {
-                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
-                if (flags & OverlaySliderFlag_ClampOnInput)
-                    *value = Math::Clamp(*value, T(mn), T(mx));
-                return *value != pval;
-            }
-        }
-
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    SliderBoxInfo getSliderBoxInfo(const u32 idx, const T pval, T *value, const U mn, const U mx, const char *format,
+                                   const LayoutElement *elm, const OverlaySliderFlags flags)
+    {
         const T clamped = Math::Clamp(pval, T(mn), T(mx));
         format = getFormat<T>(format);
 
@@ -1745,7 +1804,7 @@ class Overlay
         else if (focusFlags & OverlayFocusQueryFlag_Hovered)
             col = OverlayColor_SliderHovered;
 
-        const f32 length = elm ? elm->Size[0] : 0.f;
+        const f32 length = elm ? elm->Size[idx] : 0.f;
 
         f32 baseWidth = 0.f;
         if constexpr (TKit::Integer<T>)
@@ -1768,7 +1827,7 @@ class Overlay
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
         if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
-            f32 relPos = nw->WorldMouse[0] - elm->Position[0] - 0.5f * length;
+            f32 relPos = nw->WorldMouse[idx] - elm->Position[idx] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
                 relPos += 0.5f * innerWidth;
 
@@ -1784,10 +1843,38 @@ class Overlay
         else
             offset = normalized * maxOffset;
 
+        return {format, innerWidth, offset, col, focusFlags};
+    }
+
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
+    {
+        Layout &ly = GetCurrentLayout();
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
+        const LayoutElement *elm = ly.QueryElement(id);
+
+        const T pval = *value;
+        if (!(flags & OverlaySliderFlag_NoInput))
+        {
+            const InputConvertInfoFlags cflags =
+                mustConvertToInputBox(isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0);
+
+            if (cflags & InputConvertFlag_MustConvert)
+            {
+                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                if (flags & OverlaySliderFlag_ClampOnInput)
+                    *value = Math::Clamp(*value, T(mn), T(mx));
+                return *value != pval;
+            }
+        }
+
+        const SliderBoxInfo sinfo = getSliderBoxInfo(0, pval, value, mn, mx, format, elm, flags);
+
         // heres how this works. outer slider is the first visible bit. then, 2 children
         // come
 
-        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+        const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
                                   .Alignment = CenterLeft,
                                   .Sizing = {flex(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
@@ -1805,8 +1892,8 @@ class Overlay
         ly.BeginPanel(LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
 
         ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                         .Sizing = {sabs(innerWidth), grow()},
-                         .SelfOffset = oabs({offset, 0.f}),
+                         .Sizing = {sabs(sinfo.InnerWidth), grow()},
+                         .SelfOffset = oabs({sinfo.Offset, 0.f}),
                          .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
         const LayoutId txtId = IdFromStack("__onyx_id_Text_slot");
@@ -1819,7 +1906,7 @@ class Overlay
                                      .Sizing = {hasAccurateFlex ? flex() : srel(1.f), fit()},
                                      .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
 
-        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
+        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
         ly.Text(ly.GenerateNextId(), text, getTextParams());
 
         ly.EndPanel();
@@ -1827,28 +1914,57 @@ class Overlay
         return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format,
+    bool verticalSliderBox(const TKit::StringView label, T *value, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_box");
-
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
         const LayoutElement *elm = ly.QueryElement(id);
-        const T pval = *value;
-        if (!(flags & OverlaySliderFlag_NoInput))
-        {
-            const InputConvertInfoFlags cflags = mustConvertToInputBox(
-                (isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
 
-            if (cflags & InputConvertFlag_MustConvert)
-            {
-                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
-                if (flags & OverlaySliderFlag_ClampOnInput)
-                    *value = Math::Clamp(*value, T(mn), T(mx));
-                return *value != pval;
-            }
+        const T pval = *value;
+        const SliderBoxInfo sinfo = getSliderBoxInfo(1, pval, value, mn, mx, format, elm, flags);
+
+        const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
+                                  .Alignment = Center,
+                                  .Sizing = {sabs(m_Style[OverlayStyle_VerticalSliderWidth]), grow()},
+                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
+                                  .Padding = padding});
+
+        ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                         .Sizing = {grow(), sabs(sinfo.InnerWidth)},
+                         .SelfOffset = oabs({0.f, sinfo.Offset}),
+                         .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
+
+        ly.EndPanel();
+
+        if (sinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
+        {
+            BeginTooltip(OverlayTooltipFlag_Reset);
+            Layout &tly = GetCurrentLayout();
+
+            if (!label.IsEmpty())
+                tly.Text(tly.GenerateNextId(), label, getTextParams());
+            const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
+            tly.Text(tly.GenerateNextId(), text, getTextParams());
+
+            EndTooltip();
         }
 
+        return *value != pval;
+    }
+
+    struct DragBoxInfo
+    {
+        const char *Format;
+        OverlayColor Color;
+        FocusFlags Flags;
+    };
+
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    DragBoxInfo getDragBoxInfo(const u32 idx, T *value, const f32 speed, const U mn, const U mx, const char *format,
+                               const LayoutElement *elm, const OverlaySliderFlags flags)
+    {
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
 
@@ -1869,7 +1985,7 @@ class Overlay
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
             const NativeWindow *nw = m_Current->Native;
-            const f32 drag = nw->WorldMouse[0] - nw->WorldMouseOnPress[0];
+            const f32 drag = nw->WorldMouse[idx] - nw->WorldMouseOnPress[idx];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
                                          decimals == 0 ? 1e-4f : Math::Power(10.f, -f32(decimals))))
@@ -1881,19 +1997,79 @@ class Overlay
 
             *value = roundToFormat(T(nval), decimals);
         }
+        return {format, col, focusFlags};
+    }
 
-        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format,
+                           const OverlaySliderFlags flags)
+    {
+        Layout &ly = GetCurrentLayout();
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
+
+        const LayoutElement *elm = ly.QueryElement(id);
+        const T pval = *value;
+        if (!(flags & OverlaySliderFlag_NoInput))
+        {
+            const InputConvertInfoFlags cflags = mustConvertToInputBox(
+                (isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
+
+            if (cflags & InputConvertFlag_MustConvert)
+            {
+                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                if (flags & OverlaySliderFlag_ClampOnInput)
+                    *value = Math::Clamp(*value, T(mn), T(mx));
+                return *value != pval;
+            }
+        }
+
+        const DragBoxInfo dinfo = getDragBoxInfo(0, value, speed, mn, mx, format, elm, flags);
+
+        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
                                   .Alignment = Center,
                                   .Sizing = {flex(), fit()},
-                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
+                                  .Shape = rect(m_Style[OverlayStyle_DragRadius]),
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
-        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(format), *value);
+        const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
         ly.Text(ly.GenerateNextId(), text, getTextParams());
 
         ly.EndPanel();
         return *value != pval;
     }
+
+    template <TKit::Numeric T, std::convertible_to<T> U>
+    bool verticalDragBox(const TKit::StringView label, T *value, const f32 speed, const U mn, const U mx,
+                         const char *format, const OverlaySliderFlags flags)
+    {
+        Layout &ly = GetCurrentLayout();
+        const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
+
+        const LayoutElement *elm = ly.QueryElement(id);
+        const T pval = *value;
+
+        const DragBoxInfo dinfo = getDragBoxInfo(1, value, speed, mn, mx, format, elm, flags);
+
+        ly.Panel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
+                             .Sizing = {sabs(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
+                             .Shape = rect(m_Style[OverlayStyle_DragRadius])});
+
+        if (dinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
+        {
+            BeginTooltip(OverlayTooltipFlag_Reset);
+            Layout &tly = GetCurrentLayout();
+
+            if (!label.IsEmpty())
+                tly.Text(tly.GenerateNextId(), label, getTextParams());
+            const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
+            tly.Text(tly.GenerateNextId(), text, getTextParams());
+
+            EndTooltip();
+        }
+
+        return *value != pval;
+    }
+
     template <TKit::Numeric T>
     bool inputNumericBox(T *value, const char *format, const TKit::StringView hint, const OverlayInputFlags flags,
                          const InputConvertInfoFlags cflags = 0)

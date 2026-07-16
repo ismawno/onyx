@@ -14,8 +14,8 @@ int main()
     Onyx::Window *win = Onyx::OpenWindow();
     Onyx::Overlay *ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_WindowPromotions});
 
-    f32v2 rdims1 = {800, 600};
-    f32v2 rdims2 = {800, 600};
+    u32v2 rdims1 = {800, 600};
+    u32v2 rdims2 = {800, 600};
 
     Onyx::RenderTexture *rt1 = Onyx::CreateRenderTexture(rdims1);
     Onyx::RenderTexture *rt2 = Onyx::CreateRenderTexture(rdims2);
@@ -55,23 +55,49 @@ int main()
     ctx->Circle();
 
     win->BringToTop(nw->View);
+    const auto editDimensions = [&](Onyx::RenderTexture *rt, u32v2 &dims) {
+        static bool useHor = false;
+        if (!useHor && ui->IsCurrentWindowPromoted())
+        {
+            ui->BeginDisabled();
+            ui->SetNextTextId("Help");
+            ui->TextRaw("(?)");
+            ui->EndDisabled();
+
+            ui->SetItemTooltip(
+                "When promoted, window resizes tend to be a bit unstable. Horizontal sliders depend on width, so "
+                "modifying the width with a horizontal slider may cause the window to go crazy");
+
+            ui->CheckBox("Use horizontal slider anyways to see what happens", &useHor);
+
+            if (ui->VerticalSlider("Image width", &dims[0], 50.f, 1600.f))
+                rt->Resize(dims);
+            if (ui->HorizontalSlider("Image height", &dims[1], 50.f, 1600.f))
+                rt->Resize(dims);
+        }
+        else
+        {
+            if (ui->IsCurrentWindowPromoted() && ui->Button("Go back"))
+                useHor = false;
+
+            if (ui->HorizontalSlider("Image dimensions", &dims, 50.f, 1600.f))
+                rt->Resize(dims);
+        }
+    };
     while (Onyx::Running())
     {
         if (ui->BeginWindow("Main viewport", Onyx::OverlayWindowFlag_AutoResize))
         {
-            if (ui->HorizontalSlider("Image dimensions", &rdims1, 50.f, 1600.f, "{:.0f}"))
-                rt1->Resize(rdims1);
-
-            ui->Image(*rt1, 0.5f * rdims1);
+            editDimensions(rt1, rdims1);
+            ui->Image(*rt1, 0.5f * f32v2{rdims1});
             ui->EndWindow();
         }
 
         if (ui->BeginWindow("Screen sharing", Onyx::OverlayWindowFlag_AutoResize))
         {
-            if (ui->HorizontalSlider("Image dimensions", &rdims2, 50.f, 1600.f, "{:.0f}"))
-                rt2->Resize(rdims2);
+            editDimensions(rt2, rdims2);
 
-            ui->Image(*rt2, 0.5f * rdims2);
+            ui->Image(*rt2, 0.5f * f32v2{rdims2});
             ui->EndWindow();
         }
 

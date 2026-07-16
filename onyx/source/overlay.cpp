@@ -94,6 +94,9 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_SliderRadius] = 0.f;
     vars[OverlayStyle_SliderInnerRadius] = 0.f;
 
+    vars[OverlayStyle_VerticalSliderWidth] = 24.f;
+    vars[OverlayStyle_VerticalSliderHeight] = 160.f;
+
     vars[OverlayStyle_Alpha] = 1.f;
     vars[OverlayStyle_DisabledAlpha] = 0.8f;
 
@@ -2684,7 +2687,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
     // important. without it, we cannot auto highlight. so we try this proxy, by trying to get the position of
     // the parent box if thats the case
-    const LayoutElement *box = mustConvert ? ly.QueryElement(IdFromStack("__onyx_id_Drag/Slider_box")) : ibox;
+    const LayoutElement *box = mustConvert ? ly.QueryElement(IdFromStack("__onyx_id_Drag/Slider_hbox")) : ibox;
     const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
     const FontData &fdata = getFontData();
@@ -4848,7 +4851,7 @@ void Overlay::ShowDemo()
             ov->CheckBoxFlags("OverlaySliderFlag_NoRoundToFormat", &sflags, Onyx::OverlaySliderFlag_NoRoundToFormat);
             ov->CheckBoxFlags("OverlaySliderFlag_NoInput", &sflags, Onyx::OverlaySliderFlag_NoInput);
 
-            ov->HorizontalSeparator("Sliders");
+            ov->HorizontalSeparator("Horizontal sliders");
             static f32 fval[2] = {4, 7};
             ov->Text("Underlying values: {:.2f}, {:.2f}", fval[0], fval[1]);
 
@@ -4860,7 +4863,7 @@ void Overlay::ShowDemo()
             ov->HorizontalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
             ov->HorizontalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
 
-            ov->HorizontalSeparator("Drags");
+            ov->HorizontalSeparator("Horizontal drags");
             static f32 speed = 0.1f;
             ov->HorizontalSlider("Drag speed", &speed, 1e-2f, 10.f, "{:.2f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
 
@@ -4872,6 +4875,36 @@ void Overlay::ShowDemo()
 
             static u32 uval2[3] = {7, 2, 5};
             ov->HorizontalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
+
+            ov->PushId("Vertical");
+
+            ov->HorizontalSeparator("Vertical sliders");
+
+            ov->PushDirection(LayoutDirection_LeftToRight);
+
+            ov->VerticalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            ov->VerticalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
+
+            ov->VerticalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
+            ov->VerticalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
+
+            ov->PopDirection();
+
+            ov->HorizontalSeparator("Vertical drags");
+
+            ov->PushDirection(LayoutDirection_LeftToRight);
+
+            ov->VerticalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
+            ov->VerticalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
+
+            ov->VerticalDrag("My drag int", &ival, speed, -3, 28, nullptr, 1, sflags);
+            ov->VerticalDrag("My small drag int", &ival, speed, 0, 2, nullptr, 1, sflags);
+
+            ov->VerticalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
+
+            ov->PopDirection();
+            ov->PopId();
+
             ov->PopTree();
         }
 
@@ -5194,6 +5227,8 @@ void Overlay::ShowStyleEditor()
         varSlider("SeparatorTextOffset", OverlayStyle_SeparatorTextOffset, 0.f, 50.f);
         varSlider("SliderRadius", OverlayStyle_SliderRadius, 0.f, 50.f);
         varSlider("SliderInnerRadius", OverlayStyle_SliderInnerRadius, 0.f, 50.f);
+        varSlider("VerticalSliderWidth", OverlayStyle_VerticalSliderWidth, 0.f, 50.f);
+        varSlider("VerticalSliderHeight", OverlayStyle_VerticalSliderHeight, 0.f, 300.f);
         varSlider("Alpha", OverlayStyle_Alpha, 0.f, 1.f);
         varSlider("DisabledAlpha", OverlayStyle_DisabledAlpha, 0.f, 1.f);
         varSlider("ListBoxMaxHeight", OverlayStyle_ListBoxMaxHeight, 20.f, 500.f);
