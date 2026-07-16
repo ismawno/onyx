@@ -4386,7 +4386,8 @@ void Overlay::ShowDemo()
                     "When in floating mode, window promotions must be on or terrible things will happen");
             ov->PopTree();
         }
-        const f32 ftime = Onyx::GetDeltaTime(GetMainNativeWindow()->Window).AsMilliseconds();
+        const NativeWindow *nw = GetMainNativeWindow();
+        const f32 ftime = nw ? Onyx::GetDeltaTime(nw->Window).AsMilliseconds() : Onyx::GetDeltaTime().AsMilliseconds();
         if (ov->PushTree("General", drawLines))
         {
             ov->SetNextTextId("Delta time");
