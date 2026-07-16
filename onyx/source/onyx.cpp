@@ -461,10 +461,8 @@ void Render(const RenderInfo &info)
 #endif
         }
         if (maxFlight != 0)
-        {
             for (RenderTexture *rtex : s_Data->RenderTextures)
                 rtex->MarkReadImageInUse({.Queue = gqueue, .InFlightValue = maxFlight});
-        }
 
         Renderer::SubmitRender(gqueue, gpool, rinfos);
 
@@ -528,6 +526,8 @@ void TerminateApi()
     TKit::TierAllocator *tier = GetTier();
     for (WindowData &wdata : s_Data->Windows)
         cleanupWindowData(wdata);
+    for (Overlay *ov : s_Data->Overlays)
+        destroyOverlay(ov);
 
     for (RenderTexture *rtex : s_Data->RenderTextures)
         tier->Destroy(rtex);

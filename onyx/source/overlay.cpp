@@ -3553,9 +3553,9 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
-    bool appenStack = false;
+    bool appendStack = false;
     if (!collapsed && (specs.Flags & OverlayScrollFlag_HorizontalScroll))
-        appenStack |= performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
+        appendStack |= performScroll(contentId, sinfo.Horizontal, LayoutAxis_Horizontal, specs.ContentPadding, drawBar);
 
     ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_RightToLeft,
                           .Alignment = TopLeft,
@@ -3563,7 +3563,7 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     if (!collapsed && !(specs.Flags & OverlayScrollFlag_NoVerticalScroll))
-        appenStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
+        appendStack |= performScroll(contentId, sinfo.Vertical, LayoutAxis_Vertical, specs.ContentPadding, drawBar);
 
     ly.BeginPanel(contentId, LyPnPar{.Direction = specs.Direction,
                                      .Alignment = TopLeft,
@@ -3573,9 +3573,11 @@ bool Overlay::beginScroll(const ScrollParameterSpecs &specs)
                                      .Padding = specs.ContentPadding,
                                      .ChildGap = specs.ChildGap});
 
-    if (isElementHovered(ly.QueryElement(specs.Id)))
+    if (isElementHovered(ly.QueryElement(specs.Id), OverlayHoveredFlag_AllowBlockedByPressedItem |
+                                                        OverlayHoveredFlag_AllowBlockedByActiveItem |
+                                                        OverlayHoveredFlag_AllowBlockedByDrag))
     {
-        if (appenStack)
+        if (appendStack)
             m_ScrollStack.Append(specs.Id);
         return true;
     }
