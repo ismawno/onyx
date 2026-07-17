@@ -3734,7 +3734,7 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
         return TKit::StackString::Format("{:L} b", bytes);
     };
-    if (ov->PushTree(&pool, OverlayTreeFlag_DrawLines, "{} pool ranges ({})", name, pool.Ranges.GetSize()))
+    if (ov->PushTree(&pool, s_DrawLines, "{} pool ranges ({})", name, pool.Ranges.GetSize()))
     {
         ov->Text("Buffer size: {}", fmts(pool.Buffer.GetInfo().Size));
         for (const Range &range : pool.Ranges)
@@ -3744,7 +3744,7 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
 
             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
             {
-                if (ov->PushTree(&range, OverlayTreeFlag_DrawLines, "{} ({}): {} - {}",
+                if (ov->PushTree(&range, s_DrawLines, "{} ({}): {} - {}",
                                  range.InUse()
                                      ? "IN-USE"
                                      : (rdata.AreAllContextRangesDirty(range)
@@ -3761,11 +3761,11 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
                         ov->Text("Render mode: {}", ToString(GetRenderMode(range.RenderFlags)));
                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
                     ov->Text("View mask: {}", vmask.CString());
-                    if (ov->PushTree(&range.ContextRanges, OverlayTreeFlag_DrawLines, "Context ranges ({})",
+                    if (ov->PushTree(&range.ContextRanges, s_DrawLines, "Context ranges ({})",
                                      range.ContextRanges.GetSize()))
                     {
                         for (const ContextInstanceRange &crange : range.ContextRanges)
-                            if (ov->PushTree(&crange, OverlayTreeFlag_DrawLines, "{} ({}): {} - {}",
+                            if (ov->PushTree(&crange, s_DrawLines, "{} ({}): {} - {}",
                                              rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY", fmts(crange.Size),
                                              fmtb(crange.Offset), fmtb(crange.Offset + crange.Size)))
                             {
@@ -3964,6 +3964,7 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
     ov->EndPanel(); // outer container
 }
 
+static constexpr OverlayTreeFlags s_DrawLines = OverlayTreeFlag_DrawLines;
 template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
 {
     const RendererData<D> &rdata = getRendererData<D>();
@@ -3976,7 +3977,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     {
         const Geometry geo = Geometry(i);
         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
-        if (ov->PushTreeRaw(&arena, ToString(geo), OverlayTreeFlag_DrawLines))
+        if (ov->PushTreeRaw(&arena, ToString(geo), s_DrawLines))
         {
             displayRanges<D>(ov, "Transfer", arena.Transfer);
             displayRanges<D>(ov, "Graphics", arena.Graphics);
@@ -3988,7 +3989,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     {
         const LightType light = LightType(i);
         const LightArena &arena = ldata.Arenas[light];
-        if (ov->PushTreeRaw(&arena, ToString(light), OverlayTreeFlag_DrawLines))
+        if (ov->PushTreeRaw(&arena, ToString(light), s_DrawLines))
         {
             displayRanges<D>(ov, "Transfer", arena.Transfer);
             displayRanges<D>(ov, "Graphics", arena.Graphics, arena.ActiveGeneration);
@@ -3996,7 +3997,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
             ov->PopTree();
         }
     }
-    if (ov->PushTree("Vertex buffer", OverlayTreeFlag_DrawLines))
+    if (ov->PushTree("Vertex buffer", s_DrawLines))
     {
         const Arena &arena = rdata.Geometry.VertexArena;
         displayRanges<D>(ov, "Transfer", arena.Transfer);
@@ -4004,7 +4005,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
         plotRanges<D>(ov, arena.Transfer, arena.Graphics);
         ov->PopTree();
     }
-    if (ov->PushTree("Index buffer", OverlayTreeFlag_DrawLines))
+    if (ov->PushTree("Index buffer", s_DrawLines))
     {
         const Arena &arena = rdata.Geometry.IndexArena;
         displayRanges<D>(ov, "Transfer", arena.Transfer);
