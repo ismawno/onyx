@@ -3718,6 +3718,7 @@ void Coalesce(const u32 maxRanges)
     coalesce<D3>(maxRanges);
 }
 
+static constexpr OverlayTreeFlags s_DrawLines = OverlayTreeFlag_DrawLines;
 template <Dimension D, typename Range>
 static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<Range> &pool, const u64 generation = 0)
 {
@@ -3964,7 +3965,6 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
     ov->EndPanel(); // outer container
 }
 
-static constexpr OverlayTreeFlags s_DrawLines = OverlayTreeFlag_DrawLines;
 template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
 {
     const RendererData<D> &rdata = getRendererData<D>();
