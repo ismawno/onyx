@@ -5038,7 +5038,7 @@ void Overlay::ShowDemo()
     }
 }
 
-template <typename... Args> TKit::StackString fmt(const fmt::format_string<Args...> str, Args &&...args)
+template <typename... Args> static TKit::StackString fmt(const fmt::format_string<Args...> str, Args &&...args)
 {
     return TKit::StackString::Format(str, std::forward<Args>(args)...);
 }
