@@ -2,6 +2,7 @@
 #include "onyx/layout.hpp"
 #include "onyx/resources.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx
 {
@@ -692,6 +693,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
 
 void Layout::Compile()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
     TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_ElementStack.GetSize());
 

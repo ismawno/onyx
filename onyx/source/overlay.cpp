@@ -3,6 +3,7 @@
 #include "onyx/onyx.hpp"
 #include "onyx/platform.hpp"
 #include "onyx/renderer.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx
 {
@@ -1029,6 +1030,7 @@ void Overlay::popWindowStack()
 
 u32 Overlay::processWindows()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Overlay::ProcessWindows");
     TKIT_ASSERT(!m_Current, "[ONYX][OVERLAY] Window stack not properly closed! Current window pointer is not null");
     TKIT_ASSERT(m_CurrentPopupDepth == 0, "[ONYX][OVERLAY] Pop up stack not properly closed! {} entries remaining",
                 m_CurrentPopupDepth);
@@ -4076,6 +4078,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
 void Overlay::Draw()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Overlay::Draw");
     TKIT_ASSERT(m_IdStack.IsEmpty(),
                 "[ONYX][OVERLAY] Id stack size mismatch (size = {}, should be 0). For every PushId(), there must "
                 "be a PopId()",

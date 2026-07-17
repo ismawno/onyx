@@ -5,6 +5,7 @@
 #include "resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx
 {
@@ -569,6 +570,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
 {
     if (!m_State.RenderFlags || text.IsEmpty())
         return;
+    TKIT_PROFILE_NSCOPE("Onyx::Context::AddGlyphData");
 
     TKIT_ASSERT(m_State.Sampler != NullHandle,
                 "[ONYX][CONTEXT] To draw text, a valid sampler must be provided first with the Font() method");
@@ -782,6 +784,7 @@ template <Dimension D> void IRenderContext<D>::scaleLayoutElement(const LayoutDr
 
 template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Context::AddGlyphData");
     u32 depth = 0;
     BeginLayoutElements();
     for (const LayoutDrawInfo &info : layout.GetDrawInfo())
