@@ -329,6 +329,7 @@ LayoutElement *Layout::ModifyElement(const LayoutId id)
 
 void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::FitPass");
     for (const u32 p : fits)
     {
         LayoutElement &parent = m_Elements[p];
@@ -377,6 +378,7 @@ void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
 
 void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAxis axis)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::GrowShrinkPass");
     for (const u32 p : breadth)
     {
         const LayoutElement &parent = m_Elements[p];
@@ -510,6 +512,7 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
 
 void Layout::wrapText(const TKit::StackArray<u32> &textElms)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::WrapText");
     for (const u32 c : textElms)
     {
         LayoutElement &elm = m_Elements[c];
@@ -530,6 +533,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
 {
     if (m_Elements.IsEmpty())
         return;
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::PositionPass");
 
     LayoutElement &root = m_Elements.GetFront();
     for (u32 axis = 0; axis < 2; ++axis)
@@ -691,54 +695,9 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
     }
 }
 
-void Layout::Compile()
+void Layout::generateDrawInfo()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
-    TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
-                m_ElementStack.GetSize());
-
-    const u32 count = m_Elements.GetSize();
-    TKit::StackArray<u32> breadth{};
-    breadth.Reserve(count);
-
-    TKit::StackArray<u32> xfits{};
-    xfits.Reserve(count);
-
-    TKit::StackArray<u32> yfits{};
-    yfits.Reserve(count);
-
-    TKit::StackArray<u32> textElms{};
-    textElms.Reserve(count);
-
-    m_GenerationalElements.Clear();
-    m_GenerationalMap.Clear();
-
-    for (u32 i = 0; i < count; ++i)
-    {
-        const u32 fidx = i;
-        const u32 bidx = count - i - 1;
-        const LayoutElement &forward = m_Elements[fidx];
-        const LayoutElement &backward = m_Elements[bidx];
-
-        if (!forward.Children.IsEmpty())
-            breadth.Append(fidx);
-
-        if (backward.Sizing[0] == LayoutSizing_Fit || backward.Sizing[0] == LayoutSizing_Flex)
-            xfits.Append(bidx);
-        if (backward.Sizing[1] == LayoutSizing_Fit || backward.Sizing[1] == LayoutSizing_Flex)
-            yfits.Append(bidx);
-
-        if (forward.Type == LayoutElement_Text || forward.Type == LayoutElement_Unicode)
-            textElms.Append(fidx);
-    }
-
-    fitPass(xfits, LayoutAxis_Horizontal);
-    growShrinkPass(breadth, LayoutAxis_Horizontal);
-    wrapText(textElms);
-    fitPass(yfits, LayoutAxis_Vertical);
-    growShrinkPass(breadth, LayoutAxis_Vertical);
-    positionPass(breadth);
-
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateDrawInfo");
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
 
@@ -750,7 +709,7 @@ void Layout::Compile()
     };
 
     TKit::StackArray<DepthInfo> dfsStack{};
-    dfsStack.Reserve(count);
+    dfsStack.Reserve(m_Elements.GetSize());
     dfsStack.Append(0, 0);
 
     while (!dfsStack.IsEmpty())
@@ -843,6 +802,61 @@ void Layout::Compile()
             m_DrawInfo.Append(info);
     }
     m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
+}
+
+void Layout::Compile()
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
+    TKIT_PROFILE_SCOPE_VALUE(m_Elements.GetSize());
+    TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
+                m_ElementStack.GetSize());
+
+    const u32 count = m_Elements.GetSize();
+    TKit::StackArray<u32> breadth{};
+    breadth.Reserve(count);
+
+    TKit::StackArray<u32> xfits{};
+    xfits.Reserve(count);
+
+    TKit::StackArray<u32> yfits{};
+    yfits.Reserve(count);
+
+    TKit::StackArray<u32> textElms{};
+    textElms.Reserve(count);
+
+    m_GenerationalElements.Clear();
+    m_GenerationalMap.Clear();
+
+    {
+        TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateBreadths");
+        for (u32 i = 0; i < count; ++i)
+        {
+            const u32 fidx = i;
+            const u32 bidx = count - i - 1;
+            const LayoutElement &forward = m_Elements[fidx];
+            const LayoutElement &backward = m_Elements[bidx];
+
+            if (!forward.Children.IsEmpty())
+                breadth.Append(fidx);
+
+            if (backward.Sizing[0] == LayoutSizing_Fit || backward.Sizing[0] == LayoutSizing_Flex)
+                xfits.Append(bidx);
+            if (backward.Sizing[1] == LayoutSizing_Fit || backward.Sizing[1] == LayoutSizing_Flex)
+                yfits.Append(bidx);
+
+            if (forward.Type == LayoutElement_Text || forward.Type == LayoutElement_Unicode)
+                textElms.Append(fidx);
+        }
+    }
+
+    fitPass(xfits, LayoutAxis_Horizontal);
+    growShrinkPass(breadth, LayoutAxis_Horizontal);
+    wrapText(textElms);
+    fitPass(yfits, LayoutAxis_Vertical);
+    growShrinkPass(breadth, LayoutAxis_Vertical);
+    positionPass(breadth);
+
+    generateDrawInfo();
 
     m_Elements.Clear();
     m_InsertedElements.Clear();

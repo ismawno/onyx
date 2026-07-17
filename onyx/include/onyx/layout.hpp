@@ -506,6 +506,7 @@ class Layout
     void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
     void wrapText(const TKit::StackArray<u32> &textElms);
     void positionPass(const TKit::StackArray<u32> &breadth);
+    void generateDrawInfo();
 
     void applySpecDefaults();
 
