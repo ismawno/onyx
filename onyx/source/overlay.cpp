@@ -4297,6 +4297,7 @@ f32v4 Overlay::getWorldEffectiveBorders() const
 
 void Overlay::ShowDemo()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
     static bool enableSettings = false;
     static bool enableRenderer = false;
@@ -5044,6 +5045,7 @@ template <typename... Args> TKit::StackString fmt(const fmt::format_string<Args.
 
 void Overlay::ShowRendererStatistics()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Overlay::RendererStatistics");
     BeginTabBar();
     if (BeginTab("2D", OverlayTabFlag_StartOpen))
     {
@@ -5061,6 +5063,7 @@ void Overlay::ShowRendererStatistics()
 
 void Overlay::ShowStyleEditor()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Overlay::StyleEditor");
     Layout &ly = GetCurrentLayout();
 
     constexpr u32 bufSize = 128;
