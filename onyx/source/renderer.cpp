@@ -1242,7 +1242,6 @@ template <Dimension D>
 static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, TransferInstancePool &pool,
                                                         const VkDeviceSize requiredMem, TKit::StackArray<Task> &tasks)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindTransferInstanceRange");
     return findTransferRange<D, TransferInstanceRange>(
         pool, requiredMem,
         [&] {
@@ -1256,7 +1255,6 @@ template <Dimension D>
 static TransferLightRange *findTransferLightRange(const LightType light, TransferLightPool &pool,
                                                   const VkDeviceSize requiredMem)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindTransferLightRange");
     return findTransferRange<D, TransferLightRange>(pool, requiredMem, [&] {
         return createTransferLightBuffer<D>(light,
                                             computeNewInstanceCount(getLightSize<D>(light), pool.Buffer, requiredMem));
@@ -1267,7 +1265,6 @@ template <Dimension D>
 static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkDeviceSize requiredMem,
                                               TKit::StackArray<Task> &tasks)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindVertexTransferRange");
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
         [&] {
@@ -1280,7 +1277,6 @@ template <Dimension D>
 static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDeviceSize requiredMem,
                                              TKit::StackArray<Task> &tasks)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindIndexTransferRange");
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
         [&] { return createTransferIndexBuffer<D>(computeNewInstanceCount(sizeof(Index), pool.Buffer, requiredMem)); },
@@ -1330,7 +1326,6 @@ static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, Grap
                                                         const VkDeviceSize requiredMem, VKit::Queue *transfer,
                                                         TKit::StackArray<Task> &tasks)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindGraphicsInstanceRange");
     RendererData<D> &rdata = getRendererData<D>();
     bool resized = false;
     GraphicsInstanceRange *range = findGraphicsRange<D, GraphicsInstanceRange>(
