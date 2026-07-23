@@ -31,18 +31,19 @@ using OverlayPopupFlags = OverlayFocusQueryFlags;
 using OverlayScrollFlags = u32;
 using OverlaySelectableFlags = u8;
 using OverlaySliderFlags = u8;
+using OverlayTabBarFlags = u8;
 using OverlayTabFlags = u8;
 using OverlayTreeFlags = u8;
 using OverlayTooltipFlags = u8;
 using OverlayWindowFlags = OverlayScrollFlags;
 
-using InputConvertInfoFlags = u8;
-using WidgetStateFlags = u8;
-using StateFlags = u32;
-using ResizeFlags = u8;
-using NextWindowFlags = u8;
 using FocusFlags = OverlayFocusFlags;
+using InputConvertInfoFlags = u8;
 using NativeWindowFlags = u16;
+using NextWindowFlags = u8;
+using ResizeFlags = u8;
+using StateFlags = u32;
+using WidgetStateFlags = u8;
 
 /////////////////////////////////////////////
 /// END FLAG DEFINITIONS
@@ -568,12 +569,12 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_HoverRequestsPopupCollapse = 1U << 18,
     FocusFlag_DoNotSetHoveredId = 1U << 19,
     FocusFlag_DoNotSetPressedId = 1U << 20,
-    FocusFlag_DoNotSetActiveId = 1U << 21,
-    FocusFlag_DoNotProtectPopup = 1U << 22,
-    FocusFlag_EnableDragging = 1U << 23,
-    FocusFlag_AllowPressedPickUp = 1U << 24,
-    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
-                         FocusFlag_DoNotProtectPopup
+    FocusFlag_DoNotSetDraggedId = 1U << 21,
+    FocusFlag_DoNotSetActiveId = 1U << 22,
+    FocusFlag_DoNotProtectPopup = 1U << 23,
+    FocusFlag_AllowPressedOnEnter = 1U << 24,
+    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetDraggedId |
+                         FocusFlag_DoNotSetActiveId | FocusFlag_DoNotProtectPopup
 };
 
 // same as above, but public
@@ -712,9 +713,19 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_NoInput = 1U << 3,
 };
 
+enum OverlayTabBarFlagBit : OverlayTabBarFlags
+{
+    OverlayTabBarFlag_Reorderable = 1U << 0,
+};
+
 enum OverlayTabFlagBit : OverlayTabFlags
 {
     OverlayTabFlag_StartOpen = 1U << 0,
+
+    TabFlag_Enabled = 1U << 1,
+    TabFlag_DrawCloseButton = 1U << 2,
+    TabFlag_RequestClose = 1U << 3,
+    TabFlag_JustPermuted = 1U << 4,
 };
 
 enum OverlayTreeFlagBit : OverlayTreeFlags
@@ -797,11 +808,28 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
+struct Tab
+{
+    usz Id;
+    TKit::String Label;
+    OverlayTabFlags Flags = 0;
+};
+
 struct TabBarData
 {
     usz Id;
     usz OpenId = NullLayoutId;
-    u32 OpenIndex = 0;
+    TKit::TierArray<Tab> Tabs{};
+    TKit::TierArray<u32> Order{};
+    OverlayTabBarFlags Flags = 0;
+
+    u32 GetTabById(const LayoutId id) const
+    {
+        for (u32 i = 0; i < Tabs.GetSize(); ++i)
+            if (Tabs[i].Id == id)
+                return i;
+        return TKIT_U32_MAX;
+    }
 };
 
 struct OverlayDragDropPayload
@@ -980,11 +1008,7 @@ class Overlay
         ProgressBar(label, txt, pct);
     }
 
-    void BeginTabBar(LayoutId id);
-    void BeginTabBar()
-    {
-        BeginTabBar(GetCurrentLayout().GenerateNextId());
-    }
+    void BeginTabBar(LayoutId id, OverlayTabBarFlags flags = 0);
     void EndTabBar();
 
     bool BeginTab(TKit::StringView label, bool *enabled, OverlayTabFlags flags = 0);
@@ -1645,6 +1669,14 @@ class Overlay
     {
         return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_JustActive;
     }
+    bool IsItemDragged(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DragSource;
+    }
+    bool IsItemDragHovered(const OverlayFocusFlags flags = 0)
+    {
+        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DragTarget;
+    }
     bool HasItemAnOpenPopup(const OverlayFocusFlags flags = 0)
     {
         return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_PopupOpen;
@@ -2131,7 +2163,6 @@ class Overlay
     Color m_PickerOriginal{};
 
     TabBarData *m_CurrentTabBar = nullptr;
-    u32 m_TabIndex = 0;
 
     struct TextInputStateInfo
     {

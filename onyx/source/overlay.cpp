@@ -1760,11 +1760,12 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
 
     const LySz xsizing = fwidth ? flex() : grow();
     const LySz2 sizing = {spanLabel ? fit() : xsizing, fit()};
-    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                              .Direction = LayoutDirection_RightToLeft,
-                              .Alignment = CenterLeft,
-                              .Sizing = sizing,
-                              .Shape = rect(m_Style[OverlayStyle_SelectableRadius])});
+
+    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                           .Direction = LayoutDirection_RightToLeft,
+                                           .Alignment = CenterLeft,
+                                           .Sizing = sizing,
+                                           .Shape = rect(m_Style[OverlayStyle_SelectableRadius])});
 
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
     if (cb)
@@ -1862,7 +1863,7 @@ void Overlay::ProgressBar(const TKit::StringView label, const TKit::StringView t
     PopId();
 }
 
-void Overlay::BeginTabBar(const LayoutId id)
+void Overlay::BeginTabBar(const LayoutId id, const OverlayTabBarFlags flags)
 {
     TKIT_ASSERT(!m_CurrentTabBar, "[ONYX][OVERLAY] A tab bar is already opened. Cannot nest two tab bars in one");
 
@@ -1874,6 +1875,12 @@ void Overlay::BeginTabBar(const LayoutId id)
                           .Alignment = CenterLeft,
                           .Sizing = {grow(), fit()},
                           .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius])});
+
+    m_CurrentTabBar = &m_TabBarData[tid];
+    // the id that will need to be opened by tab items to keep appending
+    m_CurrentTabBar->Id = IdFromStack("__onyx_id_Content_area");
+    m_CurrentTabBar->Flags = flags;
+
     beginScroll({.Id = tid,
                  .Direction = LayoutDirection_LeftToRight,
                  .OuterSizing = scrollSizing,
@@ -1891,17 +1898,135 @@ void Overlay::BeginTabBar(const LayoutId id)
     PopStyleVar();
 
     ly.EndPanel();
-
-    m_CurrentTabBar = &m_TabBarData[tid];
-    // the id that will need to be opened by tab items to keep appending
-    m_CurrentTabBar->Id = IdFromStack("__onyx_id_Content_area");
 }
 
 void Overlay::EndTabBar()
 {
     TKIT_ASSERT(m_CurrentTabBar, "[ONYX][OVERLAY] Cannot end a tab bar without starting one to begin with");
+    Layout &ly = GetCurrentLayout();
+    ly.OpenPanel(m_CurrentTabBar->Id);
+
+    PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
+    PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
+
+    struct Permutation
+    {
+        u32 Order1;
+        u32 Order2;
+        bool Permuted = false;
+    };
+
+    Permutation perm{};
+    auto &order = m_CurrentTabBar->Order;
+    auto &tabs = m_CurrentTabBar->Tabs;
+
+    const bool reorderable = m_CurrentTabBar->Flags & OverlayTabBarFlag_Reorderable;
+    for (u32 i = 0; i < order.GetSize(); ++i)
+    {
+        const u32 idx = reorderable ? order[i] : i;
+        Tab &tab = tabs[idx];
+
+        const bool opened = m_CurrentTabBar->OpenId == tab.Id;
+
+        const auto lookForAnotherOpenTab = [&] {
+            bool found = false;
+            for (u32 i = idx + 1; i < tabs.GetSize(); ++i)
+                if (tabs[i].Flags & TabFlag_Enabled)
+                {
+                    m_CurrentTabBar->OpenId = tabs[i].Id;
+                    found = true;
+                    break;
+                }
+
+            if (!found)
+                for (u32 i = 0; i < idx; ++i)
+                    if (tabs[i].Flags & TabFlag_Enabled)
+                    {
+                        m_CurrentTabBar->OpenId = tabs[i].Id;
+                        break;
+                    }
+        };
+
+        if (!(tab.Flags & TabFlag_Enabled))
+        {
+            if (opened)
+                lookForAnotherOpenTab();
+            continue;
+        }
+
+        const bool button = tab.Flags & TabFlag_DrawCloseButton;
+        const bool startOpen = tab.Flags & OverlayTabFlag_StartOpen;
+
+        if (button)
+            ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
+
+        if (BeginSelectable(tab.Id, opened, OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight) ||
+            ((startOpen && m_CurrentTabBar->OpenId == NullLayoutId)))
+            m_CurrentTabBar->OpenId = tab.Id;
+
+        ly.Text(ly.GenerateNextId(), trimLabel(tab.Label), getTextParams());
+        EndSelectable();
+
+        PushId(tab.Id);
+        const LayoutId butId = IdFromStack("__onyx_id_Tab_close");
+        PopId();
+
+        const LayoutElement *elm = ly.QueryElement(m_LastItem);
+        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm);
+
+        if (reorderable && !perm.Permuted && (focusFlags & OverlayFocusQueryFlag_DragSource))
+        {
+            const LayoutElement *belm = button ? ly.QueryElement(butId) : nullptr;
+
+            const NativeWindow *nw = m_Current->Native;
+            const f32 cgap = 0.5f * m_Style[OverlayStyle_ChildGap];
+            const f32 mpos = nw->WorldMouse[0];
+            const f32 pos = elm->Position[0] - cgap;
+            const f32 size = elm->Size[0] + (belm ? belm->Size[0] : 0.f) + cgap;
+
+            if (!(tab.Flags & TabFlag_JustPermuted))
+            {
+                if (i != order.GetSize() - 1 && mpos > pos + size)
+                {
+                    tab.Flags |= TabFlag_JustPermuted;
+                    perm.Permuted = true;
+                    perm.Order1 = i;
+                    perm.Order2 = i + 1;
+                }
+                else if (i != 0 && mpos < pos)
+                {
+                    tab.Flags |= TabFlag_JustPermuted;
+                    perm.Permuted = true;
+                    perm.Order1 = i;
+                    perm.Order2 = i - 1;
+                }
+            }
+            else if (mpos <= pos + size && mpos > pos)
+                tab.Flags &= ~TabFlag_JustPermuted;
+        }
+
+        if (button && iconButton(butId, CrossIcon, grow(), OverlayColor_SelectableIdle))
+        {
+            tab.Flags |= TabFlag_RequestClose;
+            if (opened)
+                lookForAnotherOpenTab();
+        }
+
+        if (button)
+            ly.EndPanel();
+    }
+
+    if (perm.Permuted)
+        std::swap(m_CurrentTabBar->Order[perm.Order1], m_CurrentTabBar->Order[perm.Order2]);
+
+    for (Tab &tab : m_CurrentTabBar->Tabs)
+        tab.Flags &= ~TabFlag_Enabled;
+
+    PopStyleVar(2);
+
+    ly.EndPanel();
+
     m_CurrentTabBar = nullptr;
-    m_TabIndex = 0;
     HorizontalLine();
     PopId();
 }
@@ -1909,46 +2034,40 @@ void Overlay::EndTabBar()
 bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const OverlayTabFlags flags)
 {
     TKIT_ASSERT(m_CurrentTabBar, "[ONYX][OVERLAY] Tabs can only be created inside an active tab bar");
-    const u32 idx = m_TabIndex++;
-    if (enabled && !*enabled)
+    const LayoutId id = IdFromStack(label);
+    u32 idx = m_CurrentTabBar->GetTabById(id);
+    m_LastItem = id;
+
+    if (idx == TKIT_U32_MAX)
+    {
+        idx = m_CurrentTabBar->Tabs.GetSize();
+        m_CurrentTabBar->Tabs.Append(id, TKit::String{label.GetData(), label.GetSize()}, flags);
+        m_CurrentTabBar->Order.Append(idx);
+    }
+
+    Tab &tab = m_CurrentTabBar->Tabs[idx];
+    tab.Flags |= flags;
+    if (enabled)
+    {
+        tab.Flags |= TabFlag_DrawCloseButton;
+        if (!*enabled)
+            return false;
+
+        if (tab.Flags & TabFlag_RequestClose)
+        {
+            tab.Flags &= ~TabFlag_RequestClose;
+            *enabled = false;
+        }
+    }
+    else
+        tab.Flags &= ~TabFlag_DrawCloseButton;
+
+    tab.Flags |= TabFlag_Enabled;
+    if (m_CurrentTabBar->OpenId != id)
         return false;
 
+    PushId(id);
     Layout &ly = GetCurrentLayout();
-    ly.OpenPanel(m_CurrentTabBar->Id);
-
-    const LayoutId id = PushId(label);
-    bool isOpen = m_CurrentTabBar->OpenId == id;
-    const bool startOpen = flags & OverlayTabFlag_StartOpen;
-
-    PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
-    PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
-
-    if (enabled)
-        ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
-
-    if (Selectable(label, isOpen, OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight) ||
-        (startOpen && m_CurrentTabBar->OpenId == NullLayoutId))
-    {
-        if (idx < m_CurrentTabBar->OpenIndex)
-            isOpen = true;
-        m_CurrentTabBar->OpenId = id;
-        m_CurrentTabBar->OpenIndex = idx;
-    }
-    if (enabled && iconButton(IdFromStack("__onyx_id_Tab_close"), CrossIcon, grow(), OverlayColor_SelectableIdle))
-        *enabled = false;
-
-    if (enabled)
-        ly.EndPanel();
-
-    PopStyleVar(2);
-
-    ly.EndPanel();
-
-    if (!isOpen)
-    {
-        PopId();
-        return false;
-    }
 
     ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
                           .Alignment = TopLeft,
@@ -2675,7 +2794,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     FocusFlags fflags = FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
                         FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover;
     if (mustConvert)
-        fflags |= FocusFlag_AllowPressedPickUp;
+        fflags |= FocusFlag_AllowPressedOnEnter;
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ibox, fflags);
 
@@ -3703,18 +3822,14 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 {
     Layout &ly = GetCurrentLayout();
     const LayoutElement *elm = ly.QueryElement(m_LastItem);
-    const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
+    const FocusFlags focusFlags = queryAndSetFocusStatus(elm);
 
-    const f32 th = m_Style[OverlayStyle_DragThreshold];
-
-    const NativeWindow *nw = m_Current->Native;
-    const f32 drag = Math::NormSquared(nw->WorldMouse - nw->WorldMouseOnPress);
-    if ((m_DragDropId == m_LastItem || drag > th * th) && focusFlags & OverlayFocusQueryFlag_DragSource)
+    if (focusFlags & OverlayFocusQueryFlag_DragSource)
     {
-        m_DragDropId = m_LastItem;
         BeginTooltip();
 
         m_DragDropFlags |= flags;
+        m_DragDropId = m_DraggedId;
         return true;
     }
     return false;
@@ -3734,7 +3849,7 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
 
     Layout &ly = GetCurrentLayout();
     const LayoutElement *elm = ly.QueryElement(m_LastItem);
-    const FocusFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_EnableDragging);
+    const FocusFlags focusFlags = queryAndSetFocusStatus(elm);
 
     m_DragDropFlags = flags;
     const bool target = focusFlags & OverlayFocusQueryFlag_DragTarget;
@@ -3913,6 +4028,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
     const bool setPressed = !(flags & FocusFlag_DoNotSetPressedId);
     const bool setActive = !(flags & FocusFlag_DoNotSetActiveId);
+    const bool setDragged = !(flags & FocusFlag_DoNotSetDraggedId);
     const bool protectPopup =
         !(flags & FocusFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
 
@@ -3965,12 +4081,12 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         return outFlags;
     }
 
-    const bool allowPickup = flags & FocusFlag_AllowPressedPickUp;
+    const bool allowOnEnter = flags & FocusFlag_AllowPressedOnEnter;
     const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
     const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
 
     const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && pressingMouse &&
-                         (allowPickup || lmpressed || m_PressedId == elm->Id);
+                         (allowOnEnter || lmpressed || m_PressedId == elm->Id);
 
     if (focusHovered && setHovered)
     {
@@ -3978,26 +4094,22 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         outFlags |= OverlayFocusQueryFlag_Hovered;
     }
 
-    if (flags & FocusFlag_EnableDragging)
+    const bool dragged = (focusHovered && lmpressed) || (m_PressedId == elm->Id && pressingMouse);
+    if (dragged)
     {
-        const bool dragged = (focusHovered && lmpressed) || (m_DraggedId == elm->Id && pressingMouse);
-        if (dragged)
-        {
+        const f32 drag = Math::NormSquared(nw->WorldMouse - nw->WorldMouseOnPress);
+        const f32 th = m_Style[OverlayStyle_DragThreshold];
+        if (setDragged && drag >= th * th)
             m_DraggedId = elm->Id;
-            m_StateFlags |= StateFlag_DraggedIdMustPersist;
-            outFlags |= OverlayFocusQueryFlag_DragSource;
-        }
-
-        const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
-                                                              OverlayHoveredFlag_AllowBlockedByActiveItem |
-                                                              OverlayHoveredFlag_AllowBlockedByDrag);
-        if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
-        {
-            if (m_DragDropId != NullLayoutId)
-                outFlags |= OverlayFocusQueryFlag_DragTarget;
-            if (lmreleased)
-                outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
-        }
+    }
+    const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
+                                                          OverlayHoveredFlag_AllowBlockedByActiveItem |
+                                                          OverlayHoveredFlag_AllowBlockedByDrag);
+    if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
+    {
+        outFlags |= OverlayFocusQueryFlag_DragTarget;
+        if (lmreleased)
+            outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
     }
 
     if (pressed)
@@ -4044,6 +4156,11 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     // *i think* lmreleased check could be omitted bc pressed id wont be set if mouse is not being pressed rn
     if (m_PressedId == elm->Id && !lmreleased)
         m_StateFlags |= StateFlag_PressedIdMustPersist;
+    if (m_DraggedId == elm->Id && !lmreleased)
+    {
+        m_StateFlags |= StateFlag_DraggedIdMustPersist;
+        outFlags |= OverlayFocusQueryFlag_DragSource;
+    }
 
     if (m_ActiveId == elm->Id)
     {
@@ -4759,6 +4876,8 @@ void Overlay::ShowDemo()
             ov->Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
             ov->Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
             ov->Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
+            ov->Text("Dragged: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DragSource));
+            ov->Text("Drag hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DragTarget));
             ov->Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
 
             ov->HorizontalSeparator("State info");
@@ -4920,12 +5039,15 @@ void Overlay::ShowDemo()
 
         if (ov->PushTree("Tabs", drawLines))
         {
-            ov->TextRaw(Onyx::TextMode_Wrapped,
-                        "Tab features are currently pretty minimal at the moment and the styling is not great either");
+            ov->TextRaw("Drag the tabs to re-order them!");
+            static Onyx::OverlayTabBarFlags tflags = 0;
             static bool tab1 = true;
+            static bool tab3 = true;
+            ov->CheckBoxFlags("OverlayTabBarFlag_Reorderable", &tflags, Onyx::OverlayTabBarFlag_Reorderable);
             ov->CheckBox("Enable tab 1", &tab1);
+            ov->CheckBox("Enable tab 3", &tab3);
 
-            ov->BeginTabBar();
+            ov->BeginTabBar("Example", tflags);
             if (ov->BeginTab("Tab 1", &tab1, Onyx::OverlayTabFlag_StartOpen))
             {
                 ov->TextRaw("I am tab 1");
@@ -4934,6 +5056,11 @@ void Overlay::ShowDemo()
             if (ov->BeginTab("Tab 2"))
             {
                 ov->TextRaw("I am tab 2");
+                ov->EndTab();
+            }
+            if (ov->BeginTab("Tab 3", &tab3))
+            {
+                ov->TextRaw("I am tab 3");
                 ov->EndTab();
             }
             ov->EndTabBar();
@@ -5046,7 +5173,7 @@ template <typename... Args> static TKit::StackString fmt(const fmt::format_strin
 void Overlay::ShowRendererStatistics()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::RendererStatistics");
-    BeginTabBar();
+    BeginTabBar("Dimension");
     if (BeginTab("2D", OverlayTabFlag_StartOpen))
     {
         Renderer::DisplayMemoryLayout<D2>(this);
@@ -5071,7 +5198,7 @@ void Overlay::ShowStyleEditor()
 
     TextRaw("Welcome to the (pretty minimal) style editor! Right click any item to reset it to default");
 
-    BeginTabBar();
+    BeginTabBar("Style");
 
     if (BeginTab("Colors", OverlayTabFlag_StartOpen))
     {
