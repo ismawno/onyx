@@ -4396,11 +4396,11 @@ void Overlay::ShowDemo()
         {
             ov->SetNextTextId("Delta time");
             ov->Text("Delta time: {:.2f} ms", ftime);
-            if (BeginItemTooltip())
+            if (ov->BeginItemTooltip())
             {
-                TextRaw("I am a tooltip!");
-                TextRaw("And this is the time that passes between frames");
-                EndTooltip();
+                ov->TextRaw("I am a tooltip!");
+                ov->TextRaw("And this is the time that passes between frames");
+                ov->EndTooltip();
             }
             static bool disableLocal = false;
             static bool dummy = false;
@@ -4417,10 +4417,10 @@ void Overlay::ShowDemo()
             ov->PopTree();
         }
 
-        if (BeginMenuBar())
+        if (ov->BeginMenuBar())
         {
             drawMenus();
-            EndMenuBar();
+            ov->EndMenuBar();
         }
 
         ov->BeginDisabled(disableGlobal);
@@ -4602,7 +4602,7 @@ void Overlay::ShowDemo()
             ov->CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
 
             static char buf1[32] = "This is some nice text";
-            ov->InputText("ov->Text 1", buf1, 32, "I am a little hint", iflags);
+            ov->InputText("Text 1", buf1, 32, "I am a little hint", iflags);
 
             static i32 iival = 4;
             ov->InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
