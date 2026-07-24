@@ -374,6 +374,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_Modal = 1U << 19,
     OverlayWindowFlag_NoCloseButton = 1U << 20,
     OverlayWindowFlag_MenuBar = 1U << 21,
+    OverlayWindowFlag_MoveWithHeader = 1U << 22,
 };
 
 struct GrabInfo
@@ -494,6 +495,7 @@ struct OverlayWindow
     }
 
     usz Id = NullLayoutId;
+    usz HeaderId = NullLayoutId;
     u64 Layer;
     NativeWindow *Native;
 

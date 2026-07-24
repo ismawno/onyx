@@ -377,17 +377,18 @@ enum WindowInternalFlagBit : OverlayWindowFlags
     WindowInternalFlag_Active = 1U << 5,
     WindowInternalFlag_OwnsNative = 1U << 6,
     WindowInternalFlag_MainMenuBar = 1U << 7,
+    WindowInternalFlag_HeaderHovered = 1U << 8,
 
     // when collapsed, let os window know it must adapt its size
-    WindowInternalFlag_WantUpdateSize = 1U << 8,
+    WindowInternalFlag_WantUpdateSize = 1U << 9,
 
     // this... is a one use flag needed because the layout system queries with one frame of delay. used when auto resize
     // is at play and we need to sync the derived size with the reported window size
-    WindowInternalFlag_AllowForLayoutToCatchUp = 1U << 9,
+    WindowInternalFlag_AllowForLayoutToCatchUp = 1U << 10,
     WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
                                 WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
                                 WindowInternalFlag_MainMenuBar | WindowInternalFlag_OwnsNative |
-                                WindowInternalFlag_AllowForLayoutToCatchUp,
+                                WindowInternalFlag_AllowForLayoutToCatchUp | WindowInternalFlag_HeaderHovered,
 };
 
 /////////////////////////////////////////////
@@ -631,12 +632,14 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     drawWindowBorders();
     if (!noHeader)
     {
-        ly.BeginPanel(LyPnPar{
-            .FillColor =
-                m_Style[collapsed ? OverlayColor_HeaderBackgroundCollapsed : OverlayColor_HeaderBackgroundExpanded],
-            .Alignment = CenterLeft,
-            .Sizing = {flex(), fit()},
-            .Shape = rect(m_Style[OverlayStyle_HeaderRadius])});
+        m_Current->HeaderId = ly.BeginPanel(
+            IdFromStack("__onyx_id_Header_bar"),
+            LyPnPar{
+                .FillColor =
+                    m_Style[collapsed ? OverlayColor_HeaderBackgroundCollapsed : OverlayColor_HeaderBackgroundExpanded],
+                .Alignment = CenterLeft,
+                .Sizing = {flex(), fit()},
+                .Shape = rect(m_Style[OverlayStyle_HeaderRadius])});
 
         ly.BeginPanel(LyPnPar{.Alignment = CenterLeft,
                               .Sizing = {autoResize ? flex() : grow(), fit()},
@@ -1270,6 +1273,8 @@ u32 Overlay::processWindows()
         const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
         const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
         const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
+        const bool dragWithHeader = win->Flags & OverlayWindowFlag_MoveWithHeader;
+
         const bool pressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
 
         // if we are not popup locked, we jus check if window is hovered, which will allow grab to be set later.
@@ -1278,9 +1283,12 @@ u32 Overlay::processWindows()
         // want dragging when collapsing all. thats why when popups exist, only widgets that belong to the popup
         // tree (any depth except 0) are allowed to set hovered id
 
-        const bool winHovered =
+        const bool bodyHovered =
             !modalBlocked && (!popupBlocked || !widgetHovered) && canAssignHover &&
             win->Layout.IsHovered(win->Id, nw->WorldMouse, m_Style[OverlayStyle_BorderHoverPadding], hasHoverPadding);
+
+        const bool headerHovered = bodyHovered && win->Layout.IsHovered(win->HeaderId, nw->WorldMouse);
+        const bool winHovered = dragWithHeader ? bodyHovered : headerHovered;
 
         const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
 
@@ -1290,6 +1298,9 @@ u32 Overlay::processWindows()
         if (winHovered)
         {
             win->Flags |= WindowInternalFlag_Hovered;
+            if (headerHovered)
+                win->Flags |= WindowInternalFlag_HeaderHovered;
+
             m_StateFlags |= StateFlag_WantCaptureMouse;
             canAssignHover = false;
         }
@@ -4439,6 +4450,7 @@ void Overlay::ShowDemo()
         ov->CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
         ov->CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
         ov->CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
+        ov->CheckBoxFlags("OverlayWindowFlag_MoveWithHeader", flags, Onyx::OverlayWindowFlag_MoveWithHeader);
     };
     const auto drawMenus = [&] {
         if (ov->BeginMenu("Options"))
