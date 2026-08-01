@@ -3880,7 +3880,7 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
                                       .Floating = {.Enable = true,
                                                    .DrawOnTop = false,
                                                    .Clip = true,
-                                                   .Attachment = {LayoutAttachment_Left, LayoutAttachment_Top},
+                                                   .Attachment = {Alignment_Left, Alignment_Top},
                                                    .Alignment = {Alignment_Left, Alignment_Top}}});
 
         if (rmode != RenderMode_None)

@@ -192,17 +192,6 @@ enum LayoutOverflowMode : u8
     LayoutOverflow_Clip,
 };
 
-enum LayoutAttachment : u8
-{
-    LayoutAttachment_Canonical,
-    LayoutAttachment_Center,
-    LayoutAttachment_Mirrored,
-    LayoutAttachment_Left = LayoutAttachment_Canonical,
-    LayoutAttachment_Right = LayoutAttachment_Mirrored,
-    LayoutAttachment_Bottom = LayoutAttachment_Canonical,
-    LayoutAttachment_Top = LayoutAttachment_Mirrored,
-};
-
 using LayoutElementFlags = u8;
 enum LayoutElementFlabBit : LayoutElementFlags
 {
@@ -219,7 +208,7 @@ struct LayoutFloatingParameters
     bool Enable = false;
     bool DrawOnTop = true;
     bool Clip = false;
-    vec2<LayoutAttachment> Attachment{LayoutAttachment_Canonical};
+    vec2<Alignment> Attachment{Alignment_Canonical};
     vec2<Alignment> Alignment{Alignment_Canonical};
 };
 
@@ -227,6 +216,7 @@ struct LayoutFloatingParameters
 struct LayoutElement
 {
     usz Id;
+    void *UserData;
     LayoutShape Shape;
     f32v2 Position{0.f};
     f32v2 Size;
@@ -242,7 +232,7 @@ struct LayoutElement
     vec2<LayoutSizingType> Sizing;
     vec2<LayoutOffsetType> ChildOffsetType;
     vec2<LayoutOffsetType> SelfOffsetType;
-    vec2<LayoutAttachment> FloatAttachment;
+    vec2<Alignment> FloatAttachment;
     vec2<Alignment> FloatAlignment;
 
     f32v4 Padding; // left right bottom top
@@ -279,6 +269,7 @@ struct LayoutElement
 struct LayoutDrawInfo
 {
     usz Id;
+    void *UserData;
     TKit::String Text;
     f32v2 Position;
     f32v2 Size;
@@ -326,6 +317,7 @@ struct LayoutPanelParameters
     f32 ChildGap = 0.f;
     f32 OutlineWidth = 0.f;
     bool ForceBlend = false;
+    void *UserData = nullptr;
 };
 
 struct LayoutTextParameters
@@ -344,6 +336,7 @@ struct LayoutTextParameters
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
     bool ForceBlend = false;
+    void *UserData = nullptr;
 };
 
 struct LayoutUnicodeParameters
@@ -361,6 +354,7 @@ struct LayoutUnicodeParameters
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
     bool ForceBlend = false;
+    void *UserData = nullptr;
 };
 
 struct LayoutSpecs

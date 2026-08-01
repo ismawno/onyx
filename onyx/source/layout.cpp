@@ -24,17 +24,19 @@ void Layout::insertId(const LayoutId id, const u32 idx)
 #ifdef TKIT_ENABLE_ENSURE
     if (id.__DebugName.IsEmpty())
     {
-        TKIT_ENSURE(!m_InsertedElements.Contains(id.Id),
-                    "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
-                    "already exists in the layout (id name not available)",
-                    id.Id);
+        TKIT_ENSURE(
+            !m_InsertedElements.Contains(id.Id),
+            "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({:#018x}) "
+            "already exists in the layout (id name not available)",
+            id.Id);
     }
     else
     {
-        TKIT_ENSURE(!m_InsertedElements.Contains(id.Id),
-                    "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({}) "
-                    "already exists in the layout. Debug name: {}",
-                    id.Id, id.__DebugName);
+        TKIT_ENSURE(
+            !m_InsertedElements.Contains(id.Id),
+            "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({:#018x}) "
+            "already exists in the layout. Debug name: {}",
+            id.Id, id.__DebugName);
     }
 #endif
     m_InsertedElements.Insert(id, idx);
@@ -111,6 +113,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     current.Alignment = params.Alignment;
     current.ChildOverflow = params.Overflow;
     current.Shape = params.Shape;
+    current.UserData = params.UserData;
 
     if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
     {
@@ -163,7 +166,9 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
 usz Layout::OpenPanel(const LayoutId id)
 {
     TKIT_ASSERT(m_InsertedElements.Contains(id),
-                "[ONYX][LAYOUT] Can only open a panel that was previously inserted into the layout");
+                "[ONYX][LAYOUT] Can only open a panel that was previously inserted into the layout. Id {:#018x} is not "
+                "recognized",
+                id.Id);
 
     const u32 c = m_InsertedElements[id];
     m_ElementStack.Append(c);
@@ -218,6 +223,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.Material = params.Material;
     current.TextMode = params.Mode;
     current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
+    current.UserData = params.UserData;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
 
@@ -274,6 +280,7 @@ usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicode
     current.TexScale = params.TexScale;
     current.Material = params.Material;
     current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
+    current.UserData = params.UserData;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
     const Resource glyph = Resources::GetGlyph(current.Font, code);
@@ -655,16 +662,16 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                 if (child.Type == LayoutElement_Floating)
                 {
                     cpos = ppos + coffset + soffset;
-                    const LayoutAttachment fatt = child.FloatAttachment[axis];
+                    const Alignment fatt = child.FloatAttachment[axis];
                     const Alignment falg = child.FloatAlignment[axis];
                     if (falg == Alignment_Mirrored)
                         cpos -= csize;
                     else if (falg == Alignment_Center)
                         cpos -= 0.5f * csize;
 
-                    if (fatt == LayoutAttachment_Mirrored)
+                    if (fatt == Alignment_Mirrored)
                         cpos += psize;
-                    else if (fatt == LayoutAttachment_Center)
+                    else if (fatt == Alignment_Center)
                         cpos += 0.5f * psize;
 
                     if (child.Flags & LayoutElementFlag_FloatClip)
@@ -749,6 +756,7 @@ void Layout::generateDrawInfo()
         info.TexScale = elm.TexScale;
         info.Material = elm.Material;
         info.RenderFlags = 0;
+        info.UserData = elm.UserData;
         if (fill)
         {
             // NOTE(Isma): This is a weak check. If user passes a bad material that is not NullHandle, it will go

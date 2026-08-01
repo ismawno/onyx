@@ -56,9 +56,10 @@ using WidgetStateFlags = u8;
 enum OverlayFlagBit : OverlayFlags
 {
     OverlayFlag_WindowPromotions = 1U << 0,
+    OverlayFlag_Docking = 1U << 1,
 
     // internal
-    OverlayFlag_FloatingMode = 1U << 1,
+    OverlayFlag_FloatingMode = 1U << 2,
 };
 
 /////////////////////////////////////////////
@@ -101,6 +102,7 @@ enum OverlayColor : u8
     OverlayColor_None,
     OverlayColor_Text,
     OverlayColor_Line,
+    OverlayColor_DockPreview,
 
     OverlayColor_DragOutline,
 
@@ -222,7 +224,6 @@ enum OverlayStyleVariable : u8
 
     OverlayStyle_WindowPadding,
     OverlayStyle_WindowBorderWidth,
-    OverlayStyle_WindowSpawnDelta,
 
     OverlayStyle_HeaderPadding,
     OverlayStyle_IconWidth,
@@ -360,29 +361,37 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoScrollBar = 1U << 8,
-    OverlayWindowFlag_NoVerticalScroll = 1U << 9,
-    OverlayWindowFlag_HorizontalScroll = 1U << 10,
-    OverlayWindowFlag_NoResize = 1U << 11,
-    OverlayWindowFlag_NoMove = 1U << 12,
-    OverlayWindowFlag_NoCollapse = 1U << 13,
-    OverlayWindowFlag_NoHeaderBar = 1U << 14,
-    OverlayWindowFlag_NoBringToFocus = 1U << 15,
-    OverlayWindowFlag_NoPromotion = 1U << 16,
-    OverlayWindowFlag_AutoResize = 1U << 17,
-    OverlayWindowFlag_BringToTop = 1U << 18,
-    OverlayWindowFlag_Modal = 1U << 19,
-    OverlayWindowFlag_NoCloseButton = 1U << 20,
-    OverlayWindowFlag_MenuBar = 1U << 21,
-    OverlayWindowFlag_MoveWithHeader = 1U << 22,
+    OverlayWindowFlag_NoScrollBar = 1U << 17,
+    OverlayWindowFlag_NoVerticalScroll = 1U << 18,
+    OverlayWindowFlag_HorizontalScroll = 1U << 19,
+    OverlayWindowFlag_NoResize = 1U << 20,
+    OverlayWindowFlag_NoMove = 1U << 21,
+    OverlayWindowFlag_NoCollapse = 1U << 22,
+    OverlayWindowFlag_NoHeaderBar = 1U << 23,
+    OverlayWindowFlag_NoBringToFocus = 1U << 24,
+    OverlayWindowFlag_NoPromotion = 1U << 25,
+    OverlayWindowFlag_AutoResize = 1U << 26,
+    OverlayWindowFlag_BringToTop = 1U << 27,
+    OverlayWindowFlag_Modal = 1U << 28,
+    OverlayWindowFlag_NoCloseButton = 1U << 29,
+    OverlayWindowFlag_MenuBar = 1U << 30,
+    OverlayWindowFlag_MoveWithHeader = 1U << 31,
 };
 
+struct DockNode;
 struct GrabInfo
 {
+    DockNode *DockNode;
     TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     OverlayColor InteractionColor = OverlayColor_None; // Whether hovered or pressed
     f32v2 ScreenPos;
+
+    // when a window border is grabbed, this size represents the unbounded size of the resize. however, when a dock axis
+    // is grabbed, this size represents the size of the dock node
     f32v2 Size;
+    // the unbounded ratio of the dock node, if any
+    f32 Ratio;
+    f32 StartRatio;
     ResizeFlags Flags = 0;
 };
 
@@ -488,6 +497,55 @@ struct NativeWindow
     }
 };
 
+struct Tab
+{
+    usz Id;
+    TKit::String Label;
+    OverlayTabFlags Flags = 0;
+};
+
+struct TabBarData
+{
+    usz Id;
+    usz OpenId = NullLayoutId;
+
+    u32 Current = TKIT_U32_MAX;
+
+    TKit::TierArray<Tab> Tabs{};
+    TKit::TierArray<u32> Order{};
+    OverlayTabBarFlags Flags = 0;
+
+    u32 GetTabById(const LayoutId id) const
+    {
+        for (u32 i = 0; i < Tabs.GetSize(); ++i)
+            if (Tabs[i].Id == id)
+                return i;
+        return TKIT_U32_MAX;
+    }
+};
+
+struct DockNode
+{
+    usz Id = NullLayoutId;
+    usz AxisId = NullLayoutId;
+    DockNode *Parent = nullptr;
+
+    TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
+    f32 Ratio;
+    LayoutAxis Axis;
+
+    TabBarData TabData{};
+
+    OverlayWindow *MainWindow = nullptr;
+    TKit::TierArray<OverlayWindow *> Windows;
+
+    bool IsLeaf() const
+    {
+        TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
+        return !Children[0];
+    }
+};
+
 struct OverlayWindow
 {
     OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
@@ -496,8 +554,14 @@ struct OverlayWindow
 
     usz Id = NullLayoutId;
     usz HeaderId = NullLayoutId;
+    usz ContentAreaId = NullLayoutId;
     u64 Layer;
+
     NativeWindow *Native;
+    OverlayWindow *ActiveDockChild = nullptr;
+
+    DockNode *DockParent = nullptr;
+    DockNode *DockHost = nullptr;
 
     GrabInfo Grab{};
 
@@ -723,11 +787,13 @@ enum OverlayTabBarFlagBit : OverlayTabBarFlags
 enum OverlayTabFlagBit : OverlayTabFlags
 {
     OverlayTabFlag_StartOpen = 1U << 0,
+    OverlayTabFlag_NoPushId = 1U << 1,
 
-    TabFlag_Enabled = 1U << 1,
-    TabFlag_DrawCloseButton = 1U << 2,
-    TabFlag_RequestClose = 1U << 3,
-    TabFlag_JustPermuted = 1U << 4,
+    TabFlag_Enabled = 1U << 2,
+    TabFlag_DrawCloseButton = 1U << 3,
+    TabFlag_RequestClose = 1U << 4,
+    TabFlag_JustPermuted = 1U << 5,
+    TabFlag_ForDocking = 1U << 6,
 };
 
 enum OverlayTreeFlagBit : OverlayTreeFlags
@@ -810,30 +876,6 @@ struct PickerData
     f32 AlphaRodPos = 0.f;
 };
 
-struct Tab
-{
-    usz Id;
-    TKit::String Label;
-    OverlayTabFlags Flags = 0;
-};
-
-struct TabBarData
-{
-    usz Id;
-    usz OpenId = NullLayoutId;
-    TKit::TierArray<Tab> Tabs{};
-    TKit::TierArray<u32> Order{};
-    OverlayTabBarFlags Flags = 0;
-
-    u32 GetTabById(const LayoutId id) const
-    {
-        for (u32 i = 0; i < Tabs.GetSize(); ++i)
-            if (Tabs[i].Id == id)
-                return i;
-        return TKIT_U32_MAX;
-    }
-};
-
 struct OverlayDragDropPayload
 {
     TKit::StringView Identifier{};
@@ -875,12 +917,10 @@ class Overlay
 
     using LySz = LayoutSizing;
     using LyOf = LayoutOffset;
-    using LyAtt = LayoutAttachment;
     using LyAlg = Alignment;
 
     using LySz2 = vec2<LySz>;
     using LyOf2 = vec2<LyOf>;
-    using LyAtt2 = vec2<LyAtt>;
     using LyAlg2 = vec2<LyAlg>;
 
     static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
@@ -1020,8 +1060,7 @@ class Overlay
     }
     void EndTab()
     {
-        PopId();
-        GetCurrentLayout().EndPanel();
+        endTab(m_TabBarStack.GetBack());
     }
 
     bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
@@ -1414,10 +1453,10 @@ class Overlay
     /// LAYOUT PUBLIC
     /////////////////////////////////////////////
 
-    bool BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
-    bool BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
+    void BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
+    void BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
     {
-        return BeginScroll(label, maxHeight, TKIT_F32_MAX, flags);
+        BeginScroll(label, maxHeight, TKIT_F32_MAX, flags);
     }
     void EndScroll()
     {
@@ -1745,11 +1784,21 @@ class Overlay
     void popWindowStack();
     u32 processWindows();
 
+    OverlayWindow *createOverlayWindow();
+
+    void destroyOverlayWindow(OverlayWindow *win);
+    void removeOverlayWindow(OverlayWindow *win);
+
     NativeWindow *createNativeWindow(Window *win);
     NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims, WindowFlags flags = 0);
 
     void destroyNativeWindow(NativeWindow *win);
     void removeNativeWindow(NativeWindow *win);
+
+    DockNode *createDockNode();
+
+    void destroyDockNode(DockNode *node);
+    void removeDockNode(DockNode *node);
 
     NativeWindow *promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
     void demoteWindow(OverlayWindow *win);
@@ -1759,6 +1808,10 @@ class Overlay
     void manageWindowPromotions();
 
     template <typename F> void iterateReverseWindows(F func);
+    template <typename F> void iterateDockTree(OverlayWindow *win, F func);
+    template <typename F> void iterateDockTreeLeafs(OverlayWindow *win, F func);
+
+    void manageDockingAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
 
     NativeWindow *getMainNativeWindow()
     {
@@ -1775,21 +1828,21 @@ class Overlay
     // NOTE(Isma, 25/06/06): Applying a hard cap right now because we use direct pointer references to array elements,
     // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
     // time, so 32 should be plenty
-    TKit::StaticArray32<OverlayWindow> m_OverlayWindows{};
+    TKit::StaticArray32<OverlayWindow *> m_OverlayWindows{};
+    TKit::StaticArray64<DockNode *> m_DockNodes{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
     TKit::StaticHashMap<usz, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
 
     TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
     TKit::TierArray<OverlayWindow *> m_WindowStack{};
-    TKit::TierArray<usz> m_WindowIds{};
 
     NextWindowData m_NextWindow{};
 
     OverlayWindow *m_Current = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
+    OverlayWindow *m_DockSource = nullptr;
 
     u64 m_LayerCount = 0;
-    f32 m_WindowSpawnOffset = 0.f;
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PRIVATE
@@ -1800,6 +1853,12 @@ class Overlay
     /////////////////////////////////////////////
 
     static TKit::StringView trimLabel(TKit::StringView label);
+
+    void beginTabBar(TabBarData *data, LayoutId id, OverlayTabBarFlags flags);
+    void endTabBar(TabBarData *data);
+
+    bool beginTab(TabBarData *data, TKit::StringView label, bool *enabled, OverlayTabFlags flags);
+    void endTab(TabBarData *data);
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
     void beginHorizontalWidget(usz id, f32 normSize = 0.5f);
@@ -2164,7 +2223,7 @@ class Overlay
 
     Color m_PickerOriginal{};
 
-    TabBarData *m_CurrentTabBar = nullptr;
+    TKit::TierArray<TabBarData *> m_TabBarStack{};
 
     struct TextInputStateInfo
     {
@@ -2220,7 +2279,7 @@ class Overlay
     /// LAYOUT PRIVATE
     /////////////////////////////////////////////
 
-    bool beginScroll(const ScrollParameterSpecs &specs);
+    usz beginScroll(const ScrollParameterSpecs &specs);
     void endScroll();
     bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
 
