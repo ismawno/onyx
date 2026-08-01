@@ -527,11 +527,13 @@ struct TabBarData
 struct DockNode
 {
     usz Id = NullLayoutId;
-    usz AxisId = NullLayoutId;
+    usz BorderId = NullLayoutId;
     DockNode *Parent = nullptr;
 
     TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
     f32 Ratio;
+    // may be 1 or 0 when a children is empty
+    f32 EffectiveRatio;
     LayoutAxis Axis;
 
     TabBarData TabData{};
@@ -544,6 +546,7 @@ struct DockNode
         TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
         return !Children[0];
     }
+    bool IsEmpty() const;
 };
 
 struct OverlayWindow

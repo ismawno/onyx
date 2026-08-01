@@ -386,13 +386,16 @@ enum WindowInternalFlagBit : OverlayWindowFlags
     WindowInternalFlag_HeaderGrabbed = 1U << 8,
     WindowInternalFlag_HasDockPreview = 1U << 9,
     WindowInternalFlag_MultipleAppends = 1U << 10,
+    // needed specially with docking, so that inactive windows have a 0 size. need to query last frame's active because
+    // the first thing drawn is always the tree structure
+    WindowInternalFlag_ActiveLastFrame = 1U << 11,
 
     // when collapsed, let os window know it must adapt its size
-    WindowInternalFlag_WantUpdateSize = 1U << 11,
+    WindowInternalFlag_WantUpdateSize = 1U << 12,
 
     // this... is a one use flag needed because the layout system queries with one frame of delay. used when auto resize
     // is at play and we need to sync the derived size with the reported window size
-    WindowInternalFlag_AllowForLayoutToCatchUp = 1U << 12,
+    WindowInternalFlag_AllowForLayoutToCatchUp = 1U << 13,
     WindowInternalFlagPersist = WindowInternalFlag_Hovered | WindowInternalFlag_Focused |
                                 WindowInternalFlag_InputHovered | WindowInternalFlag_Active |
                                 WindowInternalFlag_MainMenuBar | WindowInternalFlag_OwnsNative |
@@ -456,6 +459,27 @@ Overlay::~Overlay()
 /////////////////////////////////////////////
 /// WINDOWS/MENUS
 /////////////////////////////////////////////
+
+using DockInfoFlags = u8;
+
+struct DockInfo
+{
+    DockNode *Node;
+    f32v2 Position;
+    f32v2 Size;
+};
+
+bool DockNode::IsEmpty() const
+{
+    if (IsLeaf())
+    {
+        for (OverlayWindow *win : Windows)
+            if (win->Flags & (WindowInternalFlag_Active | WindowInternalFlag_ActiveLastFrame))
+                return false;
+        return true;
+    }
+    return Children[0]->IsEmpty() && Children[1]->IsEmpty();
+}
 
 const f32v2 &OverlayWindow::GetActivePosition() const
 {
@@ -777,11 +801,15 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
         // this is the first time the main window (the window that host all docked windows) is getting appended to.
         // before setting up the actual window that is being started by the user, we have to setup the dock tree panel
         // structure of the main window that will host all of them
-        iterateDockTree(m_Current, [&](DockNode *node, const f32v2 &, const f32v2 &size) {
+        iterateDockTree(m_Current, [&](const DockInfo &info) {
+            DockNode *node = info.Node;
+            const f32v2 &size = info.Size;
+
             const LayoutId nodeId = PushId(node);
             DockNode *p = node->Parent;
             if (p)
                 ly.OpenPanel(p->Id);
+
             if (node->IsLeaf())
             {
                 LySz2 sizing;
@@ -789,7 +817,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                     sizing = srel(1.f);
                 else
                 {
-                    const f32 ratio = node == p->Children[0] ? p->Ratio : 1.f - p->Ratio;
+                    const f32 ratio = node == p->Children[0] ? p->EffectiveRatio : 1.f - p->EffectiveRatio;
                     sizing = p->Axis == LayoutAxis_Horizontal ? srel({1.f, ratio}) : srel({ratio, 1.f});
                 }
 
@@ -815,7 +843,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                 const f32 minRatio = Math::Min(0.5f, mwin->MinSize[iaxis] / size[iaxis]);
                 node->Ratio = Math::Clamp(node->Ratio, minRatio, 1.f - minRatio);
 
-                const f32 ratio = node->Ratio;
+                const f32 ratio = node->EffectiveRatio;
                 bool resizing = mwin->Grab.DockNode == node;
                 if (node->Axis == LayoutAxis_Horizontal)
                 {
@@ -833,21 +861,24 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                 }
 
                 node->Id = ly.BeginPanel(nodeId, LyPnPar{.Direction = dir, .Alignment = TopLeft, .Sizing = sabs(size)});
-                node->AxisId = ly.Panel(
-                    IdFromStack("__onyx_id_Dock_axis"),
-                    LyPnPar{.FillColor =
-                                m_Style[resizing ? mwin->Grab.InteractionColor : OverlayColor_WindowBorderIdle],
-                            .Sizing = borderSize,
-                            .SelfOffset = borderOffset,
-                            .Floating =
-                                {
-                                    .Enable = true,
-                                    .DrawOnTop = true,
-                                    .Clip = false,
-                                    .Attachment = Alignment_Center,
-                                    .Alignment = Alignment_Center,
-                                },
-                            .UserData = rcast<void *>(0xDEADC0DE)});
+                if (ratio != 1.f && ratio != 0.f)
+                {
+                    node->BorderId = ly.Panel(
+                        IdFromStack("__onyx_id_Dock_axis"),
+                        LyPnPar{.FillColor =
+                                    m_Style[resizing ? mwin->Grab.InteractionColor : OverlayColor_WindowBorderIdle],
+                                .Sizing = borderSize,
+                                .SelfOffset = borderOffset,
+                                .Floating =
+                                    {
+                                        .Enable = true,
+                                        .DrawOnTop = true,
+                                        .Clip = false,
+                                        .Attachment = Alignment_Center,
+                                        .Alignment = Alignment_Center,
+                                    },
+                                .UserData = rcast<void *>(0xDEADC0DE)});
+                }
 
                 // upcoming children will open the panel and draw here
 
@@ -1383,8 +1414,11 @@ u32 Overlay::processWindows()
             }
 
             if (rflags == 0 && win->DockHost)
-                iterateDockTree(win, [&](DockNode *node, const f32v2 &, const f32v2 &size) {
-                    const usz id = node->AxisId;
+                iterateDockTree(win, [&](const DockInfo &info) {
+                    DockNode *node = info.Node;
+                    const f32v2 &size = info.Size;
+
+                    const usz id = node->BorderId;
                     if (win->Layout.IsHovered(id, nativeHovered->WorldMouse, bpadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
@@ -1834,6 +1868,12 @@ void Overlay::demoteAllWindows()
     {
         NativeWindow *nw = win->Native;
         nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
+
+        if (win->Flags & WindowInternalFlag_Active)
+            win->Flags |= WindowInternalFlag_ActiveLastFrame;
+        else
+            win->Flags &= ~WindowInternalFlag_ActiveLastFrame;
+
         win->Flags &=
             ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active | WindowInternalFlag_MultipleAppends);
 
@@ -1894,6 +1934,12 @@ void Overlay::manageWindowPromotions()
             }
         }
         nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
+
+        if (active)
+            win->Flags |= WindowInternalFlag_ActiveLastFrame;
+        else
+            win->Flags &= ~WindowInternalFlag_ActiveLastFrame;
+
         win->Flags &=
             ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active | WindowInternalFlag_MultipleAppends);
 
@@ -1947,14 +1993,6 @@ template <typename F> void Overlay::iterateDockTree(OverlayWindow *win, const F 
     const f32v2 wpos = ownsNative ? win->Native->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
     const f32v2 &wsize = win->Size;
 
-    struct DockInfo
-    {
-        DockNode *Node;
-        f32v2 Position;
-        f32v2 Size;
-        f32v2 ContentSize;
-    };
-
     TKit::StackArray<DockInfo> nodes{};
     nodes.Reserve(m_DockNodes.GetSize());
 
@@ -1970,19 +2008,28 @@ template <typename F> void Overlay::iterateDockTree(OverlayWindow *win, const F 
         const f32v2 &size = info.Size;
         if (!node->IsLeaf())
         {
+            TKIT_ASSERT(node->Windows.IsEmpty(), "[ONYX][OVERLAY] A parent node may not have any windows");
+            DockNode *c0 = node->Children[0];
+            DockNode *c1 = node->Children[1];
+
             const f32v2 &pos0 = pos;
             f32v2 pos1 = pos;
 
             f32v2 size0 = size;
             f32v2 size1 = size;
 
-            DockNode *c0 = node->Children[0];
-            DockNode *c1 = node->Children[1];
-
             const u32 iaxis = 1 - node->Axis;
 
-            size0[iaxis] *= node->Ratio;
-            size1[iaxis] *= 1.f - node->Ratio;
+            f32 r = node->Ratio;
+            if (c0->IsEmpty())
+                r = 0.f;
+            else if (c1->IsEmpty())
+                r = 1.f;
+
+            node->EffectiveRatio = r;
+
+            size0[iaxis] *= r;
+            size1[iaxis] *= 1.f - r;
 
             pos1[iaxis] += iaxis == 0 ? size0[0] : -size0[1];
 
@@ -1993,7 +2040,7 @@ template <typename F> void Overlay::iterateDockTree(OverlayWindow *win, const F 
             nodes.Append(c0, pos0, size0);
         }
 
-        if (!func(node, pos, size))
+        if (!func(info))
             return;
     }
 }
@@ -2172,7 +2219,10 @@ void Overlay::manageDockingAndDrawPreview(OverlayWindow *win, RenderContext<D2> 
         tentativeInsert(top, win->DockHost, wpos, wsize);
     }
     else
-        iterateDockTree(win, [&](DockNode *node, const f32v2 &pos, const f32v2 &size) {
+        iterateDockTree(win, [&](const DockInfo &info) {
+            DockNode *node = info.Node;
+            const f32v2 &pos = info.Position;
+            const f32v2 &size = info.Size;
             if (!node->IsLeaf())
                 return true;
 
@@ -4108,6 +4158,11 @@ void Overlay::trashTooltip()
     if (m_Tooltip->Flags & WindowInternalFlag_OwnsNative)
         removeNativeWindow(m_Tooltip->Native);
 
+    if (m_Tooltip->Flags & WindowInternalFlag_Active)
+        m_Tooltip->Flags |= WindowInternalFlag_ActiveLastFrame;
+    else
+        m_Tooltip->Flags &= ~WindowInternalFlag_ActiveLastFrame;
+
     m_Tooltip->Flags &= ~(WindowInternalFlag_Active | WindowInternalFlag_OwnsNative);
     m_Tooltip->Native = getMainNativeWindow();
     m_Tooltip = nullptr;
@@ -4117,6 +4172,10 @@ void Overlay::resetTooltip()
     if (!m_Tooltip)
         return;
     m_Tooltip->Layout.Reset();
+    if (m_Tooltip->Flags & WindowInternalFlag_Active)
+        m_Tooltip->Flags |= WindowInternalFlag_ActiveLastFrame;
+    else
+        m_Tooltip->Flags &= ~WindowInternalFlag_ActiveLastFrame;
     m_Tooltip->Flags &= ~WindowInternalFlag_Active;
     m_Tooltip = nullptr;
 }
