@@ -3421,10 +3421,11 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
 
         // the +2 here adds a very small offset that prevents some (rounding??) error that causes a bit of undefined
         // texture to be rendered, clipped from the view's attachment
-        const f32 padding = 2.f;
+        // EDIT: removed, causes the render target not to cover the whole screen
+        // const f32 padding = 2.f;
         Scissor sc = rv->GetNormalizedScissor();
-        sc.Position = (sc.Position * nvp.Extent + nvp.Position) * (pext + padding);
-        sc.Extent *= nvp.Extent * (pext - padding);
+        sc.Position = (sc.Position * nvp.Extent + nvp.Position) * pext; // (pext + padding);
+        sc.Extent *= nvp.Extent * pext;                                 // (pext - padding);
 
         const VkRect2D scissor = AsVulkanScissor(sc);
 

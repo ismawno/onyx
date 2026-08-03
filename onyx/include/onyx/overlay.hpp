@@ -361,6 +361,7 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    OverlayWindowFlag_NoDocking = 1U << 16,
     OverlayWindowFlag_NoScrollBar = 1U << 17,
     OverlayWindowFlag_NoVerticalScroll = 1U << 18,
     OverlayWindowFlag_HorizontalScroll = 1U << 19,
@@ -387,7 +388,7 @@ struct GrabInfo
     f32v2 ScreenPos;
 
     // when a window border is grabbed, this size represents the unbounded size of the resize. however, when a dock axis
-    // is grabbed, this size represents the size of the dock node
+    // is grabbed, this size represents the unbounded size of the dock node
     f32v2 Size;
     // the unbounded ratio of the dock node, if any
     f32 Ratio;
@@ -500,6 +501,9 @@ struct NativeWindow
 struct Tab
 {
     usz Id;
+    // only used for docking
+    OverlayWindow *Window = nullptr;
+    //
     TKit::String Label;
     OverlayTabFlags Flags = 0;
 };
@@ -547,6 +551,20 @@ struct DockNode
         return !Children[0];
     }
     bool IsEmpty() const;
+
+    u32 ChildIndex(const DockNode *child) const
+    {
+        return child == Children[1];
+    }
+    DockNode *OtherChild(const DockNode *child) const
+    {
+        return Children[1 - ChildIndex(child)];
+    }
+    f32 GetChildEffectiveRatio(const DockNode *child) const
+    {
+        TKIT_ASSERT(!IsLeaf(), "[ONYX][OVERLAY] Can only get effective ratio from a parent node");
+        return Children[0] == child ? EffectiveRatio : (1.f - EffectiveRatio);
+    }
 };
 
 struct OverlayWindow
@@ -560,7 +578,7 @@ struct OverlayWindow
     usz ContentAreaId = NullLayoutId;
     u64 Layer;
 
-    NativeWindow *Native;
+    NativeWindow *Native = nullptr;
     OverlayWindow *ActiveDockChild = nullptr;
 
     DockNode *DockParent = nullptr;
@@ -999,6 +1017,10 @@ class Overlay
         return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
     bool IsCurrentWindowPromoted() const;
+    bool IsCurrentWindowDocked() const
+    {
+        return m_Current->ActiveDockChild;
+    }
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PUBLIC
@@ -1811,10 +1833,12 @@ class Overlay
     void manageWindowPromotions();
 
     template <typename F> void iterateReverseWindows(F func);
-    template <typename F> void iterateDockTree(OverlayWindow *win, F func);
-    template <typename F> void iterateDockTreeLeafs(OverlayWindow *win, F func);
+    template <typename F> void iterateDockTreeWithLayout(OverlayWindow *win, F func);
+    template <typename F> void iterateDockTree(DockNode *node, F func);
 
-    void manageDockingAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
+    void undockWindow(OverlayWindow *win);
+    void undockMarkedWindows();
+    void dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
 
     NativeWindow *getMainNativeWindow()
     {
@@ -1860,7 +1884,8 @@ class Overlay
     void beginTabBar(TabBarData *data, LayoutId id, OverlayTabBarFlags flags);
     void endTabBar(TabBarData *data);
 
-    bool beginTab(TabBarData *data, TKit::StringView label, bool *enabled, OverlayTabFlags flags);
+    bool beginTab(TabBarData *data, TKit::StringView label, bool *enabled, OverlayTabFlags flags,
+                  OverlayWindow *window = nullptr);
     void endTab(TabBarData *data);
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
