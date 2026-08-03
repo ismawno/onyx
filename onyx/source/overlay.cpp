@@ -993,7 +993,7 @@ bool Overlay::BeginMainMenuBar()
     const LayoutId id = "__onyx_id_Main_menu_bar";
     m_Current = getOrCreateOverlayWindow(id);
     m_Current->Flags |= WindowInternalFlag_MainMenuBar;
-    m_Current->Flags |= OverlayWindowFlag_NoPromotion;
+    m_Current->Flags |= OverlayWindowFlag_NoPromotion | OverlayWindowFlag_NoDocking;
 
     m_StateFlags |= StateFlag_MainMenuBarActive;
     m_WindowStack.Append(m_Current);
@@ -4125,7 +4125,8 @@ bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const 
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
 
-    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton);
+    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton |
+                                  OverlayWindowFlag_NoDocking);
 }
 
 void Overlay::EndPopup()
@@ -4301,6 +4302,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
         return;
 
     m_Current->Flags |= WindowInternalFlag_Active;
+    m_Current->Flags |= OverlayWindowFlag_NoDocking;
 
     Layout &ly = GetCurrentLayout();
 
