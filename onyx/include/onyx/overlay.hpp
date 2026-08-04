@@ -388,7 +388,7 @@ struct GrabInfo
     f32v2 ScreenPos;
 
     // when a window border is grabbed, this size represents the unbounded size of the resize. however, when a dock axis
-    // is grabbed, this size represents the unbounded size of the dock node
+    // is grabbed, this size represents the size of the dock node
     f32v2 Size;
     // the unbounded ratio of the dock node, if any
     f32 Ratio;
@@ -535,6 +535,13 @@ struct DockNode
     DockNode *Parent = nullptr;
 
     TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
+
+    // should only be used to query. these are derived everytime iterateDockTreeWithLayoutUpdate() is called, which is
+    // the only placed where these two fields are allowed to be changed
+    // position is in world coords, not screen
+    f32v2 ReadOnlyPosition;
+    f32v2 ReadOnlySize;
+
     f32 Ratio;
     // may be 1 or 0 when a children is empty
     f32 EffectiveRatio;
@@ -542,7 +549,7 @@ struct DockNode
 
     TabBarData TabData{};
 
-    OverlayWindow *MainWindow = nullptr;
+    OverlayWindow *DockSpace = nullptr;
     TKit::TierArray<OverlayWindow *> Windows;
 
     bool IsLeaf() const
@@ -614,6 +621,15 @@ struct OverlayWindow
 
     f32v2 ToScreen(const f32v2 &world) const;
     f32v2 ToWorld(const f32v2 &screen) const;
+
+    f32v2 ToLocalScreen(const f32v2 &world) const
+    {
+        return Native->View->ToAbsolute(Native->View->WorldToScreen(world));
+    }
+    f32v2 ToLocalWorld(const f32v2 &screen) const
+    {
+        return Native->View->ScreenToWorld(Native->View->ToNormalized(screen));
+    }
 };
 
 /////////////////////////////////////////////
@@ -1833,8 +1849,7 @@ class Overlay
     void manageWindowPromotions();
 
     template <typename F> void iterateReverseWindows(F func);
-    template <typename F> void iterateDockTreeWithLayout(OverlayWindow *win, F func);
-    template <typename F> void iterateDockTree(DockNode *node, F func);
+    template <typename F> void iterateDockTreeWithLayoutUpdate(OverlayWindow *win, F func);
 
     void undockWindow(OverlayWindow *win);
     void undockMarkedWindows();

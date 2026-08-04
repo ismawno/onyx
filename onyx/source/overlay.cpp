@@ -459,13 +459,6 @@ Overlay::~Overlay()
 
 using DockInfoFlags = u8;
 
-struct DockInfo
-{
-    DockNode *Node;
-    f32v2 Position;
-    f32v2 Size;
-};
-
 bool DockNode::IsEmpty() const
 {
     if (IsLeaf())
@@ -533,27 +526,165 @@ f32v2 OverlayWindow::ToScreen(const f32v2 &world) const
     if (Flags & WindowInternalFlag_OwnsNative)
         return Native->ToScreen(world);
 
-    return Native->View->ToAbsolute(Native->View->WorldToScreen(world));
+    return ToLocalScreen(world);
 }
 f32v2 OverlayWindow::ToWorld(const f32v2 &screen) const
 {
     if (Flags & WindowInternalFlag_OwnsNative)
         return Native->ToWorld(screen);
 
-    return Native->View->ScreenToWorld(Native->View->ToNormalized(screen));
+    return ToLocalWorld(screen);
 }
-#ifdef TKIT_ENABLE_ENSURE
-static void checkDockParentHasWindow(OverlayWindow *win)
+
+template <typename F> static void iterateDockTree(DockNode *node, const F func)
 {
-    if (!win->DockParent)
+    TKit::StaticArray64<DockNode *> nodes{};
+
+    nodes.Append(node);
+    while (!nodes.IsEmpty())
+    {
+        DockNode *node = nodes.GetBack();
+        nodes.Pop();
+
+        if (!node->IsLeaf())
+        {
+            DockNode *c0 = node->Children[0];
+            DockNode *c1 = node->Children[1];
+
+            nodes.Append(c1);
+            nodes.Append(c0);
+        }
+        if (!func(node))
+            return;
+    }
+}
+
+#ifdef TKIT_ENABLE_ENSURE
+// fyi this was generated
+static void validateDockTree(DockNode *root, const TKit::TierArray<DockNode *> &dockNodes, const char *context)
+{
+    if (!root)
         return;
 
-    for (OverlayWindow *child : win->DockParent->Windows)
-        if (child == win)
-            return;
+    const auto fptr = [](const auto p) { return TKit::FormatPointer(p); };
+    const OverlayWindow *dspace = root->DockSpace;
+    TKIT_ENSURE(dspace, "[ONYX][OVERLAY][{}] Root node has no DockSpace", context);
+    TKIT_ENSURE(root->Parent == nullptr, "[ONYX][OVERLAY][{}] Root node {} has a parent {}", context, fptr(root),
+                fptr(root->Parent));
+    TKIT_ENSURE(dspace->DockHost == root, "[ONYX][OVERLAY][{}] DockSpace DockHost {} != root {}", context,
+                fptr(dspace->DockHost), fptr(root));
+    TKIT_ENSURE(dspace->DockParent == root, "[ONYX][OVERLAY][{}] DockSpace DockParent {} != root {} (DockHost: {})",
+                context, fptr(dspace->DockParent), fptr(root), fptr(dspace->DockHost));
 
-    TKIT_PANIC("[ONYX][OVERLAY] A window has a dock parent which does not contain such window");
+    iterateDockTree(root, [&](const DockNode *node) {
+        bool found = false;
+        for (const auto &n : dockNodes)
+            if (n == node)
+            {
+                found = true;
+                break;
+            }
+        TKIT_ENSURE(found, "[ONYX][OVERLAY][{}] Node {} NOT in m_DockNodes", context, fptr(node));
+
+        TKIT_ENSURE(node->DockSpace == dspace, "[ONYX][OVERLAY][{}] Node {} has wrong DockSpace (expected {}, got {})",
+                    context, fptr(node), fptr(dspace), fptr(node->DockSpace));
+
+        if (node->IsLeaf())
+        {
+            for (const OverlayWindow *win : node->Windows)
+            {
+                TKIT_ENSURE(win->DockParent == node, "[ONYX][OVERLAY][{}] Window {} in leaf {} has DockParent {}",
+                            context, fptr(win), fptr(node), fptr(win->DockParent));
+                TKIT_ENSURE(win->DockHost == root, "[ONYX][OVERLAY][{}] Window {} has DockHost {}, expected root {}",
+                            context, fptr(win), fptr(win->DockHost), fptr(root));
+            }
+        }
+        else
+        {
+            TKIT_ENSURE(node->Children[0] && node->Children[1], "[ONYX][OVERLAY][{}] Interior node {} missing children",
+                        context, fptr(node));
+            TKIT_ENSURE(node->Children[0]->Parent == node,
+                        "[ONYX][OVERLAY][{}] Child[0] {} of node {} has wrong parent {}", context,
+                        fptr(node->Children[0]), fptr(node), fptr(node->Children[0]->Parent));
+            TKIT_ENSURE(node->Children[1]->Parent == node,
+                        "[ONYX][OVERLAY][{}] Child[1] {} of node {} has wrong parent {}", context,
+                        fptr(node->Children[1]), fptr(node), fptr(node->Children[1]->Parent));
+            TKIT_ENSURE(node->Windows.IsEmpty(), "[ONYX][OVERLAY][{}] Interior node {} has {} windows", context,
+                        fptr(node), node->Windows.GetSize());
+        }
+
+        return true;
+    });
 }
+#    define VALIDATE_DOCK_TREE(root, context) validateDockTree(root, m_DockNodes, context)
+#else
+#    define VALIDATE_DOCK_TREE(root, context)
+#endif
+
+#ifdef TKIT_ENABLE_DEBUG_LOGS
+// fyi this was generated
+static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, OverlayWindow *win, const char *label)
+{
+    TKIT_LOG_INFO("[ONYX][OVERLAY] === Begin {} ===", label);
+#    ifdef TKIT_ENABLE_ENSURE
+    validateDockTree(win->DockHost, dockNodes, label);
+#    endif
+
+    const auto fptr = [](const auto p) { return TKit::FormatPointer(p); };
+    TKIT_LOG_DEBUG("[ONYX][OVERLAY] Window: {} (id: {:#018x})", fptr(win), win->Id);
+    TKIT_LOG_DEBUG("[ONYX][OVERLAY]   DockHost: {} | DockParent: {} | Flags: {:#x}", fptr(win->DockHost),
+                   fptr(win->DockParent), win->Flags);
+    TKIT_LOG_DEBUG("[ONYX][OVERLAY]   ScreenPos: ({}, {}) | Size: ({}, {})", win->ScreenPos[0], win->ScreenPos[1],
+                   win->Size[0], win->Size[1]);
+    TKIT_LOG_DEBUG("[ONYX][OVERLAY] Total nodes: {}", dockNodes.GetSize());
+    TKIT_LOG_DEBUG_IF(win->DockHost && win->DockHost->DockSpace == win,
+                      "[ONYX][OVERLAY] This window figures as the dockspace");
+
+    for (u32 i = 0; i < dockNodes.GetSize(); ++i)
+    {
+        DockNode *n = dockNodes[i];
+        const bool leafUnsafe = !n->Children[0] && !n->Children[1];
+        TKIT_LOG_DEBUG("[ONYX][OVERLAY]   Node[{}]: {} | Parent: {} | Children: [{}, {}] | Axis: {} | Ratio: {:.3f} | "
+                       "DockSpace: {} | Windows: {} | IsLeaf(unsafe): {}",
+                       i, fptr(n), fptr(n->Parent), fptr(n->Children[0]), fptr(n->Children[1]), u32(n->Axis), n->Ratio,
+                       fptr(n->DockSpace), n->Windows.GetSize(), leafUnsafe);
+        for (u32 j = 0; j < n->Windows.GetSize(); ++j)
+        {
+            OverlayWindow *w = n->Windows[j];
+            TKIT_LOG_DEBUG("[ONYX][OVERLAY]     Win[{}]: {} (id: {:#018x}) | DockHost: {} | DockParent: {}", j, fptr(w),
+                           w->Id, fptr(w->DockHost), fptr(w->DockParent));
+        }
+    }
+
+    // Check if DockHost/DockParent are actually in the node list
+    if (win->DockHost)
+    {
+        bool found = false;
+        for (u32 i = 0; i < dockNodes.GetSize(); ++i)
+            if (dockNodes[i] == win->DockHost)
+            {
+                found = true;
+                break;
+            }
+        TKIT_ENSURE(found, "[ONYX][OVERLAY]   DockHost {} not in m_DockNodes!", fptr(win->DockHost));
+    }
+    if (win->DockParent)
+    {
+        bool found = false;
+        for (u32 i = 0; i < dockNodes.GetSize(); ++i)
+            if (dockNodes[i] == win->DockParent)
+            {
+                found = true;
+                break;
+            }
+        TKIT_ENSURE(found, "[ONYX][OVERLAY]   DockParent {} not in m_DockNodes!", fptr(win->DockParent));
+    }
+
+    TKIT_LOG_INFO("[ONYX][OVERLAY] === End {} ===", label);
+}
+#    define LOG_DOCK_TREE(win, label) debugDumpDockTree(m_DockNodes, win, label)
+#else
+#    define LOG_DOCK_TREE(win, label)
 #endif
 
 bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWindowFlags flags)
@@ -565,19 +696,21 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     const LayoutId nid = PushId(id);
 
     OverlayWindow *win = getOrCreateOverlayWindow(id);
-    TKIT_ASSERT(bool(win->DockHost) == bool(win->DockParent),
-                "[ONYX][OVERLAY] If a window has a dock host, it must have a dock parent, and vice versa");
-    TKIT_ASSERT(!win->DockParent || win->DockParent->IsLeaf(),
-                "[ONYX][OVERLAY] A window's dock parent must be a leaf node");
-#ifdef TKIT_ENSURE
-    checkDockParentHasWindow(win);
-#endif
+    VALIDATE_DOCK_TREE(win->DockHost, "BeginWindow()");
 
-    // in case win becomes the dockhost main window, we still store the child's
+    // in case win becomes the dockhost dockspace, we still store the child's
     OverlayWindow *childWindow = win;
 
+    TKIT_ASSERT(bool(win->DockHost) == bool(win->DockParent) &&
+                    bool(childWindow->DockHost) == bool(childWindow->DockParent),
+                "[ONYX][OVERLAY] If a window has a dock host, it must have a dock parent, and vice versa");
+
     if (win->DockHost)
-        win = win->DockHost->MainWindow;
+    {
+        TKIT_ASSERT(win->DockParent->IsLeaf() && childWindow->DockParent->IsLeaf(),
+                    "[ONYX][OVERLAY] A window's dock parent must be a leaf node");
+        win = win->DockHost->DockSpace;
+    }
 
     const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
     // if ownsNative is true, ->Native cannot be null
@@ -681,8 +814,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     if (m_Current->Flags & WindowInternalFlag_Active)
     {
         m_Current->Flags |= WindowInternalFlag_MultipleAppends;
-        // in case of docking, main window will get appended as many times as embedded windows in its docking system. if
-        // we entered this branch, it means main window has already set up the dock tree structure and tab bars, and now
+        // in case of docking, dockspace will get appended as many times as embedded windows in its docking system. if
+        // we entered this branch, it means dockspace has already set up the dock tree structure and tab bars, and now
         // child windows will begin to append to the panels of such structure
         if (m_Current->DockHost)
         {
@@ -720,6 +853,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     m_Current->Flags &= WindowInternalFlagPersist;
     m_Current->MinSize = getLineHeight() + 2.f * (wpadding + hpadding);
     m_Current->Flags |= flags;
+    childWindow->Flags |= flags;
 
     NativeWindow *nw = m_Current->Native;
     if (autoResize && !wasAutoresize)
@@ -820,12 +954,11 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
             IdFromStack("__onyx_id_Header_bar"),
             LyPnPar{.Sizing = sabs({m_Current->Size[0], m_Current->MinSize[1]}),
                     .Floating = {.Enable = true, .DrawOnTop = false, .Attachment = TopLeft, .Alignment = TopLeft}});
-        // this is the first time the main window (the window that host all docked windows) is getting appended to.
+        // this is the first time the dockspace (the window that host all docked windows) is getting appended to.
         // before setting up the actual window that is being started by the user, we have to setup the dock tree panel
-        // structure of the main window that will host all of them
-        iterateDockTreeWithLayout(m_Current, [&](const DockInfo &info) {
-            DockNode *node = info.Node;
-            const f32v2 &size = info.Size;
+        // structure of the dockspace that will host all of them
+        iterateDockTreeWithLayoutUpdate(m_Current, [&](DockNode *node) {
+            const f32v2 &size = node->ReadOnlySize;
 
             const LayoutId nodeId = PushId(node);
             DockNode *p = node->Parent;
@@ -859,27 +992,27 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                 const f32 bwidth = m_Style[OverlayStyle_WindowBorderWidth];
                 const f32 boffset = p ? 1.5f * bwidth : 2.f * bwidth;
 
-                OverlayWindow *mwin = node->MainWindow;
+                OverlayWindow *dspace = node->DockSpace;
 
                 const u32 iaxis = 1 - node->Axis;
-                const f32 minRatio = Math::Min(0.5f, mwin->MinSize[iaxis] / size[iaxis]);
+                const f32 minRatio = Math::Min(0.5f, dspace->MinSize[iaxis] / size[iaxis]);
                 node->Ratio = Math::Clamp(node->Ratio, minRatio, 1.f - minRatio);
 
                 const f32 ratio = node->EffectiveRatio;
-                bool resizing = mwin->Grab.DockNode == node;
+                bool resizing = dspace->Grab.DockNode == node;
                 if (node->Axis == LayoutAxis_Horizontal)
                 {
                     dir = LayoutDirection_TopToBottom;
                     borderSize = sabs({size[0] - boffset, bwidth});
                     borderOffset = oabs({p ? -0.25f * bwidth : 0.f, size[1] * (0.5f - ratio)});
-                    resizing &= bool(mwin->Grab.Flags & ResizeFlag_DockHorizontal);
+                    resizing &= bool(dspace->Grab.Flags & ResizeFlag_DockHorizontal);
                 }
                 else
                 {
                     dir = LayoutDirection_LeftToRight;
                     borderSize = sabs({bwidth, size[1] - boffset});
                     borderOffset = oabs({size[0] * (ratio - 0.5f), p ? 0.25f * bwidth : 0.f});
-                    resizing &= bool(mwin->Grab.Flags & ResizeFlag_DockVertical);
+                    resizing &= bool(dspace->Grab.Flags & ResizeFlag_DockVertical);
                 }
 
                 node->Id = ly.BeginPanel(nodeId, LyPnPar{.Direction = dir, .Alignment = TopLeft, .Sizing = sabs(size)});
@@ -888,7 +1021,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                     node->BorderId = ly.Panel(
                         IdFromStack("__onyx_id_Dock_axis"),
                         LyPnPar{.FillColor =
-                                    m_Style[resizing ? mwin->Grab.InteractionColor : OverlayColor_WindowBorderIdle],
+                                    m_Style[resizing ? dspace->Grab.InteractionColor : OverlayColor_WindowBorderIdle],
                                 .Sizing = borderSize,
                                 .SelfOffset = borderOffset,
                                 .Floating =
@@ -921,7 +1054,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
         // and now we begin the actual user docked window
         const bool opened = beginDockedWindow();
         if (!opened)
-            ly.EndPanel(); // close main window panel
+            ly.EndPanel(); // close dockspace panel
         return opened;
     }
     // else, this is just a normal window and we just setup the window content area
@@ -1438,9 +1571,8 @@ u32 Overlay::processWindows()
             }
 
             if (rflags == 0 && win->DockHost)
-                iterateDockTreeWithLayout(win, [&](const DockInfo &info) {
-                    DockNode *node = info.Node;
-                    const f32v2 &size = info.Size;
+                iterateDockTree(win->DockHost, [&](DockNode *node) {
+                    const f32v2 &size = node->ReadOnlySize;
 
                     const usz id = node->BorderId;
                     if (win->Layout.IsHovered(id, nativeHovered->WorldMouse, bpadding))
@@ -1694,6 +1826,8 @@ u32 Overlay::processWindows()
         else if (dockResize)
         {
             DockNode *node = ginfo.DockNode;
+            TKIT_ASSERT(!node->IsLeaf(), "[ONYX][OVERLAY] Node to resize must not be a leaf");
+
             const u32 iaxis = 1 - node->Axis;
             const f32 sign = iaxis == 0 ? 1.f : -1.f;
             const f32 drag = sign * (nw->WorldMouse[iaxis] - nw->WorldMouseOnPress[iaxis]);
@@ -1702,7 +1836,33 @@ u32 Overlay::processWindows()
             ginfo.Ratio = ginfo.StartRatio + drag / size;
 
             const f32 minRatio = Math::Min(0.5f, m_Grabbed->MinSize[iaxis] / size);
-            node->Ratio = Math::Clamp(ginfo.Ratio, minRatio, 1.f - minRatio);
+            const f32 nratio = Math::Clamp(ginfo.Ratio, minRatio, 1.f - minRatio);
+
+            DockNode *c0 = node->Children[0];
+            DockNode *c1 = node->Children[1];
+
+            iterateDockTree(c0, [&](DockNode *child) {
+                if (!child->IsLeaf() && child->Axis == node->Axis)
+                {
+                    const f32 oldSize = node->ReadOnlySize[iaxis] * node->Ratio;
+                    const f32 nsize = node->ReadOnlySize[iaxis] * nratio;
+                    child->Ratio *= oldSize / nsize;
+                    return false;
+                }
+                return true;
+            });
+            iterateDockTree(c1, [&](DockNode *child) {
+                if (!child->IsLeaf() && child->Axis == node->Axis)
+                {
+                    const f32 oldSize = node->ReadOnlySize[iaxis] * (1.f - node->Ratio);
+                    const f32 nsize = node->ReadOnlySize[iaxis] * (1.f - nratio);
+                    child->Ratio = 1.f - (1.f - child->Ratio) * oldSize / nsize;
+                    return false;
+                }
+                return true;
+            });
+
+            node->Ratio = nratio;
         }
 
         if (resize || move)
@@ -1946,7 +2106,16 @@ void Overlay::manageWindowPromotions()
         const bool canPromote = !(win->Flags & OverlayWindowFlag_NoPromotion);
 
         NativeWindow *nw = win->Native;
-        TKIT_ASSERT(!active || nw, "[ONYX][OVERLAY] If a window is active, it cannot have a null native window");
+        const bool independentlyActive = active && (!win->DockHost || win->DockHost->DockSpace == win);
+        TKIT_ASSERT(!independentlyActive || nw,
+                    "[ONYX][OVERLAY] If a window is active, it cannot have a null native window");
+
+        if (active)
+            win->Flags |= WindowInternalFlag_ActiveLastFrame;
+        else
+            win->Flags &= ~WindowInternalFlag_ActiveLastFrame;
+
+        win->Flags &= ~(WindowInternalFlag_Active | WindowInternalFlag_MultipleAppends);
 
         if (!nw)
             continue;
@@ -1965,18 +2134,10 @@ void Overlay::manageWindowPromotions()
             }
         }
         nw->Flags &= ~NativeWindowFlag_WantUpdateSize;
+        win->Flags &= ~WindowInternalFlag_WantUpdateSize;
 
-        if (active)
-            win->Flags |= WindowInternalFlag_ActiveLastFrame;
-        else
-            win->Flags &= ~WindowInternalFlag_ActiveLastFrame;
-
-        win->Flags &=
-            ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active | WindowInternalFlag_MultipleAppends);
-
-        const bool independentlyActive = active && (!win->DockHost || win->DockHost->MainWindow == win);
-        // if a window owns a native and that native doesnt have a parent (meaning not even main window is parented ->
-        // main window does not exist -> we are in floating mode, so we can only demote by explicit closure)
+        // if a window owns a native and that native doesnt have a parent (meaning not even dockspace is parented ->
+        // dockspace does not exist -> we are in floating mode, so we can only demote by explicit closure)
         if (ownsNative && !nw->Parent)
         {
             if (!independentlyActive)
@@ -2019,23 +2180,30 @@ template <typename F> void Overlay::iterateReverseWindows(const F func)
             return;
 }
 
-template <typename F> void Overlay::iterateDockTreeWithLayout(OverlayWindow *win, const F func)
+// this is the only function allowed to write ReadOnlyPosition and ReadOnlySize
+template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(OverlayWindow *win, const F func)
 {
     const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
     const f32v2 wpos = ownsNative ? win->Native->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
     const f32v2 &wsize = win->Size;
 
-    TKit::StackArray<DockInfo> nodes{};
+    TKit::StackArray<DockNode *> nodes{};
     nodes.Reserve(m_DockNodes.GetSize());
-    nodes.Append(win->DockHost, wpos, wsize);
-    TKIT_ASSERT(!win->DockHost->Parent, "[ONYX][OVERLAY] A dock host may have no parent");
+
+    DockNode *host = win->DockHost;
+
+    host->ReadOnlyPosition = wpos;
+    host->ReadOnlySize = wsize;
+
+    nodes.Append(host);
+    TKIT_ASSERT(!host->Parent, "[ONYX][OVERLAY] A dock host may have no parent");
     while (!nodes.IsEmpty())
     {
-        const DockInfo info = nodes.GetBack();
-        DockNode *node = info.Node;
+        DockNode *node = nodes.GetBack();
         nodes.Pop();
-        const f32v2 &pos = info.Position;
-        const f32v2 &size = info.Size;
+
+        const f32v2 &pos = node->ReadOnlyPosition;
+        const f32v2 &size = node->ReadOnlySize;
 
         if (!node->IsLeaf())
         {
@@ -2045,8 +2213,10 @@ template <typename F> void Overlay::iterateDockTreeWithLayout(OverlayWindow *win
 
             const f32v2 &pos0 = pos;
             f32v2 pos1 = pos;
+
             f32v2 size0 = size;
             f32v2 size1 = size;
+
             const u32 iaxis = 1 - node->Axis;
             f32 r = node->Ratio;
             if (c0->IsEmpty())
@@ -2060,107 +2230,27 @@ template <typename F> void Overlay::iterateDockTreeWithLayout(OverlayWindow *win
 
             TKIT_ASSERT(c0->Parent == node && c1->Parent == node,
                         "[ONYX][OVELAY] Parent mismatch! Children nodes must have a correct parent pointer");
-            nodes.Append(c1, pos1, size1);
-            nodes.Append(c0, pos0, size0);
-        }
 
-        if (!func(info))
-            return;
-    }
-}
+            c0->ReadOnlyPosition = pos0;
+            c0->ReadOnlySize = size0;
 
-template <typename F> void Overlay::iterateDockTree(DockNode *node, const F func)
-{
-    TKit::StackArray<DockNode *> nodes{};
-    nodes.Reserve(m_DockNodes.GetSize());
-
-    nodes.Append(node);
-    while (!nodes.IsEmpty())
-    {
-        DockNode *node = nodes.GetBack();
-        nodes.Pop();
-
-        if (!node->IsLeaf())
-        {
-            DockNode *c0 = node->Children[0];
-            DockNode *c1 = node->Children[1];
-
+            c1->ReadOnlyPosition = pos1;
+            c1->ReadOnlySize = size1;
             nodes.Append(c1);
             nodes.Append(c0);
         }
+
         if (!func(node))
             return;
     }
 }
-
-// #define ONYX_ENABLE_DOCK_TREE_PRINT
-#ifdef ONYX_ENABLE_DOCK_TREE_PRINT
-static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, OverlayWindow *win, const char *label)
-{
-    TKIT_LOG_DEBUG("[DOCK DUMP] === {} ===", label);
-    TKIT_LOG_DEBUG("[DOCK DUMP] Window: {} (id: {:#018x})", fmt::ptr(win), win->Id);
-    TKIT_LOG_DEBUG("[DOCK DUMP]   DockHost: {} | DockParent: {} | Flags: {:#x}", fmt::ptr(win->DockHost),
-                   fmt::ptr(win->DockParent), win->Flags);
-    TKIT_LOG_DEBUG("[DOCK DUMP]   ScreenPos: ({}, {}) | Size: ({}, {})", win->ScreenPos[0], win->ScreenPos[1],
-                   win->Size[0], win->Size[1]);
-    TKIT_LOG_DEBUG("[DOCK DUMP] Total nodes: {}", dockNodes.GetSize());
-
-    for (u32 i = 0; i < dockNodes.GetSize(); ++i)
-    {
-        DockNode *n = dockNodes[i];
-        const bool leafUnsafe = !n->Children[0] && !n->Children[1];
-        TKIT_LOG_DEBUG("[DOCK DUMP]   Node[{}]: {} | Parent: {} | Children: [{}, {}] | Axis: {} | Ratio: {:.3f} | "
-                       "MainWindow: {} | Windows: {} | IsLeaf(unsafe): {}",
-                       i, fmt::ptr(n), fmt::ptr(n->Parent), fmt::ptr(n->Children[0]), fmt::ptr(n->Children[1]),
-                       u32(n->Axis), n->Ratio, fmt::ptr(n->MainWindow), n->Windows.GetSize(), leafUnsafe);
-        for (u32 j = 0; j < n->Windows.GetSize(); ++j)
-        {
-            OverlayWindow *w = n->Windows[j];
-            TKIT_LOG_DEBUG("[DOCK DUMP]     Win[{}]: {} (id: {:#018x}) | DockHost: {} | DockParent: {}", j, fmt::ptr(w),
-                           w->Id, fmt::ptr(w->DockHost), fmt::ptr(w->DockParent));
-        }
-    }
-
-    // Check if DockHost/DockParent are actually in the node list
-    if (win->DockHost)
-    {
-        bool found = false;
-        for (u32 i = 0; i < dockNodes.GetSize(); ++i)
-            if (dockNodes[i] == win->DockHost)
-            {
-                found = true;
-                break;
-            }
-        if (!found)
-            TKIT_LOG_DEBUG("[DOCK DUMP]   *** WARNING: DockHost {} NOT in m_DockNodes! ***", fmt::ptr(win->DockHost));
-    }
-    if (win->DockParent)
-    {
-        bool found = false;
-        for (u32 i = 0; i < dockNodes.GetSize(); ++i)
-            if (dockNodes[i] == win->DockParent)
-            {
-                found = true;
-                break;
-            }
-        if (!found)
-            TKIT_LOG_DEBUG("[DOCK DUMP]   *** WARNING: DockParent {} NOT in m_DockNodes! ***",
-                           fmt::ptr(win->DockParent));
-    }
-
-    TKIT_LOG_DEBUG("[DOCK DUMP] === End {} ===", label);
-}
-#    define ONYX_PRINT_DOCK_TREE(win, label) debugDumpDockTree(m_DockNodes, win, label)
-#else
-#    define ONYX_PRINT_DOCK_TREE(win, label)
-#endif
 
 void Overlay::undockWindow(OverlayWindow *win)
 {
     TKIT_ASSERT(win->DockHost && win->DockParent,
                 "[ONYX][OVERLAY] Cannot undock a window that doesnt have a dock host/parent");
 
-    ONYX_PRINT_DOCK_TREE(win, "Before undock");
+    LOG_DOCK_TREE(win, "Before undock");
 
     DockNode *host = win->DockHost;
     DockNode *node = win->DockParent;
@@ -2172,14 +2262,46 @@ void Overlay::undockWindow(OverlayWindow *win)
             break;
         }
     TKIT_ASSERT(node->IsLeaf(), "[ONYX][OVERLAY] Window's dock parent must be a leaf node");
+
+    OverlayWindow *dspace = host->DockSpace;
+    TKIT_ASSERT(!(win->Flags & WindowInternalFlag_OwnsNative),
+                "[ONYX][OVERLAY] A window about to be undocked cannot possibly own any native window");
+    if (win->Flags & WindowInternalFlag_MustGrabWhenUndocked)
+    {
+        const f32v2 &pos = dspace->Native->WorldMouse;
+        win->Size = node->ReadOnlySize;
+        win->ScreenPos = dspace->ToScreen(pos + f32v2{-0.15f * win->Size[0], 0.5f * win->MinSize[1]});
+
+        if (!win->Native)
+            promoteWindow(win, win->ScreenPos, win->Size);
+        else if (dspace->Flags & WindowInternalFlag_OwnsNative)
+            win->ScreenPos -= win->Native->ScreenPos;
+
+        win->Grab.ScreenPos = win->GetActivePosition();
+        win->Grab.Size = win->Size;
+        win->Flags |= WindowInternalFlag_HeaderGrabbed;
+        m_Grabbed = win;
+    }
+    else
+    {
+        // this position is wrt the dockspace, so the transformation must be wrt the dockspace
+        const f32v2 &pos = node->ReadOnlyPosition;
+        win->ScreenPos = dspace->ToScreen(pos);
+        win->Size = node->ReadOnlySize;
+        if (!win->Native)
+            promoteWindow(win, win->ScreenPos, win->Size);
+        if (dspace->Flags & WindowInternalFlag_OwnsNative)
+            win->ScreenPos -= win->Native->ScreenPos;
+    }
+
     if (node->Windows.IsEmpty())
     {
         DockNode *parent = node->Parent;
         if (parent)
         {
             TKIT_ASSERT(!parent->IsLeaf(), "[ONYX][OVERLAY] Parent node must not be a leaf node");
-            TKIT_ASSERT(parent->MainWindow == node->MainWindow,
-                        "[ONYX][OVERLAY] All nodes in a dock tree must share the same main window");
+            TKIT_ASSERT(parent->DockSpace == dspace,
+                        "[ONYX][OVERLAY] All nodes in a dock tree must share the same dockspace");
 
             DockNode *granpa = parent->Parent;
             DockNode *otherChild = parent->OtherChild(node);
@@ -2188,8 +2310,8 @@ void Overlay::undockWindow(OverlayWindow *win)
                         "child's parent is not its sibling's parent");
             if (granpa)
             {
-                TKIT_ASSERT(granpa->MainWindow == node->MainWindow,
-                            "[ONYX][OVERLAY] All nodes in a dock tree must share the same main window");
+                TKIT_ASSERT(granpa->DockSpace == dspace,
+                            "[ONYX][OVERLAY] All nodes in a dock tree must share the same dockspace");
 
                 TKIT_ASSERT(!granpa->IsLeaf(), "[ONYX][OVERLAY] Granpa node must not be a leaf node");
                 otherChild->Parent = granpa;
@@ -2206,24 +2328,14 @@ void Overlay::undockWindow(OverlayWindow *win)
                 });
 
                 otherChild->Parent = nullptr;
-                node->MainWindow->DockHost = otherChild;
-                node->MainWindow->DockParent = otherChild;
+                dspace->DockHost = otherChild;
+                dspace->DockParent = otherChild;
             }
             removeDockNode(parent);
         }
         if (node == host)
-            removeOverlayWindow(host->MainWindow);
+            removeOverlayWindow(host->DockSpace);
         removeDockNode(node);
-    }
-
-    if (win->Flags & WindowInternalFlag_MustGrabWhenUndocked)
-    {
-        const f32v2 &pos = win->Native->WorldMouse;
-        win->SetActivePosition(win->ToScreen(pos + 0.5f * f32v2{-win->Size[0], win->MinSize[1]}));
-        win->Grab.ScreenPos = win->GetActivePosition();
-        win->Grab.Size = win->Size;
-        win->Flags |= WindowInternalFlag_HeaderGrabbed;
-        m_Grabbed = win;
     }
 
     win->Layer = toTop();
@@ -2231,208 +2343,274 @@ void Overlay::undockWindow(OverlayWindow *win)
     win->DockParent = nullptr;
     win->Flags &= ~(WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked);
 
-    ONYX_PRINT_DOCK_TREE(win, "After undock");
+    LOG_DOCK_TREE(win, "After undock");
 }
 void Overlay::undockMarkedWindows()
 {
+    const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
     for (OverlayWindow *win : m_OverlayWindows)
-        if (win->Flags & (OverlayWindowFlags(WindowInternalFlag_MustUndock) | OverlayWindowFlag_NoDocking))
+        if (win->DockHost && win->DockHost->DockSpace != win &&
+            (!dockingEnabled ||
+             (win->Flags & (OverlayWindowFlags(WindowInternalFlag_MustUndock) | OverlayWindowFlag_NoDocking))))
             undockWindow(win);
 }
 void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx)
 {
     const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
     const f32v2 wpos = ownsNative ? win->Native->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
+    const f32v2 &wsize = win->Size;
 
     const f32 previewSize = 20.f;
     const f32 previewRadius = 0.4f * previewSize;
     const f32 previewGap = 6.f;
-    const RoundedRectParameters params = {previewSize, previewSize, previewRadius};
+
+    const RoundedRectParameters botParams = {previewSize, previewSize, previewRadius};
+
     const f32v2 &mpos = win->Native->WorldMouse;
 
     const f32 dpos = previewSize + previewGap + 2.f * previewRadius;
-    const f32 hitZone = 0.5f * previewSize + previewRadius;
+    const f32 botHitSize = 0.5f * previewSize + previewRadius;
 
     const bool mreleased = (win->Native->Flags | m_DockSource->Native->Flags) & NativeWindowFlag_LeftMouseReleased;
 
-    constexpr i32v2 center = {-1, 0};
-    constexpr i32v2 left = {0, -1};
-    constexpr i32v2 right = {0, 1};
-    constexpr i32v2 bottom = {1, -1};
-    constexpr i32v2 top = {1, 1};
+    constexpr i32 horizontal = 0;
+    constexpr i32 vertical = 1;
+    constexpr i32 centerAxis = -1;
 
-    const auto tentativeInsert = [&](const i32v2 loc, DockNode *leaf, const f32v2 &dockPos, const f32v2 &dockSize) {
+    constexpr i32 positiveSide = 1;
+    constexpr i32 negativeSide = -1;
+    constexpr i32 centerSide = 0;
+
+    constexpr u32 axis = 0;
+    constexpr u32 side = 1;
+
+    constexpr i32v2 center = {centerAxis, centerSide};
+    constexpr i32v2 left = {horizontal, negativeSide};
+    constexpr i32v2 right = {horizontal, positiveSide};
+    constexpr i32v2 bottom = {vertical, negativeSide};
+    constexpr i32v2 top = {vertical, positiveSide};
+
+    const auto dockInsert = [&](DockNode *targetNode, const i32v2 loc) {
+        LOG_DOCK_TREE(win, "Before insert");
+        TKIT_ASSERT(bool(win->DockHost) == bool(targetNode),
+                    "[ONYX][OVERLAY] If target window has an active dock host, leaf node must not be null. If "
+                    "it does not, target node must be null");
+
+        if (!win->DockHost)
+        {
+            targetNode = createDockNode();
+            OverlayWindow *dspace = createOverlayWindow();
+
+            NativeWindow *nw = win->Native;
+            dspace->Id = TKit::Hash(win->Id, m_DockSource->Id);
+            dspace->Layer = win->Layer;
+            dspace->Size = win->Size;
+
+            dspace->DockHost = targetNode;
+            dspace->DockParent = targetNode;
+
+            if (win->Flags & WindowInternalFlag_OwnsNative)
+            {
+                NativeWindow *native = getMainNativeWindow();
+                if (!native)
+                    promoteWindow(dspace, nw->ScreenPos, win->Size);
+                else
+                {
+                    dspace->Native = native;
+                    dspace->ScreenPos = nw->ScreenPos - native->ScreenPos;
+                }
+            }
+            else
+            {
+                dspace->Native = nw;
+                dspace->ScreenPos = win->ScreenPos;
+            }
+
+            targetNode->DockSpace = dspace;
+            targetNode->Windows.Append(win);
+            win->DockHost = targetNode;
+            win->DockParent = targetNode;
+        }
+
+        if (loc[axis] != centerAxis)
+        {
+            DockNode *parent = createDockNode();
+            OverlayWindow *dspace = targetNode->DockSpace;
+            if (win->DockHost == targetNode)
+            {
+                win->DockHost = parent;
+                dspace->DockHost = parent;
+                dspace->DockParent = parent;
+                iterateDockTree(targetNode, [&](DockNode *child) {
+                    if (child->IsLeaf())
+                        for (OverlayWindow *wchild : child->Windows)
+                            wchild->DockHost = parent;
+                    return true;
+                });
+            }
+
+            parent->Ratio = 0.5f;
+            parent->Axis = LayoutAxis(1 - loc[axis]);
+            parent->DockSpace = dspace;
+
+            DockNode *sibling;
+            if (m_DockSource->DockHost)
+            {
+                sibling = m_DockSource->DockHost;
+                removeOverlayWindow(sibling->DockSpace);
+
+                iterateDockTree(sibling, [&](DockNode *node) {
+                    node->DockSpace = dspace;
+                    if (node->IsLeaf())
+                        for (OverlayWindow *child : node->Windows)
+                            child->DockHost = win->DockHost;
+                    return true;
+                });
+            }
+            else
+            {
+                sibling = createDockNode();
+                sibling->Windows.Append(m_DockSource);
+                sibling->DockSpace = dspace;
+                m_DockSource->DockParent = sibling;
+            }
+
+            parent->Children[(1 + loc[side]) / 2] = loc[axis] == horizontal ? sibling : targetNode;
+            parent->Children[(1 - loc[side]) / 2] = loc[axis] == horizontal ? targetNode : sibling;
+
+            DockNode *granpa = targetNode->Parent;
+            if (granpa)
+            {
+                parent->Parent = granpa;
+                granpa->Children[granpa->ChildIndex(targetNode)] = parent;
+            }
+
+            targetNode->Parent = parent;
+            sibling->Parent = parent;
+        }
+        else if (m_DockSource->DockHost)
+        {
+            DockNode *oldHost = m_DockSource->DockHost;
+            TKIT_ASSERT(oldHost == m_DockSource->DockParent,
+                        "[ONYX][OVERLAY] If the dock source has a dock parent and is being docked at the "
+                        "center, the dock parent must be equal to the dock host");
+            TKIT_ASSERT(oldHost->IsLeaf(),
+                        "[ONYX][OVERLAY] If the dock source has a dock parent and is being docked at the "
+                        "center, the dock parent (and host) must be a leaf node");
+
+            for (OverlayWindow *child : oldHost->Windows)
+            {
+                child->DockParent = targetNode;
+                child->DockHost = win->DockHost;
+                targetNode->Windows.Append(child);
+            }
+            removeOverlayWindow(oldHost->DockSpace);
+            removeDockNode(oldHost);
+        }
+        else
+        {
+            targetNode->Windows.Append(m_DockSource);
+            m_DockSource->DockParent = targetNode;
+        }
+
+        m_DockSource->DockHost = win->DockHost;
+        LOG_DOCK_TREE(win, "After insert");
+    };
+
+    const auto drawPreviewIfHoveredAndInsert = [&](DockNode *targetNode, const f32v2 &middle, const f32v2 &pos,
+                                                   const f32v2 &hitSize, const f32v2 &regionSize, const i32v2 &loc,
+                                                   const f32 sign) {
+        const f32v2 relPos = Math::Absolute(mpos - pos);
+        if (relPos[0] <= hitSize[0] && relPos[1] <= hitSize[1])
+        {
+            f32v2 offset = f32v2{0.f};
+            f32v2 dims = 0.5f * regionSize;
+
+            if (loc[axis] != horizontal)
+                dims[0] = regionSize[0];
+            else
+                offset[0] = 0.25f * sign * regionSize[0];
+
+            if (loc[axis] != vertical)
+                dims[1] = regionSize[1];
+            else
+                offset[1] = 0.25f * sign * regionSize[1];
+
+            const f32v2 previewPos = middle + offset;
+
+            ctx->SetTranslation(0.f);
+            f32m3 t = f32m3::Identity();
+            Transform<D2>::ScaleExtrinsic(t, dims);
+            Transform<D2>::TranslateExtrinsic(t, previewPos);
+            ctx->Quad(t);
+
+            if (mreleased)
+                dockInsert(targetNode, loc);
+        }
+    };
+
+    const auto bottomPreviewInsert = [&](const i32v2 loc, DockNode *leaf, const f32v2 &dockPos, const f32v2 &dockSize) {
         const f32v2 hsize = 0.5f * dockSize;
         const f32v2 middle = dockPos + f32v2{hsize[0], -hsize[1]};
 
         f32v2 offset{0.f};
 
-        const i32 axis = loc[0];
-        const f32 sign = f32(loc[1]);
-        if (axis != -1)
-            offset[axis] = sign * dpos;
+        const f32 sign = f32(loc[side]);
+        if (loc[axis] != centerAxis)
+            offset[loc[axis]] = sign * dpos;
 
         f32v2 pos = middle + offset;
         ctx->SetTranslation(pos);
-        ctx->RoundedRect(params);
+        ctx->RoundedRect(botParams);
 
-        const f32v2 relPos = Math::Absolute(mpos - pos);
-        if (relPos[0] <= hitZone && relPos[1] <= hitZone)
-        {
-            offset = f32v2{0.f};
-            f32v2 dims = hsize;
+        drawPreviewIfHoveredAndInsert(leaf, middle, pos, botHitSize, dockSize, loc, sign);
+    };
 
-            if (axis != 0)
-                dims[0] = dockSize[0];
-            else
-                offset[0] = 0.25f * sign * dockSize[0];
+    const f32v2 whsize = 0.5f * wsize;
+    const auto topPreviewInsert = [&](DockNode *targetNode, const i32v2 loc) {
+        const f32v2 middle = wpos + f32v2{whsize[0], -whsize[1]};
 
-            if (axis != 1)
-                dims[1] = dockSize[1];
-            else
-                offset[1] = 0.25f * sign * dockSize[1];
+        f32v2 offset{0.f};
 
-            if (mreleased)
-            {
-                ONYX_PRINT_DOCK_TREE(win, "Before insert");
-                TKIT_ASSERT(bool(win->DockHost) == bool(leaf),
-                            "[ONYX][OVERLAY] If target window has an active dock host, leaf node must not be null. If "
-                            "it doesnt, leaf node must be null");
+        const f32 sign = f32(loc[side]);
+        offset[loc[axis]] = sign * (whsize[loc[axis]] - 0.5f * dpos);
 
-                DockNode *targetNode;
-                if (!win->DockHost)
-                {
-                    targetNode = createDockNode();
-                    OverlayWindow *mwin = createOverlayWindow();
+        f32v2 pos = middle + offset;
+        const f32 xmul = loc[axis] == horizontal ? 0.5f : 2.f;
+        const f32 ymul = loc[axis] == vertical ? 0.5f : 2.f;
 
-                    NativeWindow *nw = win->Native;
-                    mwin->Id = TKit::Hash(win->Id, m_DockSource->Id);
-                    mwin->Layer = win->Layer;
-                    mwin->ScreenPos = win->ScreenPos;
-                    mwin->Size = win->Size;
+        const f32v2 psize = f32v2{xmul, ymul} * previewSize;
+        const RoundedRectParameters topParams = {psize[0], psize[1], previewRadius};
 
-                    mwin->DockHost = targetNode;
-                    mwin->DockParent = targetNode;
-                    if (win->Flags & WindowInternalFlag_OwnsNative)
-                        promoteWindow(mwin, nw->ScreenPos, win->Size);
-                    else
-                        mwin->Native = nw;
+        ctx->SetTranslation(pos);
+        ctx->RoundedRect(topParams);
 
-                    targetNode->MainWindow = mwin;
-                    targetNode->Windows.Append(win);
-                    win->DockHost = targetNode;
-                }
-                else
-                    targetNode = leaf;
-
-                TKIT_ASSERT(targetNode->IsLeaf(), "[ONYX][OVERLAY] Target node must be a leaf node");
-                if (axis != -1)
-                {
-                    DockNode *parent = createDockNode();
-                    OverlayWindow *mwin = targetNode->MainWindow;
-                    if (win->DockHost == targetNode)
-                    {
-                        win->DockHost = parent;
-                        mwin->DockHost = parent;
-                        mwin->DockParent = parent;
-                    }
-
-                    parent->Ratio = 0.5f;
-                    parent->Axis = LayoutAxis(1 - axis);
-                    parent->MainWindow = mwin;
-
-                    DockNode *sibling;
-                    if (m_DockSource->DockHost)
-                    {
-                        sibling = m_DockSource->DockHost;
-                        removeOverlayWindow(sibling->MainWindow);
-
-                        iterateDockTree(sibling, [&](DockNode *node) {
-                            node->MainWindow = mwin;
-                            if (node->IsLeaf())
-                                for (OverlayWindow *child : node->Windows)
-                                    child->DockHost = win->DockHost;
-                            return true;
-                        });
-                    }
-                    else
-                    {
-                        sibling = createDockNode();
-                        sibling->Windows.Append(m_DockSource);
-                        sibling->MainWindow = mwin;
-                        m_DockSource->DockParent = sibling;
-                    }
-
-                    const i32 idx = loc[1];
-                    parent->Children[(1 + idx) / 2] = axis == 0 ? sibling : targetNode;
-                    parent->Children[(1 - idx) / 2] = axis == 0 ? targetNode : sibling;
-
-                    DockNode *granpa = targetNode->Parent;
-                    if (granpa)
-                    {
-                        parent->Parent = granpa;
-                        granpa->Children[granpa->ChildIndex(targetNode)] = parent;
-                    }
-
-                    targetNode->Parent = parent;
-                    sibling->Parent = parent;
-                }
-                else if (m_DockSource->DockHost)
-                {
-                    DockNode *oldHost = m_DockSource->DockHost;
-                    TKIT_ASSERT(oldHost == m_DockSource->DockParent,
-                                "[ONYX][OVERLAY] If the dock source has a dock parent and is being docked at the "
-                                "center, the dock parent must be equal to the dock host");
-                    TKIT_ASSERT(oldHost->IsLeaf(),
-                                "[ONYX][OVERLAY] If the dock source has a dock parent and is being docked at the "
-                                "center, the dock parent (and host) must be a leaf node");
-
-                    for (OverlayWindow *child : oldHost->Windows)
-                    {
-                        child->DockParent = targetNode;
-                        child->DockHost = win->DockHost;
-                        targetNode->Windows.Append(child);
-                    }
-                    removeOverlayWindow(oldHost->MainWindow);
-                    removeDockNode(oldHost);
-                }
-                else
-                {
-                    targetNode->Windows.Append(m_DockSource);
-                    m_DockSource->DockParent = targetNode;
-                }
-
-                win->DockParent = targetNode;
-                m_DockSource->DockHost = win->DockHost;
-                ONYX_PRINT_DOCK_TREE(win, "After insert");
-            }
-
-            pos = middle + offset;
-
-            ctx->SetTranslation(0.f);
-            f32m3 t = f32m3::Identity();
-            Transform<D2>::ScaleExtrinsic(t, dims);
-            Transform<D2>::TranslateExtrinsic(t, pos);
-            ctx->Quad(t);
-        }
+        const f32v2 topHitSize = 0.5f * psize + previewRadius;
+        drawPreviewIfHoveredAndInsert(targetNode, middle, pos, topHitSize, wsize, loc, sign);
     };
 
     ctx->FillColor(m_Style[OverlayColor_DockPreview]);
-    const f32v2 &wsize = win->Size;
     if (!win->DockHost || win->DockHost->IsLeaf())
     {
         if (!m_DockSource->DockHost || m_DockSource->DockHost->IsLeaf())
-            tentativeInsert(center, win->DockHost, wpos, wsize);
-        tentativeInsert(left, win->DockHost, wpos, wsize);
-        tentativeInsert(right, win->DockHost, wpos, wsize);
-        tentativeInsert(bottom, win->DockHost, wpos, wsize);
-        tentativeInsert(top, win->DockHost, wpos, wsize);
+            bottomPreviewInsert(center, win->DockHost, wpos, wsize);
+        bottomPreviewInsert(left, win->DockHost, wpos, wsize);
+        bottomPreviewInsert(right, win->DockHost, wpos, wsize);
+        bottomPreviewInsert(bottom, win->DockHost, wpos, wsize);
+        bottomPreviewInsert(top, win->DockHost, wpos, wsize);
     }
     else
-        iterateDockTreeWithLayout(win, [&](const DockInfo &info) {
-            DockNode *node = info.Node;
-            const f32v2 &pos = info.Position;
-            const f32v2 &size = info.Size;
+    {
+        if (!win->DockHost->IsLeaf())
+        {
+            topPreviewInsert(win->DockHost, left);
+            topPreviewInsert(win->DockHost, right);
+            topPreviewInsert(win->DockHost, bottom);
+            topPreviewInsert(win->DockHost, top);
+        }
+        iterateDockTree(win->DockHost, [&](DockNode *node) {
+            const f32v2 &pos = node->ReadOnlyPosition;
+            const f32v2 &size = node->ReadOnlySize;
             if (!node->IsLeaf())
                 return true;
 
@@ -2440,15 +2618,16 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             if (relPos[0] <= size[0] && relPos[1] <= size[1])
             {
                 if (!m_DockSource->DockHost || m_DockSource->DockHost->IsLeaf())
-                    tentativeInsert(center, node, pos, size);
-                tentativeInsert(left, node, pos, size);
-                tentativeInsert(right, node, pos, size);
-                tentativeInsert(bottom, node, pos, size);
-                tentativeInsert(top, node, pos, size);
+                    bottomPreviewInsert(center, node, pos, size);
+                bottomPreviewInsert(left, node, pos, size);
+                bottomPreviewInsert(right, node, pos, size);
+                bottomPreviewInsert(bottom, node, pos, size);
+                bottomPreviewInsert(top, node, pos, size);
                 return false;
             }
             return true;
         });
+    }
 }
 
 /////////////////////////////////////////////
@@ -3499,8 +3678,8 @@ void Overlay::endTabBar(TabBarData *data)
         const NativeWindow *nw = m_Current->Native;
         if (dragSource && tab.Window)
         {
-            const f32 th = m_Style[OverlayStyle_DragThreshold];
             const f32 mdelta = Math::Absolute(nw->WorldMouse[1] - nw->WorldMouseOnPress[1]);
+            const f32 th = m_Style[OverlayStyle_DragThreshold];
             if (mdelta > th)
                 tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
         }
@@ -3510,24 +3689,36 @@ void Overlay::endTabBar(TabBarData *data)
 
             const f32 cgap = 0.5f * m_Style[OverlayStyle_ChildGap];
             const f32 mpos = nw->WorldMouse[0];
+
             const f32 pos = elm->Position[0] - cgap;
             const f32 size = elm->Size[0] + (belm ? belm->Size[0] : 0.f) + cgap;
 
             if (!(tab.Flags & TabFlag_JustPermuted))
             {
-                if (i != order.GetSize() - 1 && mpos > pos + size)
+                const u32 lastIndex = order.GetSize() - 1;
+                if (mpos > pos + size)
                 {
-                    tab.Flags |= TabFlag_JustPermuted;
-                    perm.Permuted = true;
-                    perm.Order1 = i;
-                    perm.Order2 = i + 1;
+                    if (i == lastIndex && tab.Window)
+                        tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+                    else if (i != lastIndex)
+                    {
+                        tab.Flags |= TabFlag_JustPermuted;
+                        perm.Permuted = true;
+                        perm.Order1 = i;
+                        perm.Order2 = i + 1;
+                    }
                 }
-                else if (i != 0 && mpos < pos)
+                else if (mpos < pos)
                 {
-                    tab.Flags |= TabFlag_JustPermuted;
-                    perm.Permuted = true;
-                    perm.Order1 = i;
-                    perm.Order2 = i - 1;
+                    if (i == 0 && tab.Window)
+                        tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+                    else if (i != 0)
+                    {
+                        tab.Flags |= TabFlag_JustPermuted;
+                        perm.Permuted = true;
+                        perm.Order1 = i;
+                        perm.Order2 = i - 1;
+                    }
                 }
             }
             else if (mpos <= pos + size && mpos > pos)
@@ -5245,19 +5436,14 @@ void Overlay::Draw()
     // multi-window. it is not ideal. it is done, for example, for the _Active flag. this flag, because of docking,
     // causes to be set sometimes even when the window that has it is not present in the active window array. this means
     // the window is active as in the user appends to it, but as it is just a tab, it doesnt really act as a full
-    // window. the main window (the window that actually hosts its tab) does. so _Active is cleared here, so that we
+    // window. the dockspace (the window that actually hosts its tab) does. so _Active is cleared here, so that we
     // dont have to write an additional loop just to clear that flag
     if (!windowPromotions)
         demoteAllWindows();
     else
         manageWindowPromotions();
 
-    if (m_Flags & OverlayFlag_Docking)
-        undockMarkedWindows();
-    else
-        for (OverlayWindow *win : m_OverlayWindows)
-            if (win->DockHost && win->DockHost->MainWindow != win)
-                undockWindow(win);
+    undockMarkedWindows();
     resetTooltip();
 }
 
