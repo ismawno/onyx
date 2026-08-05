@@ -28,27 +28,31 @@ enum StateFlagBit : StateFlags
     StateFlag_ActiveIdMustPersist = 1U << 0,
     StateFlag_PressedIdMustPersist = 1U << 1,
     StateFlag_DraggedIdMustPersist = 1U << 2,
-    StateFlag_ActiveAllowsInteraction = 1U << 3,
+    StateFlag_HoveredAllowsInteraction = 1U << 3,
+    StateFlag_PressedAllowsInteraction = 1U << 4,
+    StateFlag_ActiveAllowsInteraction = 1U << 5,
 
-    StateFlag_MustCollapsePopups = 1U << 4,
-    StateFlag_FocusBlockByPopupCollapse = 1U << 5,
-    StateFlag_PopupProtectionForbidden = 1U << 6,
-    StateFlag_MainMenuBarActive = 1U << 7,
-    StateFlag_MenuBarActive = 1U << 8,
-    StateFlag_Disabled = 1U << 9,
+    StateFlag_MustCollapsePopups = 1U << 6,
+    StateFlag_FocusBlockByPopupCollapse = 1U << 7,
+    StateFlag_PopupProtectionForbidden = 1U << 8,
+    StateFlag_MainMenuBarActive = 1U << 9,
+    StateFlag_MenuBarActive = 1U << 10,
+    StateFlag_Disabled = 1U << 11,
 
-    StateFlag_RequestCaptureMouse = 1U << 10,
-    StateFlag_RequestCaptureKeyboard = 1U << 11,
+    StateFlag_RequestCaptureMouse = 1U << 12,
+    StateFlag_RequestCaptureKeyboard = 1U << 13,
 
-    StateFlag_WantCaptureMouse = 1U << 12,
-    StateFlag_WantCaptureKeyboard = 1U << 13,
+    StateFlag_WantCaptureMouse = 1U << 14,
+    StateFlag_WantCaptureKeyboard = 1U << 15,
 
-    StateFlag_DragPayloadAccepted = 1U << 14,
-    StateFlag_DragPayloadRejected = 1U << 15,
-    StateFlag_ActivePromotedFloatElement = 1U << 16,
+    StateFlag_DragPayloadAccepted = 1U << 16,
+    StateFlag_DragPayloadRejected = 1U << 17,
+    StateFlag_ActivePromotedFloatElement = 1U << 18,
+
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
-    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled |
-                       StateFlag_WantCaptureMouse | StateFlag_WantCaptureKeyboard
+    StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
+                       StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled | StateFlag_WantCaptureMouse |
+                       StateFlag_WantCaptureKeyboard
 };
 
 /////////////////////////////////////////////
@@ -63,6 +67,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 {
     OverlayStyleVariables vars;
     vars[OverlayStyle_FontSize] = 14.f;
+    vars[OverlayStyle_UnicodeSize] = 14.f;
     vars[OverlayStyle_ChildGap] = 8.f;
 
     vars[OverlayStyle_HeaderRadius] = 0.f;
@@ -405,6 +410,12 @@ enum WindowInternalFlagBit : OverlayWindowFlags
                                 WindowInternalFlag_IsDockTarget | WindowInternalFlag_MultipleAppends,
 };
 
+enum DockNodeFlagBit : DockNodeFlags
+{
+    DockNodeFlag_MustUndock = 1U << 0,
+    DockNodeFlag_MustGrabWhenUndocked = 1U << 1,
+};
+
 /////////////////////////////////////////////
 /// END WINDOW FLAGS
 /////////////////////////////////////////////
@@ -536,7 +547,7 @@ f32v2 OverlayWindow::ToWorld(const f32v2 &screen) const
     return ToLocalWorld(screen);
 }
 
-template <typename F> static void iterateDockTree(DockNode *node, const F func)
+template <typename F> static bool iterateDockTree(DockNode *node, const F func)
 {
     TKit::StaticArray64<DockNode *> nodes{};
 
@@ -555,8 +566,9 @@ template <typename F> static void iterateDockTree(DockNode *node, const F func)
             nodes.Append(c0);
         }
         if (!func(node))
-            return;
+            return true;
     }
+    return false;
 }
 
 #ifdef TKIT_ENABLE_ENSURE
@@ -569,7 +581,7 @@ static void validateDockTree(DockNode *root, const TKit::TierArray<DockNode *> &
     const auto fptr = [](const auto p) { return TKit::FormatPointer(p); };
     const OverlayWindow *dspace = root->DockSpace;
     TKIT_ENSURE(dspace, "[ONYX][OVERLAY][{}] Root node has no DockSpace", context);
-    TKIT_ENSURE(root->Parent == nullptr, "[ONYX][OVERLAY][{}] Root node {} has a parent {}", context, fptr(root),
+    TKIT_ENSURE(!root->Parent, "[ONYX][OVERLAY][{}] Root node {} has a parent {}", context, fptr(root),
                 fptr(root->Parent));
     TKIT_ENSURE(dspace->DockHost == root, "[ONYX][OVERLAY][{}] DockSpace DockHost {} != root {}", context,
                 fptr(dspace->DockHost), fptr(root));
@@ -621,7 +633,8 @@ static void validateDockTree(DockNode *root, const TKit::TierArray<DockNode *> &
 #    define VALIDATE_DOCK_TREE(root, context)
 #endif
 
-#ifdef TKIT_ENABLE_DEBUG_LOGS
+#define ENABLE_LOG_DOCK_TREE
+#ifdef ENABLE_LOG_DOCK_TREE // TKIT_ENABLE_DEBUG_LOGS
 // fyi this was generated
 static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, OverlayWindow *win, const char *label)
 {
@@ -851,7 +864,6 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     const f32 hpadding = m_Style[OverlayStyle_HeaderPadding];
 
     m_Current->Flags &= WindowInternalFlagPersist;
-    m_Current->MinSize = getLineHeight() + 2.f * (wpadding + hpadding);
     m_Current->Flags |= flags;
     childWindow->Flags |= flags;
 
@@ -896,10 +908,15 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                 .Padding = m_Current->DockHost ? 0.f : wpadding,
                 .ChildGap = cgap});
 
-    const LayoutElement *elm = ly.QueryElement(id);
-    queryAndSetFocusStatus(elm, FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId |
-                                    FocusFlag_DoNotSetDraggedId);
-    m_LastItem = id;
+    // i honestly dont remember why i had this :( my bad. ive commented it for now. idk why would the window itself have
+    // to participate in input focus this way. if something breaks, well it might be bc of this
+
+    // const LayoutElement *elm = ly.QueryElement(m_Current->Id);
+    // queryAndSetFocusStatus(elm, FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId |
+    // FocusFlag_DoNotSetActiveId |
+    //                                 FocusFlag_DoNotSetDraggedId);
+
+    m_LastItem = m_Current->Id;
 
     drawWindowBorders();
     if (!noHeader)
@@ -981,7 +998,8 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                                                          .Sizing = sizing,
                                                          .Padding = cpadding,
                                                          .ChildGap = cgap});
-                beginTabBar(&node->TabData, IdFromStack(nodeId), OverlayTabBarFlag_Reorderable);
+                beginTabBar(&node->TabData, IdFromStack(nodeId),
+                            OverlayTabBarFlag_Reorderable | OverlayTabBarFlag_NoBottomLine | TabBarFlag_ForDocking);
                 ly.EndPanel();
             }
             else
@@ -1029,10 +1047,22 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
                                         .Enable = true,
                                         .DrawOnTop = true,
                                         .Clip = false,
-                                        .Attachment = Alignment_Center,
-                                        .Alignment = Alignment_Center,
+                                        .Attachment = Center,
+                                        .Alignment = Center,
                                     },
                                 .UserData = rcast<void *>(0xDEADC0DE)});
+                    if (node != m_Current->DockHost && nw->Window->IsKeyPressed(Key_LeftControl))
+                    {
+                        const LayoutElement *elm = ly.QueryElement(node->BorderId);
+                        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(
+                            elm,
+                            FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedAllowsInteraction |
+                                FocusFlag_HoveredAllowsInteraction,
+                            m_Style[OverlayStyle_BorderHoverPadding]);
+
+                        if (focusFlags & OverlayFocusQueryFlag_DragSource)
+                            node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
+                    }
                 }
 
                 // upcoming children will open the panel and draw here
@@ -1266,6 +1296,8 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
         PushStyleVar(OverlayStyle_WidgetPadding, padding);
         ++m_CurrentPopupDepth;
+
+        // we set a focus status to the background so that it can register inputs and collapse/persist popups
         queryAndSetFocusStatus(ly.QueryElement(bid), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId,
                                hoverPad);
         return true;
@@ -1401,10 +1433,11 @@ void Overlay::drawWindowBorders()
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-bool Overlay::iconButton(const LayoutId id, const CodePoint code, const LySz ysizing, const OverlayColor idle)
+OverlayFocusQueryFlags Overlay::iconButtonFocus(const LayoutId id, const CodePoint code, const LySz ysizing,
+                                                const OverlayColor idle, const FocusFlags flags)
 {
     Layout &ly = GetCurrentLayout();
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id), flags);
 
     OverlayColor col = idle;
     if (focusFlags & OverlayFocusQueryFlag_Pressed)
@@ -1412,13 +1445,13 @@ bool Overlay::iconButton(const LayoutId id, const CodePoint code, const LySz ysi
     else if (focusFlags & OverlayFocusQueryFlag_Hovered)
         col = OverlayColor_ButtonHovered;
 
-    ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                              .Alignment = Center,
-                              .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
+    m_LastItem = ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                           .Alignment = Center,
+                                           .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
 
     ly.Unicode(NullLayoutId, code, getUnicodeParams());
     ly.EndPanel();
-    return focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    return focusFlags;
 }
 
 void Overlay::popWindowStack()
@@ -1448,7 +1481,7 @@ u32 Overlay::processWindows()
         if (m_Current->DockHost)
             iterateDockTree(m_Current->DockHost, [&](DockNode *node) {
                 if (node->IsLeaf())
-                    endTabBar(&node->TabData);
+                    endTabBar(&node->TabData, node);
                 return true;
             });
     }
@@ -1462,7 +1495,10 @@ u32 Overlay::processWindows()
     }
 
     if (!(m_StateFlags & StateFlag_PressedIdMustPersist))
+    {
         m_PressedId = NullLayoutId;
+        m_StateFlags &= ~StateFlag_PressedAllowsInteraction;
+    }
 
     if (!(m_StateFlags & StateFlag_DraggedIdMustPersist))
     {
@@ -1523,11 +1559,11 @@ u32 Overlay::processWindows()
     const bool notAllowed =
         (m_StateFlags & StateFlag_DragPayloadRejected) && !(m_StateFlags & StateFlag_DragPayloadAccepted);
 
-    m_StateFlags &= StateFlagPersist;
-
     const bool widgetBlocked = m_ActiveId != NullLayoutId && !(m_StateFlags & StateFlag_ActiveAllowsInteraction);
-    const bool widgetPressed = m_PressedId != NullLayoutId;
-    const bool widgetHovered = m_HoveredId != NullLayoutId;
+    const bool widgetPressed = m_PressedId != NullLayoutId && !(m_StateFlags & StateFlag_PressedAllowsInteraction);
+    const bool widgetHovered = m_HoveredId != NullLayoutId && !(m_StateFlags & StateFlag_HoveredAllowsInteraction);
+
+    m_StateFlags &= StateFlagPersist;
 
     m_StateFlags |= widgetBlocked * StateFlag_WantCaptureMouse;
     // if nothing is grabbed, we check mouse cursors here
@@ -1548,7 +1584,8 @@ u32 Overlay::processWindows()
                 cursor = MouseCursor_IBeam;
                 return false;
             }
-            if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
+            // if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
+            if (!winHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
                 return true;
             if (!win->CanResize())
                 return true;
@@ -1570,15 +1607,18 @@ u32 Overlay::processWindows()
                 }
             }
 
+            const bool ctrl = win->Native->Window->IsKeyPressed(Key_LeftControl);
+            bool mustUseHand = false;
             if (rflags == 0 && win->DockHost)
-                iterateDockTree(win->DockHost, [&](DockNode *node) {
+                mustUseHand = iterateDockTree(win->DockHost, [&](DockNode *node) {
                     const f32v2 &size = node->ReadOnlySize;
 
                     const usz id = node->BorderId;
                     if (win->Layout.IsHovered(id, nativeHovered->WorldMouse, bpadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
-                        // represents the static dock node size. check GrabInfo definition for more details
+                        // represents the static dock node size. check GrabInfo definition
+                        // for more details
                         ginfo.Size = size;
                         ginfo.DockNode = node;
                         ginfo.StartRatio = node->Ratio;
@@ -1589,18 +1629,20 @@ u32 Overlay::processWindows()
                     return true;
                 });
 
+            mustUseHand &= ctrl && ginfo.DockNode != win->DockHost;
+
             ginfo.Flags = rflags;
             const auto cf = [&](const ResizeFlags f) { return f & rflags; };
             if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
-                cursor = MouseCursor_NESW;
+                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NESW;
 
             else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
-                cursor = MouseCursor_NWSE;
+                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NWSE;
 
             else if (cf(ResizeFlag_Left | ResizeFlag_Right | ResizeFlag_DockVertical))
-                cursor = MouseCursor_EW;
+                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_EW;
             else if (cf(ResizeFlag_Bottom | ResizeFlag_Top | ResizeFlag_DockHorizontal))
-                cursor = MouseCursor_NS;
+                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NS;
 
             return true;
         });
@@ -1823,6 +1865,8 @@ u32 Overlay::processWindows()
             handleResizeAxis(0, ResizeFlag_Left, ResizeFlag_Right);
             handleResizeAxis(1, ResizeFlag_Top, ResizeFlag_Bottom);
         }
+        else if (ginfo.DockNode != m_Grabbed->DockHost && nw->Window->IsKeyPressed(Key_LeftControl))
+            nw->Window->SetMouseCursor(MouseCursor_Default);
         else if (dockResize)
         {
             DockNode *node = ginfo.DockNode;
@@ -1919,7 +1963,45 @@ OverlayWindow *Overlay::createOverlayWindow()
 {
     TKit::TierAllocator *tier = GetTier();
     OverlayWindow *win = tier->Create<OverlayWindow>(m_LayoutSpecs);
+
+    const f32 wpadding = m_Style[OverlayStyle_WindowPadding];
+    const f32 hpadding = m_Style[OverlayStyle_HeaderPadding];
+
+    win->MinSize = getLineHeight() + 2.f * (wpadding + hpadding);
     return m_OverlayWindows.Append(win);
+}
+OverlayWindow *Overlay::createDockSpace(OverlayWindow *win, DockNode *rootNode, const bool fromWindow)
+{
+    TKIT_ASSERT(!rootNode->Parent, "[ONYX][OVERLAY] When creating a dockspace, the passed node must have no parent");
+
+    OverlayWindow *dspace = createOverlayWindow();
+    dspace->Layer = win->Layer;
+    dspace->Size = fromWindow ? win->Size : Math::Max(rootNode->ReadOnlySize, win->MinSize);
+
+    dspace->DockHost = rootNode;
+    dspace->DockParent = rootNode;
+
+    NativeWindow *nw = win->Native;
+    if (win->Flags & WindowInternalFlag_OwnsNative)
+    {
+        NativeWindow *native = getMainNativeWindow();
+        const f32v2 screenPos = fromWindow ? nw->ScreenPos : nw->ToScreen(rootNode->ReadOnlyPosition);
+
+        if (!native)
+            promoteWindow(dspace, screenPos, dspace->Size);
+        else
+        {
+            dspace->Native = native;
+            dspace->ScreenPos = screenPos - native->ScreenPos;
+        }
+    }
+    else
+    {
+        dspace->Native = nw;
+        dspace->ScreenPos = fromWindow ? win->ScreenPos : win->ToLocalScreen(rootNode->ReadOnlyPosition);
+    }
+
+    return dspace;
 }
 
 void Overlay::destroyOverlayWindow(OverlayWindow *win)
@@ -2245,12 +2327,43 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(OverlayWindo
     }
 }
 
+void Overlay::detachNodeFromParent(DockNode *node)
+{
+    DockNode *parent = node->Parent;
+    TKIT_ASSERT(parent, "[ONYX][OVERLAY] Cannot detach a root node from its parent");
+    OverlayWindow *dspace = node->DockSpace;
+
+    DockNode *granpa = parent->Parent;
+    DockNode *otherChild = parent->OtherChild(node);
+    if (granpa)
+    {
+        otherChild->Parent = granpa;
+        granpa->Children[granpa->ChildIndex(parent)] = otherChild;
+    }
+    else
+    {
+        // otherChild is the new root
+        iterateDockTree(otherChild, [&](const DockNode *n) {
+            if (n->IsLeaf())
+                for (OverlayWindow *child : n->Windows)
+                    child->DockHost = otherChild;
+            return true;
+        });
+
+        otherChild->Parent = nullptr;
+        dspace->DockHost = otherChild;
+        dspace->DockParent = otherChild;
+    }
+    removeDockNode(parent);
+    node->Parent = nullptr;
+}
+
 void Overlay::undockWindow(OverlayWindow *win)
 {
     TKIT_ASSERT(win->DockHost && win->DockParent,
                 "[ONYX][OVERLAY] Cannot undock a window that doesnt have a dock host/parent");
 
-    LOG_DOCK_TREE(win, "Before undock");
+    LOG_DOCK_TREE(win, "Before window undock");
 
     DockNode *host = win->DockHost;
     DockNode *node = win->DockParent;
@@ -2266,20 +2379,27 @@ void Overlay::undockWindow(OverlayWindow *win)
     OverlayWindow *dspace = host->DockSpace;
     TKIT_ASSERT(!(win->Flags & WindowInternalFlag_OwnsNative),
                 "[ONYX][OVERLAY] A window about to be undocked cannot possibly own any native window");
-    if (win->Flags & WindowInternalFlag_MustGrabWhenUndocked)
-    {
-        const f32v2 &pos = dspace->Native->WorldMouse;
-        win->Size = node->ReadOnlySize;
-        win->ScreenPos = dspace->ToScreen(pos + f32v2{-0.15f * win->Size[0], 0.5f * win->MinSize[1]});
 
+    const auto adjustWindowPromotion = [&] {
+        win->Size = Math::Max(node->ReadOnlySize, win->MinSize);
         if (!win->Native)
             promoteWindow(win, win->ScreenPos, win->Size);
         else if (dspace->Flags & WindowInternalFlag_OwnsNative)
             win->ScreenPos -= win->Native->ScreenPos;
+    };
+
+    if (win->Flags & WindowInternalFlag_MustGrabWhenUndocked)
+    {
+        const f32v2 &pos = dspace->Native->WorldMouse;
+
+        win->ScreenPos = dspace->ToScreen(pos + f32v2{-win->MinSize[0], 0.5f * win->MinSize[1]});
+
+        adjustWindowPromotion();
 
         win->Grab.ScreenPos = win->GetActivePosition();
         win->Grab.Size = win->Size;
         win->Flags |= WindowInternalFlag_HeaderGrabbed;
+        win->Layer = toTop();
         m_Grabbed = win;
     }
     else
@@ -2287,72 +2407,91 @@ void Overlay::undockWindow(OverlayWindow *win)
         // this position is wrt the dockspace, so the transformation must be wrt the dockspace
         const f32v2 &pos = node->ReadOnlyPosition;
         win->ScreenPos = dspace->ToScreen(pos);
-        win->Size = node->ReadOnlySize;
-        if (!win->Native)
-            promoteWindow(win, win->ScreenPos, win->Size);
-        if (dspace->Flags & WindowInternalFlag_OwnsNative)
-            win->ScreenPos -= win->Native->ScreenPos;
+
+        adjustWindowPromotion();
     }
 
     if (node->Windows.IsEmpty())
     {
-        DockNode *parent = node->Parent;
-        if (parent)
-        {
-            TKIT_ASSERT(!parent->IsLeaf(), "[ONYX][OVERLAY] Parent node must not be a leaf node");
-            TKIT_ASSERT(parent->DockSpace == dspace,
-                        "[ONYX][OVERLAY] All nodes in a dock tree must share the same dockspace");
-
-            DockNode *granpa = parent->Parent;
-            DockNode *otherChild = parent->OtherChild(node);
-            TKIT_ASSERT(otherChild != node && otherChild->Parent == parent,
-                        "[ONYX][OVERLAY] Dock tree relationship mismatch. Other child is current child, or other "
-                        "child's parent is not its sibling's parent");
-            if (granpa)
-            {
-                TKIT_ASSERT(granpa->DockSpace == dspace,
-                            "[ONYX][OVERLAY] All nodes in a dock tree must share the same dockspace");
-
-                TKIT_ASSERT(!granpa->IsLeaf(), "[ONYX][OVERLAY] Granpa node must not be a leaf node");
-                otherChild->Parent = granpa;
-                granpa->Children[granpa->ChildIndex(parent)] = otherChild;
-            }
-            else
-            {
-                // otherChild is the new root
-                iterateDockTree(otherChild, [&](const DockNode *n) {
-                    if (n->IsLeaf())
-                        for (OverlayWindow *child : n->Windows)
-                            child->DockHost = otherChild;
-                    return true;
-                });
-
-                otherChild->Parent = nullptr;
-                dspace->DockHost = otherChild;
-                dspace->DockParent = otherChild;
-            }
-            removeDockNode(parent);
-        }
+        if (node->Parent)
+            detachNodeFromParent(node);
         if (node == host)
             removeOverlayWindow(host->DockSpace);
         removeDockNode(node);
     }
 
-    win->Layer = toTop();
     win->DockHost = nullptr;
     win->DockParent = nullptr;
     win->Flags &= ~(WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked);
 
-    LOG_DOCK_TREE(win, "After undock");
+    LOG_DOCK_TREE(win, "After window undock");
 }
-void Overlay::undockMarkedWindows()
+void Overlay::undockNode(DockNode *node)
+{
+    TKIT_ASSERT(node->Parent, "[ONYX][OVERLAY] Cannot undock a root node");
+    LOG_DOCK_TREE(node->DockSpace, "Before node undock");
+
+    OverlayWindow *oldSpace = node->DockSpace;
+    const bool grab = node->Flags & DockNodeFlag_MustGrabWhenUndocked;
+    node->Flags &= ~(DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked);
+
+    usz id = oldSpace->Id;
+    const auto updateWindows = [&](DockNode *leaf) {
+        TKIT_ASSERT(!leaf->Windows.IsEmpty(), "[ONYX][OVERLAY] Cannot undock an empty node");
+        for (OverlayWindow *win : leaf->Windows)
+        {
+            TKit::HashCombine(id, win->Id);
+            win->DockHost = node;
+        }
+    };
+
+    detachNodeFromParent(node);
+
+    OverlayWindow *dspace = createDockSpaceFromNode(oldSpace, node);
+    node->DockSpace = dspace;
+    if (node->IsLeaf())
+        updateWindows(node);
+    else
+        iterateDockTree(node, [&](DockNode *child) {
+            child->DockSpace = dspace;
+            if (child->IsLeaf())
+                updateWindows(child);
+            return true;
+        });
+
+    dspace->Id = id;
+    if (grab)
+    {
+        const f32v2 &pos = dspace->Native->WorldMouse;
+        dspace->SetActivePosition(dspace->ToScreen(pos + 0.5f * f32v2{-dspace->MinSize[0], dspace->MinSize[1]}));
+
+        dspace->Grab.ScreenPos = dspace->GetActivePosition();
+        dspace->Grab.Size = dspace->Size;
+        dspace->Flags |= WindowInternalFlag_HeaderGrabbed;
+        dspace->Layer = toTop();
+        m_Grabbed = dspace;
+    }
+
+    LOG_DOCK_TREE(node->DockSpace, "After node undock (new tree)");
+    LOG_DOCK_TREE(oldSpace, "After node undock (old tree)");
+}
+void Overlay::undockMarked()
 {
     const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
     for (OverlayWindow *win : m_OverlayWindows)
-        if (win->DockHost && win->DockHost->DockSpace != win &&
-            (!dockingEnabled ||
-             (win->Flags & (OverlayWindowFlags(WindowInternalFlag_MustUndock) | OverlayWindowFlag_NoDocking))))
+    {
+        const bool isDocked = win->DockHost && win->DockHost->DockSpace != win;
+        const bool mustUndock =
+            win->Flags & (OverlayWindowFlags(WindowInternalFlag_MustUndock) | OverlayWindowFlag_NoDocking);
+        const bool tooEmpty = isDocked && win->DockHost == win->DockParent && win->DockParent->Windows.GetSize() == 1;
+
+        if (isDocked && (!dockingEnabled || mustUndock || tooEmpty))
             undockWindow(win);
+    }
+    if (dockingEnabled)
+        for (DockNode *node : m_DockNodes)
+            if (node->Flags & DockNodeFlag_MustUndock)
+                undockNode(node);
 }
 void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx)
 {
@@ -2399,34 +2538,9 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         if (!win->DockHost)
         {
             targetNode = createDockNode();
-            OverlayWindow *dspace = createOverlayWindow();
+            targetNode->DockSpace = createDockSpaceFromWindow(win, targetNode);
+            targetNode->DockSpace->Id = TKit::Hash(win->Id, m_DockSource->Id);
 
-            NativeWindow *nw = win->Native;
-            dspace->Id = TKit::Hash(win->Id, m_DockSource->Id);
-            dspace->Layer = win->Layer;
-            dspace->Size = win->Size;
-
-            dspace->DockHost = targetNode;
-            dspace->DockParent = targetNode;
-
-            if (win->Flags & WindowInternalFlag_OwnsNative)
-            {
-                NativeWindow *native = getMainNativeWindow();
-                if (!native)
-                    promoteWindow(dspace, nw->ScreenPos, win->Size);
-                else
-                {
-                    dspace->Native = native;
-                    dspace->ScreenPos = nw->ScreenPos - native->ScreenPos;
-                }
-            }
-            else
-            {
-                dspace->Native = nw;
-                dspace->ScreenPos = win->ScreenPos;
-            }
-
-            targetNode->DockSpace = dspace;
             targetNode->Windows.Append(win);
             win->DockHost = targetNode;
             win->DockParent = targetNode;
@@ -2545,8 +2659,12 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             ctx->Quad(t);
 
             if (mreleased)
+            {
                 dockInsert(targetNode, loc);
+                return true;
+            }
         }
+        return false;
     };
 
     const auto bottomPreviewInsert = [&](const i32v2 loc, DockNode *leaf, const f32v2 &dockPos, const f32v2 &dockSize) {
@@ -2563,11 +2681,11 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         ctx->SetTranslation(pos);
         ctx->RoundedRect(botParams);
 
-        drawPreviewIfHoveredAndInsert(leaf, middle, pos, botHitSize, dockSize, loc, sign);
+        return drawPreviewIfHoveredAndInsert(leaf, middle, pos, botHitSize, dockSize, loc, sign);
     };
 
     const f32v2 whsize = 0.5f * wsize;
-    const auto topPreviewInsert = [&](DockNode *targetNode, const i32v2 loc) {
+    const auto topPreviewInsert = [&](const i32v2 loc, DockNode *targetNode) {
         const f32v2 middle = wpos + f32v2{whsize[0], -whsize[1]};
 
         f32v2 offset{0.f};
@@ -2586,28 +2704,35 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         ctx->RoundedRect(topParams);
 
         const f32v2 topHitSize = 0.5f * psize + previewRadius;
-        drawPreviewIfHoveredAndInsert(targetNode, middle, pos, topHitSize, wsize, loc, sign);
+        return drawPreviewIfHoveredAndInsert(targetNode, middle, pos, topHitSize, wsize, loc, sign);
     };
 
+    constexpr TKit::FixedArray<i32v2, 4> sides = {left, right, bottom, top};
     ctx->FillColor(m_Style[OverlayColor_DockPreview]);
-    if (!win->DockHost || win->DockHost->IsLeaf())
-    {
+
+    const auto insertAllBottoms = [&](DockNode *node, const f32v2 &pos, const f32v2 &size) {
+        bool mustStop = false;
         if (!m_DockSource->DockHost || m_DockSource->DockHost->IsLeaf())
-            bottomPreviewInsert(center, win->DockHost, wpos, wsize);
-        bottomPreviewInsert(left, win->DockHost, wpos, wsize);
-        bottomPreviewInsert(right, win->DockHost, wpos, wsize);
-        bottomPreviewInsert(bottom, win->DockHost, wpos, wsize);
-        bottomPreviewInsert(top, win->DockHost, wpos, wsize);
-    }
+            mustStop = bottomPreviewInsert(center, node, pos, size);
+
+        if (!mustStop)
+            for (const i32v2 &side : sides)
+                if (bottomPreviewInsert(side, node, pos, size))
+                    break;
+    };
+
+    if (!win->DockHost || win->DockHost->IsLeaf())
+        insertAllBottoms(win->DockHost, wpos, wsize);
     else
     {
         if (!win->DockHost->IsLeaf())
-        {
-            topPreviewInsert(win->DockHost, left);
-            topPreviewInsert(win->DockHost, right);
-            topPreviewInsert(win->DockHost, bottom);
-            topPreviewInsert(win->DockHost, top);
-        }
+            for (const i32v2 &side : sides)
+                if (topPreviewInsert(side, win->DockHost))
+                {
+                    TKit::PrintLine("WHAT");
+                    return;
+                }
+
         iterateDockTree(win->DockHost, [&](DockNode *node) {
             const f32v2 &pos = node->ReadOnlyPosition;
             const f32v2 &size = node->ReadOnlySize;
@@ -2617,12 +2742,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             const f32v2 relPos = Math::Absolute(mpos - pos);
             if (relPos[0] <= size[0] && relPos[1] <= size[1])
             {
-                if (!m_DockSource->DockHost || m_DockSource->DockHost->IsLeaf())
-                    bottomPreviewInsert(center, node, pos, size);
-                bottomPreviewInsert(left, node, pos, size);
-                bottomPreviewInsert(right, node, pos, size);
-                bottomPreviewInsert(bottom, node, pos, size);
-                bottomPreviewInsert(top, node, pos, size);
+                insertAllBottoms(node, pos, size);
                 return false;
             }
             return true;
@@ -3601,10 +3721,29 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
     ly.EndPanel();
 }
 
-void Overlay::endTabBar(TabBarData *data)
+void Overlay::endTabBar(TabBarData *data, DockNode *node)
 {
     Layout &ly = GetCurrentLayout();
     ly.OpenPanel(data->Id);
+
+    PushId(data->Id);
+    if (data->Flags & TabBarFlag_ForDocking)
+    {
+        TKIT_ASSERT(
+            node && node->IsLeaf(),
+            "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
+
+        const OverlayHoverQueryFlags focusFlags =
+            iconButtonFocus(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
+
+        if (node->Parent && (focusFlags & OverlayFocusQueryFlag_DragSource))
+        {
+            if (node->Windows.GetSize() != 1)
+                node->Flags = DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
+            else if (focusFlags & OverlayFocusQueryFlag_DragSource)
+                node->Windows[0]->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+        }
+    }
 
     PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
     PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
@@ -3621,7 +3760,6 @@ void Overlay::endTabBar(TabBarData *data)
     auto &tabs = data->Tabs;
 
     const bool reorderable = data->Flags & OverlayTabBarFlag_Reorderable;
-    PushId(data->Id);
     for (u32 i = 0; i < order.GetSize(); ++i)
     {
         const u32 idx = reorderable ? order[i] : i;
@@ -3747,7 +3885,8 @@ void Overlay::endTabBar(TabBarData *data)
 
     ly.EndPanel();
 
-    HorizontalLine();
+    if (!(data->Flags & OverlayTabBarFlag_NoBottomLine))
+        HorizontalLine();
 }
 
 bool Overlay::beginTab(TabBarData *data, const TKit::StringView label, bool *enabled, const OverlayTabFlags flags,
@@ -3808,6 +3947,8 @@ bool Overlay::beginTab(TabBarData *data, const TKit::StringView label, bool *ena
         return false;
 
     const bool forDocking = flags & TabFlag_ForDocking;
+    TKIT_ASSERT(forDocking == bool(window),
+                "[ONYX][OVERLAY] If the _ForDocking tab flag is set, beginTab() must take a non null window");
     ly.BeginPanel(pushId ? PushId(id) : IdFromStack(id),
                   LyPnPar{.Direction = LayoutDirection_TopToBottom,
                           .Alignment = TopLeft,
@@ -4420,6 +4561,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                      .ChildGap = cgap,
                      .Flags = OverlayScrollFlag_NoBackground});
 
+        // we set a focus status to the dropdown so that it can register inputs and collapse/persist popups
         queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
         return true;
     }
@@ -4999,7 +5141,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const
     const bool hovered = elm && elm->IsHovered(nw->WorldMouse, padding);
     const bool windowBlock =
         !(m_Current->Flags & WindowInternalFlag_Focused) && !(m_Current->Flags & WindowInternalFlag_Hovered);
-    const bool grabBlock = m_Grabbed;
+    // const bool grabBlock = m_Grabbed;
     const bool pressBlock = m_PressedId != NullLayoutId && m_PressedId != id;
     const bool activeBlocked =
         !(m_StateFlags & StateFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
@@ -5010,7 +5152,7 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const
 
     flags |= OverlayHoverQueryFlag_Hovered * hovered;
     flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
+    // flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
     flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
     flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
     flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
@@ -5109,6 +5251,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     const bool lmreleased = nw->Flags & NativeWindowFlag_LeftMouseReleased;
 
     const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
+    // const bool focusHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByWindowGrab);
     const bool focusHovered = isElementHovered(hflags);
 
     const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
@@ -5134,7 +5277,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
     // this hover check, thus disallowing the popup itself to protect itself because of its own interaction
     const OverlayHoveredFlags popHoverFlags =
         OverlayHoveredFlag_AllowBlockedByPopup | OverlayHoveredFlag_AllowBlockedByPopupCollapse |
-        OverlayHoveredFlag_AllowBlockedByWindow | OverlayHoverQueryFlag_BlockedByWindowGrab;
+        OverlayHoveredFlag_AllowBlockedByWindow; // | OverlayHoverQueryFlag_BlockedByWindowGrab;
 
     const bool popupHovered = isElementHovered(hflags, popHoverFlags);
     if (popupHovered && protectPopup)
@@ -5241,7 +5384,20 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
     // *i think* lmreleased check could be omitted bc pressed id wont be set if mouse is not being pressed rn
     if (m_PressedId == elm->Id && !lmreleased)
+    {
         m_StateFlags |= StateFlag_PressedIdMustPersist;
+        if (flags & FocusFlag_PressedAllowsInteraction)
+            m_StateFlags |= StateFlag_PressedAllowsInteraction;
+        else
+            m_StateFlags &= ~StateFlag_PressedAllowsInteraction;
+    }
+    if (m_HoveredId == elm->Id)
+    {
+        if (flags & FocusFlag_HoveredAllowsInteraction)
+            m_StateFlags |= StateFlag_HoveredAllowsInteraction;
+        else
+            m_StateFlags &= ~StateFlag_HoveredAllowsInteraction;
+    }
     if (m_DraggedId == elm->Id && !lmreleased)
     {
         m_StateFlags |= StateFlag_DraggedIdMustPersist;
@@ -5443,7 +5599,7 @@ void Overlay::Draw()
     else
         manageWindowPromotions();
 
-    undockMarkedWindows();
+    undockMarked();
     resetTooltip();
 }
 
@@ -5514,7 +5670,7 @@ f32v4 Overlay::getWorldEffectiveBorders() const
 /// DEMO
 /////////////////////////////////////////////
 
-void Overlay::ShowDemo()
+void Overlay::ShowDemo(bool *enabled)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
@@ -5599,7 +5755,7 @@ void Overlay::ShowDemo()
     }
 
     static bool disableGlobal = false;
-    if (ov->BeginWindow("Overlay demo", wflags | Onyx::OverlayWindowFlag_MenuBar))
+    if (ov->BeginWindow("Overlay demo", enabled, wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
         if (ov->PushTree("Configuration"))
         {
@@ -5911,8 +6067,8 @@ void Overlay::ShowDemo()
 
             ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
                               Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
-            ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
-                              Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
+            // ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
+            //                   Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
             ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
                               Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
             ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
@@ -5954,7 +6110,7 @@ void Overlay::ShowDemo()
             ov->HorizontalSeparator("Hovering info");
             ov->Text("Hovered: {}", hovered);
             ov->Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
-            ov->Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
+            // ov->Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
             ov->Text("Blocked by pressed item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
             ov->Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
             ov->Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
@@ -6145,6 +6301,7 @@ void Overlay::ShowDemo()
             static bool tab1 = true;
             static bool tab3 = true;
             ov->CheckBoxFlags("OverlayTabBarFlag_Reorderable", &tflags, Onyx::OverlayTabBarFlag_Reorderable);
+            ov->CheckBoxFlags("OverlayTabBarFlag_NoBottomLine", &tflags, Onyx::OverlayTabBarFlag_NoBottomLine);
             ov->CheckBox("Enable tab 1", &tab1);
             ov->CheckBox("Enable tab 3", &tab3);
 

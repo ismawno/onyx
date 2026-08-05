@@ -324,7 +324,7 @@ static u32 toGlfwCursor(const MouseCursor cursor)
     case MouseCursor_NWSE:
         return GLFW_RESIZE_NWSE_CURSOR;
     case MouseCursor_Hand:
-        return GLFW_HAND_CURSOR;
+        return GLFW_POINTING_HAND_CURSOR;
     case MouseCursor_CrossHair:
         return GLFW_CROSSHAIR_CURSOR;
     case MouseCursor_IBeam:

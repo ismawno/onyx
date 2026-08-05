@@ -37,6 +37,7 @@ using OverlayTreeFlags = u8;
 using OverlayTooltipFlags = u8;
 using OverlayWindowFlags = OverlayScrollFlags;
 
+using DockNodeFlags = u8;
 using FocusFlags = OverlayFocusFlags;
 using InputConvertInfoFlags = u8;
 using NativeWindowFlags = u16;
@@ -176,6 +177,7 @@ enum OverlayColor : u8
 enum OverlayStyleVariable : u8
 {
     OverlayStyle_FontSize,
+    OverlayStyle_UnicodeSize,
     OverlayStyle_ChildGap,
 
     OverlayStyle_HeaderRadius,
@@ -552,6 +554,8 @@ struct DockNode
     OverlayWindow *DockSpace = nullptr;
     TKit::TierArray<OverlayWindow *> Windows;
 
+    DockNodeFlags Flags = 0;
+
     bool IsLeaf() const
     {
         TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
@@ -665,17 +669,19 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_KeepActiveOnRelease = 1U << 11,
     FocusFlag_SetActiveOnRelease = 1U << 12,
     FocusFlag_ToggleActiveOnRelease = 1U << 13,
-    FocusFlag_ActiveAllowsInteraction = 1U << 14,
-    FocusFlag_LeftClickOpensPopup = 1U << 15,
-    FocusFlag_RightClickOpensPopup = 1U << 16,
-    FocusFlag_HoverOpensPopup = 1U << 17,
-    FocusFlag_HoverRequestsPopupCollapse = 1U << 18,
-    FocusFlag_DoNotSetHoveredId = 1U << 19,
-    FocusFlag_DoNotSetPressedId = 1U << 20,
-    FocusFlag_DoNotSetDraggedId = 1U << 21,
-    FocusFlag_DoNotSetActiveId = 1U << 22,
-    FocusFlag_DoNotProtectPopup = 1U << 23,
-    FocusFlag_AllowPressedOnEnter = 1U << 24,
+    FocusFlag_HoveredAllowsInteraction = 1U << 14,
+    FocusFlag_PressedAllowsInteraction = 1U << 15,
+    FocusFlag_ActiveAllowsInteraction = 1U << 16,
+    FocusFlag_LeftClickOpensPopup = 1U << 17,
+    FocusFlag_RightClickOpensPopup = 1U << 18,
+    FocusFlag_HoverOpensPopup = 1U << 19,
+    FocusFlag_HoverRequestsPopupCollapse = 1U << 20,
+    FocusFlag_DoNotSetHoveredId = 1U << 21,
+    FocusFlag_DoNotSetPressedId = 1U << 22,
+    FocusFlag_DoNotSetDraggedId = 1U << 23,
+    FocusFlag_DoNotSetActiveId = 1U << 24,
+    FocusFlag_DoNotProtectPopup = 1U << 25,
+    FocusFlag_AllowPressedOnEnter = 1U << 26,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetDraggedId |
                          FocusFlag_DoNotSetActiveId | FocusFlag_DoNotProtectPopup
 };
@@ -689,7 +695,7 @@ enum OverlayFocusFlagBit : OverlayFocusFlags
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
 {
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
-    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
+    // OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
     OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
     OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
@@ -705,7 +711,7 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
 enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
 {
     OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
-    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
+    // OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
     OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
     OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
     OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
@@ -819,6 +825,9 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
 enum OverlayTabBarFlagBit : OverlayTabBarFlags
 {
     OverlayTabBarFlag_Reorderable = 1U << 0,
+    OverlayTabBarFlag_NoBottomLine = 1U << 1,
+
+    TabBarFlag_ForDocking = 1U << 2,
 };
 
 enum OverlayTabFlagBit : OverlayTabFlags
@@ -1800,7 +1809,7 @@ class Overlay
     /// DEMO
     /////////////////////////////////////////////
 
-    void ShowDemo();
+    void ShowDemo(bool *enabled = nullptr);
     void ShowStyleEditor();
     void ShowRendererStatistics();
 
@@ -1821,11 +1830,26 @@ class Overlay
 
     void addActiveWindow(OverlayWindow *win);
     void drawWindowBorders();
-    bool iconButton(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(), OverlayColor idle = OverlayColor_None);
+    OverlayFocusQueryFlags iconButtonFocus(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(),
+                                           OverlayColor idle = OverlayColor_None, FocusFlags flags = 0);
+    bool iconButton(const LayoutId id, const CodePoint code, const LySz ysizing = LySz::Fit(),
+                    const OverlayColor idle = OverlayColor_None, const FocusFlags flags = 0)
+    {
+        return iconButtonFocus(id, code, ysizing, idle, flags) & OverlayFocusQueryFlag_LeftClicked;
+    }
     void popWindowStack();
     u32 processWindows();
 
     OverlayWindow *createOverlayWindow();
+    OverlayWindow *createDockSpace(OverlayWindow *win, DockNode *rootNode, bool fromWindow);
+    OverlayWindow *createDockSpaceFromWindow(OverlayWindow *win, DockNode *rootNode)
+    {
+        return createDockSpace(win, rootNode, true);
+    }
+    OverlayWindow *createDockSpaceFromNode(OverlayWindow *win, DockNode *rootNode)
+    {
+        return createDockSpace(win, rootNode, false);
+    }
 
     void destroyOverlayWindow(OverlayWindow *win);
     void removeOverlayWindow(OverlayWindow *win);
@@ -1851,8 +1875,11 @@ class Overlay
     template <typename F> void iterateReverseWindows(F func);
     template <typename F> void iterateDockTreeWithLayoutUpdate(OverlayWindow *win, F func);
 
+    void detachNodeFromParent(DockNode *node);
     void undockWindow(OverlayWindow *win);
-    void undockMarkedWindows();
+    void undockNode(DockNode *node);
+
+    void undockMarked();
     void dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
 
     NativeWindow *getMainNativeWindow()
@@ -1897,7 +1924,7 @@ class Overlay
     static TKit::StringView trimLabel(TKit::StringView label);
 
     void beginTabBar(TabBarData *data, LayoutId id, OverlayTabBarFlags flags);
-    void endTabBar(TabBarData *data);
+    void endTabBar(TabBarData *data, DockNode *node = nullptr);
 
     bool beginTab(TabBarData *data, TKit::StringView label, bool *enabled, OverlayTabFlags flags,
                   OverlayWindow *window = nullptr);
@@ -2438,7 +2465,7 @@ class Overlay
     }
     LyUnPar getUnicodeParams() const
     {
-        return {.FillColor = m_Style[OverlayColor_Text], .Size = m_Style[OverlayStyle_FontSize]};
+        return {.FillColor = m_Style[OverlayColor_Text], .Size = m_Style[OverlayStyle_UnicodeSize]};
     }
 
     static constexpr LySz fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
