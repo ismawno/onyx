@@ -178,6 +178,7 @@ enum OverlayStyleVariable : u8
 {
     OverlayStyle_FontSize,
     OverlayStyle_UnicodeSize,
+    OverlayStyle_IndentWidth,
     OverlayStyle_ChildGap,
 
     OverlayStyle_HeaderRadius,
@@ -682,6 +683,7 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_DoNotSetActiveId = 1U << 24,
     FocusFlag_DoNotProtectPopup = 1U << 25,
     FocusFlag_AllowPressedOnEnter = 1U << 26,
+    FocusFlag_AllowBlockedByGrab = 1U << 27,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetDraggedId |
                          FocusFlag_DoNotSetActiveId | FocusFlag_DoNotProtectPopup
 };
@@ -695,7 +697,7 @@ enum OverlayFocusFlagBit : OverlayFocusFlags
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
 {
     OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
-    // OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
+    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
     OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
     OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
     OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
@@ -711,7 +713,7 @@ enum OverlayHoveredFlagBit : OverlayHoveredFlags
 enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
 {
     OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
-    // OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
+    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
     OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
     OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
     OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
@@ -995,6 +997,8 @@ class Overlay
         return BeginWindow(title, nullptr, flags);
     }
     void EndWindow();
+
+    bool FullScreenDockSpace();
 
     bool BeginMenuBar();
     void EndMenuBar();
@@ -1597,16 +1601,26 @@ class Overlay
     {
         EndPanel();
     }
-    void PushIndent(const f32 indent)
+    void PushIndent(const bool vline = false)
     {
+        BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = TopLeft, .Sizing = fit()});
+
+        BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                           .Alignment = Center,
+                           .Sizing = {sabs(m_Style[OverlayStyle_IndentWidth]), flex()}});
+
+        if (vline)
+            VerticalLine();
+
+        EndPanel();
         BeginPanel({.Direction = LayoutDirection_TopToBottom,
                     .Alignment = TopLeft,
                     .Sizing = fit(),
-                    .ChildOffset = oabs({indent, 0.f}),
                     .ChildGap = m_Style[OverlayStyle_ChildGap]});
     }
     void PopIndent()
     {
+        EndPanel();
         EndPanel();
     }
 
@@ -1910,6 +1924,7 @@ class Overlay
     OverlayWindow *m_Current = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
     OverlayWindow *m_DockSource = nullptr;
+    OverlayWindow *m_MainDockspace = nullptr;
 
     u64 m_LayerCount = 0;
 
