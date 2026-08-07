@@ -115,7 +115,7 @@ static void createDevice(const InitializationFlags flags)
 
     TKIT_LOG_INFO("[ONYX][CORE] The following device extensions were enabled");
 #ifdef TKIT_ENABLE_INFO_LOGS
-    for (const TKit::String &ext : s_Physical->GetInfo().EnabledExtensions)
+    for (const TKit::TierString &ext : s_Physical->GetInfo().EnabledExtensions)
         TKIT_LOG_INFO("[ONYX][CORE]     {}", ext);
 #endif
 
@@ -646,13 +646,13 @@ void Terminate()
     s_Instance.Destruct();
 }
 
-TKit::String Error::ToString() const
+TKit::TierString Error::ToString() const
 {
-    TKit::String str = TKit::String::Format("[ONYX] Error code: '{}'", Onyx::ToString(m_ErrorCode));
+    TKit::TierString str = TKit::TierString::Format("[ONYX] Error code: '{}'", Onyx::ToString(m_ErrorCode));
     if (m_CheapMessage)
-        str += TKit::String::Format(" - Message: '{}'", m_CheapMessage);
+        str += TKit::TierString::Format(" - Message: '{}'", m_CheapMessage);
     else if (!m_FormattedMessage.IsEmpty())
-        str += TKit::String::Format(" - Message: '{}'", m_FormattedMessage);
+        str += TKit::TierString::Format(" - Message: '{}'", m_FormattedMessage);
     return str;
 }
 

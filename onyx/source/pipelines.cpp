@@ -221,11 +221,11 @@ static void createShaders()
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
     // TODO(Isma): Would be nice to parallelize this
-    for (const TKit::String &geo : geos)
+    for (const TKit::TierString &geo : geos)
         for (u32 rpass = 0; rpass < passes.GetSize(); ++rpass)
-            for (const TKit::String &dim : dims)
+            for (const TKit::TierString &dim : dims)
             {
-                const TKit::String &name = names.Append(geo + "-" + passes[rpass] + "-" + dim);
+                const TKit::TierString &name = names.Append(geo + "-" + passes[rpass] + "-" + dim);
                 auto &module = compiler.AddModule(name.GetData())
                                    .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                                    .DeclareEntryPoint("mainFSO", ShaderStage_Fragment);
@@ -254,7 +254,7 @@ static void createShaders()
 
     u32 idx = 0;
     const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasTransparent) {
-        const TKit::String &name = names[idx++];
+        const TKit::TierString &name = names[idx++];
         data.VertexShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", name.GetData()));
         data.OpaqueFragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFSO", name.GetData()));
         if (hasTransparent)
@@ -262,13 +262,13 @@ static void createShaders()
 
         if (IsDebugUtilsEnabled())
         {
-            const TKit::String v = "onyx-vertex-shader-" + name;
-            const TKit::String of = "onyx-opaque-fragment-shader-" + name;
+            const TKit::TierString v = "onyx-vertex-shader-" + name;
+            const TKit::TierString of = "onyx-opaque-fragment-shader-" + name;
             ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.CString()));
             ONYX_CHECK_VKIT_RESULT(data.OpaqueFragmentShaders[geo].SetName(of.CString()));
             if (hasTransparent)
             {
-                const TKit::String tf = "onyx-transparent-fragment-shader-" + name;
+                const TKit::TierString tf = "onyx-transparent-fragment-shader-" + name;
                 ONYX_CHECK_VKIT_RESULT(data.TransparentFragmentShaders[geo].SetName(tf.CString()));
             }
         }

@@ -62,11 +62,11 @@ template <Dimension D> Result<StaticMeshData<D>> LoadStaticMeshDataFromObjFile(c
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, path))
         return Result<StaticMeshData<D>>::Error(
-            Error_FileNotFound, TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
+            Error_FileNotFound, TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][MESH] {}", warn);
     if (!err.empty())
         return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
-                                                TKit::String::Format("[ONYX][MESH] Failed to load mesh: {}", err));
+                                                TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err));
     if (shapes.empty())
         return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
                                                 "[ONYX][MESH] Failed to load mesh. Shapes container was empty");

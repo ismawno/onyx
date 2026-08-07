@@ -83,20 +83,20 @@ Color Color::FromHexadecimal(TKit::StringView hex)
     return FromHexadecimal(u32(std::strtoul(hex.begin(), nullptr, 16)), hex.GetSize() == 8);
 }
 
-Color Color::FromString(const TKit::String &color)
+Color Color::FromString(const TKit::TierString &color)
 {
-    static const TKit::StaticHashMap<TKit::String, Color *, 128> s_ColorMap{{"red", &Color_Red},
-                                                                            {"green", &Color_Green},
-                                                                            {"blue", &Color_Blue},
-                                                                            {"magenta", &Color_Magenta},
-                                                                            {"cyan", &Color_Cyan},
-                                                                            {"orange", &Color_Orange},
-                                                                            {"yellow", &Color_Yellow},
-                                                                            {"black", &Color_Black},
-                                                                            {"pink", &Color_Pink},
-                                                                            {"purple", &Color_Purple},
-                                                                            {"white", &Color_White},
-                                                                            {"transparent", &Color_Transparent}
+    static const TKit::StaticHashMap<TKit::TierString, Color *, 128> s_ColorMap{{"red", &Color_Red},
+                                                                                {"green", &Color_Green},
+                                                                                {"blue", &Color_Blue},
+                                                                                {"magenta", &Color_Magenta},
+                                                                                {"cyan", &Color_Cyan},
+                                                                                {"orange", &Color_Orange},
+                                                                                {"yellow", &Color_Yellow},
+                                                                                {"black", &Color_Black},
+                                                                                {"pink", &Color_Pink},
+                                                                                {"purple", &Color_Purple},
+                                                                                {"white", &Color_White},
+                                                                                {"transparent", &Color_Transparent}
 
     };
     TKIT_ASSERT(s_ColorMap.Contains(color), "[ONYX][COLOR] Color '{}' not found", color);

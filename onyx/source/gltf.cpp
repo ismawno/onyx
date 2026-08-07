@@ -50,7 +50,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][GLTF] {}", warn);
     if (!ok)
         return Result<GltfData<D>>::Error(Error_LoadFailed,
-                                          TKit::String::Format("[ONYX][GLTF] Failed to load gltf: {}", err));
+                                          TKit::TierString::Format("[ONYX][GLTF] Failed to load gltf: {}", err));
     GltfData<D> data{};
     for (const auto &mesh : model.meshes)
     {

@@ -172,7 +172,7 @@ ONYX_NO_DISCARD static Result<ImageData> load(const ImageArgs &args)
     if (!img)
         return Result<ImageData>::Error(
             Error_LoadFailed,
-            TKit::String::Format("[ONYX][IMAGE] Failed to load image data: {}", stbi_failure_reason()));
+            TKit::TierString::Format("[ONYX][IMAGE] Failed to load image data: {}", stbi_failure_reason()));
 
     data.Width = u32(w);
     data.Height = u32(h);

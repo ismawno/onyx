@@ -42,7 +42,7 @@ void Layout::insertId(const LayoutId id, const u32 idx)
     m_InsertedElements.Insert(id, idx);
 }
 
-usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
+LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
@@ -163,7 +163,7 @@ usz Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
     return current.Id;
 }
 
-usz Layout::OpenPanel(const LayoutId id)
+LayoutId Layout::OpenPanel(const LayoutId id)
 {
     TKIT_ASSERT(m_InsertedElements.Contains(id),
                 "[ONYX][LAYOUT] Can only open a panel that was previously inserted into the layout. Id {:#018x} is not "
@@ -183,7 +183,7 @@ void Layout::EndPanel()
     m_ElementStack.Pop();
 }
 
-usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
+LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
@@ -214,7 +214,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
     current.FillColor = params.FillColor;
     current.OutlineColor = params.OutlineColor;
     current.OutlineWidth = params.OutlineWidth;
-    current.Text = TKit::String{text.GetData(), text.GetSize()};
+    current.Text = TKit::TierString{text.GetData(), text.GetSize()};
     // NOTE(Isma): This is a weak check. If user passes a bad font that is not NullHandle, it will go through
     current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
     current.Texture = params.Texture;
@@ -241,7 +241,7 @@ usz Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTex
 }
 
 // NOTE(Isma): A bit repetitive here with text
-usz Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicodeParameters &params)
+LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicodeParameters &params)
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
@@ -868,7 +868,7 @@ void Layout::Compile()
 
     m_Elements.Clear();
     m_InsertedElements.Clear();
-    m_AutoId = 0;
+    m_AutoId = usz(0);
 }
 
 void Layout::Reset()
@@ -877,7 +877,7 @@ void Layout::Reset()
     m_Elements.Clear();
     m_InsertedElements.Clear();
     m_DrawInfo.Clear();
-    m_AutoId = 0;
+    m_AutoId = usz(0);
 }
 
 void Layout::applySpecDefaults()

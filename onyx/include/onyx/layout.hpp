@@ -212,10 +212,61 @@ struct LayoutFloatingParameters
     vec2<Alignment> Alignment{Alignment_Canonical};
 };
 
+// TODO(Isma): Have a tkit macro for this ::Max()
+constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
+
+struct LayoutId
+{
+    LayoutId() = default;
+    LayoutId(const usz id) : Id(id)
+    {
+    }
+    LayoutId(const TKit::StringView id) : Id(TKit::Hash(id))
+    {
+#ifdef TKIT_ENABLE_ENSURE
+        __DebugName = {id.GetData(), id.GetSize()};
+#endif
+    }
+    LayoutId(const char *id) : LayoutId(TKit::StringView{id})
+    {
+    }
+    template <typename AllocState> LayoutId(const TKit::String<AllocState> &str) : LayoutId(TKit::StringView(str))
+    {
+    }
+
+    LayoutId(const CodePoint code) : Id(TKit::Hash(code))
+    {
+    }
+    template <typename T>
+        requires(!std::same_as<T, char>)
+    LayoutId(const T *id) : Id(TKit::Hash(id))
+    {
+    }
+
+    operator usz() const
+    {
+        return Id;
+    }
+
+    usz Id;
+#ifdef TKIT_ENABLE_ENSURE
+    TKit::TierString __DebugName{};
+#endif
+};
+
+inline bool operator==(const LayoutId &lhs, const LayoutId &rhs)
+{
+    return lhs.Id == rhs.Id;
+}
+inline bool operator==(const LayoutId &lhs, const usz &rhs)
+{
+    return lhs.Id == rhs;
+}
+
 // TODO(Isma): Add here helpers such as ShouldParticipateInFit etc, for when we add custom rendering to layouts
 struct LayoutElement
 {
-    usz Id;
+    LayoutId Id;
     void *UserData;
     LayoutShape Shape;
     f32v2 Position{0.f};
@@ -243,7 +294,7 @@ struct LayoutElement
     f32v2 TexOffset;
     f32v2 TexScale;
     u32 Unicode;
-    TKit::String Text;
+    TKit::TierString Text;
     TKit::TierArray<u32> Children{};
     u32 NonFloatChildCount = 0;
 
@@ -268,9 +319,9 @@ struct LayoutElement
 
 struct LayoutDrawInfo
 {
-    usz Id;
+    LayoutId Id;
     void *UserData;
-    TKit::String Text;
+    TKit::TierString Text;
     f32v2 Position;
     f32v2 Size;
     f32v2 ClipMin;
@@ -365,53 +416,12 @@ struct LayoutSpecs
     Resource Font = NullHandle;
 };
 
-struct LayoutId
-{
-    LayoutId() = default;
-    LayoutId(const usz id) : Id(id)
-    {
-    }
-    LayoutId(const char *id) : LayoutId(TKit::StringView{id})
-    {
-#ifdef TKIT_ENABLE_ENSURE
-        __DebugName = id;
-#endif
-    }
-    LayoutId(const TKit::StringView id) : Id(TKit::Hash(id))
-    {
-#ifdef TKIT_ENABLE_ENSURE
-        __DebugName = id;
-#endif
-    }
-    LayoutId(const CodePoint code) : Id(TKit::Hash(code))
-    {
-    }
-    template <typename T>
-        requires(!std::same_as<T, char>)
-    LayoutId(const T *id) : Id(TKit::Hash(id))
-    {
-    }
-
-    operator usz() const
-    {
-        return Id;
-    }
-
-    usz Id;
-#ifdef TKIT_ENABLE_ENSURE
-    TKit::StringView __DebugName{};
-#endif
-};
-
-// TODO(Isma): Have a tkit macro for this ::Max()
-constexpr usz NullLayoutId = TKit::Limits<usz>::Max();
-
 class Layout
 {
   public:
     Layout(const LayoutSpecs &specs = {});
 
-    usz BeginPanel(LayoutId id, const LayoutPanelParameters &params = {});
+    LayoutId BeginPanel(LayoutId id, const LayoutPanelParameters &params = {});
 
     // here id is not guaranteed to be persisted accross frames, so no point in returning it
     void BeginPanel(const LayoutPanelParameters &params = {})
@@ -419,9 +429,9 @@ class Layout
         BeginPanel(NullLayoutId, params);
     }
 
-    usz Panel(const LayoutId id, const LayoutPanelParameters &params = {})
+    LayoutId Panel(const LayoutId id, const LayoutPanelParameters &params = {})
     {
-        const usz idd = BeginPanel(id, params);
+        const LayoutId idd = BeginPanel(id, params);
         EndPanel();
         return idd;
     }
@@ -432,24 +442,24 @@ class Layout
 
     void EndPanel();
 
-    usz OpenPanel(LayoutId id);
+    LayoutId OpenPanel(LayoutId id);
 
-    usz Text(LayoutId id, TKit::StringView text, const LayoutTextParameters &params = {});
-    usz Text(const TKit::StringView text, const LayoutTextParameters &params = {})
+    LayoutId Text(LayoutId id, TKit::StringView text, const LayoutTextParameters &params = {});
+    LayoutId Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
         return Text(text, text, params);
     }
 
-    usz Unicode(LayoutId id, CodePoint code, const LayoutUnicodeParameters &params = {});
-    usz Unicode(const LayoutId id, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    LayoutId Unicode(LayoutId id, CodePoint code, const LayoutUnicodeParameters &params = {});
+    LayoutId Unicode(const LayoutId id, const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(id, DecodeUTF8(code.GetData()), params);
     }
-    usz Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
+    LayoutId Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(code, code, params);
     }
-    usz Unicode(const TKit::StringView code, const LayoutUnicodeParameters &params = {})
+    LayoutId Unicode(const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
         return Unicode(DecodeUTF8(code.GetData()), params);
     }
@@ -489,9 +499,9 @@ class Layout
         applySpecDefaults();
     }
 
-    usz GenerateNextId()
+    LayoutId GenerateNextId()
     {
-        return TKit::Hash(++m_AutoId);
+        return TKit::Hash(++m_AutoId.Id);
     }
 
   private:
@@ -508,12 +518,20 @@ class Layout
     TKit::TierArray<u32> m_ElementStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
-    TKit::TierHashMap<usz, u32> m_InsertedElements{};
+    TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};
 
     TKit::TierArray<LayoutElement> m_GenerationalElements{};
-    TKit::TierHashMap<usz, u32> m_GenerationalMap{};
+    TKit::TierHashMap<LayoutId, u32> m_GenerationalMap{};
 
     LayoutSpecs m_Specs{};
-    usz m_AutoId = 0;
+    LayoutId m_AutoId = usz(0);
 };
 } // namespace Onyx
+
+template <> struct std::hash<Onyx::LayoutId>
+{
+    std::size_t operator()(const Onyx::LayoutId &id) const noexcept
+    {
+        return id.Id;
+    }
+};

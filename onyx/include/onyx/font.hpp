@@ -212,7 +212,7 @@ struct FontData
     f32 ComputeTextHeight(TKit::StringView text) const;
 
     f32 ComputeTextMinimumWidth(TKit::StringView text) const;
-    TKit::String WrapText(TKit::StringView text, f32 maxWidth) const;
+    TKit::TierString WrapText(TKit::StringView text, f32 maxWidth) const;
 };
 
 #ifdef ONYX_ENABLE_FONT_LOAD

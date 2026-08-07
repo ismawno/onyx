@@ -2,9 +2,8 @@
 
 #include "onyx/alias.hpp"
 #include "onyx/math.hpp"
+#include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
-#define TKIT_DEFAULT_STRING_TIER
-#include "tkit/container/string.hpp"
 #include "tkit/utils/debug.hpp"
 
 namespace Onyx::Detail
@@ -178,7 +177,7 @@ struct Color
     static Color FromHexadecimal(u32 hex, bool alpha = true);
     static Color FromHexadecimal(TKit::StringView hex);
 
-    static Color FromString(const TKit::String &color);
+    static Color FromString(const TKit::TierString &color);
 
     const f32 *GetData() const
     {

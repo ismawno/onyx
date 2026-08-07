@@ -3719,24 +3719,31 @@ void Coalesce(const u32 maxRanges)
     coalesce<D3>(maxRanges);
 }
 
+template <typename... Args> static TKit::StackString fmt(fmt::format_string<Args...> str, Args &&...args)
+{
+    return TKit::StackString::Format(str, std::forward<Args>(args)...);
+}
+static TKit::StackString fmts(const VkDeviceSize bytes)
+{
+    if (bytes > 1_gib)
+        return fmt("{:.2f} gib", f32(bytes) / f32(1_gib));
+    if (bytes > 1_mib)
+        return fmt("{:.2f} mib", f32(bytes) / f32(1_mib));
+    if (bytes > 1_kib)
+        return fmt("{:.2f} kib", f32(bytes) / f32(1_kib));
+    return fmt("{:L} b", bytes);
+}
+static TKit::StackString fmtb(const VkDeviceSize bytes)
+{
+    return fmt("{:L} b", bytes);
+}
+
 static constexpr OverlayTreeFlags s_DrawLines = OverlayTreeFlag_DrawLines;
 template <Dimension D, typename Range>
 static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<Range> &pool, const u64 generation = 0)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-        if (bytes > 1_gib)
-            return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-        if (bytes > 1_mib)
-            return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-        if (bytes > 1_kib)
-            return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-        return TKit::StackString::Format("{:L} b", bytes);
-    };
-    const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-        return TKit::StackString::Format("{:L} b", bytes);
-    };
-    if (ov->PushTree(&pool, s_DrawLines, "{} pool ranges ({})", name, pool.Ranges.GetSize()))
+    if (ov->PushTree({&pool, fmt("{} pool ranges ({})", name, pool.Ranges.GetSize())}, s_DrawLines))
     {
         ov->Text("Buffer size: {}", fmts(pool.Buffer.GetInfo().Size));
         for (const Range &range : pool.Ranges)
@@ -3746,13 +3753,15 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
 
             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
             {
-                if (ov->PushTree(&range, s_DrawLines, "{} ({}): {} - {}",
-                                 range.InUse()
-                                     ? "IN-USE"
-                                     : (rdata.AreAllContextRangesDirty(range)
-                                            ? "FREE"
-                                            : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-                                 fmts(range.Size), fmtb(range.Offset), fmtb(range.Offset + range.Size)))
+                if (ov->PushTree(
+                        {&range,
+                         fmt("{} ({}): {} - {}",
+                             range.InUse() ? "IN-USE"
+                                           : (rdata.AreAllContextRangesDirty(range)
+                                                  ? "FREE"
+                                                  : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
+                             fmts(range.Size), fmtb(range.Offset), fmtb(range.Offset + range.Size))},
+                        s_DrawLines))
                 {
                     ov->Text("In use by transfer queue: {}", range.TransferTracker.InUse() ? "YES" : "NO");
                     ov->Text("In use by graphics queue: {}", range.GraphicsTracker.InUse() ? "YES" : "NO");
@@ -3763,13 +3772,15 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
                         ov->Text("Render mode: {}", ToString(GetRenderMode(range.RenderFlags)));
                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
                     ov->Text("View mask: {}", vmask.CString());
-                    if (ov->PushTree(&range.ContextRanges, s_DrawLines, "Context ranges ({})",
-                                     range.ContextRanges.GetSize()))
+                    if (ov->PushTree({&range.ContextRanges, fmt("Context ranges ({})", range.ContextRanges.GetSize())},
+                                     s_DrawLines))
                     {
                         for (const ContextInstanceRange &crange : range.ContextRanges)
-                            if (ov->PushTree(&crange, s_DrawLines, "{} ({}): {} - {}",
-                                             rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY", fmts(crange.Size),
-                                             fmtb(crange.Offset), fmtb(crange.Offset + crange.Size)))
+                            if (ov->PushTree(
+                                    {&crange,
+                                     fmt("{} ({}): {} - {}", rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
+                                         fmts(crange.Size), fmtb(crange.Offset), fmtb(crange.Offset + crange.Size))},
+                                    s_DrawLines))
                             {
                                 if (crange.ContextIndex != TKIT_U32_MAX)
                                 {
@@ -3801,20 +3812,6 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
 {
     const RendererData<D> &rdata = getRendererData<D>();
     const OverlayStyle &st = ov->GetStyle();
-
-    const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-        if (bytes > 1_gib)
-            return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-        if (bytes > 1_mib)
-            return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-        if (bytes > 1_kib)
-            return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-        return TKit::StackString::Format("{:L} b", bytes);
-    };
-
-    const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-        return TKit::StackString::Format("{:L} b", bytes);
-    };
 
     constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
     const TKit::FixedArray<Color, 5> colors = {Color::FromHexadecimal(0x6B7280B3), Color::FromHexadecimal(0x22C55EB3),
@@ -3978,7 +3975,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     {
         const Geometry geo = Geometry(i);
         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
-        if (ov->PushTreeRaw(&arena, ToString(geo), s_DrawLines))
+        if (ov->PushTree({&arena, ToString(geo)}, s_DrawLines))
         {
             displayRanges<D>(ov, "Transfer", arena.Transfer);
             displayRanges<D>(ov, "Graphics", arena.Graphics);
@@ -3990,7 +3987,7 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     {
         const LightType light = LightType(i);
         const LightArena &arena = ldata.Arenas[light];
-        if (ov->PushTreeRaw(&arena, ToString(light), s_DrawLines))
+        if (ov->PushTree({&arena, ToString(light)}, s_DrawLines))
         {
             displayRanges<D>(ov, "Transfer", arena.Transfer);
             displayRanges<D>(ov, "Graphics", arena.Graphics, arena.ActiveGeneration);

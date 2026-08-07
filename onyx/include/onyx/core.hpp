@@ -4,9 +4,8 @@
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/utils/limits.hpp"
 #include "tkit/container/fixed_array.hpp"
+#include "tkit/container/tier_array.hpp"
 #include "tkit/utils/result.hpp"
-#define TKIT_DEFAULT_STRING_TIER
-#include "tkit/container/string.hpp"
 
 #define ONYX_NO_DISCARD [[nodiscard]]
 
@@ -89,7 +88,7 @@ class Error
 {
   public:
     Error() = default;
-    Error(const ErrorCode code, const TKit::String &message) : m_FormattedMessage(message), m_ErrorCode(code)
+    Error(const ErrorCode code, const TKit::TierString &message) : m_FormattedMessage(message), m_ErrorCode(code)
     {
     }
     Error(const ErrorCode code, const char *message) : m_CheapMessage(message), m_ErrorCode(code)
@@ -99,8 +98,8 @@ class Error
     {
     }
 
-    TKit::String ToString() const;
-    TKit::String GetMessage() const
+    TKit::TierString ToString() const;
+    TKit::TierString GetMessage() const
     {
         return m_CheapMessage ? m_CheapMessage : m_FormattedMessage;
     }
@@ -111,7 +110,7 @@ class Error
     }
 
     const char *m_CheapMessage = nullptr;
-    TKit::String m_FormattedMessage{};
+    TKit::TierString m_FormattedMessage{};
     ErrorCode m_ErrorCode = Error_Unknown;
 };
 

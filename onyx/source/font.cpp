@@ -165,7 +165,7 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
         msdfgen::deinitializeFreetype(ft);
         return Result<FontData>::Error(
             Error_Unknown,
-            TKit::String::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
+            TKit::TierString::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
     }
     return loadFont(ft, font, opts);
 }
@@ -329,9 +329,9 @@ f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
     return size;
 }
 
-TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth) const
+TKit::TierString FontData::WrapText(const TKit::StringView text, const f32 maxWidth) const
 {
-    TKit::String wrapped;
+    TKit::TierString wrapped;
     wrapped.Reserve(text.GetSize());
 
     f32 size = 0.f;

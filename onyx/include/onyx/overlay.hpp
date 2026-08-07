@@ -386,7 +386,7 @@ struct DockNode;
 struct GrabInfo
 {
     DockNode *DockNode;
-    TKit::FixedArray<usz, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
+    TKit::FixedArray<LayoutId, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     OverlayColor InteractionColor = OverlayColor_None; // Whether hovered or pressed
     f32v2 ScreenPos;
 
@@ -441,9 +441,9 @@ struct NativeWindow
     // a double click)
     u32 OverflowClicks = 0;
     TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
-    TKit::String TextInput{};
+    TKit::TierString TextInput{};
 
-    TKit::String InputWidgetBuffer{};
+    TKit::TierString InputWidgetBuffer{};
     TKit::Clock ClickClock{};
 
     NativeWindowFlags Flags = 0;
@@ -503,18 +503,18 @@ struct NativeWindow
 
 struct Tab
 {
-    usz Id;
+    LayoutId Id;
     // only used for docking
     OverlayWindow *Window = nullptr;
     //
-    TKit::String Label;
+    TKit::TierString Title;
     OverlayTabFlags Flags = 0;
 };
 
 struct TabBarData
 {
-    usz Id;
-    usz OpenId = NullLayoutId;
+    LayoutId Id;
+    LayoutId OpenId = NullLayoutId;
 
     u32 Current = TKIT_U32_MAX;
 
@@ -533,8 +533,8 @@ struct TabBarData
 
 struct DockNode
 {
-    usz Id = NullLayoutId;
-    usz BorderId = NullLayoutId;
+    LayoutId Id = NullLayoutId;
+    LayoutId BorderId = NullLayoutId;
     DockNode *Parent = nullptr;
 
     TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
@@ -585,10 +585,10 @@ struct OverlayWindow
     {
     }
 
-    usz Id = NullLayoutId;
-    usz HeaderId = NullLayoutId;
-    usz ContentAreaId = NullLayoutId;
-    usz MenuBarId = NullLayoutId;
+    LayoutId Id = NullLayoutId;
+    LayoutId HeaderId = NullLayoutId;
+    LayoutId ContentAreaId = NullLayoutId;
+    LayoutId MenuBarId = NullLayoutId;
     u64 Layer;
 
     NativeWindow *Native = nullptr;
@@ -613,7 +613,7 @@ struct OverlayWindow
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
 
-    usz GetMenuId() const
+    LayoutId GetMenuId() const
     {
         return ActiveDockChild ? ActiveDockChild->MenuBarId : MenuBarId;
     }
@@ -946,6 +946,33 @@ struct OverlayDragDropPayload
     }
 };
 
+struct OverlayLabel
+{
+    OverlayLabel() = default;
+    OverlayLabel(const LayoutId id, const TKit::StringView title) : Id(id), Title(title)
+    {
+    }
+    OverlayLabel(const TKit::StringView label)
+    {
+        u32 idx = label.FindFirstOf("##");
+        if (idx != TKit::StringView::npos && label[idx + 2] == '#')
+            Id = label.SubString(idx + 3);
+        else
+            Id = label;
+        Title = label.SubString(0, idx);
+    }
+    OverlayLabel(const char *label) : OverlayLabel(TKit::StringView(label))
+    {
+    }
+    template <typename AllocState>
+    OverlayLabel(const TKit::String<AllocState> &str) : OverlayLabel(TKit::StringView(str))
+    {
+    }
+
+    LayoutId Id;
+    TKit::StringView Title;
+};
+
 /////////////////////////////////////////////
 /// END WIDGET STATE
 /////////////////////////////////////////////
@@ -1001,10 +1028,10 @@ class Overlay
     /// WINDOWS/MENUS PUBLIC
     /////////////////////////////////////////////
 
-    bool BeginWindow(TKit::StringView title, bool *opened, OverlayWindowFlags flags = 0);
-    bool BeginWindow(const TKit::StringView title, const OverlayWindowFlags flags = 0)
+    bool BeginWindow(OverlayLabel label, bool *opened, OverlayWindowFlags flags = 0);
+    bool BeginWindow(const OverlayLabel label, const OverlayWindowFlags flags = 0)
     {
-        return BeginWindow(title, nullptr, flags);
+        return BeginWindow(label, nullptr, flags);
     }
     void EndWindow();
 
@@ -1017,7 +1044,7 @@ class Overlay
     bool BeginMainMenuBar();
     void EndMainMenuBar();
 
-    bool BeginMenu(TKit::StringView label);
+    bool BeginMenu(OverlayLabel label);
     void EndMenu();
 
     void SetNextWindowPosition(const f32v2 &pos)
@@ -1031,7 +1058,7 @@ class Overlay
         m_NextWindow.Flags |= NextWindowFlag_Size;
     }
 
-    bool MenuItem(const TKit::StringView label, const bool enabled = false)
+    bool MenuItem(const OverlayLabel label, const bool enabled = false)
     {
         PushStyleColor(OverlayColor_SelectableIdle, Color_Transparent);
         if (Selectable(label, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_FlexWidth))
@@ -1043,7 +1070,7 @@ class Overlay
         PopStyleColor();
         return false;
     }
-    bool MenuItem(const TKit::StringView label, bool *enabled)
+    bool MenuItem(const OverlayLabel label, bool *enabled)
     {
         if (MenuItem(label, *enabled))
         {
@@ -1071,11 +1098,11 @@ class Overlay
     /////////////////////////////////////////////
 
     // TODO(Isma): Create unicode overload
-    bool Button(TKit::StringView label, OverlayButtonFlags flags = 0);
-    bool RadioButton(TKit::StringView label, bool active);
+    bool Button(OverlayLabel label, OverlayButtonFlags flags = 0);
+    bool RadioButton(OverlayLabel label, bool active);
 
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool RadioButton(const TKit::StringView label, T *value, const U reference)
+    bool RadioButton(const OverlayLabel label, T *value, const U reference)
     {
         if (RadioButton(label, *value == T(reference)))
         {
@@ -1084,7 +1111,7 @@ class Overlay
         }
         return false;
     }
-    bool CheckBox(TKit::StringView label, bool *enable);
+    bool CheckBox(OverlayLabel label, bool *enable);
 
     bool BeginSelectable(LayoutId id, bool enabled = false, OverlaySelectableFlags flags = 0);
     bool BeginSelectable(LayoutId id, bool *enabled, OverlaySelectableFlags flags = 0);
@@ -1100,16 +1127,16 @@ class Overlay
 
     void EndSelectable();
 
-    bool Selectable(TKit::StringView label, bool enabled = false, OverlaySelectableFlags flags = 0);
-    bool Selectable(TKit::StringView label, bool *enabled, OverlaySelectableFlags flags = 0);
+    bool Selectable(OverlayLabel label, bool enabled = false, OverlaySelectableFlags flags = 0);
+    bool Selectable(OverlayLabel label, bool *enabled, OverlaySelectableFlags flags = 0);
 
-    void ProgressBar(TKit::StringView label, TKit::StringView text, f32 pct);
-    void ProgressBar(const TKit::StringView label, const f32 pct)
+    void ProgressBar(OverlayLabel label, TKit::StringView text, f32 pct);
+    void ProgressBar(const OverlayLabel label, const f32 pct)
     {
         ProgressBar(label, {}, pct);
     }
     template <typename... Args>
-    void ProgressBar(const TKit::StringView label, const f32 pct, const fmt::format_string<Args...> str, Args &&...args)
+    void ProgressBar(const OverlayLabel label, const f32 pct, const fmt::format_string<Args...> str, Args &&...args)
     {
         const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
         ProgressBar(label, txt, pct);
@@ -1118,8 +1145,8 @@ class Overlay
     void BeginTabBar(LayoutId id, OverlayTabBarFlags flags = 0);
     void EndTabBar();
 
-    bool BeginTab(TKit::StringView label, bool *enabled, OverlayTabFlags flags = 0);
-    bool BeginTab(const TKit::StringView label, OverlayTabFlags flags = 0)
+    bool BeginTab(OverlayLabel label, bool *enabled, OverlayTabFlags flags = 0);
+    bool BeginTab(const OverlayLabel label, OverlayTabFlags flags = 0)
     {
         return BeginTab(label, nullptr, flags);
     }
@@ -1128,13 +1155,12 @@ class Overlay
         endTab(m_TabBarStack.GetBack());
     }
 
-    bool InputText(TKit::StringView label, char *buf, u32 size, TKit::StringView hint = {},
-                   OverlayInputFlags flags = 0);
+    bool InputText(OverlayLabel label, char *buf, u32 size, TKit::StringView hint = {}, OverlayInputFlags flags = 0);
     template <TKit::Numeric T>
-    bool InputNumeric(const TKit::StringView label, T *value, const char *format = nullptr,
+    bool InputNumeric(const OverlayLabel label, T *value, const char *format = nullptr,
                       const TKit::StringView hint = {}, const OverlayInputFlags flags = 0)
     {
-        beginHorizontalWidget(PushId(label));
+        beginHorizontalWidget(PushId(label.Id));
         const bool updated = inputNumericBox(value, format, hint, flags);
         if (flags & OverlayInputFlag_StepButtons)
         {
@@ -1143,12 +1169,11 @@ class Overlay
             if (Button("+", OverlayButtonFlag_TryKeepSquare))
                 ++(*value);
         }
-        endHorizontalWidget(label);
+        endHorizontalWidget(label.Title);
         PopId();
         return updated;
     }
-    template <TKit::Integer T, std::convertible_to<T> U>
-    bool CheckBoxFlags(TKit::StringView label, T *flags, const U flag)
+    template <TKit::Integer T, std::convertible_to<T> U> bool CheckBoxFlags(OverlayLabel label, T *flags, const U flag)
     {
         bool enabled = *flags & T(flag);
         if (CheckBox(label, &enabled))
@@ -1163,11 +1188,11 @@ class Overlay
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool HorizontalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
+    bool HorizontalSlider(const OverlayLabel label, T *value, const U mn, const U mx, const char *format = nullptr,
                           const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
-        beginHorizontalWidget(PushId(label));
+        beginHorizontalWidget(PushId(label.Id));
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -1176,35 +1201,34 @@ class Overlay
             changed |= horizontalSliderBox(&val, mn, mx, format, flags);
             PopId();
         }
-        endHorizontalWidget(label);
+        endHorizontalWidget(label.Title);
         PopId();
         return changed;
     }
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
-    bool HorizontalSlider(const TKit::StringView label, vec<T, N> *value, const U mn, const U mx,
+    bool HorizontalSlider(const OverlayLabel label, vec<T, N> *value, const U mn, const U mx,
                           const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return HorizontalSlider(label, Math::AsPointer(*value), mn, mx, format, N, flags);
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool VerticalSlider(const TKit::StringView label, T *value, const U mn, const U mx, const char *format = nullptr,
+    bool VerticalSlider(const OverlayLabel label, T *value, const U mn, const U mx, const char *format = nullptr,
                         const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
 
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = PushId(label);
+        const LayoutId id = PushId(label.Id);
         ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalSliderHeight])},
                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
-        const TKit::StringView tlabel = trimLabel(label);
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
             PushId(i);
-            changed |= verticalSliderBox(tlabel, &val, mn, mx, format, flags);
+            changed |= verticalSliderBox(label.Title, &val, mn, mx, format, flags);
             PopId();
         }
 
@@ -1213,18 +1237,17 @@ class Overlay
         return changed;
     }
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U>
-    bool VerticalSlider(const TKit::StringView label, vec<T, N> *value, const U mn, const U mx,
+    bool VerticalSlider(const OverlayLabel label, vec<T, N> *value, const U mn, const U mx,
                         const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return VerticalSlider(label, Math::AsPointer(*value), mn, mx, format, N, flags);
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool HorizontalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
-                        const U mx = T(0), const char *format = nullptr, const u32 count = 1,
-                        const OverlaySliderFlags flags = 0)
+    bool HorizontalDrag(const OverlayLabel label, T *value, const f32 speed = 1.f, const U mn = T(0), const U mx = T(0),
+                        const char *format = nullptr, const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
-        beginHorizontalWidget(PushId(label));
+        beginHorizontalWidget(PushId(label.Id));
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -1234,36 +1257,34 @@ class Overlay
             PopId();
         }
 
-        endHorizontalWidget(label);
+        endHorizontalWidget(label.Title);
         PopId();
         return changed;
     }
 
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
-    bool HorizontalDrag(const TKit::StringView label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
+    bool HorizontalDrag(const OverlayLabel label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
                         const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return HorizontalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U = T>
-    bool VerticalDrag(const TKit::StringView label, T *value, const f32 speed = 1.f, const U mn = T(0),
-                      const U mx = T(0), const char *format = nullptr, const u32 count = 1,
-                      const OverlaySliderFlags flags = 0)
+    bool VerticalDrag(const OverlayLabel label, T *value, const f32 speed = 1.f, const U mn = T(0), const U mx = T(0),
+                      const char *format = nullptr, const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         Layout &ly = GetCurrentLayout();
-        const LayoutId id = PushId(label);
+        const LayoutId id = PushId(label.Id);
 
         ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
-        const TKit::StringView tlabel = trimLabel(label);
         for (u32 i = 0; i < count; ++i)
         {
             T &val = value[i];
             PushId(i);
-            changed |= verticalDragBox(tlabel, &val, speed, mn, mx, format, flags);
+            changed |= verticalDragBox(label.Title, &val, speed, mn, mx, format, flags);
             PopId();
         }
         ly.EndPanel();
@@ -1271,37 +1292,37 @@ class Overlay
         return changed;
     }
     template <TKit::Numeric T, u32 N, std::convertible_to<T> U = T>
-    bool VerticalDrag(const TKit::StringView label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
+    bool VerticalDrag(const OverlayLabel label, vec<T, N> *value, const f32 speed = 1.f, const U mn = T(0),
                       const U mx = T(0), const char *format = nullptr, const OverlaySliderFlags flags = 0)
     {
         return VerticalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    void ColorPreviewTooltip(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
-    void ColorPreview(TKit::StringView label, const Color &col, OverlayColorFlags flags = 0);
+    void ColorPreviewTooltip(TKit::StringView title, const Color &col, OverlayColorFlags flags = 0);
+    void ColorPreview(OverlayLabel label, const Color &col, OverlayColorFlags flags = 0);
 
-    bool ColorPicker(TKit::StringView label, OverlayColorHandle color, const Color *original, f32 pickerSize,
+    bool ColorPicker(OverlayLabel label, OverlayColorHandle color, const Color *original, f32 pickerSize,
                      OverlayColorFlags flags = 0);
-    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
+    bool ColorPicker(const OverlayLabel label, const OverlayColorHandle color, const Color *original,
                      OverlayColorFlags flags = 0)
     {
         return ColorPicker(label, color, original, -1.f, flags);
     }
-    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const f32 size,
+    bool ColorPicker(const OverlayLabel label, const OverlayColorHandle color, const f32 size,
                      OverlayColorFlags flags = 0)
     {
         return ColorPicker(label, color, nullptr, size, flags);
     }
-    bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, OverlayColorFlags flags = 0)
+    bool ColorPicker(const OverlayLabel label, const OverlayColorHandle color, OverlayColorFlags flags = 0)
     {
         return ColorPicker(label, color, nullptr, -1.f, flags);
     }
 
-    bool ColorButton(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
-    bool ColorEditor(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
+    bool ColorButton(OverlayLabel label, OverlayColorHandle color, OverlayColorFlags flags = 0);
+    bool ColorEditor(OverlayLabel label, OverlayColorHandle color, OverlayColorFlags flags = 0);
 
     template <TKit::Integer T>
-    bool ListBox(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
+    bool ListBox(const OverlayLabel label, T *current, const TKit::Span<const TKit::StringView> elements,
                  const OverlaySelectableFlags flags = 0)
     {
         const T val = *current;
@@ -1316,7 +1337,7 @@ class Overlay
         return val != *current;
     }
     template <TKit::Integer T>
-    bool ListBox(const TKit::StringView label, T *current, const TKit::StringView elements,
+    bool ListBox(const OverlayLabel label, T *current, const TKit::StringView elements,
                  const OverlaySelectableFlags flags = 0)
     {
         const TKit::StackString str{elements.GetData(), elements.GetSize()};
@@ -1407,28 +1428,19 @@ class Overlay
     void CloseChildPopup();
     void CollapsePopups();
 
-    bool BeginPopup(LayoutId id, TKit::StringView title, OverlayWindowFlags flags = 0);
-    bool BeginPopup(const TKit::StringView title, const OverlayWindowFlags flags = 0)
-    {
-        return BeginPopup(title, title, flags);
-    }
+    bool BeginPopup(OverlayLabel label, OverlayWindowFlags flags = 0);
     void EndPopup();
 
-    bool BeginPopupContextItem(const LayoutId id, const TKit::StringView title, const OverlayWindowFlags wflags = 0,
+    bool BeginPopupContextItem(const OverlayLabel label, const OverlayWindowFlags wflags = 0,
                                const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
     {
         if (QueryItemFocusStatus() & flags)
-            OpenPopup(id);
+            OpenPopup(label.Id);
 
-        return BeginPopup(id, title, wflags);
-    }
-    bool BeginPopupContextItem(const TKit::StringView title, const OverlayWindowFlags wflags = 0,
-                               const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
-    {
-        return BeginPopupContextItem(title, title, wflags, flags);
+        return BeginPopup(label, wflags);
     }
 
-    bool BeginDropDown(TKit::StringView label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
+    bool BeginDropDown(OverlayLabel label, TKit::StringView preview, OverlayDropDownFlags flags = 0);
     void EndDropDown()
     {
         endScroll();
@@ -1441,7 +1453,7 @@ class Overlay
     }
 
     template <TKit::Integer T>
-    bool DropDown(const TKit::StringView label, T *current, const TKit::Span<const TKit::StringView> elements,
+    bool DropDown(const OverlayLabel label, T *current, const TKit::Span<const TKit::StringView> elements,
                   const OverlayDropDownFlags flags = 0, const OverlaySelectableFlags sflags = 0)
     {
         const T val = *current;
@@ -1458,7 +1470,7 @@ class Overlay
         return val != *current;
     }
     template <TKit::Integer T>
-    bool DropDown(const TKit::StringView label, T *current, const TKit::StringView elements,
+    bool DropDown(const OverlayLabel label, T *current, const TKit::StringView elements,
                   const OverlayDropDownFlags flags = 0)
     {
         const TKit::StackString str{elements.GetData(), elements.GetSize()};
@@ -1518,8 +1530,8 @@ class Overlay
     /// LAYOUT PUBLIC
     /////////////////////////////////////////////
 
-    void BeginScroll(TKit::StringView label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
-    void BeginScroll(TKit::StringView label, f32 maxHeight, OverlayScrollFlags flags = 0)
+    void BeginScroll(OverlayLabel label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
+    void BeginScroll(OverlayLabel label, f32 maxHeight, OverlayScrollFlags flags = 0)
     {
         BeginScroll(label, maxHeight, TKIT_F32_MAX, flags);
     }
@@ -1538,7 +1550,7 @@ class Overlay
         else
             HorizontalLine();
     }
-    void HorizontalSeparator(TKit::StringView label);
+    void HorizontalSeparator(OverlayLabel label);
     void HorizontalLine()
     {
         GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
@@ -1552,7 +1564,7 @@ class Overlay
                                          .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
 
-    usz BeginPanel(const LayoutId id, const LyPnPar &params = {})
+    LayoutId BeginPanel(const LayoutId id, const LyPnPar &params = {})
     {
         m_LastItem = GetCurrentLayout().BeginPanel(id, params);
         return m_LastItem;
@@ -1566,7 +1578,7 @@ class Overlay
         GetCurrentLayout().EndPanel();
     }
 
-    usz Panel(const LayoutId id, const LyPnPar &params = {})
+    LayoutId Panel(const LayoutId id, const LyPnPar &params = {})
     {
         m_LastItem = GetCurrentLayout().Panel(id, params);
         return m_LastItem;
@@ -1576,22 +1588,7 @@ class Overlay
         GetCurrentLayout().Panel(params);
     }
 
-    bool PushTreeRaw(LayoutId id, TKit::StringView label, OverlayTreeFlags flags = 0);
-    bool PushTree(TKit::StringView label, const OverlayTreeFlags flags = 0)
-    {
-        return PushTreeRaw(label, label, flags);
-    }
-    template <typename... Args> bool PushTree(const LayoutId id, const fmt::format_string<Args...> str, Args &&...args)
-    {
-        return PushTree(id, 0, str, std::forward<Args>(args)...);
-    }
-    template <typename... Args>
-    bool PushTree(const LayoutId id, const OverlayTreeFlags flags, const fmt::format_string<Args...> str,
-                  Args &&...args)
-    {
-        const TKit::StackString txt = TKit::StackString::Format(str, std::forward<Args>(args)...);
-        return PushTreeRaw(id, txt, flags);
-    }
+    bool PushTree(OverlayLabel label, const OverlayTreeFlags flags = 0);
     void PopTree()
     {
         Layout &ly = GetCurrentLayout();
@@ -1933,7 +1930,7 @@ class Overlay
     TKit::StaticArray32<OverlayWindow *> m_OverlayWindows{};
     TKit::StaticArray64<DockNode *> m_DockNodes{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
-    TKit::StaticHashMap<usz, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
+    TKit::StaticHashMap<LayoutId, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
 
     TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
     TKit::TierArray<OverlayWindow *> m_WindowStack{};
@@ -1955,27 +1952,25 @@ class Overlay
     /// WIDGETS PRIVATE
     /////////////////////////////////////////////
 
-    static TKit::StringView trimLabel(TKit::StringView label);
-
     void beginTabBar(TabBarData *data, LayoutId id, OverlayTabBarFlags flags);
     void endTabBar(TabBarData *data, DockNode *node = nullptr);
 
-    bool beginTab(TabBarData *data, TKit::StringView label, bool *enabled, OverlayTabFlags flags,
+    bool beginTab(TabBarData *data, OverlayLabel label, bool *enabled, OverlayTabFlags flags,
                   OverlayWindow *window = nullptr);
     void endTab(TabBarData *data);
 
-    void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
-    void beginHorizontalWidget(usz id, f32 normSize = 0.7f);
-    void endHorizontalWidget(TKit::StringView label = {});
+    void beginHorizontalWidget(LayoutId id, const LySz2 &outerSizing, const LySz2 &innerSizing);
+    void beginHorizontalWidget(LayoutId id, f32 normSize = 0.7f);
+    void endHorizontalWidget(TKit::StringView title = {});
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
                       InputConvertInfoFlags cflags = 0);
 
     bool colorHexInput(f32 *colPtr, const Color &col, OverlayColorFlags flags);
     bool colorDrag(f32 *colPtr, const Color &col, OverlayColorFlags flags);
-    bool colorPicker(TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
-                     OverlayColorFlags flags, f32 size);
-    usz drawColorPreview(const Color &col, f32 size, bool alpha);
+    bool colorPicker(OverlayLabel label, f32 *colPtr, const Color &col, const Color *original, OverlayColorFlags flags,
+                     f32 size);
+    LayoutId drawColorPreview(const Color &col, f32 size, bool alpha);
 
     struct SliderBoxInfo
     {
@@ -2112,7 +2107,7 @@ class Overlay
         return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool verticalSliderBox(const TKit::StringView label, T *value, const U mn, const U mx, const char *format,
+    bool verticalSliderBox(const TKit::StringView title, T *value, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
@@ -2141,8 +2136,8 @@ class Overlay
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout &tly = GetCurrentLayout();
 
-            if (!label.IsEmpty())
-                tly.Text(tly.GenerateNextId(), label, getTextParams());
+            if (!title.IsEmpty())
+                tly.Text(tly.GenerateNextId(), title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
             tly.Text(tly.GenerateNextId(), text, getTextParams());
 
@@ -2238,7 +2233,7 @@ class Overlay
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool verticalDragBox(const TKit::StringView label, T *value, const f32 speed, const U mn, const U mx,
+    bool verticalDragBox(const TKit::StringView title, T *value, const f32 speed, const U mn, const U mx,
                          const char *format, const OverlaySliderFlags flags)
     {
         Layout &ly = GetCurrentLayout();
@@ -2258,8 +2253,8 @@ class Overlay
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout &tly = GetCurrentLayout();
 
-            if (!label.IsEmpty())
-                tly.Text(tly.GenerateNextId(), label, getTextParams());
+            if (!title.IsEmpty())
+                tly.Text(tly.GenerateNextId(), title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
             tly.Text(tly.GenerateNextId(), text, getTextParams());
 
@@ -2315,17 +2310,17 @@ class Overlay
             m_WidgetStates[id] |= bit;
     }
 
-    TKit::String m_InputWidgetBuffer{};
+    TKit::TierString m_InputWidgetBuffer{};
     u32 m_CursorStart = 0;
     u32 m_CursorEnd = 0;
 
-    usz m_LastItem = NullLayoutId;
+    LayoutId m_LastItem = NullLayoutId;
 
     f64 m_DragValue = 0.;
 
-    TKit::TierHashMap<usz, WidgetStateFlags> m_WidgetStates{};
-    TKit::TierHashMap<usz, PickerData> m_PickerMeshes{};
-    TKit::TierHashMap<usz, TabBarData> m_TabBarData{};
+    TKit::TierHashMap<LayoutId, WidgetStateFlags> m_WidgetStates{};
+    TKit::TierHashMap<LayoutId, PickerData> m_PickerMeshes{};
+    TKit::TierHashMap<LayoutId, TabBarData> m_TabBarData{};
 
     Color m_PickerOriginal{};
 
@@ -2334,7 +2329,7 @@ class Overlay
     struct TextInputStateInfo
     {
         u32 Cursor;
-        TKit::String Text;
+        TKit::TierString Text;
     };
 
     TKit::TierArray<TextInputStateInfo> m_UndoStack{};
@@ -2357,7 +2352,7 @@ class Overlay
     void requestCollapsePopups();
     f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size, bool allowPromotions) const;
 
-    TKit::TierArray<usz> m_PopupStack{};
+    TKit::TierArray<LayoutId> m_PopupStack{};
     u32 m_CurrentPopupDepth = 0;
     u32 m_PopupCollapseDepth = 0;
     // so that modals only collapse manually
@@ -2375,7 +2370,7 @@ class Overlay
     void resetTooltip();
 
     OverlayWindow *m_Tooltip = nullptr;
-    usz m_LastItemTooltipBackup = NullLayoutId;
+    LayoutId m_LastItemTooltipBackup = NullLayoutId;
 
     /////////////////////////////////////////////
     /// END TOOLTIPS PRIVATE
@@ -2385,16 +2380,16 @@ class Overlay
     /// LAYOUT PRIVATE
     /////////////////////////////////////////////
 
-    usz beginScroll(const ScrollParameterSpecs &specs);
+    LayoutId beginScroll(const ScrollParameterSpecs &specs);
     void endScroll();
     bool performScroll(LayoutId contentAreaId, ScrollBarInfo &sinfo, LayoutAxis axis, f32 contentPadding, bool drawBar);
 
     LayoutSpecs m_LayoutSpecs{};
-    TKit::TierArray<usz> m_IdStack{};
+    TKit::TierArray<LayoutId> m_IdStack{};
     TKit::TierArray<f32> m_DisabledStack{};
 
-    TKit::TierHashMap<usz, ScrollInfo> m_Scrollables{};
-    TKit::TierArray<usz> m_ScrollStack{};
+    TKit::TierHashMap<LayoutId, ScrollInfo> m_Scrollables{};
+    TKit::TierArray<LayoutId> m_ScrollStack{};
 
     /////////////////////////////////////////////
     /// END LAYOUT PRIVATE
@@ -2429,14 +2424,14 @@ class Overlay
                                                   OverlayHoveredFlags hoverFlags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
-    usz m_HoveredId = NullLayoutId;
-    usz m_PressedId = NullLayoutId;
-    usz m_DraggedId = NullLayoutId;
-    usz m_DragDropId = NullLayoutId;
-    usz m_ActiveId = NullLayoutId;
-    usz m_ActiveIdLastFrame = NullLayoutId;
+    LayoutId m_HoveredId = NullLayoutId;
+    LayoutId m_PressedId = NullLayoutId;
+    LayoutId m_DraggedId = NullLayoutId;
+    LayoutId m_DragDropId = NullLayoutId;
+    LayoutId m_ActiveId = NullLayoutId;
+    LayoutId m_ActiveIdLastFrame = NullLayoutId;
 
-    usz m_HoveredWidgetCandidate = NullLayoutId;
+    LayoutId m_HoveredWidgetCandidate = NullLayoutId;
     const Layout *m_HoveredLayoutCandidate = nullptr;
     TKit::Clock m_WidgetHoverClock{};
 

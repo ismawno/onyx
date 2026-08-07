@@ -648,7 +648,7 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, Over
 #    endif
 
     const auto fptr = [](const auto p) { return TKit::FormatPointer(p); };
-    TKIT_LOG_DEBUG("[ONYX][OVERLAY] Window: {} (id: {:#018x})", fptr(win), win->Id);
+    TKIT_LOG_DEBUG("[ONYX][OVERLAY] Window: {} (id: {:#018x})", fptr(win), win->Id.Id);
     TKIT_LOG_DEBUG("[ONYX][OVERLAY]   DockHost: {} | DockParent: {} | Flags: {:#x}", fptr(win->DockHost),
                    fptr(win->DockParent), win->Flags);
     TKIT_LOG_DEBUG("[ONYX][OVERLAY]   ScreenPos: ({}, {}) | Size: ({}, {})", win->ScreenPos[0], win->ScreenPos[1],
@@ -669,7 +669,7 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, Over
         {
             OverlayWindow *w = n->Windows[j];
             TKIT_LOG_DEBUG("[ONYX][OVERLAY]     Win[{}]: {} (id: {:#018x}) | DockHost: {} | DockParent: {}", j, fptr(w),
-                           w->Id, fptr(w->DockHost), fptr(w->DockParent));
+                           w->Id.Id, fptr(w->DockHost), fptr(w->DockParent));
         }
     }
 
@@ -704,18 +704,17 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, Over
 #    define LOG_DOCK_TREE(win, label)
 #endif
 
-bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWindowFlags flags)
+bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, OverlayWindowFlags flags)
 {
     if (opened && !(*opened))
         return false;
 
-    const LayoutId id = title; /* forcing titles to be unique for now */ // PushId(title);
-    const LayoutId nid = PushId(id);
+    const LayoutId stackedId = PushId(label.Id);
 
     // When the window being started is docked, m_Current will be the actual window host, and child window will be the
-    // window that began (the one that has the passed title)
+    // window that began (the one that has the passed label)
 
-    OverlayWindow *win = getOrCreateOverlayWindow(id);
+    OverlayWindow *win = getOrCreateOverlayWindow(label.Id);
     VALIDATE_DOCK_TREE(win->DockHost, "BeginWindow()");
 
     // in case win becomes the dockhost dockspace, we still store the child's
@@ -782,7 +781,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
     const auto openMenuBar = [&] {
         static constexpr usz baseId = 0xA7C3E1D9B4F20856;
 
-        const usz menuId = TKit::Hash(id.Id, baseId);
+        const usz menuId = TKit::Hash(label.Id.Id, baseId);
         childWindow->MenuBarId = ly.BeginPanel(menuId, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
                                                                .Direction = LayoutDirection_LeftToRight,
                                                                .Alignment = CenterLeft,
@@ -806,7 +805,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
         // else
         //     scrollSizing = {autoResize ? flex() : grow(), fit()};
 
-        const usz scrollId = IdFromStack(nid);
+        const LayoutId scrollId = IdFromStack(stackedId);
         const LySz2 scrollSizing = autoResize ? flex() : grow();
         return beginScroll({.Id = scrollId,
                             .OuterSizing = scrollSizing,
@@ -818,7 +817,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
 
     const auto beginDockedWindow = [&] {
         ly.OpenPanel(childWindow->DockParent->Id);
-        if (beginTab(&childWindow->DockParent->TabData, title, opened,
+        if (beginTab(&childWindow->DockParent->TabData, label.Title, opened,
                      OverlayTabFlag_StartOpen | OverlayTabFlag_NoPushId | TabFlag_ForDocking, childWindow))
         {
             m_Current->ActiveDockChild = childWindow;
@@ -960,7 +959,7 @@ bool Overlay::BeginWindow(const TKit::StringView title, bool *opened, OverlayWin
             m_Current->SyncNativeSize();
         }
 
-        ly.Text(ly.GenerateNextId(), trimLabel(title), getTextParams());
+        ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
         ly.EndPanel();
 
         if (!(flags & OverlayWindowFlag_NoCloseButton))
@@ -1187,7 +1186,7 @@ bool Overlay::BeginMenuBar()
     if (!(m_Current->Flags & OverlayWindowFlag_MenuBar))
         return false;
 
-    const usz menuId = m_Current->GetMenuId();
+    const LayoutId menuId = m_Current->GetMenuId();
     PushId(menuId);
     m_Current->Layout.OpenPanel(menuId);
     m_Current->Flags |= WindowInternalFlag_MenuBarOpened;
@@ -1264,10 +1263,11 @@ void Overlay::EndMainMenuBar()
     popWindowStack();
 }
 
-bool Overlay::BeginMenu(const TKit::StringView label)
+bool Overlay::BeginMenu(const OverlayLabel label)
 {
     Layout &ly = GetCurrentLayout();
-    const LayoutId id = PushId(label);
+    const LayoutId id = PushId(label.Id);
+
     const LayoutElement *elm = ly.QueryElement(id);
 
     const bool mmnActive = m_StateFlags & StateFlag_MainMenuBarActive;
@@ -1277,7 +1277,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
 
     OverlayColor col = verticalLayout ? OverlayColor_None : OverlayColor_MenuItemIdle;
 
-    const usz menuId = m_Current->GetMenuId();
+    const LayoutId menuId = m_Current->GetMenuId();
     const bool openOnHover = verticalLayout || checkWidgetState(menuId, WidgetStateFlag_Opened);
 
     const FocusFlags fflags = openOnHover ? (FocusFlag_HoverOpensPopup | FocusFlag_HoverRequestsPopupCollapse)
@@ -1298,7 +1298,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
     ly.BeginPanel(id,
                   LyPnPar{.FillColor = m_Style[col], .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
     if (verticalLayout)
     {
         ly.Panel(LyPnPar{.Sizing = grow()});
@@ -1310,7 +1310,7 @@ bool Overlay::BeginMenu(const TKit::StringView label)
         if (!verticalLayout)
             m_WidgetStates[menuId] = WidgetStateFlag_Opened;
 
-        const usz bid = IdFromStack("__onyx_id_Menu_box");
+        const LayoutId bid = IdFromStack("__onyx_id_Menu_box");
         const LayoutElement *belm = ly.QueryElement(bid);
         const f32v2 csize = belm ? belm->Size : f32v2{0.f};
 
@@ -1665,7 +1665,7 @@ u32 Overlay::processWindows()
                 const bool hasHoverPadding = win->PopupDepth == 0 || win->PopupDepth == m_ModalCollapseDepth;
                 for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
                 {
-                    const usz id = ginfo.Ids[i];
+                    const LayoutId id = ginfo.Ids[i];
                     if (win->Layout.IsHovered(id, nativeHovered->WorldMouse, bpadding,
                                               /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                     {
@@ -1681,7 +1681,7 @@ u32 Overlay::processWindows()
                 mustUseHand = iterateDockTree(win->DockHost, [&](DockNode *node) {
                     const f32v2 &size = node->ReadOnlySize;
 
-                    const usz id = node->BorderId;
+                    const LayoutId id = node->BorderId;
                     if (win->Layout.IsHovered(id, nativeHovered->WorldMouse, bpadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
@@ -2025,7 +2025,7 @@ u32 Overlay::processWindows()
     const u32 size = m_ScrollStack.GetSize();
     for (u32 i = size - 1; i < size; --i)
     {
-        const usz id = m_ScrollStack[i];
+        const LayoutId id = m_ScrollStack[i];
         ScrollInfo &sinfo = m_Scrollables[id];
         if (!vinfo && !(sinfo.Flags & OverlayWindowFlag_NoVerticalScroll))
             vinfo = &sinfo.Vertical;
@@ -2516,12 +2516,12 @@ void Overlay::undockNode(DockNode *node)
     const bool grab = node->Flags & DockNodeFlag_MustGrabWhenUndocked;
     node->Flags &= ~(DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked);
 
-    usz id = oldSpace->Id;
+    LayoutId id = oldSpace->Id;
     const auto updateWindows = [&](DockNode *leaf) {
         TKIT_ASSERT(!leaf->Windows.IsEmpty(), "[ONYX][OVERLAY] Cannot undock an empty node");
         for (OverlayWindow *win : leaf->Windows)
         {
-            TKit::HashCombine(id, win->Id);
+            TKit::HashCombine(id.Id, win->Id.Id);
             win->DockHost = node;
         }
     };
@@ -2864,10 +2864,10 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 /// WIDGETS
 /////////////////////////////////////////////
 
-bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flags)
+bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
 {
     Layout &ly = GetCurrentLayout();
-    const LayoutId id = PushId(label);
+    const LayoutId id = PushId(label.Id);
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
@@ -2894,16 +2894,16 @@ bool Overlay::Button(const TKit::StringView label, const OverlayButtonFlags flag
                                            .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
                                            .Padding = padding});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
     ly.EndPanel();
     PopId();
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
 }
 
-bool Overlay::RadioButton(const TKit::StringView label, const bool active)
+bool Overlay::RadioButton(const OverlayLabel label, const bool active)
 {
     Layout &ly = GetCurrentLayout();
-    const LayoutId id = PushId(label);
+    const LayoutId id = PushId(label.Id);
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
@@ -2927,7 +2927,7 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
                      .Shape = circle()});
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
 
     ly.EndPanel();
     PopId();
@@ -2935,10 +2935,10 @@ bool Overlay::RadioButton(const TKit::StringView label, const bool active)
 }
 
 // NOTE(Isma): Much repetition with radio button here
-bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
+bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
 {
     Layout &ly = GetCurrentLayout();
-    const LayoutId id = PushId(label);
+    const LayoutId id = PushId(label.Id);
 
     const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly.QueryElement(id));
 
@@ -2966,7 +2966,7 @@ bool Overlay::CheckBox(const TKit::StringView label, bool *enable)
                          .Shape = rect(m_Style[OverlayStyle_CheckBoxRadius])});
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
 
     ly.EndPanel();
     PopId();
@@ -3050,17 +3050,17 @@ void Overlay::EndSelectable()
     ly.EndPanel();
 }
 
-bool Overlay::Selectable(const TKit::StringView label, const bool enabled, const OverlaySelectableFlags flags)
+bool Overlay::Selectable(const OverlayLabel label, const bool enabled, const OverlaySelectableFlags flags)
 {
-    const bool selected = BeginSelectable(label, enabled, flags);
+    const bool selected = BeginSelectable(label.Id, enabled, flags);
     Layout &ly = GetCurrentLayout();
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
     EndSelectable();
 
     return selected;
 }
 
-bool Overlay::Selectable(const TKit::StringView label, bool *enabled, const OverlaySelectableFlags flags)
+bool Overlay::Selectable(const OverlayLabel label, bool *enabled, const OverlaySelectableFlags flags)
 {
     if (Selectable(label, *enabled, flags))
     {
@@ -3070,9 +3070,10 @@ bool Overlay::Selectable(const TKit::StringView label, bool *enabled, const Over
     return false;
 }
 
-void Overlay::ProgressBar(const TKit::StringView label, const TKit::StringView text, const f32 pct)
+void Overlay::ProgressBar(const OverlayLabel label, const TKit::StringView text, const f32 pct)
 {
-    beginHorizontalWidget(PushId(label));
+    beginHorizontalWidget(PushId(label.Id));
+
     Layout &ly = GetCurrentLayout();
 
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
@@ -3097,7 +3098,7 @@ void Overlay::ProgressBar(const TKit::StringView label, const TKit::StringView t
 
     ly.EndPanel();
 
-    endHorizontalWidget(label);
+    endHorizontalWidget(label.Title);
     PopId();
 }
 
@@ -3118,22 +3119,22 @@ void Overlay::EndTabBar()
     m_TabBarStack.Pop();
 }
 
-bool Overlay::BeginTab(const TKit::StringView label, bool *enabled, const OverlayTabFlags flags)
+bool Overlay::BeginTab(const OverlayLabel label, bool *enabled, const OverlayTabFlags flags)
 {
     TKIT_ASSERT(!m_TabBarStack.IsEmpty(), "[ONYX][OVERLAY] Tabs can only be created inside an active tab bar");
     return beginTab(m_TabBarStack.GetBack(), label, enabled, flags);
 }
-bool Overlay::InputText(TKit::StringView label, char *buf, const u32 size, const TKit::StringView hint,
+bool Overlay::InputText(const OverlayLabel label, char *buf, const u32 size, const TKit::StringView hint,
                         const OverlayInputFlags flags)
 {
-    beginHorizontalWidget(PushId(label));
+    beginHorizontalWidget(PushId(label.Id));
     const bool updated = inputTextBox(buf, size, hint, flags);
-    endHorizontalWidget(label);
+    endHorizontalWidget(label.Title);
     PopId();
     return updated;
 }
 
-void Overlay::ColorPreviewTooltip(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
+void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col, const OverlayColorFlags flags)
 {
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const bool tlabel = !(flags & OverlayColorFlag_NoTooltipLabel);
@@ -3150,7 +3151,7 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView label, const Color &col
                            .Sizing = fit(),
                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-            ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+            ly.Text(ly.GenerateNextId(), title, getTextParams());
             HorizontalLine();
         }
 
@@ -3211,35 +3212,35 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView label, const Color &col
                        .ChildGap = m_Style[OverlayStyle_ChildGap]});
         drawColorPreview(col, tooltipSize, alpha);
         if (tlabel)
-            ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+            ly.Text(ly.GenerateNextId(), title, getTextParams());
         ly.EndPanel();
     }
 }
 
-void Overlay::ColorPreview(const TKit::StringView label, const Color &col, const OverlayColorFlags flags)
+void Overlay::ColorPreview(const OverlayLabel label, const Color &col, const OverlayColorFlags flags)
 {
     const f32 previewSize = m_Style[OverlayStyle_ColorPreviewSize];
 
-    PushId(label);
+    PushId(label.Id);
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
 
-    const usz id = drawColorPreview(col, previewSize, alpha);
+    const LayoutId id = drawColorPreview(col, previewSize, alpha);
     m_LastItem = id;
 
     const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
     if (tooltip && BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
     {
-        ColorPreviewTooltip(label, col, flags);
+        ColorPreviewTooltip(label.Title, col, flags);
         EndTooltip();
     }
 
     m_LastItem = id;
     PopId();
 }
-bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
+bool Overlay::ColorPicker(const OverlayLabel label, const OverlayColorHandle color, const Color *original,
                           const f32 size, const OverlayColorFlags flags)
 {
-    PushId(label);
+    PushId(label.Id);
     f32 *colPtr = color.Data;
 
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
@@ -3266,7 +3267,7 @@ bool Overlay::ColorPicker(const TKit::StringView label, const OverlayColorHandle
     return changed;
 }
 
-bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+bool Overlay::ColorButton(const OverlayLabel label, const OverlayColorHandle color, const OverlayColorFlags flags)
 {
     f32 *colPtr = color.Data;
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
@@ -3276,7 +3277,7 @@ bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle
     ColorPreview(label, col, flags);
     bool changed = false;
 
-    const LayoutId id = IdFromStack(label);
+    const LayoutId id = IdFromStack(label.Id);
     if (!(flags & OverlayColorFlag_NoPicker) &&
         BeginPopupContextItem(
             label, OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_BringToTop,
@@ -3295,15 +3296,15 @@ bool Overlay::ColorButton(const TKit::StringView label, const OverlayColorHandle
     return changed;
 }
 
-bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle color, const OverlayColorFlags flags)
+bool Overlay::ColorEditor(const OverlayLabel label, const OverlayColorHandle color, const OverlayColorFlags flags)
 {
     f32 *colPtr = color.Data;
     const bool inputs = !(flags & OverlayColorFlag_NoInput);
 
     if (inputs)
-        beginHorizontalWidget(PushId(label));
+        beginHorizontalWidget(PushId(label.Id));
     else
-        beginHorizontalWidget(PushId(label), fit(), fit());
+        beginHorizontalWidget(PushId(label.Id), fit(), fit());
 
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const u32 count = 3 + alpha;
@@ -3324,7 +3325,7 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
     }
 
     const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
-    const usz oldItem = m_LastItem;
+    const LayoutId oldItem = m_LastItem;
 
     if (!(flags & OverlayColorFlag_NoPreview))
     {
@@ -3336,7 +3337,7 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
 
     m_LastItem = oldItem;
 
-    endHorizontalWidget(label);
+    endHorizontalWidget(label.Title);
     PopId();
 
     if (!(flags & OverlayColorFlag_NoDragDrop))
@@ -3345,7 +3346,7 @@ bool Overlay::ColorEditor(const TKit::StringView label, const OverlayColorHandle
         {
             SetDragDropPayload("__onyx_id_Color", colPtr, count);
             PushStyleVar(OverlayStyle_ColorTooltipSize, m_Style[OverlayStyle_ColorDragTooltipSize]);
-            ColorPreviewTooltip(label, col, OverlayColorFlag_NoTooltipColorInfo);
+            ColorPreviewTooltip(label.Title, col, OverlayColorFlag_NoTooltipColorInfo);
             PopStyleVar();
             EndDragDropSource();
         }
@@ -3455,12 +3456,12 @@ bool Overlay::colorDrag(f32 *colPtr, const Color &col, const OverlayColorFlags f
     }
     return changed;
 }
-bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color &col, const Color *original,
+bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &col, const Color *original,
                           const OverlayColorFlags flags, f32 pickerSize)
 {
     Layout &ly = GetCurrentLayout();
 
-    const usz outerId = IdFromStack("__onyx_id_Outer_picker");
+    const LayoutId outerId = IdFromStack("__onyx_id_Outer_picker");
     const auto it = m_PickerMeshes.Find(outerId);
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
 
@@ -3738,7 +3739,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
                           .Sizing = fit(),
                           .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly.Text(ly.GenerateNextId(), original ? "Current" : trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), original ? "Current" : label.Title, getTextParams());
     if (drawPreview)
     {
         PushStyleVar(OverlayStyle_ColorPreviewSize, previewSize);
@@ -3768,7 +3769,7 @@ bool Overlay::colorPicker(const TKit::StringView label, f32 *colPtr, const Color
     return changed;
 }
 
-usz Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
+LayoutId Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
 {
     Layout &ly = GetCurrentLayout();
     if (alpha)
@@ -3792,19 +3793,13 @@ usz Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
 
         ly.EndPanel();
 
-        const usz id = ly.Panel(IdFromStack("__onyx_id_Preview"),
-                                {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
+        const LayoutId id = ly.Panel(IdFromStack("__onyx_id_Preview"),
+                                     {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
 
         ly.EndPanel();
         return id;
     }
     return ly.Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
-}
-
-TKit::StringView Overlay::trimLabel(const TKit::StringView label)
-{
-    const u32 idx = label.FindFirstOf("##");
-    return label.SubString(0, idx);
 }
 
 void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabBarFlags flags)
@@ -3920,7 +3915,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                             OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight))
             data->OpenId = tab.Id;
 
-        ly.Text(ly.GenerateNextId(), trimLabel(tab.Label), getTextParams());
+        ly.Text(ly.GenerateNextId(), tab.Title, getTextParams());
         EndSelectable();
 
         PushId(tab.Id);
@@ -4007,10 +4002,10 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
         HorizontalLine();
 }
 
-bool Overlay::beginTab(TabBarData *data, const TKit::StringView label, bool *enabled, const OverlayTabFlags flags,
+bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled, const OverlayTabFlags flags,
                        OverlayWindow *window)
 {
-    const LayoutId id = IdFromStack(label);
+    const LayoutId id = IdFromStack(label.Id);
 
     u32 idx = data->GetTabById(id);
 
@@ -4019,7 +4014,7 @@ bool Overlay::beginTab(TabBarData *data, const TKit::StringView label, bool *ena
     if (idx == TKIT_U32_MAX)
     {
         idx = data->Tabs.GetSize();
-        data->Tabs.Append(id, window, TKit::String{label.GetData(), label.GetSize()}, flags);
+        data->Tabs.Append(id, window, TKit::TierString{label.Title.GetData(), label.Title.GetSize()}, flags);
         data->Order.Append(idx);
     }
 
@@ -4084,7 +4079,7 @@ void Overlay::endTab(TabBarData *data)
     GetCurrentLayout().EndPanel();
 }
 
-void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, const LySz2 &innerSizing)
+void Overlay::beginHorizontalWidget(const LayoutId id, const LySz2 &outerSizing, const LySz2 &innerSizing)
 {
     Layout &ly = GetCurrentLayout();
     m_LastItem = ly.BeginPanel(
@@ -4092,7 +4087,7 @@ void Overlay::beginHorizontalWidget(const usz id, const LySz2 &outerSizing, cons
 
     ly.BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
-void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
+void Overlay::beginHorizontalWidget(const LayoutId id, const f32 normSize)
 {
     const bool autoResize = isAutoResize();
     const bool isFloat = m_CurrentPopupDepth != m_Current->PopupDepth;
@@ -4107,12 +4102,12 @@ void Overlay::beginHorizontalWidget(const usz id, const f32 normSize)
 
     return beginHorizontalWidget(id, outerSizing, innerSizing);
 }
-void Overlay::endHorizontalWidget(TKit::StringView label)
+void Overlay::endHorizontalWidget(const TKit::StringView title)
 {
     Layout &ly = GetCurrentLayout();
     ly.EndPanel();
-    if (!label.IsEmpty())
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    if (!title.IsEmpty())
+        ly.Text(ly.GenerateNextId(), title, getTextParams());
     ly.EndPanel();
 }
 bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
@@ -4167,7 +4162,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         NativeWindow *nw = m_Current->Native;
         const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
 
-        TKit::String &str = m_InputWidgetBuffer;
+        TKit::TierString &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
         const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
         const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
@@ -4386,7 +4381,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         {
             const char *cp = Platform::GetClipboard();
 
-            // could maybe append one by one, as that = operator is constructing a TKit::String temp
+            // could maybe append one by one, as that = operator is constructing a TKit::TierString temp
             if (cp && cp[0])
                 nw->TextInput = cp;
         }
@@ -4554,19 +4549,19 @@ void Overlay::CollapsePopups()
     closePopup(0);
 }
 
-bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const OverlayWindowFlags flags)
+bool Overlay::BeginPopup(const OverlayLabel label, const OverlayWindowFlags flags)
 {
     // we cannot apply the id stack here because user must unequivocally reference this from anywhere
-    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != id)
+    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != label.Id)
     {
-        m_WidgetStates[id] = 0;
+        m_WidgetStates[label.Id] = 0;
         return false;
     }
 
     ++m_CurrentPopupDepth;
-    if (getWidgetState(id) == 0)
+    if (getWidgetState(label.Id) == 0)
     {
-        OverlayWindow *win = getOrCreateOverlayWindow(title);
+        OverlayWindow *win = getOrCreateOverlayWindow(label.Id);
         if (!(win->Flags & WindowInternalFlag_OwnsNative))
             // we dont handle size because BeginWindow does that for us
             win->Native = m_Current->Native;
@@ -4575,9 +4570,9 @@ bool Overlay::BeginPopup(const LayoutId id, const TKit::StringView title, const 
         win->SetActivePosition(
             win->ToScreen(computeMouseAlignedPosition(win->Native, size, !(flags & OverlayWindowFlag_NoPromotion))));
     }
-    m_WidgetStates[id] = WidgetStateFlag_Opened;
+    m_WidgetStates[label.Id] = WidgetStateFlag_Opened;
 
-    return BeginWindow(title, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton |
+    return BeginWindow(label, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_ClosePopupButton |
                                   OverlayWindowFlag_NoDocking);
 }
 
@@ -4586,11 +4581,10 @@ void Overlay::EndPopup()
     --m_CurrentPopupDepth;
     EndWindow();
 }
-bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView preview,
-                            const OverlayDropDownFlags flags)
+bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView preview, const OverlayDropDownFlags flags)
 {
     Layout &ly = GetCurrentLayout();
-    beginHorizontalWidget(PushId(label), 1.f);
+    beginHorizontalWidget(PushId(label.Id), 1.f);
 
     const LayoutId id = IdFromStack("__onyx_id__Drop_down_box");
     const LayoutElement *elm = ly.QueryElement(id);
@@ -4637,9 +4631,9 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
 
     if (dropDownActive)
     {
-        endHorizontalWidget(label);
+        endHorizontalWidget(label.Title);
 
-        const usz did = IdFromStack("__onyx_id_Drop_down");
+        const LayoutId did = IdFromStack("__onyx_id_Drop_down");
         const LayoutElement *delm = ly.QueryElement(did);
         const f32 csize = delm ? delm->Size[1] : 0.f;
 
@@ -4667,7 +4661,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
                                                                      : m_Style[OverlayStyle_DropDownHeightRegular];
         const bool largest = flags & OverlayDropDownFlag_HeightLargest;
 
-        const usz sid = IdFromStack("__onyx_id_Scroll");
+        const LayoutId sid = IdFromStack("__onyx_id_Scroll");
         const LySz2 osizing = flex();
         const LySz2 csizing = {flex(), largest ? fit() : fit(0.f, height)};
         const f32 cgap = tight ? 0.f : m_Style[OverlayStyle_ChildGap];
@@ -4685,7 +4679,7 @@ bool Overlay::BeginDropDown(const TKit::StringView label, const TKit::StringView
         queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
         return true;
     }
-    endHorizontalWidget(label);
+    endHorizontalWidget(label.Title);
     ly.EndPanel();
     PopId();
     return false;
@@ -4863,10 +4857,10 @@ void Overlay::resetTooltip()
 /// LAYOUT
 /////////////////////////////////////////////
 
-void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, const f32 maxWidth,
+void Overlay::BeginScroll(const OverlayLabel label, const f32 maxHeight, const f32 maxWidth,
                           const OverlayScrollFlags flags)
 {
-    const usz id = PushId(label);
+    const LayoutId id = PushId(label.Id);
     const bool autoResize = isAutoResize();
 
     const f32 padding = m_Style[OverlayStyle_ContentAreaPadding];
@@ -4887,7 +4881,7 @@ void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
                           .Padding = borders ? padding : 0.f});
 
     if (flags & OverlayScrollFlag_Title)
-        ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+        ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
 
     beginScroll({.Id = id,
                  .OuterSizing = outer,
@@ -4896,7 +4890,7 @@ void Overlay::BeginScroll(const TKit::StringView label, const f32 maxHeight, con
                  .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
                  .Flags = flags});
 }
-void Overlay::HorizontalSeparator(const TKit::StringView label)
+void Overlay::HorizontalSeparator(const OverlayLabel label)
 {
     Layout &ly = GetCurrentLayout();
     ly.BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
@@ -4910,15 +4904,15 @@ void Overlay::HorizontalSeparator(const TKit::StringView label)
     ly.Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
     ly.Panel(LyPnPar{
         .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
     ly.EndPanel();
 }
 
-bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const OverlayTreeFlags flags)
+bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 {
-    id = PushId(id);
+    const LayoutId id = PushId(label.Id);
     Layout &ly = GetCurrentLayout();
     const bool framed = flags & OverlayTreeFlag_Framed;
 
@@ -4947,7 +4941,7 @@ bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const Overl
     const bool startOpen = flags & OverlayTreeFlag_StartOpen;
     const bool opened = checkWidgetState(id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
 
-    const usz buttonId =
+    const LayoutId buttonId =
         ly.BeginPanel(IdFromStack("__onyx_id_Tree_collapse"),
                       LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
@@ -4969,7 +4963,7 @@ bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const Overl
 
     ly.EndPanel();
 
-    ly.Text(ly.GenerateNextId(), trimLabel(label), getTextParams());
+    ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
     ly.EndPanel();
 
     if (toggleOpen)
@@ -5009,7 +5003,7 @@ bool Overlay::PushTreeRaw(LayoutId id, const TKit::StringView label, const Overl
 
     return true;
 }
-usz Overlay::beginScroll(const ScrollParameterSpecs &specs)
+LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
 {
     Layout &ly = GetCurrentLayout();
     ScrollInfo &sinfo = m_Scrollables[specs.Id];
@@ -5255,7 +5249,7 @@ bool Overlay::WantCaptureKeyboard() const
 OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const
 {
     OverlayHoverQueryFlags flags = 0;
-    const usz id = elm ? elm->Id : NullLayoutId;
+    const LayoutId id = elm ? elm->Id : LayoutId{NullLayoutId};
 
     const NativeWindow *nw = m_Current->Native;
     const bool hovered = elm && elm->IsHovered(nw->WorldMouse, padding);
@@ -5331,7 +5325,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 
     Layout &ly = GetCurrentLayout();
 
-    const usz iboxId = IdFromStack("__onyx_id_Input_box");
+    const LayoutId iboxId = IdFromStack("__onyx_id_Input_box");
     const LayoutElement *ibox = ly.QueryElement(iboxId);
 
     const NativeWindow *nw = m_Current->Native;
@@ -5481,7 +5475,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
         if (setActive)
         {
             if (flags & FocusFlag_ToggleActiveOnRelease)
-                m_ActiveId = m_ActiveId == elm->Id ? NullLayoutId : elm->Id;
+                m_ActiveId = m_ActiveId == elm->Id ? LayoutId{NullLayoutId} : elm->Id;
             else
                 m_ActiveId = elm->Id;
         }
@@ -5913,6 +5907,7 @@ void Overlay::ShowDemo(bool *enabled)
 
             ov->PopTree();
         }
+
         const NativeWindow *nw = GetMainNativeWindow();
         const f32 ftime = nw ? Onyx::GetDeltaTime(nw->Window).AsMilliseconds() : Onyx::GetDeltaTime().AsMilliseconds();
         if (ov->PushTree("General", drawLines))
@@ -6665,9 +6660,9 @@ void Overlay::ShowStyleEditor()
             }
 
             ColorEditor(fmt("[{}] {}", col, str), &m_Style.Colors[col]);
-            if (BeginPopupContextItem(IdFromStack(col), "Default",
-                                      OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
-                                          OverlayWindowFlag_NoHeaderBar))
+            if (BeginPopupContextItem({IdFromStack(col), "Default"}, OverlayWindowFlag_AutoResize |
+                                                                         OverlayWindowFlag_BringToTop |
+                                                                         OverlayWindowFlag_NoHeaderBar))
             {
                 if (Button("Reset to default"))
                 {
@@ -6746,9 +6741,9 @@ void Overlay::ShowStyleEditor()
 
             PushId(str);
             HorizontalSlider(fmt("[{}] {}", var, str), &m_Style.Variables[var], mn, mx);
-            if (BeginPopupContextItem(IdFromStack(var), "Default",
-                                      OverlayWindowFlag_AutoResize | OverlayWindowFlag_BringToTop |
-                                          OverlayWindowFlag_NoHeaderBar))
+            if (BeginPopupContextItem({IdFromStack(var), "Default"}, OverlayWindowFlag_AutoResize |
+                                                                         OverlayWindowFlag_BringToTop |
+                                                                         OverlayWindowFlag_NoHeaderBar))
             {
                 if (Button("Reset to default"))
                 {

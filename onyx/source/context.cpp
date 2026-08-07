@@ -585,7 +585,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const Resource font = m_State.Font;
     const FontData &fdata = Resources::GetFontData(font);
 
-    TKit::String wrapped;
+    TKit::TierString wrapped;
     if (params.MaxWidth != TKIT_F32_MAX)
     {
         wrapped = fdata.WrapText(text, params.MaxWidth);
