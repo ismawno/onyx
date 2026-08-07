@@ -588,6 +588,7 @@ struct OverlayWindow
     usz Id = NullLayoutId;
     usz HeaderId = NullLayoutId;
     usz ContentAreaId = NullLayoutId;
+    usz MenuBarId = NullLayoutId;
     u64 Layer;
 
     NativeWindow *Native = nullptr;
@@ -611,6 +612,15 @@ struct OverlayWindow
     u32 PopupDepth = 0;
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
+
+    usz GetMenuId() const
+    {
+        return ActiveDockChild ? ActiveDockChild->MenuBarId : MenuBarId;
+    }
+    OverlayWindowFlags GetUserFlags() const
+    {
+        return ActiveDockChild ? ActiveDockChild->Flags : Flags;
+    }
 
     const f32v2 &GetActivePosition() const;
     f32v2 &GetActivePosition();
@@ -683,7 +693,6 @@ enum FocusFlagBit : FocusFlags
     FocusFlag_DoNotSetActiveId = 1U << 24,
     FocusFlag_DoNotProtectPopup = 1U << 25,
     FocusFlag_AllowPressedOnEnter = 1U << 26,
-    FocusFlag_AllowBlockedByGrab = 1U << 27,
     FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetDraggedId |
                          FocusFlag_DoNotSetActiveId | FocusFlag_DoNotProtectPopup
 };
@@ -822,6 +831,7 @@ enum OverlaySliderFlagBit : OverlaySliderFlags
     OverlaySliderFlag_Logarithmic = 1U << 1,
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
     OverlaySliderFlag_NoInput = 1U << 3,
+    OverlaySliderFlag_NoValueLabelClamp = 1U << 4,
 };
 
 enum OverlayTabBarFlagBit : OverlayTabBarFlags
@@ -998,6 +1008,7 @@ class Overlay
     }
     void EndWindow();
 
+    // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
     bool FullScreenDockSpace();
 
     bool BeginMenuBar();
@@ -1274,7 +1285,7 @@ class Overlay
     bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const Color *original,
                      OverlayColorFlags flags = 0)
     {
-        return ColorPicker(label, color, original, 0.6f * m_Current->Size[0], flags);
+        return ColorPicker(label, color, original, -1.f, flags);
     }
     bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, const f32 size,
                      OverlayColorFlags flags = 0)
@@ -1283,7 +1294,7 @@ class Overlay
     }
     bool ColorPicker(const TKit::StringView label, const OverlayColorHandle color, OverlayColorFlags flags = 0)
     {
-        return ColorPicker(label, color, nullptr, 0.6f * m_Current->Size[0], flags);
+        return ColorPicker(label, color, nullptr, -1.f, flags);
     }
 
     bool ColorButton(TKit::StringView label, OverlayColorHandle color, OverlayColorFlags flags = 0);
@@ -1854,6 +1865,12 @@ class Overlay
     void popWindowStack();
     u32 processWindows();
 
+    f32 getWindowMinSize() const
+    {
+        const f32 wpadding = m_Style[OverlayStyle_WindowPadding];
+        const f32 hpadding = m_Style[OverlayStyle_HeaderPadding];
+        return getLineHeight() + 2.f * (wpadding + hpadding);
+    }
     OverlayWindow *createOverlayWindow();
     OverlayWindow *createDockSpace(OverlayWindow *win, DockNode *rootNode, bool fromWindow);
     OverlayWindow *createDockSpaceFromWindow(OverlayWindow *win, DockNode *rootNode)
@@ -1870,6 +1887,8 @@ class Overlay
 
     NativeWindow *createNativeWindow(Window *win);
     NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims, WindowFlags flags = 0);
+
+    void cleanupWindowState();
 
     void destroyNativeWindow(NativeWindow *win);
     void removeNativeWindow(NativeWindow *win);
@@ -1924,7 +1943,7 @@ class Overlay
     OverlayWindow *m_Current = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
     OverlayWindow *m_DockSource = nullptr;
-    OverlayWindow *m_MainDockspace = nullptr;
+    OverlayWindow *m_MainDockSpace = nullptr;
 
     u64 m_LayerCount = 0;
 
@@ -1946,7 +1965,7 @@ class Overlay
     void endTab(TabBarData *data);
 
     void beginHorizontalWidget(usz id, const LySz2 &outerSizing, const LySz2 &innerSizing);
-    void beginHorizontalWidget(usz id, f32 normSize = 0.5f);
+    void beginHorizontalWidget(usz id, f32 normSize = 0.7f);
     void endHorizontalWidget(TKit::StringView label = {});
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
@@ -2052,9 +2071,10 @@ class Overlay
         // come
 
         const f32 padding = m_Style[OverlayStyle_WidgetPadding];
+        const bool noValClamp = flags & OverlaySliderFlag_NoValueLabelClamp;
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
                                   .Alignment = CenterLeft,
-                                  .Sizing = {flex(), fit()},
+                                  .Sizing = {noValClamp ? grow() : flex(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                   .Padding = padding});
 
@@ -2203,9 +2223,10 @@ class Overlay
 
         const DragBoxInfo dinfo = getDragBoxInfo(0, value, speed, mn, mx, format, elm, flags);
 
+        const bool noValClamp = flags & OverlaySliderFlag_NoValueLabelClamp;
         ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
                                   .Alignment = Center,
-                                  .Sizing = {flex(), fit()},
+                                  .Sizing = {noValClamp ? grow() : flex(), fit()},
                                   .Shape = rect(m_Style[OverlayStyle_DragRadius]),
                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
@@ -2404,7 +2425,8 @@ class Overlay
     bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0, const f32v2 &padding = f32v2{0.f});
 
     OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
-                                                  const f32v2 &padding = f32v2{0.f});
+                                                  const f32v2 &padding = f32v2{0.f},
+                                                  OverlayHoveredFlags hoverFlags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     usz m_HoveredId = NullLayoutId;
@@ -2443,6 +2465,16 @@ class Overlay
 
     const FontData &getFontData() const;
     f32 getLineHeight() const;
+
+    // used when having menu bars with windows that are not brought to focus. in those cases popups created by such
+    // window will be blocked if there is another window existing with a greater layer. so in that case, we allow the
+    // hover, apart from additional overloads used sometimes
+    OverlayHoveredFlags standardHoverAllowance() const
+    {
+        return (m_Current->PopupDepth != m_CurrentPopupDepth && (m_Current->Flags & OverlayWindowFlag_NoBringToFocus)
+                    ? OverlayHoveredFlag_AllowBlockedByWindow
+                    : 0);
+    }
     bool isAutoResize() const;
 
     f32v4 getWorldEffectiveBorders() const;
