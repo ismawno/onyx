@@ -64,22 +64,18 @@ struct ApiData
 static TKit::Storage<ApiData> s_Data{};
 
 #ifdef ONYX_ENABLE_IMGUI
-static void initializeImGui(WindowData &wdata)
+static void initializeImGui(WindowData &wdata, const ImGuiConfigFlags flags)
 {
     TKIT_ASSERT(!wdata.ImContext,
-                "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled. If you "
-                "meant to reload ImGui, use ReloadImGui()",
+                "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled",
                 wdata.Window->GetTitle());
+#    ifdef ONYX_ENABLE_IMPLOT
+    TKIT_ASSERT(!wdata.ImpContext,
+                "[ONYX][APPLICATION] Trying to initialize ImPlot for window '{}' when it is already enabled",
+                wdata.Window->GetTitle());
+#    endif
 
     IMGUI_CHECKVERSION();
-
-    if (wdata.ImContext)
-        ImGui::DestroyContext(wdata.ImContext);
-
-#    ifdef ONYX_ENABLE_IMPLOT
-    if (wdata.ImpContext)
-        ImPlot::DestroyContext(wdata.ImpContext);
-#    endif
 
     wdata.ImContext = ImGui::CreateContext();
     ImGui::SetCurrentContext(wdata.ImContext);
@@ -89,6 +85,7 @@ static void initializeImGui(WindowData &wdata)
 #    endif
 
     ImGuiBackend::Create(wdata.Window);
+    ImGui::GetIO().ConfigFlags = flags;
 }
 static void shutdownImGui(WindowData &wdata)
 {
@@ -167,7 +164,7 @@ Window *OpenWindow(const OpenWindowSpecs &specs)
     wdata.Window = Platform::CreateWindow(specs.Window);
 #ifdef ONYX_ENABLE_IMGUI
     if (specs.Flags & OpenWindowFlag_EnableImGui)
-        initializeImGui(wdata);
+        initializeImGui(wdata, specs.ImGuiConfigFlags);
 #endif
 
     wdata.Flags = specs.Flags;

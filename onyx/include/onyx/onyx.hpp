@@ -30,6 +30,9 @@ struct OpenWindowSpecs
     WindowSpecs Window = {};
     TKit::Timespan TargetDeltaTime{};
     OpenWindowFlags Flags = 0;
+#ifdef ONYX_ENABLE_IMGUI
+    i32 ImGuiConfigFlags = 0;
+#endif
 };
 
 Window *OpenWindow(const OpenWindowSpecs &specs = {});

@@ -794,7 +794,8 @@ bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, OverlayWindowF
     const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
     const f32 cgap = m_Style[OverlayStyle_ChildGap];
 
-    const bool autoResize = flags & OverlayWindowFlag_AutoResize;
+    // auto resize is not supported with docking
+    const bool autoResize = !m_Current->DockHost && (flags & OverlayWindowFlag_AutoResize);
     const auto setupWindowContentArea = [&] {
         if (menuBar)
             openMenuBar();
@@ -815,9 +816,10 @@ bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, OverlayWindowF
                             .Flags = flags | OverlayScrollFlag_NoBackground});
     };
 
+    const bool closeButton = !(flags & OverlayWindowFlag_NoCloseButton);
     const auto beginDockedWindow = [&] {
         ly.OpenPanel(childWindow->DockParent->Id);
-        if (beginTab(&childWindow->DockParent->TabData, label.Title, opened,
+        if (beginTab(&childWindow->DockParent->TabData, label.Title, closeButton ? opened : nullptr,
                      OverlayTabFlag_StartOpen | OverlayTabFlag_NoPushId | TabFlag_ForDocking, childWindow))
         {
             m_Current->ActiveDockChild = childWindow;
@@ -962,7 +964,7 @@ bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, OverlayWindowF
         ly.Text(ly.GenerateNextId(), label.Title, getTextParams());
         ly.EndPanel();
 
-        if (!(flags & OverlayWindowFlag_NoCloseButton))
+        if (closeButton)
         {
             const LayoutId bid = IdFromStack("__onyx_id_Close_button");
             if (opened && (iconButton(bid, CrossIcon) || (ownsNative && nw->Window->ShouldClose())))
