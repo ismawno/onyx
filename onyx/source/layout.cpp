@@ -78,7 +78,7 @@ LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &para
         if (!params.Floating.Enable)
             ++parent.NonFloatChildCount;
 
-        current.SelfOverflow = parent.ChildOverflow;
+        current.SelfOverflow = params.SelfOverflow == LayoutOverflow_None ? parent.ChildOverflow : params.SelfOverflow;
         current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
     }
     else
@@ -111,7 +111,7 @@ LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &para
     current.OutlineWidth = params.OutlineWidth;
     current.Direction = params.Direction;
     current.Alignment = params.Alignment;
-    current.ChildOverflow = params.Overflow;
+    current.ChildOverflow = params.ChildOverflow;
     current.Shape = params.Shape;
     current.UserData = params.UserData;
 
@@ -203,7 +203,7 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
     ++parent.NonFloatChildCount;
 
     current.Alignment = parent.Alignment;
-    current.SelfOverflow = parent.ChildOverflow;
+    current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
     current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
 
     for (u32 i = 0; i < 2; ++i)
@@ -263,7 +263,7 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     ++parent.NonFloatChildCount;
 
     current.Alignment = parent.Alignment;
-    current.SelfOverflow = parent.ChildOverflow;
+    current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
     current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
     for (u32 i = 0; i < 2; ++i)
     {
@@ -286,7 +286,7 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     const Resource glyph = Resources::GetGlyph(current.Font, code);
     const GlyphData &gdata = Resources::GetGlyphData(glyph);
 
-    const f32 fs = params.Size;
+    const f32 fs = params.FontSize;
     current.FontSize = fs;
     current.Size = Math::Max(fs * f32v2{gdata.Advance, fdata.LineHeight}, params.MinSize);
 
@@ -630,7 +630,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
             const auto clipChild = [&](LayoutElement &child) {
                 f32 &cmn = child.ClipMin[axis];
                 f32 &cmx = child.ClipMax[axis];
-                if (parent.ChildOverflow == LayoutOverflow_Clip)
+                if (child.SelfOverflow == LayoutOverflow_Clip)
                 {
                     cmn = Math::Max(pmn, mn);
                     cmx = Math::Min(pmx, mx);
@@ -639,8 +639,8 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                 }
                 else
                 {
-                    cmn = mn;
-                    cmx = mx;
+                    cmn = parent.ClipMin[axis];
+                    cmx = parent.ClipMax[axis];
                 }
             };
 
@@ -709,6 +709,9 @@ void Layout::generateDrawInfo()
     floats.Reserve(m_Elements.GetSize());
 
     m_DrawInfo.Clear();
+    if (m_Elements.IsEmpty())
+        return;
+
     struct DepthInfo
     {
         u32 Element;

@@ -28,14 +28,14 @@ using OverlayHoveredFlags = u16;
 using OverlayHoverQueryFlags = OverlayHoveredFlags;
 using OverlayInputFlags = u8;
 using OverlayPopupFlags = OverlayFocusQueryFlags;
-using OverlayScrollFlags = u32;
+using OverlayScrollFlags = u8;
 using OverlaySelectableFlags = u8;
 using OverlaySliderFlags = u8;
 using OverlayTabBarFlags = u8;
 using OverlayTabFlags = u8;
 using OverlayTreeFlags = u8;
 using OverlayTooltipFlags = u8;
-using OverlayWindowFlags = OverlayScrollFlags;
+using OverlayWindowFlags = u64;
 
 using DockNodeFlags = u8;
 using FocusFlags = OverlayFocusFlags;
@@ -364,22 +364,25 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_NoDocking = 1U << 16,
-    OverlayWindowFlag_NoScrollBar = 1U << 17,
-    OverlayWindowFlag_NoVerticalScroll = 1U << 18,
-    OverlayWindowFlag_HorizontalScroll = 1U << 19,
-    OverlayWindowFlag_NoResize = 1U << 20,
-    OverlayWindowFlag_NoMove = 1U << 21,
-    OverlayWindowFlag_NoCollapse = 1U << 22,
-    OverlayWindowFlag_NoHeaderBar = 1U << 23,
-    OverlayWindowFlag_NoBringToFocus = 1U << 24,
-    OverlayWindowFlag_NoPromotion = 1U << 25,
-    OverlayWindowFlag_AutoResize = 1U << 26,
-    OverlayWindowFlag_BringToTop = 1U << 27,
-    OverlayWindowFlag_Modal = 1U << 28,
-    OverlayWindowFlag_NoCloseButton = 1U << 29,
-    OverlayWindowFlag_MenuBar = 1U << 30,
-    OverlayWindowFlag_MoveWithHeader = 1U << 31,
+    OverlayWindowFlag_NoUndocking = 1ULL << 45,
+    OverlayWindowFlag_NoBackground = 1ULL << 46,
+    OverlayWindowFlag_NoBorders = 1ULL << 47,
+    OverlayWindowFlag_NoDocking = 1ULL << 48,
+    OverlayWindowFlag_NoScrollBar = 1ULL << 49,
+    OverlayWindowFlag_NoVerticalScroll = 1ULL << 50,
+    OverlayWindowFlag_HorizontalScroll = 1ULL << 51,
+    OverlayWindowFlag_NoResize = 1ULL << 52,
+    OverlayWindowFlag_NoMove = 1ULL << 53,
+    OverlayWindowFlag_NoCollapse = 1ULL << 54,
+    OverlayWindowFlag_NoHeaderBar = 1ULL << 55,
+    OverlayWindowFlag_NoBringToFocus = 1ULL << 56,
+    OverlayWindowFlag_NoPromotion = 1ULL << 57,
+    OverlayWindowFlag_AutoResize = 1ULL << 58,
+    OverlayWindowFlag_BringToTop = 1ULL << 59,
+    OverlayWindowFlag_Modal = 1ULL << 60,
+    OverlayWindowFlag_NoCloseButton = 1ULL << 61,
+    OverlayWindowFlag_MenuBar = 1ULL << 62,
+    OverlayWindowFlag_MoveWithHeader = 1ULL << 63,
 };
 
 struct DockNode;
@@ -529,13 +532,22 @@ struct TabBarData
                 return i;
         return TKIT_U32_MAX;
     }
+    u32 GetTabByWindow(const OverlayWindow *win) const
+    {
+        for (u32 i = 0; i < Tabs.GetSize(); ++i)
+            if (Tabs[i].Window == win)
+                return i;
+        return TKIT_U32_MAX;
+    }
 };
 
 struct DockNode
 {
     LayoutId Id = NullLayoutId;
     LayoutId BorderId = NullLayoutId;
+
     DockNode *Parent = nullptr;
+    OverlayWindow *Host = nullptr;
 
     TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
 
@@ -552,7 +564,6 @@ struct DockNode
 
     TabBarData TabData{};
 
-    OverlayWindow *DockSpace = nullptr;
     TKit::TierArray<OverlayWindow *> Windows;
 
     DockNodeFlags Flags = 0;
@@ -562,7 +573,12 @@ struct DockNode
         TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
         return !Children[0];
     }
+    bool IsRoot() const
+    {
+        return !Parent;
+    }
     bool IsEmpty() const;
+    bool CanUndock() const;
 
     u32 ChildIndex(const DockNode *child) const
     {
@@ -581,10 +597,6 @@ struct DockNode
 
 struct OverlayWindow
 {
-    OverlayWindow(const LayoutSpecs &spc) : Layout(spc)
-    {
-    }
-
     LayoutId Id = NullLayoutId;
     LayoutId HeaderId = NullLayoutId;
     LayoutId ContentAreaId = NullLayoutId;
@@ -592,14 +604,16 @@ struct OverlayWindow
     u64 Layer;
 
     NativeWindow *Native = nullptr;
-    OverlayWindow *ActiveDockChild = nullptr;
 
+    // the physical window is the actual window that is driving the layout and drawing the contents
+    OverlayWindow *Parent = nullptr;
+
+    DockNode *DockRoot = nullptr;
     DockNode *DockParent = nullptr;
-    DockNode *DockHost = nullptr;
+
+    Layout *Layout = nullptr;
 
     GrabInfo Grab{};
-
-    Layout Layout;
 
     f32v2 ScreenPos{120.f};
 
@@ -613,13 +627,59 @@ struct OverlayWindow
     CodePoint HeaderIcon;
     OverlayWindowFlags Flags = 0;
 
-    LayoutId GetMenuId() const
+    // when windows are parented/docked, the effective native window may not be the one assigned to them. this getter
+    // accounts for that. it will be used intermttently and skipped when innecessary (context ensures ->Native is the
+    // correct choice, such as knowing the window owns the native)
+    NativeWindow *GetNative() const;
+
+    bool IsRoot() const
     {
-        return ActiveDockChild ? ActiveDockChild->MenuBarId : MenuBarId;
+        return !Parent;
     }
-    OverlayWindowFlags GetUserFlags() const
+    bool IsDockHost() const
     {
-        return ActiveDockChild ? ActiveDockChild->Flags : Flags;
+        return DockRoot && DockRoot->Host == this;
+    }
+    bool IsDocked() const
+    {
+        return DockRoot && DockRoot->Host != this;
+    }
+    bool IsCollapsed() const
+    {
+        return HeaderIcon == ArrowRightIcon;
+    }
+
+    OverlayWindow *GetRoot()
+    {
+        if (IsDocked())
+            return DockRoot->Host->GetRoot();
+        if (IsRoot())
+            return this;
+        return Parent->GetRoot();
+    }
+    const OverlayWindow *GetRoot() const
+    {
+        if (IsDocked())
+            return DockRoot->Host->GetRoot();
+        if (IsRoot())
+            return this;
+        return Parent->GetRoot();
+    }
+    u64 GetLayer() const
+    {
+        return GetRoot()->Layer;
+    }
+    void SetLayer(const u64 layer)
+    {
+        GetRoot()->Layer = layer;
+    }
+    Onyx::Layout *GetActiveLayout() const
+    {
+        return GetRoot()->Layout;
+    }
+    bool OwnsActiveLayout() const
+    {
+        return GetActiveLayout() == Layout;
     }
 
     const f32v2 &GetActivePosition() const;
@@ -639,11 +699,13 @@ struct OverlayWindow
 
     f32v2 ToLocalScreen(const f32v2 &world) const
     {
-        return Native->View->ToAbsolute(Native->View->WorldToScreen(world));
+        NativeWindow *nw = GetNative();
+        return nw->View->ToAbsolute(nw->View->WorldToScreen(world));
     }
     f32v2 ToLocalWorld(const f32v2 &screen) const
     {
-        return Native->View->ScreenToWorld(Native->View->ToNormalized(screen));
+        NativeWindow *nw = GetNative();
+        return nw->View->ScreenToWorld(nw->View->ToNormalized(screen));
     }
 };
 
@@ -804,9 +866,9 @@ enum OverlayScrollFlagBit : OverlayScrollFlags
     OverlayScrollFlag_Title = 1U << 1,
     OverlayScrollFlag_NoBackground = 1U << 2,
     OverlayScrollFlag_Tight = 1U << 3,
-    OverlayScrollFlag_NoScrollBar = OverlayWindowFlag_NoScrollBar,
-    OverlayScrollFlag_NoVerticalScroll = OverlayWindowFlag_NoVerticalScroll,
-    OverlayScrollFlag_HorizontalScroll = OverlayWindowFlag_HorizontalScroll,
+    OverlayScrollFlag_NoScrollBar = 1U << 4,
+    OverlayScrollFlag_NoVerticalScroll = 1U << 5,
+    OverlayScrollFlag_HorizontalScroll = 1U << 6,
 };
 
 enum OverlayPopupFlagBit : OverlayPopupFlags
@@ -987,6 +1049,27 @@ struct OverlaySpecs
     OverlayStyle Style{};
     OverlayFlags Flags = 0;
 };
+
+// TODO(Isma): Shrink docking preview with size AND trigger center if header id is hovered. ill have to save the id, but
+// actually i think its just the header bar id
+// TODO(Isma): Add _NoBorder flag as well... somehow
+// TODO(Isma): Attempt to fully support child windows
+// TODO(Isma): Handle m_Current better. Rename to m_LayoutWindow or smth, and create m_ChildWindow, m_DockedWindow etc
+// TODO(Isma): Add a _NoBackground flag maybe, and in begin window, do (flags | m_LayoutWindow->Flags) & _NoBackground.
+// child window _NoBackground could go to the dock node actually
+// TODO(Isma): Ill have to generalize the check m_Current == m_MainDockSpace actually, to support general dockspaces i
+// guess. with the _NoBackground flag i guess it can work
+// TODO(Isma): Add _ChildWindow flag. this one should not persist every window call
+// TODO(Isma): Stop m_Current->Flags inheriting _MenuBar. instead, in the MenuBar call check, just use m_ChildWindow or
+// whatever i have named it!
+// TODO(Isma): For the layers, child windows should have the same layer and then let the insertion order handle the rest
+// TODO(Isma): independentlyActive must change. we have to make sure win is a physical window
+// TODO(Isma): Actually, host's dock parent should be null...
+// TODO(Isma): To successfully not support auto resize in docking, i have to remove the flag explicitly
+// TODO(Isma): I need not to capture mouse, ie, passthru
+// TODO(Isma): Root window is the one that must always be brought to top
+// TODO(Isma): BUG: When collapsing "Child windows" tree node with a dock tree, the opened tab changes??
+// TODO(Isma): Clip child previews if they exceed parent window
 class Overlay
 {
     /////////////////////////////////////////////
@@ -1036,7 +1119,7 @@ class Overlay
     void EndWindow();
 
     // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
-    bool FullScreenDockSpace();
+    // bool FullScreenDockSpace();
 
     bool BeginMenuBar();
     void EndMenuBar();
@@ -1086,7 +1169,7 @@ class Overlay
     bool IsCurrentWindowPromoted() const;
     bool IsCurrentWindowDocked() const
     {
-        return m_Current->ActiveDockChild;
+        return m_Active->DockRoot;
     }
 
     /////////////////////////////////////////////
@@ -1118,11 +1201,11 @@ class Overlay
 
     bool BeginSelectable(const bool enabled = false, const OverlaySelectableFlags flags = 0)
     {
-        return BeginSelectable(GetCurrentLayout().GenerateNextId(), enabled, flags);
+        return BeginSelectable(m_Active->GetActiveLayout()->GenerateNextId(), enabled, flags);
     }
     bool BeginSelectable(bool *enabled, const OverlaySelectableFlags flags = 0)
     {
-        return BeginSelectable(GetCurrentLayout().GenerateNextId(), enabled, flags);
+        return BeginSelectable(m_Active->GetActiveLayout()->GenerateNextId(), enabled, flags);
     }
 
     void EndSelectable();
@@ -1218,11 +1301,11 @@ class Overlay
     {
         TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
 
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = PushId(label.Id);
-        ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                  .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalSliderHeight])},
-                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalSliderHeight])},
+                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -1232,7 +1315,7 @@ class Overlay
             PopId();
         }
 
-        ly.EndPanel();
+        ly->EndPanel();
         PopId();
         return changed;
     }
@@ -1273,12 +1356,12 @@ class Overlay
     bool VerticalDrag(const OverlayLabel label, T *value, const f32 speed = 1.f, const U mn = T(0), const U mx = T(0),
                       const char *format = nullptr, const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = PushId(label.Id);
 
-        ly.BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                  .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
-                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
+                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -1287,7 +1370,7 @@ class Overlay
             changed |= verticalDragBox(label.Title, &val, speed, mn, mx, format, flags);
             PopId();
         }
-        ly.EndPanel();
+        ly->EndPanel();
         PopId();
         return changed;
     }
@@ -1327,7 +1410,7 @@ class Overlay
     {
         const T val = *current;
         BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
-                    OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title);
+                    OverlayScrollFlags(OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title));
 
         for (u32 i = 0; i < elements.GetSize(); ++i)
             if (Selectable(elements[i], val == i, flags))
@@ -1401,12 +1484,12 @@ class Overlay
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
                const f32v2 &scale = f32v2{1.f})
     {
-        GetCurrentLayout().Panel(LyPnPar{.FillColor = Color_White,
-                                         .Sizing = sabs(size),
-                                         .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
-                                         .Texture = texture,
-                                         .TexOffset = offset,
-                                         .TexScale = scale});
+        m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = Color_White,
+                                                   .Sizing = sabs(size),
+                                                   .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
+                                                   .Texture = texture,
+                                                   .TexOffset = offset,
+                                                   .TexScale = scale});
     }
 
     void BeginDisabled(bool enabled = true);
@@ -1445,9 +1528,9 @@ class Overlay
     {
         endScroll();
         PopStyleVar();
-        Layout &ly = GetCurrentLayout();
-        ly.EndPanel();
-        ly.EndPanel();
+        Layout *ly = m_Active->GetActiveLayout();
+        ly->EndPanel();
+        ly->EndPanel();
         PopId();
         --m_CurrentPopupDepth;
     }
@@ -1544,7 +1627,7 @@ class Overlay
 
     void Separator()
     {
-        const LayoutElement &elm = GetCurrentLayout().GetCurrentElement();
+        const LayoutElement &elm = m_Active->GetActiveLayout()->GetCurrentElement();
         if (elm.Direction == LayoutDirection_LeftToRight || elm.Direction == LayoutDirection_RightToLeft)
             VerticalLine();
         else
@@ -1553,47 +1636,47 @@ class Overlay
     void HorizontalSeparator(OverlayLabel label);
     void HorizontalLine()
     {
-        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
-                                         .Sizing = {grow(), sabs(m_Style[OverlayStyle_LineWidth])},
-                                         .Shape = rect(m_Style[OverlayStyle_LineRadius])});
+        m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
+                                                   .Sizing = {grow(), sabs(m_Style[OverlayStyle_LineWidth])},
+                                                   .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
     void VerticalLine()
     {
-        GetCurrentLayout().Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
-                                         .Sizing = {sabs(m_Style[OverlayStyle_LineWidth]), grow()},
-                                         .Shape = rect(m_Style[OverlayStyle_LineRadius])});
+        m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
+                                                   .Sizing = {sabs(m_Style[OverlayStyle_LineWidth]), grow()},
+                                                   .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
 
     LayoutId BeginPanel(const LayoutId id, const LyPnPar &params = {})
     {
-        m_LastItem = GetCurrentLayout().BeginPanel(id, params);
+        m_LastItem = m_Active->GetActiveLayout()->BeginPanel(id, params);
         return m_LastItem;
     }
     void BeginPanel(const LyPnPar &params = {})
     {
-        GetCurrentLayout().BeginPanel(params);
+        m_Active->GetActiveLayout()->BeginPanel(params);
     }
     void EndPanel()
     {
-        GetCurrentLayout().EndPanel();
+        m_Active->GetActiveLayout()->EndPanel();
     }
 
     LayoutId Panel(const LayoutId id, const LyPnPar &params = {})
     {
-        m_LastItem = GetCurrentLayout().Panel(id, params);
+        m_LastItem = m_Active->GetActiveLayout()->Panel(id, params);
         return m_LastItem;
     }
     void Panel(const LyPnPar &params = {})
     {
-        GetCurrentLayout().Panel(params);
+        m_Active->GetActiveLayout()->Panel(params);
     }
 
     bool PushTree(OverlayLabel label, const OverlayTreeFlags flags = 0);
     void PopTree()
     {
-        Layout &ly = GetCurrentLayout();
-        ly.EndPanel();
-        ly.EndPanel();
+        Layout *ly = m_Active->GetActiveLayout();
+        ly->EndPanel();
+        ly->EndPanel();
         PopId();
     }
 
@@ -1632,13 +1715,9 @@ class Overlay
         EndPanel();
     }
 
-    const Layout &GetCurrentLayout() const
+    Layout *GetActiveLayout()
     {
-        return m_Current->Layout;
-    }
-    Layout &GetCurrentLayout()
-    {
-        return m_Current->Layout;
+        return m_Active->GetActiveLayout();
     }
 
     const OverlayStyle &GetStyle() const
@@ -1747,16 +1826,17 @@ class Overlay
 
     OverlayHoverQueryFlags QueryItemHoverStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
     {
-        return queryHoverStatus(GetCurrentLayout().QueryElement(m_LastItem), hoverPadding);
+        return queryHoverStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), hoverPadding);
     }
     OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
     {
-        // return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags | FocusFlag_ReadOnly);
-        return queryAndSetFocusStatus(GetCurrentLayout().QueryElement(m_LastItem), flags);
+        // return queryAndSetFocusStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags |
+        // FocusFlag_ReadOnly);
+        return queryAndSetFocusStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags);
     }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
     {
-        return isElementHovered(GetCurrentLayout().QueryElement(m_LastItem), flags, hoverPadding);
+        return isElementHovered(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags, hoverPadding);
     }
     bool IsItemPressed(const OverlayFocusFlags flags = 0)
     {
@@ -1847,11 +1927,13 @@ class Overlay
     /// WINDOWS/MENUS PRIVATE
     /////////////////////////////////////////////
 
-    OverlayWindow *getOrCreateOverlayWindow(LayoutId id);
+    bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, TKit::StringView title = {});
+
+    OverlayWindow *getOrCreateOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
     void assignNativeWindowSomehow(OverlayWindow *win);
 
     void addActiveWindow(OverlayWindow *win);
-    void drawWindowBorders();
+    void drawWindowBorders(OverlayWindow *win);
     OverlayFocusQueryFlags iconButtonFocus(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(),
                                            OverlayColor idle = OverlayColor_None, FocusFlags flags = 0);
     bool iconButton(const LayoutId id, const CodePoint code, const LySz ysizing = LySz::Fit(),
@@ -1868,17 +1950,21 @@ class Overlay
         const f32 hpadding = m_Style[OverlayStyle_HeaderPadding];
         return getLineHeight() + 2.f * (wpadding + hpadding);
     }
-    OverlayWindow *createOverlayWindow();
-    OverlayWindow *createDockSpace(OverlayWindow *win, DockNode *rootNode, bool fromWindow);
-    OverlayWindow *createDockSpaceFromWindow(OverlayWindow *win, DockNode *rootNode)
+    OverlayWindow *createDockHost(OverlayWindow *win, DockNode *rootNode, bool fromWindow);
+    OverlayWindow *createDockHostFromWindow(OverlayWindow *win, DockNode *rootNode)
     {
-        return createDockSpace(win, rootNode, true);
+        return createDockHost(win, rootNode, true);
     }
-    OverlayWindow *createDockSpaceFromNode(OverlayWindow *win, DockNode *rootNode)
+    OverlayWindow *createDockHostFromNode(OverlayWindow *win, DockNode *rootNode)
     {
-        return createDockSpace(win, rootNode, false);
+        return createDockHost(win, rootNode, false);
     }
 
+    Layout *createLayout();
+    void destroyLayout(Layout *ly);
+    void removeLayout(Layout *ly);
+
+    OverlayWindow *createOverlayWindow();
     void destroyOverlayWindow(OverlayWindow *win);
     void removeOverlayWindow(OverlayWindow *win);
 
@@ -1902,8 +1988,14 @@ class Overlay
     void removeAllFloatWindows();
     void manageWindowPromotions();
 
-    template <typename F> void iterateReverseWindows(F func);
+    template <typename F> void iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F &&func);
+    template <typename F> void iterateReverseActiveWindows(F &&func)
+    {
+        iterateReverseWindows(m_ActiveWindows, std::forward<F>(func));
+    }
     template <typename F> void iterateDockTreeWithLayoutUpdate(OverlayWindow *win, F func);
+
+    void buildDockHostHierarchy(OverlayWindow *host);
 
     void detachNodeFromParent(DockNode *node);
     void undockWindow(OverlayWindow *win);
@@ -1928,19 +2020,19 @@ class Overlay
     // and so we just avoid stale references on resizes. I dont really expect more than a handful of these at the same
     // time, so 32 should be plenty
     TKit::StaticArray32<OverlayWindow *> m_OverlayWindows{};
+    TKit::StaticArray32<Layout *> m_Layouts{};
     TKit::StaticArray64<DockNode *> m_DockNodes{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
     TKit::StaticHashMap<LayoutId, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
 
-    TKit::TierArray<OverlayWindow *> m_ActiveWindows{};
-    TKit::TierArray<OverlayWindow *> m_WindowStack{};
+    TKit::StaticArray32<OverlayWindow *> m_ActiveWindows{};
+    TKit::StaticArray32<OverlayWindow *> m_WindowStack{};
 
     NextWindowData m_NextWindow{};
 
-    OverlayWindow *m_Current = nullptr;
+    OverlayWindow *m_Active = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
     OverlayWindow *m_DockSource = nullptr;
-    OverlayWindow *m_MainDockSpace = nullptr;
 
     u64 m_LayerCount = 0;
 
@@ -2015,7 +2107,7 @@ class Overlay
         };
 
         f32 offset = 0.f;
-        const NativeWindow *nw = m_Current->Native;
+        const NativeWindow *nw = m_Active->Native;
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
         if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
@@ -2041,9 +2133,9 @@ class Overlay
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool horizontalSliderBox(T *value, const U mn, const U mx, const char *format, const OverlaySliderFlags flags)
     {
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
-        const LayoutElement *elm = ly.QueryElement(id);
+        const LayoutElement *elm = ly->QueryElement(id);
 
         const T pval = *value;
         if (!(flags & OverlaySliderFlag_NoInput))
@@ -2067,11 +2159,11 @@ class Overlay
 
         const f32 padding = m_Style[OverlayStyle_WidgetPadding];
         const bool noValClamp = flags & OverlaySliderFlag_NoValueLabelClamp;
-        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
-                                  .Alignment = CenterLeft,
-                                  .Sizing = {noValClamp ? grow() : flex(), fit()},
-                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
-                                  .Padding = padding});
+        ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
+                                   .Alignment = CenterLeft,
+                                   .Sizing = {noValClamp ? grow() : flex(), fit()},
+                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
+                                   .Padding = padding});
 
         const f32 boxWidth = elm ? (elm->Size[0] - 2.f * padding) : 0.f;
 
@@ -2082,64 +2174,64 @@ class Overlay
         // correctly (just overlapping inner slider) but text slot will be "offscreen" (clipped by outer slider).
         // so, we offset text slot by 1 parent to align it correctly
 
-        ly.BeginPanel(LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
+        ly->BeginPanel(LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
 
-        ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                         .Sizing = {sabs(sinfo.InnerWidth), grow()},
-                         .SelfOffset = oabs({sinfo.Offset, 0.f}),
-                         .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
+        ly->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                          .Sizing = {sabs(sinfo.InnerWidth), grow()},
+                          .SelfOffset = oabs({sinfo.Offset, 0.f}),
+                          .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
         const LayoutId txtId = IdFromStack("__onyx_id_Text_slot");
-        const LayoutElement *txtElm = ly.QueryElement(txtId);
+        const LayoutElement *txtElm = ly->QueryElement(txtId);
         const f32 txtOffset = txtElm ? (-0.5f * (txtElm->Size[0] + boxWidth)) : 0.f;
         const bool hasAccurateFlex = elm && txtElm;
 
-        ly.EndPanel();
-        ly.BeginPanel(txtId, LyPnPar{.Alignment = Center,
-                                     .Sizing = {hasAccurateFlex ? flex() : srel(1.f), fit()},
-                                     .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
+        ly->EndPanel();
+        ly->BeginPanel(txtId, LyPnPar{.Alignment = Center,
+                                      .Sizing = {hasAccurateFlex ? flex() : srel(1.f), fit()},
+                                      .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
-        ly.Text(ly.GenerateNextId(), text, getTextParams());
+        ly->Text(ly->GenerateNextId(), text, getTextParams());
 
-        ly.EndPanel();
-        ly.EndPanel();
+        ly->EndPanel();
+        ly->EndPanel();
         return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
     bool verticalSliderBox(const TKit::StringView title, T *value, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
-        const LayoutElement *elm = ly.QueryElement(id);
+        const LayoutElement *elm = ly->QueryElement(id);
 
         const T pval = *value;
         const SliderBoxInfo sinfo = getSliderBoxInfo(1, pval, value, mn, mx, format, elm, flags);
 
         const f32 padding = m_Style[OverlayStyle_WidgetPadding];
-        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
-                                  .Alignment = Center,
-                                  .Sizing = {sabs(m_Style[OverlayStyle_VerticalSliderWidth]), grow()},
-                                  .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
-                                  .Padding = padding});
+        ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
+                                   .Alignment = Center,
+                                   .Sizing = {sabs(m_Style[OverlayStyle_VerticalSliderWidth]), grow()},
+                                   .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
+                                   .Padding = padding});
 
-        ly.Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                         .Sizing = {grow(), sabs(sinfo.InnerWidth)},
-                         .SelfOffset = oabs({0.f, sinfo.Offset}),
-                         .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
+        ly->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
+                          .Sizing = {grow(), sabs(sinfo.InnerWidth)},
+                          .SelfOffset = oabs({0.f, sinfo.Offset}),
+                          .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
-        ly.EndPanel();
+        ly->EndPanel();
 
         if (sinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
         {
             BeginTooltip(OverlayTooltipFlag_Reset);
-            Layout &tly = GetCurrentLayout();
+            Layout *tly = m_Active->GetActiveLayout();
 
             if (!title.IsEmpty())
-                tly.Text(tly.GenerateNextId(), title, getTextParams());
+                tly->Text(tly->GenerateNextId(), title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
-            tly.Text(tly.GenerateNextId(), text, getTextParams());
+            tly->Text(tly->GenerateNextId(), text, getTextParams());
 
             EndTooltip();
         }
@@ -2177,7 +2269,7 @@ class Overlay
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
-            const NativeWindow *nw = m_Current->Native;
+            const NativeWindow *nw = m_Active->Native;
             const f32 drag = nw->WorldMouse[idx] - nw->WorldMouseOnPress[idx];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
@@ -2197,10 +2289,10 @@ class Overlay
     bool horizontalDragBox(T *value, const f32 speed, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
 
-        const LayoutElement *elm = ly.QueryElement(id);
+        const LayoutElement *elm = ly->QueryElement(id);
         const T pval = *value;
         if (!(flags & OverlaySliderFlag_NoInput))
         {
@@ -2219,16 +2311,16 @@ class Overlay
         const DragBoxInfo dinfo = getDragBoxInfo(0, value, speed, mn, mx, format, elm, flags);
 
         const bool noValClamp = flags & OverlaySliderFlag_NoValueLabelClamp;
-        ly.BeginPanel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
-                                  .Alignment = Center,
-                                  .Sizing = {noValClamp ? grow() : flex(), fit()},
-                                  .Shape = rect(m_Style[OverlayStyle_DragRadius]),
-                                  .Padding = m_Style[OverlayStyle_WidgetPadding]});
+        ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
+                                   .Alignment = Center,
+                                   .Sizing = {noValClamp ? grow() : flex(), fit()},
+                                   .Shape = rect(m_Style[OverlayStyle_DragRadius]),
+                                   .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
-        ly.Text(ly.GenerateNextId(), text, getTextParams());
+        ly->Text(ly->GenerateNextId(), text, getTextParams());
 
-        ly.EndPanel();
+        ly->EndPanel();
         return *value != pval;
     }
 
@@ -2236,27 +2328,27 @@ class Overlay
     bool verticalDragBox(const TKit::StringView title, T *value, const f32 speed, const U mn, const U mx,
                          const char *format, const OverlaySliderFlags flags)
     {
-        Layout &ly = GetCurrentLayout();
+        Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
 
-        const LayoutElement *elm = ly.QueryElement(id);
+        const LayoutElement *elm = ly->QueryElement(id);
         const T pval = *value;
 
         const DragBoxInfo dinfo = getDragBoxInfo(1, value, speed, mn, mx, format, elm, flags);
 
-        ly.Panel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
-                             .Sizing = {sabs(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
-                             .Shape = rect(m_Style[OverlayStyle_DragRadius])});
+        ly->Panel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
+                              .Sizing = {sabs(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
+                              .Shape = rect(m_Style[OverlayStyle_DragRadius])});
 
         if (dinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
         {
             BeginTooltip(OverlayTooltipFlag_Reset);
-            Layout &tly = GetCurrentLayout();
+            Layout *tly = m_Active->GetActiveLayout();
 
             if (!title.IsEmpty())
-                tly.Text(tly.GenerateNextId(), title, getTextParams());
+                tly->Text(tly->GenerateNextId(), title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
-            tly.Text(tly.GenerateNextId(), text, getTextParams());
+            tly->Text(tly->GenerateNextId(), text, getTextParams());
 
             EndTooltip();
         }
@@ -2461,15 +2553,7 @@ class Overlay
     const FontData &getFontData() const;
     f32 getLineHeight() const;
 
-    // used when having menu bars with windows that are not brought to focus. in those cases popups created by such
-    // window will be blocked if there is another window existing with a greater layer. so in that case, we allow the
-    // hover, apart from additional overloads used sometimes
-    OverlayHoveredFlags standardHoverAllowance() const
-    {
-        return (m_Current->PopupDepth != m_CurrentPopupDepth && (m_Current->Flags & OverlayWindowFlag_NoBringToFocus)
-                    ? OverlayHoveredFlag_AllowBlockedByWindow
-                    : 0);
-    }
+    OverlayHoveredFlags standardHoverAllowance() const;
     bool isAutoResize() const;
 
     f32v4 getWorldEffectiveBorders() const;
@@ -2507,7 +2591,7 @@ class Overlay
     }
     LyUnPar getUnicodeParams() const
     {
-        return {.FillColor = m_Style[OverlayColor_Text], .Size = m_Style[OverlayStyle_UnicodeSize]};
+        return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_UnicodeSize]};
     }
 
     static constexpr LySz fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)

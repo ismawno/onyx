@@ -88,7 +88,8 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
         Combo("Y Self offset type", &p.SelfOffset[1].Type, "Absolute\0Normalized\0Relative\0\0");
         ImGui::DragFloat("Y Self offset", &p.SelfOffset[1].Offset, 0.01f);
 
-        Combo("Overflow", &p.Overflow, "Spill\0Clip\0\0");
+        Combo("Child overflow", &p.ChildOverflow, "Spill\0Clip\0\0");
+        Combo("Self overflow", &p.SelfOverflow, "Spill\0Clip\0\0");
         Combo("Shape", &p.Shape.Type, "Circle\0Rectangle\0Rounded rectangle\0\0");
         ImGui::DragFloat("Radius", &p.Shape.Radius, 0.01f, 0.f, TKIT_F32_MAX);
         if (ImGui::Button("Add child"))

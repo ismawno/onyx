@@ -188,6 +188,7 @@ enum LayoutTextMode : u8
 
 enum LayoutOverflowMode : u8
 {
+    LayoutOverflow_None,
     LayoutOverflow_Spill,
     LayoutOverflow_Clip,
 };
@@ -309,8 +310,8 @@ struct LayoutElement
     LayoutDirection Direction;
     LayoutElementType Type;
     LayoutTextMode TextMode;
-    LayoutOverflowMode SelfOverflow;
     LayoutOverflowMode ChildOverflow;
+    LayoutOverflowMode SelfOverflow;
     LayoutElementFlags Flags = 0;
 
     // NOTE(Isma, 25/06/26): Bool arg. not very nice but a bit overkill setting up flags for an option
@@ -361,9 +362,8 @@ struct LayoutPanelParameters
 
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
-    // NOTE(Isma): Could add overflow mode override per-children (as in a ChildOverflow and SelfOverflow parameters).
-    // Skipping for now
-    LayoutOverflowMode Overflow = LayoutOverflow_Clip;
+    LayoutOverflowMode ChildOverflow = LayoutOverflow_Clip;
+    LayoutOverflowMode SelfOverflow = LayoutOverflow_None;
     f32v4 Padding{0.f};
     f32 ChildGap = 0.f;
     f32 OutlineWidth = 0.f;
@@ -386,27 +386,12 @@ struct LayoutTextParameters
 
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
+    LayoutOverflowMode Overflow = LayoutOverflow_None;
     bool ForceBlend = false;
     void *UserData = nullptr;
 };
 
-struct LayoutUnicodeParameters
-{
-    Color FillColor = Color_White;
-    Color OutlineColor = Color_Transparent;
-    f32 Size = 1.f;
-    f32 OutlineWidth = 0.f;
-    f32v2 MinSize{0.f};
-    vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
-    Resource Font = NullHandle;
-    Resource Texture = NullHandle;
-    Resource Material = NullHandle;
-
-    f32v2 TexOffset{0.f};
-    f32v2 TexScale{1.f};
-    bool ForceBlend = false;
-    void *UserData = nullptr;
-};
+using LayoutUnicodeParameters = LayoutTextParameters;
 
 struct LayoutSpecs
 {
