@@ -49,6 +49,9 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
                 for (auto &pools : meshes)
                     for (InstanceDataBuffer &buffer : pools.Instances)
                         buffer.Data.Destroy();
+
+            for (InstanceDataBuffer &buffer : instanceData->DynamicMeshes.Instances)
+                buffer.Data.Destroy();
             tier->Destroy(instanceData);
         }
     for (const DynamicMeshInfo<D> &info : m_ImmediateDynamicMeshes)
