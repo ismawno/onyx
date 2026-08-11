@@ -2,6 +2,7 @@
 #include "onyx/context.hpp"
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/sanitizer_options.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>

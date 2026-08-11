@@ -2,6 +2,7 @@
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
 #include "onyx/overlay.hpp"
+#include "onyx/sanitizer_options.hpp"
 
 using namespace TKit::Alias;
 

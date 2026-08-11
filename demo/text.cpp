@@ -2,6 +2,7 @@
 #include "onyx/context.hpp"
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/sanitizer_options.hpp"
 
 using Onyx::D2;
 

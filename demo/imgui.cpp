@@ -1,5 +1,6 @@
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/sanitizer_options.hpp"
 #include <imgui.h>
 int main()
 {
