@@ -98,7 +98,6 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
 
     const usz size = idata.Width * idata.Height * 4;
     idata.Data = scast<std::byte *>(TKit::Allocate(size));
-    TKit::PrintLine("Hey im allocating");
     TKit::ForwardCopy(idata.Data, flipped.GetData(), size);
 
     msdfgen::FontMetrics metrics;

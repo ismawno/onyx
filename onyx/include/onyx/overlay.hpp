@@ -1070,6 +1070,7 @@ struct OverlaySpecs
 // TODO(Isma): Root window is the one that must always be brought to top
 // TODO(Isma): BUG: When collapsing "Child windows" tree node with a dock tree, the opened tab changes??
 // TODO(Isma): Clip child previews if they exceed parent window
+// TODO(Isma): POSSIBLE BUG: must grab when undocked must not be set if target cannot be moved
 class Overlay
 {
     /////////////////////////////////////////////
@@ -1235,7 +1236,7 @@ class Overlay
     }
     void EndTab()
     {
-        endTab(m_TabBarStack.GetBack());
+        endTab(&m_TabBarData[m_TabBarStack.GetBack()]);
     }
 
     bool InputText(OverlayLabel label, char *buf, u32 size, TKit::StringView hint = {}, OverlayInputFlags flags = 0);
@@ -1965,7 +1966,7 @@ class Overlay
     void removeLayout(Layout *ly);
 
     OverlayWindow *createOverlayWindow();
-    void destroyOverlayWindow(OverlayWindow *win);
+    void destroyOverlayWindow(OverlayWindow *win, bool scrub = true);
     void removeOverlayWindow(OverlayWindow *win);
 
     NativeWindow *createNativeWindow(Window *win);
@@ -2107,7 +2108,7 @@ class Overlay
         };
 
         f32 offset = 0.f;
-        const NativeWindow *nw = m_Active->Native;
+        const NativeWindow *nw = m_Active->GetNative();
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
         if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
@@ -2269,7 +2270,7 @@ class Overlay
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
 
-            const NativeWindow *nw = m_Active->Native;
+            const NativeWindow *nw = m_Active->GetNative();
             const f32 drag = nw->WorldMouse[idx] - nw->WorldMouseOnPress[idx];
             const f32 effectiveSpeed =
                 log ? (speed * Math::Max(Math::Absolute(f32(m_DragValue + drag)),
@@ -2416,7 +2417,7 @@ class Overlay
 
     Color m_PickerOriginal{};
 
-    TKit::TierArray<TabBarData *> m_TabBarStack{};
+    TKit::TierArray<LayoutId> m_TabBarStack{};
 
     struct TextInputStateInfo
     {
