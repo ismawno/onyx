@@ -923,7 +923,10 @@ const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &op
         const auto fres = LoadDefaultFont(opts.FontOpts);
         ONYX_LOG_RESULT_ERROR(fres);
         if (fres)
+        {
             def.Font = RegisterFont(def.FontPool, *fres);
+            DestroyFontData(*fres);
+        }
     }
 #endif
     def.Sampler = CreateSampler(opts.SamplerData);

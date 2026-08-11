@@ -197,5 +197,9 @@ Result<ImageData> LoadImageDataFromMemory(const std::byte *memory, const u32 siz
 {
     return load({.RequiredComponents = requiredComponents, .Flags = flags, .Memory = memory, .Size = size});
 }
+void DestroyImageData(const ImageData &data)
+{
+    TKit::Deallocate(data.Data);
+}
 #endif
 } // namespace Onyx

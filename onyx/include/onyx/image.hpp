@@ -166,5 +166,6 @@ ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromFile(const char *path,
 ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromMemory(const std::byte *memory, u32 size,
                                                           ImageComponentFormat requiredComponents = ImageComponent_Auto,
                                                           LoadImageDataFlags flags = 0);
+void DestroyImageData(const ImageData &data);
 #endif
 } // namespace Onyx

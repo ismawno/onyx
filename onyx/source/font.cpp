@@ -1,5 +1,6 @@
 #include "pch.hpp"
 #include "onyx/font.hpp"
+#include "onyx/image.hpp"
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
@@ -97,6 +98,7 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
 
     const usz size = idata.Width * idata.Height * 4;
     idata.Data = scast<std::byte *>(TKit::Allocate(size));
+    TKit::PrintLine("Hey im allocating");
     TKit::ForwardCopy(idata.Data, flipped.GetData(), size);
 
     msdfgen::FontMetrics metrics;
@@ -362,5 +364,9 @@ TKit::TierString FontData::WrapText(const TKit::StringView text, const f32 maxWi
     });
 
     return wrapped;
+}
+void DestroyFontData(const FontData &data)
+{
+    DestroyImageData(data.AtlasData);
 }
 } // namespace Onyx
