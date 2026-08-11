@@ -3006,7 +3006,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
                     ocmap.Tracker.MarkInUse(graphics, inFlightValue);
 
-                    beginShadowTransitionLayout<D>(cmd, ocmap);
+                    beginShadowTransitionLayout<D2>(cmd, ocmap);
                     if constexpr (isPoint)
                     {
                         const f32 r = data.ShadowRadius;
@@ -3018,7 +3018,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     else
                         processMap(ocmap, createTransform(data.ProjectionView));
 
-                    endShadowTransitionLayout<D>(cmd, ocmap);
+                    endShadowTransitionLayout<D2>(cmd, ocmap);
 
                     smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_GENERAL,
                                                  {.SrcAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
@@ -3064,7 +3064,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                 }
                 else
                 {
-                    beginShadowTransitionLayout<D>(cmd, smap);
+                    beginShadowTransitionLayout<D3>(cmd, smap);
                     // TODO(Isma): Try to pseudo optimize this by working out the views?
                     if constexpr (isPoint)
                     {
@@ -3094,7 +3094,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     }
                     else
                         processMap(smap, data.ProjectionView);
-                    endShadowTransitionLayout<D>(cmd, smap);
+                    endShadowTransitionLayout<D3>(cmd, smap);
                 }
             }
         };

@@ -2,6 +2,7 @@
 #include "onyx/specs.hpp"
 #include "platform.hpp"
 #include "glfw.hpp"
+#include "vkit/vulkan/loader.hpp"
 #include "tkit/container/static_array.hpp"
 
 namespace Onyx::Platform
@@ -24,6 +25,9 @@ void Initialize(const Specs &specs)
     glfwSetErrorCallback(glfwErrorCallback);
 #endif
     glfwInitHint(GLFW_PLATFORM, specs.Platform);
+#if ONYX_GLFW_VERSION_COMBINED >= 3400
+    glfwInitVulkanLoader(VKit::Vulkan::vkGetInstanceProcAddr);
+#endif
     TKIT_ENSURE_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX][PLATFORM] GLFW failed to initialize");
 
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX][PLATFORM] Vulkan is not supported, according to GLFW");
