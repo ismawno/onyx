@@ -16,6 +16,16 @@ static bool runDemo(const bool floating)
         Onyx::Window *win = Onyx::OpenWindow();
         ui = win->CreateOverlay();
     }
+
+    // a simple example using the docking api. docking must be enabled when creating the overlay!!
+    // const Onyx::OverlayDockNode *root =
+    //     Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f,
+    //                     Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.5f, Onyx::DockTabBar("Overlay demo"),
+    //                                     Onyx::DockTabBar("Window settings")),
+    //                     Onyx::DockTabBar({"Style editor", "Renderer statistics"}));
+    //
+    // ui->SubmitDockTree("Dock tree", root);
+
     bool restart = false;
     while (Onyx::Running())
     {

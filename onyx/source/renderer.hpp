@@ -54,7 +54,7 @@ void Terminate();
 VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
 
 template <Dimension D> RenderContext<D> *CreateContext(u32 immediateDynamicMeshCapacity);
-template <Dimension D> void DestroyContext(RenderContext<D> *context);
+template <Dimension D> void DestroyContext(const RenderContext<D> *context);
 void FlushAllContexts();
 void ReloadPipelines();
 bool IsDepthSupportedFor2D();

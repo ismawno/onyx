@@ -38,7 +38,7 @@ class RenderTarget
 
     template <Dimension D> RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0);
 
-    template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
+    template <Dimension D> void DestroyRenderView(const RenderView<D> *rv);
 
     template <Dimension D> void BringToTop(RenderView<D> *rv)
     {

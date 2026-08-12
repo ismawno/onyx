@@ -287,7 +287,7 @@ void Window::destroySyncData()
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
     TKit::TierAllocator *tier = GetTier();
-    for (WindowSyncData *data : m_SyncData)
+    for (const WindowSyncData *data : m_SyncData)
     {
         table->DestroySemaphore(device, data->ImageAvailableSemaphore, nullptr);
         table->DestroySemaphore(device, data->RenderFinishedSemaphore, nullptr);
@@ -408,7 +408,7 @@ Window::~Window()
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(m_Swapchain);
 
-    for (Overlay *ov : m_Overlays)
+    for (const Overlay *ov : m_Overlays)
         tier->Destroy(ov);
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
@@ -781,11 +781,11 @@ Overlay *Window::CreateOverlay(const OverlaySpecs &specs)
     Overlay *ov = tier->Create<Overlay>(this, specs);
     return m_Overlays.Append(ov);
 }
-void Window::DestroyOverlay(Overlay *overlay)
+void Window::DestroyOverlay(const Overlay *overlay)
 {
     for (u32 i = 0; i < m_Overlays.GetSize(); ++i)
     {
-        Overlay *ov = m_Overlays[i];
+        const Overlay *ov = m_Overlays[i];
         if (ov == overlay)
         {
             TKit::TierAllocator *tier = GetTier();

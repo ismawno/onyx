@@ -213,7 +213,7 @@ Overlay *CreateFloatingOverlay()
     return CreateFloatingOverlay({});
 }
 
-static void destroyOverlay(Overlay *ov)
+static void destroyOverlay(const Overlay *ov)
 {
     TKit::TierAllocator *tier = GetTier();
     tier->Destroy(ov);
@@ -246,7 +246,7 @@ template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediate
 {
     return Renderer::CreateContext<D>(immediateDynamicMeshCapacity);
 }
-template <Dimension D> void DestroyRenderContext(RenderContext<D> *ctx)
+template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx)
 {
     Renderer::DestroyContext<D>(ctx);
 }
@@ -258,11 +258,11 @@ RenderTexture *CreateRenderTexture(const u32v2 &dimensions)
     return s_Data->RenderTextures.Append(rtex);
 }
 
-void DestroyRenderTexture(RenderTexture *rtex)
+void DestroyRenderTexture(const RenderTexture *rtex)
 {
     for (u32 i = 0; i < s_Data->RenderTextures.GetSize(); ++i)
     {
-        RenderTexture *r = s_Data->RenderTextures[i];
+        const RenderTexture *r = s_Data->RenderTextures[i];
         if (r == rtex)
         {
             TKit::TierAllocator *tier = GetTier();
@@ -534,7 +534,7 @@ void TerminateApi()
 template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
 template RenderContext<D3> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
 
-template void DestroyRenderContext(RenderContext<D2> *ctx);
-template void DestroyRenderContext(RenderContext<D3> *ctx);
+template void DestroyRenderContext(const RenderContext<D2> *ctx);
+template void DestroyRenderContext(const RenderContext<D3> *ctx);
 
 } // namespace Onyx

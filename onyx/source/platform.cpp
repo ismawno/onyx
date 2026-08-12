@@ -59,7 +59,7 @@ static void removeWindow(const Window *window)
     TKIT_FATAL("[ONYX][PLATFORM] Window '{}' not found", window->GetTitle());
 }
 
-void DestroyWindow(Window *window)
+void DestroyWindow(const Window *window)
 {
     removeWindow(window);
     TKit::TierAllocator *tier = TKit::GetTier();
@@ -69,7 +69,7 @@ void DestroyWindow(Window *window)
 void DestroyWindows()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (Window *window : *s_Windows)
+    for (const Window *window : *s_Windows)
         tier->Destroy(window);
     s_Windows->Clear();
 }

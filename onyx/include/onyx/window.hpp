@@ -202,7 +202,7 @@ class Window final : public RenderTarget
 
     Overlay *CreateOverlay();
     Overlay *CreateOverlay(const OverlaySpecs &specs);
-    void DestroyOverlay(Overlay *overlay);
+    void DestroyOverlay(const Overlay *overlay);
 
     template <Dimension D>
     void ControlCamera(TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls = {}) const;

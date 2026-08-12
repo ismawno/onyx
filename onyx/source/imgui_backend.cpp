@@ -145,7 +145,6 @@ ImGuiKey platform_KeyToImGuiKey(const i32 keycode)
     case GLFW_KEY_BACKSLASH:
         return ImGuiKey_Backslash;
     case GLFW_KEY_WORLD_1:
-        return ImGuiKey_Oem102;
     case GLFW_KEY_WORLD_2:
         return ImGuiKey_Oem102;
     case GLFW_KEY_RIGHT_BRACKET:
@@ -692,7 +691,7 @@ static Platform_ViewportData *platform_CreateViewportData(Window *window)
     return vdata;
 }
 
-static void platform_DestroyViewportData(Platform_ViewportData *vdata)
+static void platform_DestroyViewportData(const Platform_ViewportData *vdata)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(vdata);
@@ -1074,7 +1073,7 @@ static void platform_NewFrame()
                 "[ONYX][IMGUI] Gamepad controls are not supported");
 }
 
-static void platform_RestoreCallbacks(Platform_ContextData *pdata)
+static void platform_RestoreCallbacks(const Platform_ContextData *pdata)
 {
     GLFWwindow *window = pdata->Window->GetHandle();
     glfwSetWindowFocusCallback(window, pdata->UserCbkWindowFocus);
@@ -1088,7 +1087,7 @@ static void platform_RestoreCallbacks(Platform_ContextData *pdata)
 
 static void platform_Shutdown()
 {
-    Platform_ContextData *pdata = platform_GetContextData();
+    const Platform_ContextData *pdata = platform_GetContextData();
     TKIT_ASSERT(pdata, "[ONYX][IMGUI] No platform data to shutdown");
 
     platform_ShutdownMultiViewportSupport();
@@ -1313,7 +1312,7 @@ static void renderer_DestroyTexture(ImTextureData *tex)
 {
     Renderer_Texture *bckTex = renderer_GetTexture(tex);
     TKIT_ASSERT(bckTex, "[ONYX][IMGUI] Texture has no backend counterpart");
-    TKIT_ASSERT(bckTex->Set == reinterpret_cast<VkDescriptorSet>(tex->TexID),
+    TKIT_ASSERT(bckTex->Set == rcast<VkDescriptorSet>(tex->TexID),
                 "[ONYX][IMGUI] Backend texture descriptor set mismatch");
 
     // TKIT_RETURN_IF_FAILED(Descriptors::GetDescriptorPool().Deallocate(set));

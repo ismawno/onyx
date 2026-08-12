@@ -1,3 +1,4 @@
+// NOLINTBEGIN(performance-unnecessary-value-param)
 #include "pch.hpp"
 #include "onyx/layout.hpp"
 #include "onyx/resources.hpp"
@@ -22,7 +23,7 @@ void Layout::insertId(const LayoutId id, const u32 idx)
         return;
 
 #ifdef TKIT_ENABLE_ENSURE
-    if (id.__DebugName.IsEmpty())
+    if (id.onyx_DebugName.IsEmpty())
     {
         TKIT_ENSURE(
             !m_InsertedElements.Contains(id.Id),
@@ -36,7 +37,7 @@ void Layout::insertId(const LayoutId id, const u32 idx)
             !m_InsertedElements.Contains(id.Id),
             "[ONYX][LAYOUT] Found conflicting ids. Attempting to introduce a layout element whose id ({:#018x}) "
             "already exists in the layout. Debug name: {}",
-            id.Id, id.__DebugName);
+            id.Id, id.onyx_DebugName);
     }
 #endif
     m_InsertedElements.Insert(id, idx);
@@ -895,3 +896,4 @@ void Layout::applySpecDefaults()
     assign(m_Specs.RoundedRectangleMesh, def.RoundedRect2);
 }
 } // namespace Onyx
+// NOLINTEND(performance-unnecessary-value-param)

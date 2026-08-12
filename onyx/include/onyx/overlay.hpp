@@ -1,3 +1,4 @@
+// NOLINTBEGIN(performance-unnecessary-value-param)
 #pragma once
 
 #include "onyx/layout.hpp"
@@ -19,6 +20,7 @@ namespace Onyx
 
 using OverlayButtonFlags = u8;
 using OverlayColorFlags = u16;
+using OverlayDockNodeFlags = u8;
 using OverlayDragDropFlags = u8;
 using OverlayDropDownFlags = u8;
 using OverlayFlags = u8;
@@ -37,7 +39,6 @@ using OverlayTreeFlags = u8;
 using OverlayTooltipFlags = u8;
 using OverlayWindowFlags = u64;
 
-using DockNodeFlags = u8;
 using FocusFlags = OverlayFocusFlags;
 using InputConvertInfoFlags = u8;
 using NativeWindowFlags = u16;
@@ -53,6 +54,9 @@ using WidgetStateFlags = u8;
 /////////////////////////////////////////////
 /// GENERAL
 /////////////////////////////////////////////
+
+struct OverlayWindow;
+struct DockNode;
 
 enum OverlayFlagBit : OverlayFlags
 {
@@ -344,6 +348,142 @@ struct OverlayColorHandle
 /////////////////////////////////////////////
 
 /////////////////////////////////////////////
+/// DOCKING
+/////////////////////////////////////////////
+
+enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
+{
+    OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
+
+    DockNodeFlag_MustUndock = 1U << 1,
+    DockNodeFlag_MustGrabWhenUndocked = 1U << 2,
+};
+
+struct Tab
+{
+    LayoutId Id;
+    // only used for docking
+    OverlayWindow *Window = nullptr;
+    //
+    TKit::TierString Title;
+    OverlayTabFlags Flags = 0;
+};
+
+struct TabBarData
+{
+    LayoutId Id;
+    LayoutId OpenId = NullLayoutId;
+
+    u32 Current = TKIT_U32_MAX;
+
+    TKit::TierArray<Tab> Tabs{};
+    TKit::TierArray<u32> Order{};
+    OverlayTabBarFlags Flags = 0;
+
+    u32 GetTabById(const LayoutId id) const
+    {
+        for (u32 i = 0; i < Tabs.GetSize(); ++i)
+            if (Tabs[i].Id == id)
+                return i;
+        return TKIT_U32_MAX;
+    }
+    u32 GetTabByWindow(const OverlayWindow *win) const
+    {
+        for (u32 i = 0; i < Tabs.GetSize(); ++i)
+            if (Tabs[i].Window == win)
+                return i;
+        return TKIT_U32_MAX;
+    }
+};
+
+struct OverlayDockNode
+{
+    TKit::FixedArray<const OverlayDockNode *, 2> Children{nullptr, nullptr};
+    TKit::TierArray<LayoutId> Windows{};
+
+    LayoutAxis Axis;
+    f32 Ratio;
+    OverlayDockNodeFlags Flags = 0;
+
+    bool IsLeaf() const
+    {
+        return !Children[0];
+    }
+};
+
+const OverlayDockNode *DockSplit(LayoutAxis axis, f32 ratio, const OverlayDockNode *child0,
+                                 const OverlayDockNode *child1, OverlayDockNodeFlags flags = 0);
+const OverlayDockNode *DockTabBar(TKit::Span<const LayoutId> windows, OverlayDockNodeFlags flags = 0);
+inline const OverlayDockNode *DockTabBar(const LayoutId window, const OverlayDockNodeFlags flags = 0)
+{
+    return DockTabBar(TKit::Span<const LayoutId>{window}, flags);
+}
+
+struct DockTreeDescription
+{
+    LayoutId HostId;
+    const OverlayDockNode *Root;
+};
+
+struct DockNode
+{
+    LayoutId ContentId = NullLayoutId;
+    LayoutId BorderId = NullLayoutId;
+
+    DockNode *Parent = nullptr;
+    OverlayWindow *Host = nullptr;
+
+    TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
+
+    // should only be used to query. these are derived everytime iterateDockTreeWithLayoutUpdate() is called, which is
+    // the only placed where these two fields are allowed to be changed
+    // position is in world coords, not screen
+    f32v2 ReadOnlyPosition;
+    f32v2 ReadOnlySize;
+
+    f32 Ratio;
+    // may be 1 or 0 when a children is empty
+    f32 EffectiveRatio;
+    LayoutAxis Axis;
+
+    TabBarData TabData{};
+
+    TKit::TierArray<OverlayWindow *> Windows;
+
+    OverlayDockNodeFlags Flags = 0;
+
+    bool IsLeaf() const
+    {
+        TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
+        return !Children[0];
+    }
+    bool IsRoot() const
+    {
+        return !Parent;
+    }
+    bool IsEmpty() const;
+    bool CanUndock() const;
+
+    u32 ChildIndex(const DockNode *child) const
+    {
+        return child == Children[1];
+    }
+    DockNode *OtherChild(const DockNode *child) const
+    {
+        return Children[1 - ChildIndex(child)];
+    }
+    f32 GetChildEffectiveRatio(const DockNode *child) const
+    {
+        TKIT_ASSERT(!IsLeaf(), "[ONYX][OVERLAY] Can only get effective ratio from a parent node");
+        return Children[0] == child ? EffectiveRatio : (1.f - EffectiveRatio);
+    }
+};
+
+/////////////////////////////////////////////
+/// END DOCKING
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
 /// WINDOWS
 /////////////////////////////////////////////
 
@@ -364,6 +504,7 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    OverlayWindowFlag_ChildGrowWidth = 1ULL << 44,
     OverlayWindowFlag_NoUndocking = 1ULL << 45,
     OverlayWindowFlag_NoBackground = 1ULL << 46,
     OverlayWindowFlag_NoBorders = 1ULL << 47,
@@ -385,7 +526,6 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
     OverlayWindowFlag_MoveWithHeader = 1ULL << 63,
 };
 
-struct DockNode;
 struct GrabInfo
 {
     DockNode *DockNode;
@@ -409,7 +549,6 @@ struct NextWindowData
     NextWindowFlags Flags = 0;
 };
 
-struct OverlayWindow;
 struct NativeWindow
 {
     Window *Window;
@@ -504,99 +643,12 @@ struct NativeWindow
     }
 };
 
-struct Tab
-{
-    LayoutId Id;
-    // only used for docking
-    OverlayWindow *Window = nullptr;
-    //
-    TKit::TierString Title;
-    OverlayTabFlags Flags = 0;
-};
-
-struct TabBarData
-{
-    LayoutId Id;
-    LayoutId OpenId = NullLayoutId;
-
-    u32 Current = TKIT_U32_MAX;
-
-    TKit::TierArray<Tab> Tabs{};
-    TKit::TierArray<u32> Order{};
-    OverlayTabBarFlags Flags = 0;
-
-    u32 GetTabById(const LayoutId id) const
-    {
-        for (u32 i = 0; i < Tabs.GetSize(); ++i)
-            if (Tabs[i].Id == id)
-                return i;
-        return TKIT_U32_MAX;
-    }
-    u32 GetTabByWindow(const OverlayWindow *win) const
-    {
-        for (u32 i = 0; i < Tabs.GetSize(); ++i)
-            if (Tabs[i].Window == win)
-                return i;
-        return TKIT_U32_MAX;
-    }
-};
-
-struct DockNode
-{
-    LayoutId Id = NullLayoutId;
-    LayoutId BorderId = NullLayoutId;
-
-    DockNode *Parent = nullptr;
-    OverlayWindow *Host = nullptr;
-
-    TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
-
-    // should only be used to query. these are derived everytime iterateDockTreeWithLayoutUpdate() is called, which is
-    // the only placed where these two fields are allowed to be changed
-    // position is in world coords, not screen
-    f32v2 ReadOnlyPosition;
-    f32v2 ReadOnlySize;
-
-    f32 Ratio;
-    // may be 1 or 0 when a children is empty
-    f32 EffectiveRatio;
-    LayoutAxis Axis;
-
-    TabBarData TabData{};
-
-    TKit::TierArray<OverlayWindow *> Windows;
-
-    DockNodeFlags Flags = 0;
-
-    bool IsLeaf() const
-    {
-        TKIT_ASSERT(bool(Children[0]) == bool(Children[1]), "[ONYX][OVERLAY] Dock node may not have only one children");
-        return !Children[0];
-    }
-    bool IsRoot() const
-    {
-        return !Parent;
-    }
-    bool IsEmpty() const;
-    bool CanUndock() const;
-
-    u32 ChildIndex(const DockNode *child) const
-    {
-        return child == Children[1];
-    }
-    DockNode *OtherChild(const DockNode *child) const
-    {
-        return Children[1 - ChildIndex(child)];
-    }
-    f32 GetChildEffectiveRatio(const DockNode *child) const
-    {
-        TKIT_ASSERT(!IsLeaf(), "[ONYX][OVERLAY] Can only get effective ratio from a parent node");
-        return Children[0] == child ? EffectiveRatio : (1.f - EffectiveRatio);
-    }
-};
-
 struct OverlayWindow
 {
+#ifdef TKIT_ENABLE_ENSURE
+    TKit::TierString Title{};
+#endif
+
     LayoutId Id = NullLayoutId;
     LayoutId HeaderId = NullLayoutId;
     LayoutId ContentAreaId = NullLayoutId;
@@ -1168,13 +1220,29 @@ class Overlay
         return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
     bool IsCurrentWindowPromoted() const;
-    bool IsCurrentWindowDocked() const
-    {
-        return m_Active->DockRoot;
-    }
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PUBLIC
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// DOCKING PUBLIC
+    /////////////////////////////////////////////
+
+    bool IsCurrentWindowDocked() const
+    {
+        return m_Active->IsDocked();
+    }
+    void UndockWindow(LayoutId id);
+    void SubmitDockTree(const LayoutId hostId, const OverlayDockNode *root)
+    {
+        TKIT_ASSERT(m_Flags & OverlayFlag_Docking, "[ONYX][OVERLAY] Docking must be enabled to submit dock trees");
+        TKIT_ASSERT(hostId != NullLayoutId, "[ONYX][OVERLAY] Host id may not be null");
+        m_DockTrees.Append(hostId, root);
+    }
+
+    /////////////////////////////////////////////
+    /// END DOCKING PUBLIC
     /////////////////////////////////////////////
 
     /////////////////////////////////////////////
@@ -1930,7 +1998,10 @@ class Overlay
 
     bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, TKit::StringView title = {});
 
+    OverlayWindow *findWindow(LayoutId id);
+    OverlayWindow *createOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
     OverlayWindow *getOrCreateOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
+
     void assignNativeWindowSomehow(OverlayWindow *win);
 
     void addActiveWindow(OverlayWindow *win);
@@ -1951,36 +2022,22 @@ class Overlay
         const f32 hpadding = m_Style[OverlayStyle_HeaderPadding];
         return getLineHeight() + 2.f * (wpadding + hpadding);
     }
-    OverlayWindow *createDockHost(OverlayWindow *win, DockNode *rootNode, bool fromWindow);
-    OverlayWindow *createDockHostFromWindow(OverlayWindow *win, DockNode *rootNode)
-    {
-        return createDockHost(win, rootNode, true);
-    }
-    OverlayWindow *createDockHostFromNode(OverlayWindow *win, DockNode *rootNode)
-    {
-        return createDockHost(win, rootNode, false);
-    }
 
     Layout *createLayout();
-    void destroyLayout(Layout *ly);
-    void removeLayout(Layout *ly);
+    void destroyLayout(const Layout *ly);
+    void removeLayout(const Layout *ly);
 
     OverlayWindow *createOverlayWindow();
-    void destroyOverlayWindow(OverlayWindow *win, bool scrub = true);
-    void removeOverlayWindow(OverlayWindow *win);
+    void destroyOverlayWindow(const OverlayWindow *win, bool scrub = true);
+    void removeOverlayWindow(const OverlayWindow *win);
 
     NativeWindow *createNativeWindow(Window *win);
     NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims, WindowFlags flags = 0);
 
     void cleanupWindowState();
 
-    void destroyNativeWindow(NativeWindow *win);
-    void removeNativeWindow(NativeWindow *win);
-
-    DockNode *createDockNode();
-
-    void destroyDockNode(DockNode *node);
-    void removeDockNode(DockNode *node);
+    void destroyNativeWindow(const NativeWindow *win);
+    void removeNativeWindow(const NativeWindow *win);
 
     NativeWindow *promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
     void demoteWindow(OverlayWindow *win);
@@ -1994,17 +2051,6 @@ class Overlay
     {
         iterateReverseWindows(m_ActiveWindows, std::forward<F>(func));
     }
-    template <typename F> void iterateDockTreeWithLayoutUpdate(OverlayWindow *win, F func);
-
-    void buildDockHostHierarchy(OverlayWindow *host);
-
-    void detachNodeFromParent(DockNode *node);
-    void undockWindow(OverlayWindow *win);
-    void undockNode(DockNode *node);
-
-    void undockMarked();
-    void dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
-
     NativeWindow *getMainNativeWindow()
     {
         return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
@@ -2022,7 +2068,6 @@ class Overlay
     // time, so 32 should be plenty
     TKit::StaticArray32<OverlayWindow *> m_OverlayWindows{};
     TKit::StaticArray32<Layout *> m_Layouts{};
-    TKit::StaticArray64<DockNode *> m_DockNodes{};
     TKit::StaticArray<NativeWindow *, ONYX_MAX_VIEWS> m_NativeWindows{};
     TKit::StaticHashMap<LayoutId, NativeWindow *, 4 * ONYX_MAX_VIEWS> m_FloatWindows{};
 
@@ -2033,12 +2078,54 @@ class Overlay
 
     OverlayWindow *m_Active = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
-    OverlayWindow *m_DockSource = nullptr;
 
     u64 m_LayerCount = 0;
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PRIVATE
+    /////////////////////////////////////////////
+
+    /////////////////////////////////////////////
+    /// DOCKING PRIVATE
+    /////////////////////////////////////////////
+
+    DockNode *createDockNode();
+
+    void destroyDockNode(const DockNode *node);
+    void removeDockNode(const DockNode *node);
+
+    OverlayWindow *createDockHost(const OverlayWindow *win, DockNode *rootNode, bool fromWindow);
+    OverlayWindow *createDockHostFromWindow(const OverlayWindow *win, DockNode *rootNode)
+    {
+        return createDockHost(win, rootNode, true);
+    }
+    OverlayWindow *createDockHostFromNode(const OverlayWindow *win, DockNode *rootNode)
+    {
+        return createDockHost(win, rootNode, false);
+    }
+
+    template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func);
+
+    void buildDockHostHierarchy(OverlayWindow *host);
+
+    void detachNodeFromParent(DockNode *node);
+    void undockWindow(OverlayWindow *win);
+    void undockNode(DockNode *node);
+
+    void undockMarked();
+
+    DockNode *dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 ration, OverlayWindow *source = nullptr,
+                         OverlayWindow *target = nullptr);
+    void dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
+
+    void applyDockTrees();
+
+    TKit::StaticArray64<DockNode *> m_DockNodes{};
+    TKit::StaticArray8<DockTreeDescription> m_DockTrees{};
+    OverlayWindow *m_DockSource = nullptr;
+
+    /////////////////////////////////////////////
+    /// END DOCKING PRIVATE
     /////////////////////////////////////////////
 
     /////////////////////////////////////////////
@@ -2676,3 +2763,4 @@ class Overlay
 /// END IMPLEMENTATION
 /////////////////////////////////////////////
 } // namespace Onyx
+// NOLINTEND(performance-unnecessary-value-param)

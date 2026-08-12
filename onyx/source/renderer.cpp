@@ -851,7 +851,7 @@ template <Dimension D> static u32 getContextIndex(const RenderContext<D> *contex
     return TKIT_U32_MAX;
 }
 
-template <Dimension D> void DestroyContext(RenderContext<D> *context)
+template <Dimension D> void DestroyContext(const RenderContext<D> *context)
 {
     RendererData<D> &rdata = getRendererData<D>();
     const u32 index = getContextIndex(context);
@@ -4319,8 +4319,8 @@ template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorS
 template RenderContext<D2> *CreateContext(u32 immediateDynamicMeshCapacity);
 template RenderContext<D3> *CreateContext(u32 immediateDynamicMeshCapacity);
 
-template void DestroyContext(RenderContext<D2> *context);
-template void DestroyContext(RenderContext<D3> *context);
+template void DestroyContext(const RenderContext<D2> *context);
+template void DestroyContext(const RenderContext<D3> *context);
 
 template void BindBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
                              u32 dstElement);

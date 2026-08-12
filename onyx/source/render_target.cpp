@@ -6,9 +6,9 @@ namespace Onyx
 RenderTarget::~RenderTarget()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (RenderView<D2> *rv : m_RenderViews2)
+    for (const RenderView<D2> *rv : m_RenderViews2)
         tier->Destroy(rv);
-    for (RenderView<D3> *rv : m_RenderViews3)
+    for (const RenderView<D3> *rv : m_RenderViews3)
         tier->Destroy(rv);
 }
 template <Dimension D> RenderView<D> *RenderTarget::CreateRenderView(Camera<D> *camera, RenderViewFlags flags)
@@ -24,7 +24,7 @@ template <Dimension D> RenderView<D> *RenderTarget::CreateRenderView(Camera<D> *
     return rv;
 }
 
-template <Dimension D> void RenderTarget::DestroyRenderView(RenderView<D> *rv)
+template <Dimension D> void RenderTarget::DestroyRenderView(const RenderView<D> *rv)
 {
     TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views = getRenderViews<D>();
     for (u32 i = 0; i < views.GetSize(); ++i)
@@ -57,6 +57,6 @@ template RenderView<D2> *RenderTarget::CreateRenderView<D2>(Camera<D2> *camera, 
 
 template RenderView<D3> *RenderTarget::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags);
 
-template void RenderTarget::DestroyRenderView<D2>(RenderView<D2> *view);
-template void RenderTarget::DestroyRenderView<D3>(RenderView<D3> *view);
+template void RenderTarget::DestroyRenderView<D2>(const RenderView<D2> *view);
+template void RenderTarget::DestroyRenderView<D3>(const RenderView<D3> *view);
 } // namespace Onyx

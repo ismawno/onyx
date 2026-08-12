@@ -1,3 +1,4 @@
+// NOLINTBEGIN(performance-unnecessary-value-param)
 #pragma once
 
 #include "onyx/handle.hpp"
@@ -225,7 +226,7 @@ struct LayoutId
     LayoutId(const TKit::StringView id) : Id(TKit::Hash(id))
     {
 #ifdef TKIT_ENABLE_ENSURE
-        __DebugName = {id.GetData(), id.GetSize()};
+        onyx_DebugName = {id.GetData(), id.GetSize()};
 #endif
     }
     LayoutId(const char *id) : LayoutId(TKit::StringView{id})
@@ -251,7 +252,7 @@ struct LayoutId
 
     usz Id;
 #ifdef TKIT_ENABLE_ENSURE
-    TKit::TierString __DebugName{};
+    TKit::TierString onyx_DebugName{};
 #endif
 };
 
@@ -520,3 +521,5 @@ template <> struct std::hash<Onyx::LayoutId>
         return id.Id;
     }
 };
+
+// NOLINTEND(performance-unnecessary-value-param)

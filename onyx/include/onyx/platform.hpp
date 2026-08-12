@@ -12,7 +12,7 @@ struct VideoMode
 };
 
 Window *CreateWindow(const WindowSpecs &specs = {});
-void DestroyWindow(Window *window);
+void DestroyWindow(const Window *window);
 void DestroyWindows();
 
 void SetClipboard(const char *data);
