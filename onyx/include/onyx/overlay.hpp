@@ -1104,13 +1104,6 @@ struct OverlaySpecs
 
 // TODO(Isma): Shrink docking preview with size AND trigger center if header id is hovered. ill have to save the id, but
 // actually i think its just the header bar id
-// TODO(Isma): Add _NoBorder flag as well... somehow
-// TODO(Isma): Attempt to fully support child windows
-// TODO(Isma): Handle m_Current better. Rename to m_LayoutWindow or smth, and create m_ChildWindow, m_DockedWindow etc
-// TODO(Isma): Add a _NoBackground flag maybe, and in begin window, do (flags | m_LayoutWindow->Flags) & _NoBackground.
-// child window _NoBackground could go to the dock node actually
-// TODO(Isma): Ill have to generalize the check m_Current == m_MainDockSpace actually, to support general dockspaces i
-// guess. with the _NoBackground flag i guess it can work
 // TODO(Isma): Add _ChildWindow flag. this one should not persist every window call
 // TODO(Isma): Stop m_Current->Flags inheriting _MenuBar. instead, in the MenuBar call check, just use m_ChildWindow or
 // whatever i have named it!

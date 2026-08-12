@@ -17,20 +17,20 @@ static constexpr f32 s_CheckboardLight = 0.5f;
 static constexpr f32 s_CheckboardDark = 0.3f;
 static constexpr usz s_BaseId = 0xA7C3E1D9B4F20856;
 
-template <typename F> static bool iterateDockTree(DockNode *node, const F func)
+template <typename T, typename F> static bool iterateDockTree(T *node, const F func)
 {
-    TKit::StaticArray64<DockNode *> nodes{};
+    TKit::StaticArray64<T *> nodes{};
 
     nodes.Append(node);
     while (!nodes.IsEmpty())
     {
-        DockNode *node = nodes.GetBack();
+        T *node = nodes.GetBack();
         nodes.Pop();
 
         if (!node->IsLeaf())
         {
-            DockNode *c0 = node->Children[0];
-            DockNode *c1 = node->Children[1];
+            T *c0 = node->Children[0];
+            T *c1 = node->Children[1];
 
             nodes.Append(c1);
             nodes.Append(c0);
@@ -47,7 +47,8 @@ template <typename F> static bool iterateDockTree(DockNode *node, const F func)
                     (win)->Title.IsEmpty() ? "Unnamed" : (win)->Title, (win)->Id.Id);
 
 // fyi this was generated
-static void validateDockTree(DockNode *root, const TKit::StaticArray64<DockNode *> &dockNodes, const char *context)
+static void validateDockTree(const DockNode *root, const TKit::StaticArray64<DockNode *> &dockNodes,
+                             const char *context)
 {
     if (!root)
         return;
@@ -156,7 +157,7 @@ static void validateWindowHierarchy(const TKit::StaticArray32<OverlayWindow *> &
 #define ENABLE_LOG_DOCK_TREE
 #ifdef ENABLE_LOG_DOCK_TREE // TKIT_ENABLE_DEBUG_LOGS
 // fyi this was generated
-static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, OverlayWindow *win, const char *label)
+static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, const OverlayWindow *win, const char *label)
 {
     TKIT_LOG_INFO("[ONYX][OVERLAY] === Begin {} ===", label);
 #    ifdef TKIT_ENABLE_ENSURE
@@ -1065,7 +1066,9 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
     const bool wasAutoresize = active->Flags & OverlayWindowFlag_AutoResize;
 
-    active->Flags &= WindowInternalFlagPersist;
+    if (!active->IsDockHost())
+        active->Flags &= WindowInternalFlagPersist;
+
     active->Flags |= flags;
     if (active->Flags & OverlayWindowFlag_NoBorders)
         active->Flags |= OverlayWindowFlag_NoResize;
@@ -2523,7 +2526,10 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
         host->Layer = toTop();
     }
     else
+    {
         host->Parent = win->Parent;
+        host->Flags |= win->Flags & OverlayWindowFlag_ChildGrowWidth;
+    }
 
     NativeWindow *nw = win->GetNative();
     if (win->Flags & WindowInternalFlag_OwnsNative)
@@ -2545,7 +2551,6 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
         host->ScreenPos = fromWindow ? win->ScreenPos : win->ToLocalScreen(rootNode->ReadOnlyPosition);
     }
     host->DockRoot = rootNode;
-    host->Flags |= OverlayWindowFlag_NoHeaderBar;
 
     return host;
 }
@@ -3111,7 +3116,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
     const f32v2 wpos = ownsNative ? nw->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
     const f32v2 &wsize = win->Size;
 
-    const f32 previewSize = Math::Min(20.f, Math::Min(wsize[0], wsize[1]));
+    const f32 previewSize = Math::Min(20.f, 0.1f * Math::Min(wsize[0], wsize[1]));
     const f32 previewRadius = 0.4f * previewSize;
     const f32 previewGap = 6.f;
 
@@ -3176,6 +3181,13 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             offset[loc[axis]] = sign * dpos;
 
         f32v2 pos = middle + offset;
+
+        if (!win->IsRoot())
+        {
+            const OverlayWindow *p = win->Parent;
+            const f32v2 center = p->ToWorld(p->ScreenPos) + 0.5f * f32v2{p->Size[0], -p->Size[1]};
+            ctx->Clip(center, p->Size);
+        }
         ctx->SetTranslation(pos);
         ctx->RoundedRect(botParams);
 
