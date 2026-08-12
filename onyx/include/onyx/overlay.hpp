@@ -504,6 +504,7 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    OverlayWindowFlag_MousePassThrough = 1ULL << 43,
     OverlayWindowFlag_ChildGrowWidth = 1ULL << 44,
     OverlayWindowFlag_NoUndocking = 1ULL << 45,
     OverlayWindowFlag_NoBackground = 1ULL << 46,
@@ -1102,20 +1103,8 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): Shrink docking preview with size AND trigger center if header id is hovered. ill have to save the id, but
-// actually i think its just the header bar id
-// TODO(Isma): Add _ChildWindow flag. this one should not persist every window call
-// TODO(Isma): Stop m_Current->Flags inheriting _MenuBar. instead, in the MenuBar call check, just use m_ChildWindow or
-// whatever i have named it!
-// TODO(Isma): For the layers, child windows should have the same layer and then let the insertion order handle the rest
-// TODO(Isma): independentlyActive must change. we have to make sure win is a physical window
-// TODO(Isma): Actually, host's dock parent should be null...
-// TODO(Isma): To successfully not support auto resize in docking, i have to remove the flag explicitly
 // TODO(Isma): I need not to capture mouse, ie, passthru
-// TODO(Isma): Root window is the one that must always be brought to top
 // TODO(Isma): BUG: When collapsing "Child windows" tree node with a dock tree, the opened tab changes??
-// TODO(Isma): Clip child previews if they exceed parent window
-// TODO(Isma): POSSIBLE BUG: must grab when undocked must not be set if target cannot be moved
 class Overlay
 {
     /////////////////////////////////////////////
@@ -2501,7 +2490,8 @@ class Overlay
 
     struct TextInputStateInfo
     {
-        u32 Cursor;
+        u32 CursorStart;
+        u32 CursorEnd;
         TKit::TierString Text;
     };
 

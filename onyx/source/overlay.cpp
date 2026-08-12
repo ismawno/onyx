@@ -1864,7 +1864,8 @@ u32 Overlay::processWindows()
         {
             win->Flags |= WindowInternalFlag_Hovered;
 
-            m_StateFlags |= StateFlag_WantCaptureMouse;
+            if (!(win->Flags & OverlayWindowFlag_MousePassThrough))
+                m_StateFlags |= StateFlag_WantCaptureMouse;
             // we want to keep assigning hover flags until we reach a root. windows are carefully sorted so that, when
             // reverse-iterating, the children of a root window will come first. so we will keep assigning _Hovered
             // until we hit the parent
@@ -1944,6 +1945,7 @@ u32 Overlay::processWindows()
     }
     else if (m_Grabbed)
     {
+        m_StateFlags |= StateFlag_WantCaptureMouse;
         m_Grabbed->Grab.InteractionColor = OverlayColor_WindowBorderPressed;
         GrabInfo &ginfo = m_Grabbed->Grab;
 
@@ -3323,7 +3325,10 @@ void Overlay::applyDockTrees()
 
             const OverlayDockNode *unode = info.UserNode;
             DockNode *node = info.Node;
+            node->Flags = unode->Flags;
+
             DockNode *parent = dockInsert(node, getDirection(unode), unode->Ratio);
+
             if (parent->IsRoot())
                 root = parent;
 
@@ -4677,10 +4682,10 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Key_Z])
         {
             const TextInputStateInfo &info = m_UndoStack.GetBack();
-            m_RedoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+            m_RedoStack.Append(m_CursorStart, m_CursorEnd, str);
 
-            m_CursorStart = info.Cursor;
-            m_CursorEnd = info.Cursor;
+            m_CursorStart = info.CursorStart;
+            m_CursorEnd = info.CursorEnd;
             str = info.Text;
 
             m_UndoStack.Pop();
@@ -4689,21 +4694,20 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         if (undoRedo && ctrl && !m_RedoStack.IsEmpty() && nw->EventKeys[Key_Y])
         {
             const TextInputStateInfo &info = m_RedoStack.GetBack();
-            m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+            m_UndoStack.Append(m_CursorStart, m_CursorEnd, str);
 
-            m_CursorStart = info.Cursor;
-            m_CursorEnd = info.Cursor;
+            m_CursorStart = info.CursorStart;
+            m_CursorEnd = info.CursorEnd;
             str = info.Text;
 
             m_RedoStack.Pop();
-            updated = true;
             updated = true;
         }
 
         const auto pushUndo = [&] {
             if (undoRedo)
             {
-                m_UndoStack.Append(Math::Max(m_CursorStart, m_CursorEnd), str);
+                m_UndoStack.Append(m_CursorStart, m_CursorEnd, str);
                 m_RedoStack.Clear();
             }
         };
@@ -6310,6 +6314,7 @@ f32v4 Overlay::getWorldEffectiveBorders() const
 
 static void editDemoWindowFlags(Overlay *ov, Onyx::OverlayWindowFlags *flags)
 {
+    ov->CheckBoxFlags("OverlayWindowFlag_MousePassThrough", flags, Onyx::OverlayWindowFlag_MousePassThrough);
     ov->CheckBoxFlags("OverlayWindowFlag_ChildGrowWidth", flags, Onyx::OverlayWindowFlag_ChildGrowWidth);
     ov->CheckBoxFlags("OverlayWindowFlag_NoUndocking", flags, Onyx::OverlayWindowFlag_NoUndocking);
     ov->CheckBoxFlags("OverlayWindowFlag_NoBackground", flags, Onyx::OverlayWindowFlag_NoBackground);
