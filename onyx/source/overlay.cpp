@@ -1655,24 +1655,22 @@ u32 Overlay::processWindows()
     {
         MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseActiveWindows([&](OverlayWindow *win) {
-            if (win->IsDocked())
-                return true;
-
             GrabInfo &ginfo = win->Grab;
             ginfo.Flags = 0;
             ginfo.DockNode = nullptr;
 
             // if hovering a widget or window is not hovered (mouse is not on window) remove any hovering and skip
             const bool winHovered = win->Flags & (WindowInternalFlag_Hovered | WindowInternalFlag_Focused);
-            const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
-            const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
             if (winHovered && (win->Flags & WindowInternalFlag_InputHovered))
             {
                 cursor = MouseCursor_IBeam;
                 return false;
             }
+
+            const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
+            const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
             // if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
-            if (!winHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
+            if (!winHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked || win->IsDocked())
                 return true;
 
             ResizeFlags rflags = 0;
@@ -1875,7 +1873,10 @@ u32 Overlay::processWindows()
                 iterateDockTree(win->DockRoot, [&](DockNode *node) {
                     if (node->IsLeaf())
                         for (OverlayWindow *win : node->Windows)
+                        {
                             win->Flags |= WindowInternalFlag_Hovered;
+                            win->Flags &= ~WindowInternalFlag_InputHovered;
+                        }
                     return true;
                 });
         }
