@@ -3352,6 +3352,8 @@ void Overlay::applyDockTrees()
         else if (!host->DockRoot)
         {
             root = createDockNode();
+            root->Windows.Append(host);
+
             host = createDockHostFromWindow(host, root);
 
             host->DockRoot = root;
@@ -3398,6 +3400,10 @@ void Overlay::applyDockTrees()
                     ASSERT_WITH_WINDOW(
                         win, !win->IsDocked(),
                         "[ONYX][OVERLAY] Cannot submit a window to be docked that is already docked elsewhere");
+                    ASSERT_WITH_WINDOW(
+                        win, win->IsRoot(),
+                        "[ONYX][OVERLAY] Any window specified to be docked must be a free window (that is, not a child "
+                        "window). Child windows cannot be docked directly, and can only be turned into dock hosts");
 
                     node->Windows.Append(win);
                     win->DockParent = node;
