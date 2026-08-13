@@ -613,9 +613,10 @@ enum WindowInternalFlagBit : OverlayWindowFlags
 
     WindowInternalFlag_HasActiveChildren = 1ULL << 15,
     WindowInternalFlag_DockSpace = 1ULL << 16,
+    WindowInternalFlag_DockSpaceSubmissionOrderMatters = 1ULL << 17,
 
     // flags that persist when beginning a new window. essentially all private flags
-    WindowInternalFlagPersist = ~(TKit::Limits<OverlayWindowFlags>::Max() << 17),
+    WindowInternalFlagPersist = ~(TKit::Limits<OverlayWindowFlags>::Max() << 18),
 };
 
 /////////////////////////////////////////////
@@ -1026,6 +1027,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         return false;
     }
 
+    active->SubmissionOrder = m_SubmissionOrder++;
     active->PopupDepth = m_CurrentPopupDepth;
     const bool isDocked = active->IsDocked();
 
@@ -1350,7 +1352,10 @@ OverlayWindow *Overlay::createOverlayWindow(const LayoutId id, OverlayWindow *pa
     assignNativeWindowSomehow(win);
     win->Parent = parent;
     if (parent)
+    {
         win->Parent = parent;
+        win->Flags |= WindowInternalFlag_DockSpaceSubmissionOrderMatters;
+    }
     else
         win->Layout = createLayout();
 
@@ -1792,7 +1797,6 @@ u32 Overlay::processWindows()
     };
 
     bool canAssignHover = true;
-    const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
 
     OverlayWindow *secondHovered = nullptr;
     iterateReverseActiveWindows([&](OverlayWindow *win, const bool overrideHovered = false) {
@@ -1868,9 +1872,19 @@ u32 Overlay::processWindows()
         return true;
     });
 
-    if (dockingEnabled && secondHovered && m_DockSource && (m_DockSource->Flags & WindowInternalFlag_HeaderGrabbed) &&
-        !((m_DockSource->Flags | secondHovered->Flags) & OverlayWindowFlag_NoDocking))
-        secondHovered->Flags |= WindowInternalFlag_IsDockTarget;
+    OverlayWindow *dockTarget = secondHovered;
+    if (dockTarget)
+        for (;;)
+        {
+            if (canDockingHappen(dockTarget))
+            {
+                dockTarget->Flags |= WindowInternalFlag_IsDockTarget;
+                break;
+            }
+            if (dockTarget->IsRoot())
+                break;
+            dockTarget = dockTarget->Parent;
+        }
 
     iterateReverseActiveWindows([&](OverlayWindow *win) {
         win->Flags |= WindowInternalFlag_Focused;
@@ -2159,7 +2173,9 @@ void Overlay::cleanupWindowState()
 
         win->Flags &= ~(WindowInternalFlag_WantUpdateSize | WindowInternalFlag_Active |
                         WindowInternalFlag_MultipleAppends | WindowInternalFlag_HasActiveChildren);
+        win->SubmissionOrder = TKIT_U32_MAX;
     }
+    m_SubmissionOrder = 0;
 }
 
 void Overlay::destroyNativeWindow(const NativeWindow *win)
@@ -2417,6 +2433,7 @@ LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags,
         root->Host = host;
         host->DockRoot = root;
     }
+    host->Flags |= WindowInternalFlag_DockSpaceSubmissionOrderMatters;
     host->DockRoot->Flags = flags;
 
     m_WindowStack.Append(host);
@@ -2535,7 +2552,8 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
     else
     {
         host->Parent = win->Parent;
-        host->Flags |= win->Flags & OverlayWindowFlag_ChildGrowWidth;
+        host->Flags |=
+            (win->Flags & OverlayWindowFlag_ChildGrowWidth) | WindowInternalFlag_DockSpaceSubmissionOrderMatters;
     }
 
     NativeWindow *nw = win->GetNative();
@@ -2628,10 +2646,24 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
     }
 }
 
+bool Overlay::canDockingHappen(const OverlayWindow *target) const
+{
+    const OverlayWindow *source = m_DockSource;
+    const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
+    const bool dockAttempt = dockingEnabled && source && (source->Flags & WindowInternalFlag_HeaderGrabbed);
+
+    const bool dockAllowed = dockAttempt && !((source->Flags | target->Flags) & OverlayWindowFlag_NoDocking);
+
+    const bool submissionOk = dockAllowed && (!(target->Flags & WindowInternalFlag_DockSpaceSubmissionOrderMatters) ||
+                                              target->SubmissionOrder < source->SubmissionOrder);
+    return submissionOk;
+}
+
 void Overlay::beginDockHost(OverlayWindow *host, const OverlayWindowFlags flags)
 {
     TKit::TierArray<LayoutId> backup{std::move(m_IdStack)};
     PushId(host->Id);
+
     TKIT_ENSURE_RETURNS(beginWindow(host, nullptr,
                                     flags | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_NoCollapse |
                                         OverlayWindowFlag_NoCloseButton),

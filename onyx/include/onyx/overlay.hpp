@@ -670,6 +670,7 @@ struct OverlayWindow
 
     Layout *Layout = nullptr;
 
+    u32 SubmissionOrder = TKIT_U32_MAX;
     GrabInfo Grab{};
 
     f32v2 ScreenPos{120.f};
@@ -1233,6 +1234,8 @@ class Overlay
         m_DockTrees.Append(hostId, root);
     }
 
+    // dockspaces (and implicit dockspaces created by child windows) must be submitted before any window that can be
+    // docked into
     LayoutId DockSpace(LayoutId id, OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
     // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
     LayoutId FullScreenDockSpace(OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
@@ -2076,6 +2079,7 @@ class Overlay
     OverlayWindow *m_Grabbed = nullptr;
 
     u64 m_LayerCount = 0;
+    u32 m_SubmissionOrder = 0;
 
     /////////////////////////////////////////////
     /// END WINDOWS/MENUS PRIVATE
@@ -2101,6 +2105,8 @@ class Overlay
     }
 
     template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func);
+
+    bool canDockingHappen(const OverlayWindow *target) const;
 
     void beginDockHost(OverlayWindow *host, OverlayWindowFlags flags = 0);
     void buildDockHostHierarchy(OverlayWindow *host);
