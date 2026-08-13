@@ -107,7 +107,9 @@ enum OverlayColor : u8
     OverlayColor_None,
     OverlayColor_Text,
     OverlayColor_Line,
+
     OverlayColor_DockPreview,
+    OverlayColor_DockSpaceBackground,
 
     OverlayColor_DragOutline,
 
@@ -354,6 +356,7 @@ struct OverlayColorHandle
 enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
+    OverlayDockNodeFlag_NoResize = 1U << 1,
 
     DockNodeFlag_MustUndock = 1U << 1,
     DockNodeFlag_MustGrabWhenUndocked = 1U << 2,
@@ -504,6 +507,7 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    OverlayWindowFlag_MergeIdWithStack = 1ULL << 42,
     OverlayWindowFlag_MousePassThrough = 1ULL << 43,
     OverlayWindowFlag_ChildGrowWidth = 1ULL << 44,
     OverlayWindowFlag_NoUndocking = 1ULL << 45,
@@ -724,7 +728,9 @@ struct OverlayWindow
     }
     void SetLayer(const u64 layer)
     {
-        GetRoot()->Layer = layer;
+        OverlayWindow *root = GetRoot();
+        if (!(root->Flags & OverlayWindowFlag_NoBringToFocus))
+            root->Layer = layer;
     }
     Onyx::Layout *GetActiveLayout() const
     {
@@ -1027,7 +1033,8 @@ struct ScrollInfo
 
 struct ScrollParameterSpecs
 {
-    LayoutId Id;
+    LayoutId ScrollId;
+    LayoutId PanelId;
     LayoutDirection Direction = LayoutDirection_TopToBottom; // useful for tabs
     vec2<LayoutSizing> OuterSizing;
     vec2<LayoutSizing> ContentSizing;
@@ -1153,8 +1160,12 @@ class Overlay
     }
     void EndWindow();
 
-    // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
-    // bool FullScreenDockSpace();
+    void DeclareWindow(const LayoutId id, const OverlayWindowFlags flags = 0, const LayoutId parentId = NullLayoutId)
+    {
+        TKIT_ASSERT(!findWindow(id), "[ONYX][OVERLAY] Cannot declare a window that already exists");
+        OverlayWindow *parent = parentId == NullLayoutId ? nullptr : findWindow(parentId);
+        createOverlayWindow(id, parent)->Flags |= flags;
+    }
 
     bool BeginMenuBar();
     void EndMenuBar();
@@ -1222,6 +1233,10 @@ class Overlay
         TKIT_ASSERT(hostId != NullLayoutId, "[ONYX][OVERLAY] Host id may not be null");
         m_DockTrees.Append(hostId, root);
     }
+
+    LayoutId DockSpace(LayoutId id, OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
+    // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
+    LayoutId FullScreenDockSpace(OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
 
     /////////////////////////////////////////////
     /// END DOCKING PUBLIC
@@ -2088,6 +2103,7 @@ class Overlay
 
     template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func);
 
+    void beginDockHost(OverlayWindow *host, OverlayWindowFlags flags = 0);
     void buildDockHostHierarchy(OverlayWindow *host);
 
     void detachNodeFromParent(DockNode *node);
@@ -2105,6 +2121,8 @@ class Overlay
     TKit::StaticArray64<DockNode *> m_DockNodes{};
     TKit::StaticArray8<DockTreeDescription> m_DockTrees{};
     OverlayWindow *m_DockSource = nullptr;
+    OverlayWindow *m_MainDockSpace = nullptr;
+    f32 m_MainDockSpaceOffset = 0.f;
 
     /////////////////////////////////////////////
     /// END DOCKING PRIVATE

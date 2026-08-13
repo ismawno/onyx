@@ -253,12 +253,11 @@ enum StateFlagBit : StateFlags
     StateFlag_DragPayloadAccepted = 1U << 16,
     StateFlag_DragPayloadRejected = 1U << 17,
     StateFlag_ActivePromotedFloatElement = 1U << 18,
-    // StateFlag_MainDockHostMustPersist = 1U << 19,
 
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
                        StateFlag_FocusBlockByPopupCollapse | StateFlag_Disabled | StateFlag_WantCaptureMouse |
-                       StateFlag_WantCaptureKeyboard // | StateFlag_MainDockHostMustPersist
+                       StateFlag_WantCaptureKeyboard,
 };
 
 /////////////////////////////////////////////
@@ -466,7 +465,9 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
     colors[OverlayColor_None] = Color_Transparent;
     colors[OverlayColor_Text] = palette[OverlayPalette_Text0];
     colors[OverlayColor_Line] = palette[OverlayPalette_Background1];
+
     colors[OverlayColor_DockPreview] = Color{palette[OverlayPalette_Inner0], 0.6f};
+    colors[OverlayColor_DockSpaceBackground] = palette[OverlayPalette_Idle2];
 
     colors[OverlayColor_DragOutline] = palette[OverlayPalette_Background1];
 
@@ -611,9 +612,10 @@ enum WindowInternalFlagBit : OverlayWindowFlags
     WindowInternalFlag_AllowForLayoutToCatchUp = 1ULL << 14,
 
     WindowInternalFlag_HasActiveChildren = 1ULL << 15,
+    WindowInternalFlag_DockSpace = 1ULL << 16,
 
     // flags that persist when beginning a new window. essentially all private flags
-    WindowInternalFlagPersist = ~(TKit::Limits<OverlayWindowFlags>::Max() << 16),
+    WindowInternalFlagPersist = ~(TKit::Limits<OverlayWindowFlags>::Max() << 17),
 };
 
 /////////////////////////////////////////////
@@ -751,12 +753,13 @@ bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, const OverlayW
     if (opened && !(*opened))
         return false;
 
-    OverlayWindow *active = getOrCreateOverlayWindow(label.Id, m_Active);
+    const LayoutId stackedId = PushId(label.Id);
+    const bool merge = flags & OverlayWindowFlag_MergeIdWithStack;
+    OverlayWindow *active = getOrCreateOverlayWindow(merge ? stackedId : label.Id, m_Active);
 
     m_WindowStack.Append(active);
     m_Active = active;
 
-    PushId(label.Id);
     if (beginWindow(active, opened, flags, label.Title))
         return true;
 
@@ -795,35 +798,6 @@ void Overlay::EndWindow()
     popWindowStack();
     PopId();
 }
-
-// bool Overlay::FullScreenDockSpace()
-// {
-//     if (!(m_Flags & OverlayFlag_Docking) || (m_Flags & OverlayFlag_FloatingMode))
-//         return false;
-//
-//     TKIT_ASSERT(!m_MainDockHost, "[ONYX][OVERLAY] Can only call FullScreenDockSpace() once every Draw() call");
-//     OverlayWindow *host = getOrCreateOverlayWindow("__onyx_id_Main_dockspace");
-//     if (!host->DockRoot)
-//     {
-//         DockNode *root = createDockNode();
-//         host->DockRoot = root;
-//         host->DockParent = root;
-//         host->Flags |= OverlayWindowFlag_NoResize | OverlayWindowFlag_NoMove | OverlayWindowFlag_NoPromotion |
-//                        OverlayWindowFlag_NoBringToFocus;
-//
-//         root->Host = host;
-//         root->Flags |= OverlayDockNodeFlag_CanBeEmpty;
-//
-//     }
-//
-//     host->ScreenPos = f32v2{0.f};
-//     host->Size = host->Native->Size;
-//     host->Flags &= ~WindowInternalFlag_IsDockTarget;
-//
-//     m_MainDockHost = host;
-//     m_StateFlags |= StateFlag_MainDockHostMustPersist;
-//     return true;
-// }
 
 bool Overlay::BeginMenuBar()
 {
@@ -880,12 +854,8 @@ bool Overlay::BeginMainMenuBar()
 
     const LayoutElement *elm = ly->QueryElement(id);
     m_Active->Size = elm ? elm->Size : f32v2{xsize, getWindowMinSize()};
-    // if (m_MainDockHost)
-    // {
-    //     const f32 shift = m_Active->Size[1];
-    //     m_MainDockHost->Size[1] -= shift;
-    //     m_MainDockHost->ScreenPos[1] += shift;
-    // }
+    if (m_MainDockSpace)
+        m_MainDockSpaceOffset = m_Active->Size[1];
 
     m_Active->ContentAreaId = ly->BeginPanel(contentId, LyPnPar{.FillColor = m_Style[OverlayColor_MenuBarBackground],
                                                                 .Direction = LayoutDirection_LeftToRight,
@@ -1068,6 +1038,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
     if (!active->IsDockHost())
         active->Flags &= WindowInternalFlagPersist;
+    else
+        active->Flags &= ~OverlayWindowFlag_BringToTop;
 
     active->Flags |= flags;
     if (active->Flags & OverlayWindowFlag_NoBorders)
@@ -1095,7 +1067,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
     {
         if (active->IsFullscreenBlocked())
             active->Flags &= ~OverlayWindowFlag_AutoResize;
-        if (!(active->Flags & WindowInternalFlag_ActiveLastFrame))
+        if (!(active->Flags & WindowInternalFlag_ActiveLastFrame) &&
+            !(active->Flags & OverlayWindowFlag_NoBringToFocus))
             active->Flags |= OverlayWindowFlag_BringToTop;
     }
 
@@ -1157,7 +1130,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         if (active->Flags & OverlayWindowFlag_HorizontalScroll)
             sflags |= OverlayScrollFlag_HorizontalScroll;
 
-        return beginScroll({.Id = scrollId,
+        return beginScroll({.ScrollId = scrollId,
+                            .PanelId = isDocked ? active->Id : scrollId,
                             .OuterSizing = scrollSizing,
                             .ContentSizing = scrollSizing,
                             .ContentPadding = cpadding,
@@ -1254,7 +1228,16 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         }
         OverlayColor color = OverlayColor_None;
         if (!(active->Flags & OverlayWindowFlag_NoBackground))
-            color = collapsed ? OverlayColor_WindowBackgroundCollapsed : OverlayColor_WindowBackgroundExpanded;
+        {
+            if (active->Flags & WindowInternalFlag_DockSpace)
+            {
+                ASSERT_WITH_WINDOW(active, active->IsDockHost(),
+                                   "[ONYX][OVERLAY] A window cannot have the dockspace flag without being a dock host");
+                color = OverlayColor_DockSpaceBackground;
+            }
+            else
+                color = collapsed ? OverlayColor_WindowBackgroundCollapsed : OverlayColor_WindowBackgroundExpanded;
+        }
 
         ly->BeginPanel(active->Id, LyPnPar{.FillColor = m_Style[color],
                                            .Direction = LayoutDirection_TopToBottom,
@@ -1270,7 +1253,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
             queryAndSetFocusStatus(elm, FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId |
                                             FocusFlag_DoNotSetActiveId | FocusFlag_DoNotSetDraggedId);
 
-        if (!(active->Flags & OverlayWindowFlag_NoBorders))
+        if (!active->IsDockHost() && !(active->Flags & OverlayWindowFlag_NoBorders))
             drawWindowBorders(active);
 
         if (!(active->Flags & OverlayWindowFlag_NoHeaderBar))
@@ -1338,16 +1321,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         active, isDocked,
         "[ONYX][OVERLAY] The only way root window is not active but child is, is by the child window being docked");
 
-    TKit::TierArray<LayoutId> backup{std::move(m_IdStack)};
-    PushId(dockHost->Id);
-    TKIT_ENSURE_RETURNS(
-        beginWindow(dockHost, opened,
-                    OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_NoCollapse | OverlayWindowFlag_NoCloseButton),
-        true, "[ONYX][OVERLAY] If a window is docked, its parent window must not be collapsed");
-    buildDockHostHierarchy(dockHost);
-    PopId();
-    m_IdStack = std::move(backup);
-
+    beginDockHost(dockHost);
     if (beginDockedWindow())
         return true;
 
@@ -1378,10 +1352,7 @@ OverlayWindow *Overlay::createOverlayWindow(const LayoutId id, OverlayWindow *pa
     if (parent)
         win->Parent = parent;
     else
-    {
         win->Layout = createLayout();
-        win->Layer = toTop();
-    }
 
     return win;
 }
@@ -1738,7 +1709,6 @@ u32 Overlay::processWindows()
     }
 
     // check for mouse events
-    OverlayWindowFlags wflags = 0;
     f32v2 scroll{0.f};
 
     for (NativeWindow *nw : m_NativeWindows)
@@ -1825,10 +1795,7 @@ u32 Overlay::processWindows()
     const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
 
     OverlayWindow *secondHovered = nullptr;
-    const auto processWindowFocus = [&](OverlayWindow *win, const bool overrideHovered = false) {
-        if (win->IsDocked())
-            return true;
-
+    iterateReverseActiveWindows([&](OverlayWindow *win, const bool overrideHovered = false) {
         const NativeWindow *nw = win->GetNative();
         const bool popupBlocked = win->PopupDepth != m_PopupStack.GetSize();
         const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
@@ -1854,8 +1821,6 @@ u32 Overlay::processWindows()
         const bool wantsMove = (dragWithHeader ? (headerHovered && canAssignHover) : winHovered);
 
         const bool inputHovered = win->Flags & WindowInternalFlag_InputHovered;
-
-        win->Flags |= wflags;
         win->Flags &= ~WindowInternalFlag_InputHovered;
 
         if (winHovered)
@@ -1869,49 +1834,39 @@ u32 Overlay::processWindows()
             // until we hit the parent
 
             canAssignHover = !win->OwnsActiveLayout();
-            if (win->IsDockHost())
-                iterateDockTree(win->DockRoot, [&](DockNode *node) {
-                    if (node->IsLeaf())
-                        for (OverlayWindow *win : node->Windows)
-                        {
-                            win->Flags |= WindowInternalFlag_Hovered;
-                            win->Flags &= ~WindowInternalFlag_InputHovered;
-                        }
-                    return true;
-                });
         }
         else if (bodyHovered && !secondHovered && !win->IsDocked())
             secondHovered = win;
 
-        const bool wantsResize = win->Grab.Flags != 0;
-        if (pressed && (wantsResize || wantsMove))
+        GrabInfo &ginfo = win->Grab;
+        const bool wantsResize = ginfo.Flags & ResizeFlag_WindowBorder;
+        const bool wantsDockResize = ginfo.Flags & ResizeFlag_DockBorder;
+        if (!win->IsDocked() && pressed && (wantsResize || wantsMove))
         {
-            const bool allowGrab = (wantsResize && win->CanResize()) || (wantsMove && win->CanMove());
+            const bool allowGrab = (wantsMove && win->CanMove()) || (wantsResize && win->CanResize()) ||
+                                   (wantsDockResize && !(ginfo.DockNode->Flags & OverlayDockNodeFlag_NoResize));
+
             if (!(win->Flags & OverlayWindowFlag_NoBringToFocus))
                 win->SetLayer(toTop());
 
             if (!widgetHovered && !widgetPressed && !inputHovered && allowGrab)
             {
-                win->Grab.ScreenPos = win->GetActivePosition();
+                ginfo.ScreenPos = win->GetActivePosition();
 
                 // do not overwrite node size if it is a dock border resize
-                if (!(win->Grab.Flags & ResizeFlag_DockBorder))
-                    win->Grab.Size = win->Size;
+                if (!wantsDockResize)
+                    ginfo.Size = win->Size;
+
                 if (headerHovered && !wantsResize)
                     win->Flags |= WindowInternalFlag_HeaderGrabbed;
+
                 m_Grabbed = win;
                 return false;
             }
             return canAssignHover;
         }
         return true;
-    };
-
-    iterateReverseActiveWindows(processWindowFocus);
-    // even when main dockspace is not active and invisible, we need to process its focus state so that it is able to
-    // detect dockers
-    // if (m_MainDockHost && !(m_MainDockHost->Flags & WindowInternalFlag_Active))
-    //     processWindowFocus(m_MainDockHost, true);
+    });
 
     if (dockingEnabled && secondHovered && m_DockSource && (m_DockSource->Flags & WindowInternalFlag_HeaderGrabbed) &&
         !((m_DockSource->Flags | secondHovered->Flags) & OverlayWindowFlag_NoDocking))
@@ -2451,6 +2406,55 @@ void Overlay::UndockWindow(const LayoutId id)
         win->Flags |= WindowInternalFlag_MustUndock;
 }
 
+LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags, const OverlayWindowFlags wflags)
+{
+    OverlayWindow *host = getOrCreateOverlayWindow(id, m_Active);
+    host->Flags &= WindowInternalFlagPersist;
+
+    if (!host->DockRoot)
+    {
+        DockNode *root = createDockNode();
+        root->Host = host;
+        host->DockRoot = root;
+    }
+    host->DockRoot->Flags = flags;
+
+    m_WindowStack.Append(host);
+    m_Active = host;
+
+    beginDockHost(host, wflags | WindowInternalFlag_DockSpace);
+    ASSERT_WITH_WINDOW(host, !(host->Flags & WindowInternalFlag_MultipleAppends),
+                       "[ONYX][OVERLAY] Cannot submit the same dock host multiple times");
+
+    host->GetActiveLayout()->EndPanel();
+
+    popWindowStack();
+    return id;
+}
+
+LayoutId Overlay::FullScreenDockSpace(const OverlayDockNodeFlags flags, const OverlayWindowFlags wflags)
+{
+    TKIT_ASSERT(!(m_Flags & OverlayFlag_FloatingMode),
+                "[ONYX][OVERLAY] Cannot have a full screen dockspace in floating mode");
+
+    SetNextWindowPosition({0.f, m_MainDockSpaceOffset});
+    const LayoutId id = DockSpace("__onyx_id_Main_dockspace", flags,
+                                  wflags | OverlayWindowFlag_NoMove | OverlayWindowFlag_NoPromotion |
+                                      OverlayWindowFlag_NoBringToFocus | OverlayWindowFlag_NoBorders);
+
+    m_MainDockSpace = findWindow(id);
+    m_MainDockSpace->Size = m_MainDockSpace->Native->Size;
+    m_MainDockSpace->Size[1] -= m_MainDockSpaceOffset;
+    m_MainDockSpaceOffset = 0.f;
+
+    TKIT_ASSERT(m_MainDockSpace);
+    ASSERT_WITH_WINDOW(
+        m_MainDockSpace, m_MainDockSpace->IsRoot(),
+        "[ONYX][OVERLAY] The full screen dockspace can only be called outside a Begin/End window region");
+
+    return id;
+}
+
 bool DockNode::IsEmpty() const
 {
     if (IsLeaf())
@@ -2624,6 +2628,23 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
     }
 }
 
+void Overlay::beginDockHost(OverlayWindow *host, const OverlayWindowFlags flags)
+{
+    TKit::TierArray<LayoutId> backup{std::move(m_IdStack)};
+    PushId(host->Id);
+    TKIT_ENSURE_RETURNS(beginWindow(host, nullptr,
+                                    flags | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_NoCollapse |
+                                        OverlayWindowFlag_NoCloseButton),
+                        true, "[ONYX][OVERLAY] If a window is docked, its parent window must not be collapsed");
+    buildDockHostHierarchy(host);
+
+    if (!(host->Flags & (OverlayWindowFlags(WindowInternalFlag_MultipleAppends) | OverlayWindowFlag_NoBorders)))
+        drawWindowBorders(host);
+
+    PopId();
+    m_IdStack = std::move(backup);
+}
+
 void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
 {
     ASSERT_WITH_WINDOW(dockHost, !dockHost->IsDocked(), "[ONYX][OVERLAY] A dock host cannot be directly docked");
@@ -2640,7 +2661,8 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
     // before setting up the actual window that is being started by the user, we have to setup the dock tree panel
     // structure of the dockspace that will host all of them
     NativeWindow *nw = dockHost->GetNative();
-    const bool hostHasNoBckg = dockHost->Flags & OverlayWindowFlag_NoBackground;
+    const bool hostAllowsBckg =
+        dockHost->Flags & (OverlayWindowFlag_NoBackground | OverlayWindowFlags(WindowInternalFlag_DockSpace));
 
     const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
     const f32 cgap = m_Style[OverlayStyle_ChildGap];
@@ -2660,7 +2682,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
             const bool empty = node->Windows.IsEmpty();
 
             TabBarData &tdata = node->TabData;
-            bool childHasBckg = hostHasNoBckg && !empty && tdata.OpenId != NullLayoutId;
+            bool childHasBckg = hostAllowsBckg && !empty && tdata.OpenId != NullLayoutId;
             if (childHasBckg)
             {
                 const u32 idx = tdata.GetTabById(tdata.OpenId);
@@ -2855,7 +2877,8 @@ void Overlay::undockWindow(OverlayWindow *win)
             win->Grab.ScreenPos = win->GetActivePosition();
             win->Grab.Size = win->Size;
             win->Flags |= WindowInternalFlag_HeaderGrabbed;
-            win->Layer = toTop();
+            if (!(win->Flags & OverlayWindowFlag_NoBringToFocus))
+                win->Layer = toTop();
             m_Grabbed = win;
         }
         else
@@ -2936,17 +2959,6 @@ void Overlay::undockNode(DockNode *node)
 void Overlay::undockMarked()
 {
     const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
-    // const bool mainPersist = m_StateFlags & StateFlag_MainDockHostMustPersist;
-    // m_StateFlags &= ~StateFlag_MainDockHostMustPersist;
-    //
-    // if (!mainPersist && m_MainDockHost)
-    //     iterateDockTree(m_MainDockHost->DockRoot, [](DockNode *node) {
-    //         if (node->IsLeaf())
-    //             for (OverlayWindow *win : node->Windows)
-    //                 win->Flags |= WindowInternalFlag_MustUndock;
-    //         return true;
-    //     });
-
     // there is a known bug here, and is seemingly mitigated when iterating this way. when trying to remove many docked
     // windows that are deeply nested (multiple nested dockspaces), the final "undocked" positions may get messed up for
     // deeply nested windows. when iterating in reverse window insertion order, this seems to happen less frequently.
@@ -2957,7 +2969,9 @@ void Overlay::undockMarked()
         const bool mustUndock =
             win->Flags & (OverlayWindowFlags(WindowInternalFlag_MustUndock) | OverlayWindowFlag_NoDocking);
 
-        const bool tooEmpty = isDocked && win->DockRoot == win->DockParent && win->DockParent->Windows.GetSize() == 1;
+        const bool tooEmpty = isDocked && win->DockRoot == win->DockParent &&
+                              !(win->DockParent->Flags & OverlayDockNodeFlag_CanBeEmpty) &&
+                              win->DockParent->Windows.GetSize() == 1;
         if (isDocked && (!dockingEnabled || mustUndock || tooEmpty))
             undockWindow(win);
         return true;
@@ -2966,7 +2980,6 @@ void Overlay::undockMarked()
         for (u32 i = m_DockNodes.GetSize() - 1; i < m_DockNodes.GetSize(); --i)
             if (m_DockNodes[i]->Flags & DockNodeFlag_MustUndock)
                 undockNode(m_DockNodes[i]);
-    // m_MainDockSpace = nullptr;
 }
 
 static constexpr i32 horizontal = 0;
@@ -3119,20 +3132,25 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
     const f32v2 wpos = ownsNative ? nw->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
     const f32v2 &wsize = win->Size;
 
-    const f32 previewSize = Math::Min(20.f, 0.1f * Math::Min(wsize[0], wsize[1]));
-    const f32 previewRadius = 0.4f * previewSize;
-    const f32 previewGap = 6.f;
-
-    const RoundedRectParameters botParams = {previewSize, previewSize, previewRadius};
-
     const f32v2 &mpos = nw->WorldMouse;
-
-    const f32 dpos = previewSize + previewGap + 2.f * previewRadius;
-    const f32 botHitSize = 0.5f * previewSize + previewRadius;
 
     const bool mreleased = (nw->Flags | m_DockSource->GetNative()->Flags) & NativeWindowFlag_LeftMouseReleased;
 
     bool canDrawPreview = true;
+    if (!win->IsRoot())
+    {
+        const OverlayWindow *p = win->Parent;
+        const Layout *ly = p->GetActiveLayout();
+        const LayoutElement *elm = ly->QueryElement(p->ContentAreaId);
+
+        if (elm)
+        {
+            const f32v2 &cpos = elm->Position;
+            const f32v2 &csize = elm->Size;
+            const f32v2 center = cpos + 0.5f * csize;
+            ctx->Clip(center, csize);
+        }
+    }
     const auto drawPreviewIfHoveredAndInsert = [&](DockNode *targetNode, const f32v2 &middle, const f32v2 &pos,
                                                    const f32v2 &hitSize, const f32v2 &regionSize, const i32v2 &loc,
                                                    const f32 sign) {
@@ -3173,9 +3191,18 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         return false;
     };
 
+    const f32 previewGap = 6.f;
     const auto bottomPreviewInsert = [&](const i32v2 loc, DockNode *leaf, const f32v2 &dockPos, const f32v2 &dockSize) {
         const f32v2 hsize = 0.5f * dockSize;
         const f32v2 middle = dockPos + f32v2{hsize[0], -hsize[1]};
+
+        const f32 previewSize = Math::Min(20.f, 0.1f * Math::Min(dockSize[0], dockSize[1]));
+        const f32 previewRadius = 0.4f * previewSize;
+
+        const f32 dpos = previewSize + previewGap + 2.f * previewRadius;
+        const f32 hitSize = 0.5f * previewSize + previewRadius;
+
+        const RoundedRectParameters params = {previewSize, previewSize, previewRadius};
 
         f32v2 offset{0.f};
 
@@ -3185,21 +3212,20 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
         f32v2 pos = middle + offset;
 
-        if (!win->IsRoot())
-        {
-            const OverlayWindow *p = win->Parent;
-            const f32v2 center = p->ToWorld(p->ScreenPos) + 0.5f * f32v2{p->Size[0], -p->Size[1]};
-            ctx->Clip(center, p->Size);
-        }
         ctx->SetTranslation(pos);
-        ctx->RoundedRect(botParams);
+        ctx->RoundedRect(params);
 
-        return drawPreviewIfHoveredAndInsert(leaf, middle, pos, botHitSize, dockSize, loc, sign);
+        return drawPreviewIfHoveredAndInsert(leaf, middle, pos, hitSize, dockSize, loc, sign);
     };
 
     const f32v2 whsize = 0.5f * wsize;
     const auto topPreviewInsert = [&](const i32v2 loc, DockNode *targetNode) {
         const f32v2 middle = wpos + f32v2{whsize[0], -whsize[1]};
+
+        const f32 previewSize = Math::Min(20.f, 0.1f * Math::Min(wsize[0], wsize[1]));
+        const f32 previewRadius = 0.4f * previewSize;
+
+        const f32 dpos = previewSize + previewGap + 2.f * previewRadius;
 
         f32v2 offset{0.f};
 
@@ -3211,13 +3237,13 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         const f32 ymul = loc[axis] == vertical ? 0.5f : 2.f;
 
         const f32v2 psize = f32v2{xmul, ymul} * previewSize;
-        const RoundedRectParameters topParams = {psize[0], psize[1], previewRadius};
+        const RoundedRectParameters params = {psize[0], psize[1], previewRadius};
 
         ctx->SetTranslation(pos);
-        ctx->RoundedRect(topParams);
+        ctx->RoundedRect(params);
 
-        const f32v2 topHitSize = 0.5f * psize + previewRadius;
-        return drawPreviewIfHoveredAndInsert(targetNode, middle, pos, topHitSize, wsize, loc, sign);
+        const f32v2 hitSize = 0.5f * psize + previewRadius;
+        return drawPreviewIfHoveredAndInsert(targetNode, middle, pos, hitSize, wsize, loc, sign);
     };
 
     constexpr TKit::FixedArray<i32v2, 4> sides = {left, right, bottom, top};
@@ -4319,7 +4345,8 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
     // the id that will need to be opened by tab items to keep appending
 
     data->Flags = flags;
-    data->Id = beginScroll({.Id = id,
+    data->Id = beginScroll({.ScrollId = id,
+                            .PanelId = id,
                             .Direction = LayoutDirection_LeftToRight,
                             .OuterSizing = scrollSizing,
                             .ContentSizing = scrollSizing,
@@ -5172,7 +5199,8 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
 
         ++m_CurrentPopupDepth;
         PushStyleVar(OverlayStyle_ScrollBarGap, 0.f);
-        beginScroll({.Id = sid,
+        beginScroll({.ScrollId = sid,
+                     .PanelId = sid,
                      .OuterSizing = osizing,
                      .ContentSizing = csizing,
                      .ContentPadding = 0.f,
@@ -5388,7 +5416,8 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32 maxHeight, const f
     if (flags & OverlayScrollFlag_Title)
         ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
 
-    beginScroll({.Id = id,
+    beginScroll({.ScrollId = id,
+                 .PanelId = id,
                  .OuterSizing = outer,
                  .ContentSizing = content,
                  .ContentPadding = tight ? 0.f : padding,
@@ -5511,7 +5540,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
 {
     Layout *ly = m_Active->GetActiveLayout();
-    ScrollInfo &sinfo = m_Scrollables[specs.Id];
+    ScrollInfo &sinfo = m_Scrollables[specs.ScrollId];
     sinfo.Flags = specs.Flags;
 
     const bool noHeader = m_Active->Flags & OverlayWindowFlag_NoHeaderBar;
@@ -5522,13 +5551,13 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
     const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
     const bool bckg = !(specs.Flags & OverlayScrollFlag_NoBackground);
     m_LastItem = ly->BeginPanel(
-        specs.Id, LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
-                          .Direction = LayoutDirection_BottomToTop,
-                          .Alignment = TopLeft,
-                          .Sizing = specs.OuterSizing,
-                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
-                          .Padding = borders ? cpadding : 0.f,
-                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
+        specs.PanelId, LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
+                               .Direction = LayoutDirection_BottomToTop,
+                               .Alignment = TopLeft,
+                               .Sizing = specs.OuterSizing,
+                               .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
+                               .Padding = borders ? cpadding : 0.f,
+                               .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
     bool appendStack = false;
@@ -5551,11 +5580,11 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
                                       .Padding = specs.ContentPadding,
                                       .ChildGap = specs.ChildGap});
 
-    if (appendStack && isElementHovered(ly->QueryElement(specs.Id), OverlayHoveredFlag_AllowBlockedByPressedItem |
-                                                                        OverlayHoveredFlag_AllowBlockedByActiveItem |
-                                                                        OverlayHoveredFlag_AllowBlockedByDrag |
-                                                                        standardHoverAllowance()))
-        m_ScrollStack.Append(specs.Id);
+    if (appendStack &&
+        isElementHovered(ly->QueryElement(specs.PanelId),
+                         OverlayHoveredFlag_AllowBlockedByPressedItem | OverlayHoveredFlag_AllowBlockedByActiveItem |
+                             OverlayHoveredFlag_AllowBlockedByDrag | standardHoverAllowance()))
+        m_ScrollStack.Append(specs.ScrollId);
 
     return contentId;
 }
@@ -6090,9 +6119,6 @@ void Overlay::Draw()
         }
     };
 
-    // if (m_MainDockSpace && !(m_MainDockSpace->Flags & WindowInternalFlag_Active))
-    //     tryAssignDockTarget(m_MainDockSpace, m_MainDockSpace->Native->Context);
-
     for (OverlayWindow *win : m_ActiveWindows)
     {
         NativeWindow *nw = win->GetNative();
@@ -6217,13 +6243,13 @@ void Overlay::Draw()
             m_Tooltip->Native->Window->SetPosition(i32v2{m_Tooltip->Native->ScreenPos});
     }
 
+    if (dockTargetWin)
+        dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
+
     if (!windowPromotions)
         demoteAllWindows();
     else
         manageWindowPromotions();
-
-    if (dockTargetWin)
-        dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
 
     m_ActiveWindows.Clear();
 
@@ -6408,13 +6434,6 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             ov->SetItemTooltip("When in floating mode, window promotions must be on or terrible things will happen");
 
         ov->CheckBoxFlags("OverlayFlag_Docking", &flags, Onyx::OverlayFlag_Docking);
-        if (flags & Onyx::OverlayFlag_Docking)
-        {
-            ov->PushIndent();
-            ov->CheckBox("Enable full screen dock space", fullScreenDockSpace);
-            ov->PopIndent();
-        }
-
         ov->PopTree();
     }
 
@@ -6422,7 +6441,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
     {
         static bool enableChild = true;
         ov->CheckBox("Enable child", &enableChild);
-        if (ov->BeginWindow("Overlay demo child", &enableChild, wflags | Onyx::OverlayWindowFlag_MenuBar))
+        if (ov->BeginWindow("Overlay demo child", &enableChild,
+                            wflags | Onyx::OverlayWindowFlag_MenuBar | Onyx::OverlayWindowFlag_MergeIdWithStack))
         {
             drawDemoContents(ov, flags, wflags, fullScreenDockSpace, enableSettings, enableRenderer, enableStyleEditor,
                              enableMainMenu);
@@ -6516,7 +6536,36 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->PopTree();
     }
 
-    if (ov->PushTree("Drag & Drop"))
+    if (ov->PushTree("Docking", drawLines))
+    {
+        static Onyx::OverlayDockNodeFlags dflags = Onyx::OverlayDockNodeFlag_CanBeEmpty;
+        static Onyx::OverlayWindowFlags wflags = 0;
+
+        ov->BeginDisabled(flags & Onyx::OverlayFlag_FloatingMode);
+        ov->CheckBox("Enable full screen dock space", fullScreenDockSpace);
+        ov->EndDisabled();
+        if (flags & Onyx::OverlayFlag_FloatingMode)
+            ov->SetItemTooltip("When in floating mode, full screen dockspaces cannot exist");
+
+        ov->HorizontalSeparator("Dock node flags");
+
+        ov->CheckBoxFlags("OverlayDockNodeFlag_CanBeEmpty", &dflags, Onyx::OverlayDockNodeFlag_CanBeEmpty);
+        ov->SetItemTooltip("It is strongly recommended you leave this on");
+        ov->CheckBoxFlags("OverlayDockNodeFlag_NoResize", &dflags, Onyx::OverlayDockNodeFlag_NoResize);
+
+        if (ov->PushTree("Window flags", drawLines))
+        {
+            editDemoWindowFlags(ov, &wflags);
+            ov->PopTree();
+        }
+
+        ov->TextRaw("This is an example dock space. You may dock windows here");
+        ov->DockSpace("My dock host", dflags, wflags);
+
+        ov->PopTree();
+    }
+
+    if (ov->PushTree("Drag & Drop", drawLines))
     {
         ov->TextRaw(
             TextMode_Wrapped,
@@ -7069,8 +7118,12 @@ void Overlay::ShowDemo(bool *enabled)
     Overlay *ov = this;
 
     static bool fullScreenDockSpace = false;
-    // if (fullScreenDockSpace)
-    //     ov->FullScreenDockSpace();
+
+    if (m_Flags & OverlayFlag_FloatingMode)
+        fullScreenDockSpace = false;
+    if (fullScreenDockSpace)
+        ov->FullScreenDockSpace(Onyx::OverlayDockNodeFlag_CanBeEmpty,
+                                Onyx::OverlayWindowFlag_NoBackground | Onyx::OverlayWindowFlag_MousePassThrough);
 
     if (enableMainMenu && ov->BeginMainMenuBar())
     {
@@ -7223,6 +7276,8 @@ void Overlay::ShowStyleEditor()
         colorEditor("None", OverlayColor_None);
         colorEditor("Text", OverlayColor_Text);
         colorEditor("Line", OverlayColor_Line);
+        colorEditor("DockPreview", OverlayColor_DockPreview);
+        colorEditor("DockSpaceBackground", OverlayColor_DockSpaceBackground);
         colorEditor("DragOutline", OverlayColor_DragOutline);
         colorEditor("InputCursor", OverlayColor_InputCursor);
         colorEditor("InputHighlight", OverlayColor_InputHighlight);
