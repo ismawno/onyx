@@ -6243,13 +6243,28 @@ void Overlay::Draw()
             m_Tooltip->Native->Window->SetPosition(i32v2{m_Tooltip->Native->ScreenPos});
     }
 
-    if (dockTargetWin)
-        dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
+    const auto runDocking = [&] {
+        if (dockTargetWin)
+            dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
+    };
+    const auto runWindowPromotions = [&] {
+        if (!windowPromotions)
+            demoteAllWindows();
+        else
+            manageWindowPromotions();
+    };
 
-    if (!windowPromotions)
-        demoteAllWindows();
+    const bool floating = m_Flags & OverlayFlag_FloatingMode;
+    if (floating)
+    {
+        runWindowPromotions();
+        runDocking();
+    }
     else
-        manageWindowPromotions();
+    {
+        runDocking();
+        runWindowPromotions();
+    }
 
     m_ActiveWindows.Clear();
 

@@ -17,7 +17,7 @@ static bool runDemo(const bool floating)
         ui = win->CreateOverlay();
     }
 
-    // a simple example using the docking api. docking must be enabled when creating the overlay!!
+    // a simple example using the docking api. docking must be enabled when creating the ui!!
     // const Onyx::OverlayDockNode *root =
     //     Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f,
     //                     Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.5f, Onyx::DockTabBar("Overlay demo"),

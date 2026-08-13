@@ -1110,7 +1110,6 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): I need not to capture mouse, ie, passthru
 // TODO(Isma): BUG: When collapsing "Child windows" tree node with a dock tree, the opened tab changes??
 class Overlay
 {
