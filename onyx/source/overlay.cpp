@@ -7,6 +7,9 @@
 #include "onyx/renderer.hpp"
 #include "tkit/profiling/macros.hpp"
 
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4312)
+
 namespace Onyx
 {
 /////////////////////////////////////////////
@@ -7572,3 +7575,4 @@ void Overlay::ShowStyleEditor()
 /////////////////////////////////////////////
 } // namespace Onyx
 // NOLINTEND(performance-unnecessary-value-param)
+TKIT_COMPILER_WARNING_IGNORE_POP()
