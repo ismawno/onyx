@@ -241,18 +241,17 @@ enum StateFlagBit : StateFlags
     StateFlag_FocusBlockByPopupCollapse = 1U << 7,
     StateFlag_PopupProtectionForbidden = 1U << 8,
     StateFlag_MainMenuBarActive = 1U << 9,
-    StateFlag_MenuBarActive = 1U << 10,
     StateFlag_Disabled = 1U << 11,
 
-    StateFlag_RequestCaptureMouse = 1U << 12,
-    StateFlag_RequestCaptureKeyboard = 1U << 13,
+    StateFlag_RequestCaptureMouse = 1U << 11,
+    StateFlag_RequestCaptureKeyboard = 1U << 12,
 
-    StateFlag_WantCaptureMouse = 1U << 14,
-    StateFlag_WantCaptureKeyboard = 1U << 15,
+    StateFlag_WantCaptureMouse = 1U << 13,
+    StateFlag_WantCaptureKeyboard = 1U << 14,
 
-    StateFlag_DragPayloadAccepted = 1U << 16,
-    StateFlag_DragPayloadRejected = 1U << 17,
-    StateFlag_ActivePromotedFloatElement = 1U << 18,
+    StateFlag_DragPayloadAccepted = 1U << 15,
+    StateFlag_DragPayloadRejected = 1U << 16,
+    StateFlag_ActivePromotedFloatElement = 1U << 17,
 
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
@@ -808,14 +807,12 @@ bool Overlay::BeginMenuBar()
     PushId(m_Active->MenuBarId);
     m_Active->GetActiveLayout()->OpenPanel(m_Active->MenuBarId);
     m_Active->Flags |= WindowInternalFlag_MenuBarOpened;
-    m_StateFlags |= StateFlag_MenuBarActive;
     return true;
 }
 void Overlay::EndMenuBar()
 {
     m_Active->Flags &= ~WindowInternalFlag_MenuBarOpened;
     m_Active->GetActiveLayout()->EndPanel();
-    m_StateFlags &= ~StateFlag_MenuBarActive;
     PopId();
 }
 
@@ -6349,7 +6346,7 @@ OverlayHoveredFlags Overlay::standardHoverAllowance() const
 bool Overlay::isAutoResize() const
 {
     return m_CurrentPopupDepth == m_Active->PopupDepth && (m_Active->Flags & OverlayWindowFlag_AutoResize) &&
-           !(m_StateFlags & StateFlag_MenuBarActive);
+           !(m_Active->Flags & WindowInternalFlag_MenuBarOpened);
 }
 u32 Overlay::getFormatDecimals(const char *format)
 {
