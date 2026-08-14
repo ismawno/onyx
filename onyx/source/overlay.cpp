@@ -424,12 +424,12 @@ enum WindowInternalFlagBit : OverlayWindowFlags
 /// VALIDATION
 /////////////////////////////////////////////
 
-template <typename T, typename F> static bool iterateDockTree(T *node, F &&func)
+template <typename T, typename F> static bool iterateDockTree(T *parent, F &&func)
 {
     constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, T *>, bool>;
     TKit::StaticArray64<T *> nodes{};
 
-    nodes.Append(node);
+    nodes.Append(parent);
     while (!nodes.IsEmpty())
     {
         T *node = nodes.GetBack();
@@ -6680,7 +6680,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
     if (ov->PushTree("Docking", drawLines))
     {
         static Onyx::OverlayDockNodeFlags dflags = Onyx::OverlayDockNodeFlag_CanBeEmpty;
-        static Onyx::OverlayWindowFlags wflags = 0;
+        static Onyx::OverlayWindowFlags windowFlags = 0;
 
         ov->BeginDisabled(flags & Onyx::OverlayFlag_FloatingMode);
         ov->CheckBox("Enable full screen dock space", fullScreenDockSpace);
@@ -6696,12 +6696,12 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         if (ov->PushTree("Window flags", drawLines))
         {
-            editDemoWindowFlags(ov, &wflags);
+            editDemoWindowFlags(ov, &windowFlags);
             ov->PopTree();
         }
 
         ov->TextRaw("This is an example dock space. You may dock windows here");
-        ov->DockSpace("My dock host", dflags, wflags);
+        ov->DockSpace("My dock host", dflags, windowFlags);
 
         ov->PopTree();
     }
