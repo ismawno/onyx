@@ -1541,6 +1541,8 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
 }
 
 // TODO(Isma): Too much repetition between this and Button()
+// TODO(Isma): BUG: On windows, grabbed doesnt persist when ripping docked
+// TODO(Isma): BUG: Border keeps hovered when stepping away from native window
 OverlayFocusQueryFlags Overlay::iconButtonFocus(const LayoutId id, const CodePoint code, const LySz ysizing,
                                                 const OverlayColor idle, const FocusFlags flags)
 {
