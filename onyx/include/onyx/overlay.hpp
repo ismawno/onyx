@@ -2107,7 +2107,7 @@ class Overlay
         return createDockHost(win, rootNode, false);
     }
 
-    template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func);
+    template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F &&func);
 
     bool canDockingHappen(const OverlayWindow *target) const;
 

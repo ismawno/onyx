@@ -71,7 +71,7 @@ void BindImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, Render
 
 const VKit::Sampler &GetNearSampler();
 
-template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
+template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
 
 // consider having arrays of semaphores to allow for some flexibility
 

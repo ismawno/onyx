@@ -11,7 +11,7 @@ namespace Onyx::Descriptors
 struct DescriptorData
 {
     VKit::DescriptorPool Pool{};
-    TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
+    ten<VKit::DescriptorSetLayout, D_Count, RenderPass_Count> Layouts{};
     TKit::FixedArray<VKit::DescriptorSetLayout, StandalonePass_Count> StandaloneLayouts{};
 };
 
@@ -151,18 +151,12 @@ static void createDescriptorData(const Specs &specs)
     if (IsDebugUtilsEnabled())
     {
         ONYX_CHECK_VKIT_RESULT(s_DescriptorData->Pool.SetName("onyx-descriptor-pool"));
-        u32 i = 2;
-        for (auto &dims : s_DescriptorData->Layouts)
-        {
-            u32 j = 0;
-            for (auto &renders : dims)
-            {
-                ONYX_CHECK_VKIT_RESULT(renders.SetName(
-                    TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i, ToString(RenderPass(j++)))
-                        .CString()));
-            }
-            ++i;
-        }
+        s_DescriptorData->Layouts.IterateMultiIndex([&](const u32 i, const u32 j) {
+            ONYX_CHECK_VKIT_RESULT(s_DescriptorData->Layouts[i][j].SetName(
+                TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i + 2, ToString(RenderPass(j)))
+                    .CString()));
+        });
+
         ONYX_CHECK_VKIT_RESULT(s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch].SetName(
             "onyx-ray-march-descriptor-set-layout"));
         ONYX_CHECK_VKIT_RESULT(
@@ -183,9 +177,8 @@ void Initialize(const Specs &specs)
 void Terminate()
 {
     s_DescriptorData->Pool.Destroy();
-    for (auto &dims : s_DescriptorData->Layouts)
-        for (auto &renders : dims)
-            renders.Destroy();
+    for (auto &layout : s_DescriptorData->Layouts)
+        layout.Destroy();
 
     for (auto &layout : s_DescriptorData->StandaloneLayouts)
         layout.Destroy();

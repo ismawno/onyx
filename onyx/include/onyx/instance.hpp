@@ -134,10 +134,4 @@ template <> struct WorldRect<D3>
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
-template <typename T>
-using MeshInstanceGrouping = TKit::FixedArray<TKit::FixedArray<T, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshPoolCount>;
-
-template <typename T>
-using InstanceDataGrouping = TKit::FixedArray<TKit::FixedArray<T, RenderMode_Count>, BlendPass_Count>;
-
 } // namespace Onyx

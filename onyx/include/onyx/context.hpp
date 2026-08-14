@@ -186,8 +186,8 @@ template <Dimension D> struct ContextState
     BlendPass Blend = BlendPass_Opaque;
 };
 
-struct InstanceDataArrays;
 struct InstanceDataBuffer;
+struct ContextInstanceData;
 
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
@@ -705,7 +705,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_State.Blend = Math::Approximately(m_State.FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
-    const InstanceDataGrouping<InstanceDataArrays *> &GetInstanceData() const
+    const ContextInstanceData *GetInstanceData() const
     {
         return m_InstanceData;
     }
@@ -813,7 +813,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
     TKit::TierArray<ContextState<D>> m_StateStack{};
-    InstanceDataGrouping<InstanceDataArrays *> m_InstanceData{};
+
+    ContextInstanceData *m_InstanceData;
 
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};

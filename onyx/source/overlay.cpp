@@ -424,8 +424,9 @@ enum WindowInternalFlagBit : OverlayWindowFlags
 /// VALIDATION
 /////////////////////////////////////////////
 
-template <typename T, typename F> static bool iterateDockTree(T *node, const F func)
+template <typename T, typename F> static bool iterateDockTree(T *node, F &&func)
 {
+    constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, T *>, bool>;
     TKit::StaticArray64<T *> nodes{};
 
     nodes.Append(node);
@@ -442,8 +443,13 @@ template <typename T, typename F> static bool iterateDockTree(T *node, const F f
             nodes.Append(c1);
             nodes.Append(c0);
         }
-        if (!func(node))
-            return true;
+        if constexpr (hasRet)
+        {
+            if (!std::forward<F>(func)(node))
+                return true;
+        }
+        else
+            std::forward<F>(func)(node);
     }
     return false;
 }
@@ -521,8 +527,6 @@ static void validateDockTree(const DockNode *root, const TKit::StaticArray64<Doc
             TKIT_ENSURE(node->Windows.IsEmpty(), "[ONYX][OVERLAY][{}] Interior node {} has {} windows", context,
                         fptr(node), node->Windows.GetSize());
         }
-
-        return true;
     });
     TKIT_ENSURE(
         !nonRoot || !(host->Flags & WindowInternalFlag_DockSpace),
@@ -1582,7 +1586,6 @@ u32 Overlay::processWindows()
             iterateDockTree(m_Active->DockRoot, [&](DockNode *node) {
                 if (node->IsLeaf() && !node->Windows.IsEmpty())
                     endTabBar(&node->TabData, node);
-                return true;
             });
     }
     m_Active = nullptr;
@@ -2411,9 +2414,15 @@ void Overlay::manageWindowPromotions()
 
 template <typename F> void Overlay::iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F &&func)
 {
+    constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, OverlayWindow *>, bool>;
     for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
-        if (!std::forward<F>(func)(windows[i]))
-            return;
+        if constexpr (hasRet)
+        {
+            if (!std::forward<F>(func)(windows[i]))
+                return;
+        }
+        else
+            std::forward<F>(func)(windows[i]);
 }
 
 /////////////////////////////////////////////
@@ -2621,8 +2630,10 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
 }
 
 // this is the only function allowed to write ReadOnlyPosition and ReadOnlySize
-template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, const F func)
+template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F &&func)
 {
+    constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, DockNode *>, bool>;
+
     const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
     const f32v2 wpos = ownsNative ? win->Native->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
     const f32v2 &wsize = win->Size;
@@ -2681,8 +2692,13 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
             nodes.Append(c0);
         }
 
-        if (!func(node))
-            return;
+        if constexpr (hasRet)
+        {
+            if (!std::forward<F>(func)(node))
+                return;
+        }
+        else
+            std::forward<F>(func)(node);
     }
 }
 
@@ -2862,8 +2878,6 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
         if (p)
             ly->EndPanel();
         PopId();
-
-        return true;
     });
 }
 
@@ -2887,7 +2901,6 @@ void Overlay::detachNodeFromParent(DockNode *node)
             if (n->IsLeaf())
                 for (OverlayWindow *child : n->Windows)
                     child->DockRoot = otherChild;
-            return true;
         });
 
         otherChild->Parent = nullptr;
@@ -3027,7 +3040,6 @@ void Overlay::undockNode(DockNode *node)
 
             if (child->IsLeaf())
                 updateWindows(child);
-            return true;
         });
 
     host->Id = id;
@@ -3058,7 +3070,6 @@ void Overlay::undockMarked()
                     if (node->IsLeaf())
                         for (OverlayWindow *child : node->Windows)
                             child->Flags |= WindowInternalFlag_MustUndock;
-                    return true;
                 });
         for (u32 i = m_DockNodes.GetSize() - 1; i < m_DockNodes.GetSize(); --i)
             if (m_DockNodes[i]->Flags & DockNodeFlag_MustUndock)
@@ -3079,7 +3090,6 @@ void Overlay::undockMarked()
                               win->DockParent->Windows.GetSize() == 1;
         if (isDocked && (!dockingEnabled || mustUndock || tooEmpty))
             undockWindow(win);
-        return true;
     });
 }
 
@@ -3147,7 +3157,6 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
                 if (child->IsLeaf())
                     for (OverlayWindow *wchild : child->Windows)
                         wchild->DockRoot = parent;
-                return true;
             });
         }
 
@@ -3166,7 +3175,6 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
                 if (node->IsLeaf())
                     for (OverlayWindow *child : node->Windows)
                         child->DockRoot = target->DockRoot;
-                return true;
             });
         }
         else

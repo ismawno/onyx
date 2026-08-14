@@ -47,8 +47,8 @@ struct StandalonePipelineData
 
 struct PipelineData
 {
-    TKit::FixedArray<TKit::FixedArray<VKit::PipelineLayout, RenderPass_Count>, D_Count> Layouts{};
-    TKit::FixedArray<TKit::FixedArray<ShaderData, RenderPass_Count>, D_Count> Shaders{};
+    ten<VKit::PipelineLayout, D_Count, RenderPass_Count> Layouts{};
+    ten<ShaderData, D_Count, RenderPass_Count> Shaders{};
 
     VKit::Shader FullPassVertexShader{};
     TKit::FixedArray<StandalonePipelineData, StandalonePass_Count> Standalone{};
@@ -136,17 +136,10 @@ static void createPipelineLayouts()
 
     if (IsDebugUtilsEnabled())
     {
-        u32 i = 2;
-        for (auto &dims : s_PipelineData->Layouts)
-        {
-            u32 j = 0;
-            for (auto &passes : dims)
-            {
-                ONYX_CHECK_VKIT_RESULT(passes.SetName(
-                    TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i, ToString(RenderPass(j++))).CString()));
-            }
-            ++i;
-        }
+        s_PipelineData->Layouts.IterateMultiIndex([&](const u32 i, const u32 j) {
+            ONYX_CHECK_VKIT_RESULT(s_PipelineData->Layouts[i][j].SetName(
+                TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i + 2, ToString(RenderPass(j))).CString()));
+        });
         ONYX_CHECK_VKIT_RESULT(
             s_PipelineData->Standalone[StandalonePass_RayMarch].Layout.SetName("onyx-ray-march-pipeline-layout"));
         ONYX_CHECK_VKIT_RESULT(
@@ -321,9 +314,8 @@ static void createShaders()
 
 static void destroyShaders()
 {
-    for (auto &dims : s_PipelineData->Shaders)
-        for (auto &passes : dims)
-            passes.Destroy();
+    for (auto &sdata : s_PipelineData->Shaders)
+        sdata.Destroy();
 
     s_PipelineData->FullPassVertexShader.Destroy();
     for (auto &st : s_PipelineData->Standalone)
@@ -349,9 +341,9 @@ void Initialize()
 void Terminate()
 {
     destroyShaders();
-    for (auto &dims : s_PipelineData->Layouts)
-        for (auto &passes : dims)
-            passes.Destroy();
+    for (auto &layout : s_PipelineData->Layouts)
+        layout.Destroy();
+
     for (auto &st : s_PipelineData->Standalone)
         st.Layout.Destroy();
 

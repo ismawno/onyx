@@ -181,9 +181,7 @@ struct GeometryData
     TKit::FixedArray<InstanceArena, Geometry_Count> Arenas{};
     Arena VertexArena{};
     Arena IndexArena{};
-    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, PipelinePass_Count>,
-                     BlendPass_Count>
-        Pipelines{};
+    ten<VKit::GraphicsPipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
 };
 
 template <typename LightParams> struct ContextLights
@@ -243,7 +241,7 @@ template <> struct ShadowData<D2>
     TextureMapArray OcclusionMaps{};
     u32 OcclusionResolution = 0;
 
-    TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
+    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
     VKit::ComputePipeline RayMarchPipeline{};
     VkDescriptorSet RayMarchSet = VK_NULL_HANDLE;
     VkFormat OcclusionFormat = VK_FORMAT_UNDEFINED;
@@ -259,7 +257,7 @@ template <> struct ShadowData<D3>
     TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{};
 
-    TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count> Pipelines{};
+    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{};
     VkFormat ShadowFormat = VK_FORMAT_UNDEFINED;
     ViewMask DirtyShadowViews = 0;
 };
@@ -279,7 +277,7 @@ template <Dimension D> struct RendererData
 {
     TKit::TierArray<ContextInfo<D>> Contexts{};
     TKit::TierArray<VkBufferMemoryBarrier2KHR> AcquireBarriers{};
-    TKit::FixedArray<TKit::FixedArray<VkDescriptorSet, Geometry_Count>, RenderPass_Count> Descriptors{};
+    ten<VkDescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
 
     GeometryData Geometry{};
     LightData<D> Lights{};
@@ -529,37 +527,33 @@ template <Dimension D> static void createPipelines()
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
 
-    for (u32 j = 0; j < Geometry_Count; ++j)
-    {
-        const Geometry geo = Geometry(j);
-        for (u32 i = 0; i < PipelinePass_Count; ++i)
-        {
-            for (u32 k = 0; k < BlendPass_Count; ++k)
-            {
-                const BlendPass bpass = BlendPass(k);
-                const PipelinePass pass = PipelinePass(i);
-                rdata.Geometry.Pipelines[bpass][pass][geo] = Pipelines::CreateGeometryPipeline<D>(pass, bpass, geo);
+    rdata.Geometry.Pipelines.IterateMultiIndex([&](const u32 bpass, const u32 ppass, const u32 geo) {
+        rdata.Geometry.Pipelines[bpass][ppass][geo] =
+            Pipelines::CreateGeometryPipeline<D>(PipelinePass(ppass), BlendPass(bpass), Geometry(geo));
 
-                if (IsDebugUtilsEnabled())
-                {
-                    const TKit::StackString name =
-                        TKit::StackString::Format("onyx-renderer-geometry-pipeline-{}D-{}-pass-{}-geometry-'{}'", u8(D),
-                                                  ToString(bpass), ToString(pass), ToString(geo));
-                    ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][pass][geo].SetName(name.CString()));
-                }
-            }
+        if (IsDebugUtilsEnabled())
+        {
+            const TKit::StackString name = TKit::StackString::Format(
+                "onyx-renderer-geometry-pipeline-{}D-{}-pass-{}-geometry-'{}'", u8(D), ToString(BlendPass(bpass)),
+                ToString(PipelinePass(ppass)), ToString(Geometry(geo)));
+
+            ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][ppass][geo].SetName(name.CString()));
         }
+    });
+
+    for (u32 geo = 0; geo < Geometry_Count; ++geo)
+    {
         VkFormat format;
         if constexpr (D == D2)
             format = sdata.OcclusionFormat;
         else
             format = sdata.ShadowFormat;
 
-        sdata.Pipelines[geo] = Pipelines::CreateShadowPipeline<D>(geo, format);
+        sdata.Pipelines[geo] = Pipelines::CreateShadowPipeline<D>(Geometry(geo), format);
         if (IsDebugUtilsEnabled())
         {
-            const TKit::StackString name =
-                TKit::StackString::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'", u8(D), ToString(geo));
+            const TKit::StackString name = TKit::StackString::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'",
+                                                                     u8(D), ToString(Geometry(geo)));
             ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.CString()));
         }
     }
@@ -595,13 +589,10 @@ template <Dimension D> static void destroyPipelines()
 {
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
-    for (u32 geo = 0; geo < Geometry_Count; ++geo)
-    {
-        for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-            for (u32 pass = 0; pass < PipelinePass_Count; ++pass)
-                rdata.Geometry.Pipelines[bpass][pass][geo].Destroy();
-        sdata.Pipelines[geo].Destroy();
-    }
+    for (VKit::GraphicsPipeline &p : rdata.Geometry.Pipelines)
+        p.Destroy();
+    for (VKit::GraphicsPipeline &p : sdata.Pipelines)
+        p.Destroy();
     if constexpr (D == D2)
         sdata.RayMarchPipeline.Destroy();
 }
@@ -946,7 +937,7 @@ const VKit::Sampler &GetNearSampler()
     return s_NearSampler;
 }
 
-template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const RenderPass pass)
+template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const RenderPass pass)
 {
     return getRendererData<D>().Descriptors[pass];
 }
@@ -1893,8 +1884,10 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
     ShadowData<D> &sdata = rdata.Shadows;
 
-    InstanceDataGrouping<MeshInstanceGrouping<LocalResourceRegistry>> meshRegistry{};
-    InstanceDataGrouping<LocalResourceRegistry> dynMeshRegistry{};
+    ten<LocalResourceRegistry, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
+        meshRegistry{};
+    ten<LocalResourceRegistry, BlendPass_Count, RenderMode_Count> dynMeshRegistry{};
+
     for (u32 i = 0; i < contexts.GetSize(); ++i)
     {
         ContextInfo<D> &cinfo = contexts[i];
@@ -1908,15 +1901,16 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         if (isDirty)
         {
             dirtyContexts.Append(i);
-            const InstanceDataGrouping<InstanceDataArrays *> &idata = ctx->GetInstanceData();
-            ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
-                InstanceResourceGroup &group = idata[bpass][rmode]->Meshes[mtype][pid];
 
+            const ContextInstanceData *idata = ctx->GetInstanceData();
+            ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
+                const InstanceResourceGroup &group = idata->Meshes[bpass][rmode][mtype][pid];
                 for (const u32 rid : group.Registry.ResourceIds)
                     meshRegistry[bpass][rmode][mtype][pid].RegisterResourceId(rid);
             });
-            ForEachDynamicMeshResourceGroup<D>([&](const u32 bpass, const u32 rmode) {
-                InstanceResourceGroup &group = idata[bpass][rmode]->DynamicMeshes;
+
+            idata->DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
+                const InstanceResourceGroup &group = idata->DynamicMeshes[bpass][rmode];
                 for (const u32 rid : group.Registry.ResourceIds)
                     dynMeshRegistry[bpass][rmode].RegisterResourceId(rid);
             });
@@ -2238,7 +2232,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
                 findInstanceRanges(rmode, bpass, Geometry_Circle, NullHandle,
                                    [rmode, bpass](const RenderContext<D> *ctx) -> const auto & {
-                                       return ctx->GetInstanceData()[BlendPass(bpass)][rmode]->Circles;
+                                       return ctx->GetInstanceData()->Circles[BlendPass(bpass)][rmode];
                                    });
         else if (geo == Geometry_Dynamic)
             for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -2247,7 +2241,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                 for (const u32 rid : resources)
                     findInstanceRanges(rmode, bpass, geo, CreateResourceHandle(Resource_DynamicMesh, rid),
                                        [rmode, bpass, rid](const RenderContext<D> *ctx) -> const auto & {
-                                           return ctx->GetInstanceData()[bpass][rmode]->DynamicMeshes.Instances[rid];
+                                           return ctx->GetInstanceData()->DynamicMeshes[bpass][rmode].Buffers[rid];
                                        });
             }
         else
@@ -2263,7 +2257,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                         findInstanceRanges(
                             rmode, bpass, geo, CreateResourceHandle(rtype, rid, pid),
                             [rtype, rmode, bpass, pid, rid](const RenderContext<D> *ctx) -> const auto & {
-                                return ctx->GetInstanceData()[bpass][rmode]->Meshes[rtype][pid].Instances[rid];
+                                return ctx->GetInstanceData()->Meshes[bpass][rmode][rtype][pid].Buffers[rid];
                             });
                 }
             }
@@ -2756,21 +2750,21 @@ enum CullMode : u8
 //  per draw cmd
 using CircleDrawCommands = TKit::TierArray<VkDrawIndirectCommand>;
 
-using PerCullPerCmd = TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, CullMode_Count>;
+using IndexedCommands = TKit::TierArray<VkDrawIndexedIndirectCommand>;
 
 // per mesh type per resource pool per cull mode per draw cmd
-using MeshDrawCommands =
-    TKit::FixedArray<TKit::FixedArray<PerCullPerCmd, ONYX_MAX_RESOURCE_POOLS>, Resource_MeshPoolCount>;
+using PerCullPerCmd = ten<IndexedCommands, CullMode_Count>;
+using MeshDrawCommands = ten<IndexedCommands, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS, CullMode_Count>;
 
 // per cull mode per draw cmd
-using DynMeshDrawCommands = PerCullPerCmd;
+using DynMeshDrawCommands = ten<IndexedCommands, CullMode_Count>;
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4127)
 template <Dimension D>
 static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightValue, const VkCommandBuffer cmd,
                                const RenderPass rpass, const VKit::PipelineLayout &playout,
-                               const TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count> &pipelines,
+                               const ten<VKit::GraphicsPipeline, Geometry_Count> &pipelines,
                                const CircleDrawCommands &circleCmds, const MeshDrawCommands &meshCmds,
                                const DynMeshDrawCommands &dynMeshCmds)
 {
@@ -4313,8 +4307,8 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
 template void DisplayMemoryLayout<D2>(Overlay *ov);
 template void DisplayMemoryLayout<D3>(Overlay *ov);
 
-template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(RenderPass rpass);
-template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(RenderPass rpass);
+template const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(RenderPass rpass);
+template const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(RenderPass rpass);
 
 template RenderContext<D2> *CreateContext(u32 immediateDynamicMeshCapacity);
 template RenderContext<D3> *CreateContext(u32 immediateDynamicMeshCapacity);

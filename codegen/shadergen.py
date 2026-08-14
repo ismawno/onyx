@@ -186,9 +186,9 @@ with hpp.scope("namespace Onyx", indent=0):
 
     with hpp.scope("struct ShaderBinaryData", closer="};"):
         hpp(
-            "TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<ShaderBinary, Geometry_Count>, RenderPass_Count>, D_Count> VertexShaders;"
-            "TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<ShaderBinary, Geometry_Count>, RenderPass_Count>, D_Count> OpaqueFragmentShaders;"
-            "TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<ShaderBinary, Geometry_Count>, RenderPass_Count>, D_Count> TransparentFragmentShaders;"
+            "ten<ShaderBinary, D_Count, RenderPass_Count, Geometry_Count> VertexShaders;"
+            "ten<ShaderBinary, D_Count, RenderPass_Count, Geometry_Count> OpaqueFragmentShaders;"
+            "ten<ShaderBinary, D_Count, RenderPass_Count, Geometry_Count> TransparentFragmentShaders;"
         )
         for shader in standalone:
             hpp(f"ShaderBinary {Convoy.to_pascal_case(shader)};")

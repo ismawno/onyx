@@ -321,34 +321,27 @@ struct LocalResourceRegistry
 
 struct InstanceResourceGroup
 {
-    TKit::TierArray<InstanceDataBuffer> Instances{};
+    TKit::TierArray<InstanceDataBuffer> Buffers{};
     LocalResourceRegistry Registry{};
 };
 
-struct InstanceDataArrays
+struct ContextInstanceData
 {
-    InstanceDataBuffer Circles{};
-    InstanceResourceGroup DynamicMeshes{};
-    MeshInstanceGrouping<InstanceResourceGroup> Meshes{};
+    ten<InstanceDataBuffer, BlendPass_Count, RenderMode_Count> Circles{};
+    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count> DynamicMeshes{};
+    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
+        Meshes{};
 };
 
 template <Dimension D, typename F> void ForEachResourceGroup(F &&func)
 {
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
-            for (u32 mtype = 0; mtype < Resource_MeshPoolCount; ++mtype)
-            {
-                const ResourceType rtype = ResourceType(mtype);
-                const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
-                for (const u32 pid : poolIds)
-                    func(bpass, rmode, mtype, pid);
-            }
-}
-template <Dimension D, typename F> void ForEachDynamicMeshResourceGroup(F &&func)
-{
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
-            func(bpass, rmode);
+    TKit::IterateMultiIndex<BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount>(
+        [&](const u32 bpass, const u32 rmode, const u32 mtype) {
+            const ResourceType rtype = ResourceType(mtype);
+            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+            for (const u32 pid : poolIds)
+                std::forward<F>(func)(bpass, rmode, mtype, pid);
+        });
 }
 
 } // namespace Onyx

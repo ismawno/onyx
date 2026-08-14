@@ -4,7 +4,6 @@
 #include "buffer.hpp"
 #include "resources.hpp"
 #include "tkit/math/math.hpp"
-#include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
 
 namespace Onyx
@@ -14,16 +13,14 @@ using namespace Detail;
 template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDynamicMeshCapacity)
 {
     TKit::TierAllocator *tier = GetTier();
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
-        {
-            InstanceDataArrays *idata = tier->Create<InstanceDataArrays>();
-            m_InstanceData[bpass][rmode] = idata;
-            InstanceDataBuffer &buffer = idata->Circles;
-            buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-            buffer.InstanceSize = sizeof(CircleInstanceData<D>);
-        }
+    m_InstanceData = tier->Create<ContextInstanceData>();
+    for (InstanceDataBuffer &buffer : m_InstanceData->Circles)
+    {
+        buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+        buffer.InstanceSize = sizeof(CircleInstanceData<D>);
+    }
+
     resizeInstanceData();
     m_DefaultResources = Resources::GetDefaultResources();
 
@@ -40,25 +37,25 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
 {
-    TKit::TierAllocator *tier = GetTier();
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
-        {
-            instanceData->Circles.Data.Destroy();
-            for (auto &meshes : instanceData->Meshes)
-                for (auto &pools : meshes)
-                    for (InstanceDataBuffer &buffer : pools.Instances)
-                        buffer.Data.Destroy();
+    for (InstanceDataBuffer &buffer : m_InstanceData->Circles)
+        buffer.Data.Destroy();
 
-            for (InstanceDataBuffer &buffer : instanceData->DynamicMeshes.Instances)
-                buffer.Data.Destroy();
-            tier->Destroy(instanceData);
-        }
+    for (InstanceResourceGroup &group : m_InstanceData->DynamicMeshes)
+        for (InstanceDataBuffer &buffer : group.Buffers)
+            buffer.Data.Destroy();
+
+    for (InstanceResourceGroup &group : m_InstanceData->Meshes)
+        for (InstanceDataBuffer &buffer : group.Buffers)
+            buffer.Data.Destroy();
+
     for (const DynamicMeshInfo<D> &info : m_ImmediateDynamicMeshes)
         // we perform this chech bc resources might have been destroyed already if this context is being destroyed on
         // teardown
         if (Resources::IsResourceValid(info.Handle))
             Resources::DestroyDynamicMesh<D>(info.Handle);
+
+    TKit::TierAllocator *tier = GetTier();
+    tier->Destroy(m_InstanceData);
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -76,30 +73,30 @@ template <Dimension D> void IRenderContext<D>::Flush()
     m_State.Sampler = m_DefaultResources.Sampler;
 
     NoClip();
-    for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
-        for (InstanceDataArrays *instanceData : m_InstanceData[bpass])
+
+    TKit::IterateMultiIndex<BlendPass_Count, RenderMode_Count>([&](const u32 bpass, const u32 rmode) {
+        m_InstanceData->Circles[bpass][rmode].Instances = 0;
+
+        InstanceResourceGroup &dgroup = m_InstanceData->DynamicMeshes[bpass][rmode];
+        dgroup.Registry.Clear();
+        for (InstanceDataBuffer &buffer : dgroup.Buffers)
+            buffer.Instances = 0;
+
+        for (u32 j = 0; j < Resource_MeshPoolCount; ++j)
         {
-            instanceData->Circles.Instances = 0;
+            const ResourceType rtype = ResourceType(j);
+            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
 
-            instanceData->DynamicMeshes.Registry.Clear();
-            for (InstanceDataBuffer &dynInstances : instanceData->DynamicMeshes.Instances)
-                dynInstances.Instances = 0;
-
-            for (u32 j = 0; j < Resource_MeshPoolCount; ++j)
+            auto &ipools = m_InstanceData->Meshes[bpass][rmode][rtype];
+            for (const u32 pid : poolIds)
             {
-                const ResourceType rtype = ResourceType(j);
-                const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
-
-                auto &ipools = instanceData->Meshes[j];
-                for (const u32 pid : poolIds)
-                {
-                    InstanceResourceGroup &group = ipools[pid];
-                    group.Registry.Clear();
-                    for (InstanceDataBuffer &buffer : group.Instances)
-                        buffer.Instances = 0;
-                }
+                InstanceResourceGroup &group = ipools[pid];
+                group.Registry.Clear();
+                for (InstanceDataBuffer &buffer : group.Buffers)
+                    buffer.Instances = 0;
             }
         }
+    });
 
     resizeInstanceData();
     ++m_Generation;
@@ -384,7 +381,7 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
     const auto resize = [](const ResourceType rtype, InstanceResourceGroup &group, const u32 count, const u32 ncount) {
         for (u32 k = count; k < ncount; ++k)
         {
-            InstanceDataBuffer &buffer = group.Instances.Append();
+            InstanceDataBuffer &buffer = group.Buffers.Append();
             const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
             buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
             buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
@@ -394,17 +391,17 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
     };
 
     ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
-        InstanceResourceGroup &group = m_InstanceData[bpass][rmode]->Meshes[mtype][pid];
+        InstanceResourceGroup &group = m_InstanceData->Meshes[bpass][rmode][mtype][pid];
         const ResourceType rtype = ResourceType(mtype);
 
-        const u32 count = group.Instances.GetSize();
+        const u32 count = group.Buffers.GetSize();
         const u32 ncount = Resources::GetResourceCount<D>(CreateResourcePoolHandle(rtype, pid));
         resize(rtype, group, count, ncount);
     });
 
-    ForEachDynamicMeshResourceGroup<D>([&](const u32 bpass, const u32 rmode) {
-        InstanceResourceGroup &group = m_InstanceData[bpass][rmode]->DynamicMeshes;
-        const u32 count = group.Instances.GetSize();
+    m_InstanceData->DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
+        InstanceResourceGroup &group = m_InstanceData->DynamicMeshes[bpass][rmode];
+        const u32 count = group.Buffers.GetSize();
         const u32 ncount = Resources::GetDynamicMeshCount<D>();
         resize(Resource_DynamicMesh, group, count, ncount);
     });
@@ -495,7 +492,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     if (!m_State.RenderFlags)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Circles;
+    InstanceDataBuffer &buffer = m_InstanceData->Circles[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
     addInstanceData(buffer, idata);
 }
 
@@ -512,10 +509,10 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
         createStaticInstanceData(m_State, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
 
     InstanceResourceGroup &group =
-        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_StaticMesh][pid];
+        m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_StaticMesh][pid];
 
     group.Registry.RegisterResourceId(mid);
-    addInstanceData(group.Instances[mid], idata);
+    addInstanceData(group.Buffers[mid], idata);
 }
 template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mesh, const f32m<D> &transform)
 {
@@ -527,9 +524,9 @@ template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mes
     const u32 mid = GetResourceId(mesh);
     const DynamicInstanceData<D> idata = createInstanceData(m_State, transform, ++m_DepthCounter);
 
-    InstanceResourceGroup &group = m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->DynamicMeshes;
+    InstanceResourceGroup &group = m_InstanceData->DynamicMeshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
     group.Registry.RegisterResourceId(mid);
-    addInstanceData(group.Instances[mid], idata);
+    addInstanceData(group.Buffers[mid], idata);
 }
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &transform,
@@ -548,10 +545,10 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
         m_State, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
     InstanceResourceGroup &group =
-        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_ParametricMesh][pid];
+        m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_ParametricMesh][pid];
 
     group.Registry.RegisterResourceId(mid);
-    addInstanceData(group.Instances[mid], idata);
+    addInstanceData(group.Buffers[mid], idata);
 }
 
 struct Character
@@ -692,10 +689,10 @@ void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, 
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, m_DepthCounter);
     InstanceResourceGroup &group =
-        m_InstanceData[m_State.Blend][GetRenderMode(m_State.RenderFlags)]->Meshes[Resource_GlyphMesh][pid];
+        m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_GlyphMesh][pid];
 
     group.Registry.RegisterResourceId(gid);
-    addInstanceData(group.Instances[gid], idata);
+    addInstanceData(group.Buffers[gid], idata);
 }
 template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph, const f32m<D> &transform)
 {
