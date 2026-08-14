@@ -3093,22 +3093,22 @@ void Overlay::undockMarked()
     });
 }
 
-static constexpr i32 horizontal = 0;
-static constexpr i32 vertical = 1;
-static constexpr i32 centerAxis = -1;
+static constexpr i32 s_Horizontal = 0;
+static constexpr i32 s_Vertical = 1;
+static constexpr i32 s_CenterAxis = -1;
 
-static constexpr i32 positiveSide = 1;
-static constexpr i32 negativeSide = -1;
-static constexpr i32 centerSide = 0;
+static constexpr i32 s_PositiveSide = 1;
+static constexpr i32 s_NegativeSide = -1;
+static constexpr i32 s_CenterSide = 0;
 
-static constexpr u32 axis = 0;
-static constexpr u32 side = 1;
+static constexpr u32 s_Axis = 0;
+static constexpr u32 s_Side = 1;
 
-static constexpr i32v2 center = {centerAxis, centerSide};
-static constexpr i32v2 left = {horizontal, negativeSide};
-static constexpr i32v2 right = {horizontal, positiveSide};
-static constexpr i32v2 bottom = {vertical, negativeSide};
-static constexpr i32v2 top = {vertical, positiveSide};
+static constexpr i32v2 s_Center = {s_CenterAxis, s_CenterSide};
+static constexpr i32v2 s_Left = {s_Horizontal, s_NegativeSide};
+static constexpr i32v2 s_Right = {s_Horizontal, s_PositiveSide};
+static constexpr i32v2 s_Bottom = {s_Vertical, s_NegativeSide};
+static constexpr i32v2 s_Top = {s_Vertical, s_PositiveSide};
 
 DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 ratio, OverlayWindow *source,
                               OverlayWindow *target)
@@ -3145,7 +3145,7 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
     }
 
     DockNode *parent;
-    if (loc[axis] != centerAxis)
+    if (loc[s_Axis] != s_CenterAxis)
     {
         parent = createDockNode();
         OverlayWindow *host = targetNode->Host;
@@ -3161,7 +3161,7 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
         }
 
         parent->Ratio = ratio;
-        parent->Axis = LayoutAxis(1 - loc[axis]);
+        parent->Axis = LayoutAxis(1 - loc[s_Axis]);
         parent->Host = host;
 
         DockNode *sibling;
@@ -3189,8 +3189,8 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
             }
         }
 
-        parent->Children[(1 + loc[side]) / 2] = loc[axis] == horizontal ? sibling : targetNode;
-        parent->Children[(1 - loc[side]) / 2] = loc[axis] == horizontal ? targetNode : sibling;
+        parent->Children[(1 + loc[s_Side]) / 2] = loc[s_Axis] == s_Horizontal ? sibling : targetNode;
+        parent->Children[(1 - loc[s_Side]) / 2] = loc[s_Axis] == s_Horizontal ? targetNode : sibling;
 
         DockNode *granpa = targetNode->Parent;
         if (granpa)
@@ -3257,8 +3257,8 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         {
             const f32v2 &cpos = elm->Position;
             const f32v2 &csize = elm->Size;
-            const f32v2 center = cpos + 0.5f * csize;
-            ctx->Clip(center, csize);
+            const f32v2 c = cpos + 0.5f * csize;
+            ctx->Clip(c, csize);
         }
     }
     const auto drawPreviewIfHoveredAndInsert = [&](DockNode *targetNode, const f32v2 &middle, const f32v2 &pos,
@@ -3274,12 +3274,12 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             f32v2 offset = f32v2{0.f};
             f32v2 dims = 0.5f * regionSize;
 
-            if (loc[axis] != horizontal)
+            if (loc[s_Axis] != s_Horizontal)
                 dims[0] = regionSize[0];
             else
                 offset[0] = 0.25f * sign * regionSize[0];
 
-            if (loc[axis] != vertical)
+            if (loc[s_Axis] != s_Vertical)
                 dims[1] = regionSize[1];
             else
                 offset[1] = 0.25f * sign * regionSize[1];
@@ -3316,9 +3316,9 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
         f32v2 offset{0.f};
 
-        const f32 sign = f32(loc[side]);
-        if (loc[axis] != centerAxis)
-            offset[loc[axis]] = sign * dpos;
+        const f32 sign = f32(loc[s_Side]);
+        if (loc[s_Axis] != s_CenterAxis)
+            offset[loc[s_Axis]] = sign * dpos;
 
         f32v2 pos = middle + offset;
 
@@ -3339,12 +3339,12 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
         f32v2 offset{0.f};
 
-        const f32 sign = f32(loc[side]);
-        offset[loc[axis]] = sign * (whsize[loc[axis]] - 0.5f * dpos);
+        const f32 sign = f32(loc[s_Side]);
+        offset[loc[s_Axis]] = sign * (whsize[loc[s_Axis]] - 0.5f * dpos);
 
         f32v2 pos = middle + offset;
-        const f32 xmul = loc[axis] == horizontal ? 0.5f : 2.f;
-        const f32 ymul = loc[axis] == vertical ? 0.5f : 2.f;
+        const f32 xmul = loc[s_Axis] == s_Horizontal ? 0.5f : 2.f;
+        const f32 ymul = loc[s_Axis] == s_Vertical ? 0.5f : 2.f;
 
         const f32v2 psize = f32v2{xmul, ymul} * previewSize;
         const RoundedRectParameters params = {psize[0], psize[1], previewRadius};
@@ -3356,22 +3356,22 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
         return drawPreviewIfHoveredAndInsert(targetNode, middle, pos, hitSize, wsize, loc, sign);
     };
 
-    constexpr TKit::FixedArray<i32v2, 4> sides = {left, right, bottom, top};
+    constexpr TKit::FixedArray<i32v2, 4> sides = {s_Left, s_Right, s_Bottom, s_Top};
     ctx->FillColor(m_Style[OverlayColor_DockPreview]);
 
     const auto insertAllBottoms = [&](DockNode *node, const f32v2 &pos, const f32v2 &size, const bool onlyCenter) {
         if (!onlyCenter)
-            for (const i32v2 &side : sides)
-                if (bottomPreviewInsert(side, node, pos, size))
+            for (const i32v2 &s : sides)
+                if (bottomPreviewInsert(s, node, pos, size))
                     return true;
 
         if (!m_DockSource->DockRoot || m_DockSource->DockRoot->IsLeaf())
-            return bottomPreviewInsert(center, node, pos, size);
+            return bottomPreviewInsert(s_Center, node, pos, size);
         return false;
     };
     const auto insertAllTops = [&] {
-        for (const i32v2 &side : sides)
-            if (topPreviewInsert(side, win->DockRoot))
+        for (const i32v2 &s : sides)
+            if (topPreviewInsert(s, win->DockRoot))
                 return true;
         return false;
     };
@@ -3451,9 +3451,9 @@ void Overlay::applyDockTrees()
 
         const auto getDirection = [&](const OverlayDockNode *node) {
             if (node->IsLeaf())
-                return center;
+                return s_Center;
 
-            return node->Axis == LayoutAxis_Horizontal ? top : left;
+            return node->Axis == LayoutAxis_Horizontal ? s_Top : s_Left;
         };
 
         nodes.Append(tree.Root, root);
@@ -6597,7 +6597,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
     const f32 ftime = nw ? Onyx::GetDeltaTime(nw->Window).AsMilliseconds() : Onyx::GetDeltaTime().AsMilliseconds();
     if (ov->PushTree("General", drawLines))
     {
-        ov->SetNextTextId("Delta time");
+        ov->SetNextTextId(ov->IdFromStack("Delta time"));
         ov->Text("Delta time: {:.2f} ms", ftime);
         if (ov->BeginItemTooltip())
         {
@@ -6886,7 +6886,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
                 ov->TextRaw("Hi!");
 
                 static u32 value = 3;
-                ov->SetNextTextId("Text id");
+                ov->SetNextTextId(ov->IdFromStack("Text id"));
                 ov->Text("Right click me and change the value!: {}", value);
                 if (ov->BeginPopupContextItem("Value edit",
                                               Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_BringToTop))

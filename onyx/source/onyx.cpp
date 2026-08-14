@@ -170,6 +170,8 @@ Window *OpenWindow(const OpenWindowSpecs &specs)
     wdata.Flags = specs.Flags;
     if (specs.Window.PresentMode == PresentMode_Immediate && !(specs.Flags & OpenWindowFlag_NoDefaultDeltaTime))
         wdata.DeltaTarget = wdata.Window->GetMonitorDeltaTime();
+    else
+        wdata.DeltaTarget = specs.TargetDeltaTime;
 
     return wdata.Window;
 }
