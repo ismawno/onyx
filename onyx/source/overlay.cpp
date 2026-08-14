@@ -2909,8 +2909,7 @@ void Overlay::undockWindow(OverlayWindow *win)
             win->Grab.ScreenPos = win->GetActivePosition();
             win->Grab.Size = win->Size;
             win->Flags |= WindowInternalFlag_HeaderGrabbed;
-            if (!(win->Flags & OverlayWindowFlag_NoBringToFocus))
-                win->Layer = toTop();
+            win->Layer = toTop();
             m_Grabbed = win;
         }
         else
