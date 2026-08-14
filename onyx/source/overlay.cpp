@@ -582,8 +582,8 @@ static void validateWindowHierarchy(const TKit::StaticArray32<OverlayWindow *> &
 #    define VALIDATE_WINDOW_HIERARCHY(context)
 #endif
 
-#define ENABLE_LOG_DOCK_TREE
-#ifdef ENABLE_LOG_DOCK_TREE // TKIT_ENABLE_DEBUG_LOGS
+// #define ENABLE_LOG_DOCK_TREE
+#ifdef TKIT_ENABLE_DEBUG_LOGS
 // fyi this was generated
 static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, const OverlayWindow *win, const char *label)
 {
