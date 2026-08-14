@@ -143,6 +143,7 @@ class Window final : public RenderTarget
 
     bool IsKeyPressed(Key key) const;
     bool IsKeyReleased(Key key) const;
+    bool IsKeyRepeated(Key key) const;
 
     bool IsMousePressed(Mouse button) const;
     bool IsMouseReleased(Mouse button) const;

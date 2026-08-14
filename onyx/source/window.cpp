@@ -1538,6 +1538,10 @@ bool Window::IsKeyReleased(const Key key) const
 {
     return glfwGetKey(m_Window, toGlfw(key)) == GLFW_RELEASE;
 }
+bool Window::IsKeyRepeated(const Key key) const
+{
+    return glfwGetKey(m_Window, toGlfw(key)) == GLFW_REPEAT;
+}
 
 bool Window::IsMousePressed(const Mouse button) const
 {

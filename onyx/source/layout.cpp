@@ -80,10 +80,12 @@ LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &para
             ++parent.NonFloatChildCount;
 
         current.SelfOverflow = params.SelfOverflow == LayoutOverflow_None ? parent.ChildOverflow : params.SelfOverflow;
-        current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
+        if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
+            current.Flags |= LayoutElementFlag_FloatDrawOnTop;
     }
     else
     {
+        TKIT_ASSERT(c == 0, "[ONYX][LAYOUT] Can only have one root per layout");
         TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Normalized &&
                         params.Sizing[1].Type != LayoutSizing_Normalized,
                     "[ONYX][LAYOUT] The root layout element cannot have normalized sizing");
@@ -205,7 +207,8 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
 
     current.Alignment = parent.Alignment;
     current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
-    current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
+    if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
+        current.Flags |= LayoutElementFlag_FloatDrawOnTop;
 
     for (u32 i = 0; i < 2; ++i)
     {
@@ -265,7 +268,8 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
 
     current.Alignment = parent.Alignment;
     current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
-    current.Flags |= LayoutElementFlag_FloatDrawOnTop * bool(parent.Flags & LayoutElementFlag_FloatDrawOnTop);
+    if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
+        current.Flags |= LayoutElementFlag_FloatDrawOnTop;
     for (u32 i = 0; i < 2; ++i)
     {
         current.SelfOffset[i] = params.Offset[i].Offset;

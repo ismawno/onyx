@@ -357,6 +357,7 @@ enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
     OverlayDockNodeFlag_NoResize = 1U << 1,
+    OverlayDockNodeFlag_UndockIfNotSubmitted = 1U << 2,
 
     DockNodeFlag_MustUndock = 1U << 1,
     DockNodeFlag_MustGrabWhenUndocked = 1U << 2,
@@ -507,6 +508,7 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 41,
     OverlayWindowFlag_MergeIdWithStack = 1ULL << 42,
     OverlayWindowFlag_MousePassThrough = 1ULL << 43,
     OverlayWindowFlag_ChildGrowWidth = 1ULL << 44,
@@ -974,6 +976,7 @@ enum OverlayTabFlagBit : OverlayTabFlags
     TabFlag_RequestClose = 1U << 4,
     TabFlag_JustPermuted = 1U << 5,
     TabFlag_ForDocking = 1U << 6,
+    TabFlag_Unselectable = 1U << 7,
 };
 
 enum OverlayTreeFlagBit : OverlayTreeFlags
@@ -1034,8 +1037,7 @@ struct ScrollInfo
 
 struct ScrollParameterSpecs
 {
-    LayoutId ScrollId;
-    LayoutId PanelId;
+    LayoutId Id;
     LayoutDirection Direction = LayoutDirection_TopToBottom; // useful for tabs
     vec2<LayoutSizing> OuterSizing;
     vec2<LayoutSizing> ContentSizing;
@@ -1995,7 +1997,8 @@ class Overlay
     /// WINDOWS/MENUS PRIVATE
     /////////////////////////////////////////////
 
-    bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, TKit::StringView title = {});
+    bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, TKit::StringView title = {},
+                     bool redirectedByHostedWindow = false);
 
     OverlayWindow *findWindow(LayoutId id);
     OverlayWindow *createOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
@@ -2108,7 +2111,7 @@ class Overlay
 
     bool canDockingHappen(const OverlayWindow *target) const;
 
-    void beginDockHost(OverlayWindow *host, OverlayWindowFlags flags = 0);
+    void beginDockHost(OverlayWindow *host, OverlayWindowFlags flags = 0, bool redirectedByHostedWindow = false);
     void buildDockHostHierarchy(OverlayWindow *host);
 
     void detachNodeFromParent(DockNode *node);
