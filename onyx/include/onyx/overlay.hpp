@@ -691,6 +691,7 @@ struct OverlayWindow
     // accounts for that. it will be used intermttently and skipped when innecessary (context ensures ->Native is the
     // correct choice, such as knowing the window owns the native)
     NativeWindow *GetNative() const;
+    NativeWindow *GetNativeForGrab() const;
 
     bool IsRoot() const
     {
