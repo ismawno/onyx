@@ -1981,7 +1981,7 @@ u32 Overlay::processWindows()
         NativeWindow *nw = m_Grabbed->GetNative();
 
         const f32v2 &ms = m_Grabbed->MinSize;
-        const f32v2 &md = checkParent ? gnw->ScreenMouseDelta : nw->ScreenMouseDelta;
+        const f32v2 &md = gnw->ScreenMouseDelta;
 
         const bool move = ginfo.Flags == 0;                        // && m_Grabbed->CanMove();
         const bool resize = ginfo.Flags & ResizeFlag_WindowBorder; // && m_Grabbed->CanResize();
