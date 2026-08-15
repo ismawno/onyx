@@ -1961,7 +1961,11 @@ u32 Overlay::processWindows()
     const NativeWindow *gnw = m_Grabbed ? m_Grabbed->GetNativeForGrab() : nullptr;
     if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
-        m_Grabbed->GetNative()->Flags &= ~NativeWindowFlag_CheckParentForGrab;
+        NativeWindow *nw = m_Grabbed->GetNative();
+        if (nw->Flags & NativeWindowFlag_CheckParentForGrab)
+            nw->Flags |= NativeWindowFlag_LeftMouseReleased;
+
+        nw->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed->Flags &= ~WindowInternalFlag_HeaderGrabbed;
         const bool move = m_Grabbed->Grab.Flags == 0;
         if (move)
@@ -3261,7 +3265,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
     const f32v2 &mpos = nw->WorldMouse;
 
-    const bool mreleased = (nw->Flags | m_DockSource->GetNativeForGrab()->Flags) & NativeWindowFlag_LeftMouseReleased;
+    const bool mreleased = (nw->Flags | m_DockSource->GetNative()->Flags) & NativeWindowFlag_LeftMouseReleased;
     bool canDrawPreview = true;
     if (!win->IsRoot())
     {
