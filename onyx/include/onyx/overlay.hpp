@@ -535,7 +535,7 @@ enum OverlayWindowFlagBit : OverlayWindowFlags
 
 struct GrabInfo
 {
-    DockNode *DockNode;
+    DockNode *DockNode = nullptr;
     TKit::FixedArray<LayoutId, ResizeEdge_Count> Ids{NullLayoutId, NullLayoutId, NullLayoutId, NullLayoutId};
     OverlayColor InteractionColor = OverlayColor_None; // Whether hovered or pressed
     f32v2 ScreenPos;
@@ -1113,7 +1113,6 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): BUG: When collapsing "Child windows" tree node with a dock tree, the opened tab changes??
 class Overlay
 {
     /////////////////////////////////////////////

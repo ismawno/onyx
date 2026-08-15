@@ -380,9 +380,11 @@ enum NativeWindowFlagBit : NativeWindowFlags
     // this flag allows for persisting the m_Grabbed field when promoting windows. this currently doesnt work in linux
     // as glfw fires a mouse release event on window creation
     NativeWindowFlag_CheckParentForGrab = 1U << 9,
+    NativeWindowFlag_CursorWasSet = 1U << 10,
 
     NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
-                              NativeWindowFlag_ActivePromotedFloatElement | NativeWindowFlag_CheckParentForGrab,
+                              NativeWindowFlag_ActivePromotedFloatElement | NativeWindowFlag_CheckParentForGrab |
+                              NativeWindowFlag_CursorWasSet,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -1678,6 +1680,7 @@ u32 Overlay::processWindows()
     {
         MouseCursor cursor = notAllowed ? MouseCursor_NotAllowed : MouseCursor_Default;
         iterateReverseActiveWindows([&](OverlayWindow *win) {
+            NativeWindow *nw = win->GetNative();
             GrabInfo &ginfo = win->Grab;
             ginfo.Flags = 0;
             ginfo.DockNode = nullptr;
@@ -1687,6 +1690,7 @@ u32 Overlay::processWindows()
             if (winHovered && (win->Flags & WindowInternalFlag_InputHovered))
             {
                 cursor = MouseCursor_IBeam;
+                ginfo = {};
                 return false;
             }
 
@@ -1694,7 +1698,10 @@ u32 Overlay::processWindows()
             const bool modalBlocked = win->PopupDepth < m_ModalCollapseDepth;
             // if (!winHovered || widgetHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked)
             if (!winHovered || widgetPressed || widgetBlocked || popupBlocked || modalBlocked || win->IsDocked())
+            {
+                ginfo = {};
                 return true;
+            }
 
             ResizeFlags rflags = 0;
 
@@ -1707,7 +1714,7 @@ u32 Overlay::processWindows()
                 for (u32 i = 0; i < ginfo.Ids.GetSize(); ++i)
                 {
                     const LayoutId id = ginfo.Ids[i];
-                    if (ly->IsHovered(id, nativeHovered->WorldMouse, bpadding,
+                    if (ly->IsHovered(id, nw->WorldMouse, bpadding,
                                       /* so that popups dont "fakingly" announce a resize*/ hasHoverPadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
@@ -1723,7 +1730,7 @@ u32 Overlay::processWindows()
                     const f32v2 &size = node->ReadOnlySize;
 
                     const LayoutId id = node->BorderId;
-                    if (ly->IsHovered(id, nativeHovered->WorldMouse, bpadding))
+                    if (ly->IsHovered(id, nw->WorldMouse, bpadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
                         // represents the static dock node size. check GrabInfo definition
@@ -1744,17 +1751,21 @@ u32 Overlay::processWindows()
 
             ginfo.Flags = rflags;
             const auto cf = [&](const ResizeFlags f) { return f & rflags; };
-            if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
-                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NESW;
+            if (mustUseHand && cf(ResizeFlag_DockBorder))
+                cursor = MouseCursor_Hand;
+            else
+            {
+                if ((cf(ResizeFlag_Left) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Right) && cf(ResizeFlag_Top)))
+                    cursor = MouseCursor_NESW;
 
-            else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
-                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NWSE;
+                else if ((cf(ResizeFlag_Right) && cf(ResizeFlag_Bottom)) || (cf(ResizeFlag_Left) && cf(ResizeFlag_Top)))
+                    cursor = MouseCursor_NWSE;
 
-            else if (cf(ResizeFlag_Left | ResizeFlag_Right | ResizeFlag_DockVertical))
-                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_EW;
-            else if (cf(ResizeFlag_Bottom | ResizeFlag_Top | ResizeFlag_DockHorizontal))
-                cursor = mustUseHand ? MouseCursor_Hand : MouseCursor_NS;
-
+                else if (cf(ResizeFlag_Left | ResizeFlag_Right | ResizeFlag_DockVertical))
+                    cursor = MouseCursor_EW;
+                else if (cf(ResizeFlag_Bottom | ResizeFlag_Top | ResizeFlag_DockHorizontal))
+                    cursor = MouseCursor_NS;
+            }
             return true;
         });
         nativeHovered->Window->SetMouseCursor(cursor);
@@ -2963,13 +2974,13 @@ void Overlay::undockWindow(OverlayWindow *win)
 
             win->ScreenPos = winRoot->ToScreen(pos + f32v2{-win->MinSize[0], 0.5f * win->MinSize[1]});
 
+            m_Grabbed = win;
             adjustWindowPromotion();
 
             win->Grab.ScreenPos = win->GetActivePosition();
             win->Grab.Size = win->Size;
             win->Flags |= WindowInternalFlag_HeaderGrabbed;
             win->Layer = toTop();
-            m_Grabbed = win;
         }
         else
         {
