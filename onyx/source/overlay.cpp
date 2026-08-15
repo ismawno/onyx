@@ -52,6 +52,7 @@ enum StateFlagBit : StateFlags
     StateFlag_DragPayloadAccepted = 1U << 15,
     StateFlag_DragPayloadRejected = 1U << 16,
     StateFlag_ActivePromotedFloatElement = 1U << 17,
+    StateFlag_DoNotClearGrabbedJustYet = 1U << 18,
 
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
@@ -1770,14 +1771,16 @@ u32 Overlay::processWindows()
         });
         nativeHovered->Window->SetMouseCursor(cursor);
     }
+    const bool mustChangeToDefaultCursor = !m_Grabbed && !nativeHovered;
 
     // check for mouse events
     f32v2 scroll{0.f};
-
     for (NativeWindow *nw : m_NativeWindows)
     {
         nw->TextInput.Clear();
         nw->Flags &= NativeWindowFlagPersist;
+        if (mustChangeToDefaultCursor)
+            nw->Window->SetMouseCursor(MouseCursor_Default);
         for (const Event &ev : nw->Window->GetNewEvents())
         {
             if (ev.Type == Event_WindowResized)
@@ -1958,7 +1961,9 @@ u32 Overlay::processWindows()
     else
         gnw = gchild;
 
-    if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
+    if (m_StateFlags & StateFlag_DoNotClearGrabbedJustYet)
+        m_StateFlags &= ~StateFlag_DoNotClearGrabbedJustYet;
+    else if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         gchild->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed->Flags &= ~WindowInternalFlag_HeaderGrabbed;
@@ -2981,6 +2986,7 @@ void Overlay::undockWindow(OverlayWindow *win)
             win->Grab.Size = win->Size;
             win->Flags |= WindowInternalFlag_HeaderGrabbed;
             win->Layer = toTop();
+            m_StateFlags |= StateFlag_DoNotClearGrabbedJustYet;
         }
         else
         {
