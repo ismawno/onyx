@@ -369,7 +369,7 @@ struct Tab
     // only used for docking
     OverlayWindow *Window = nullptr;
     //
-    TKit::TierString Title;
+    TKit::TierString Title{};
     OverlayTabFlags Flags = 0;
 };
 

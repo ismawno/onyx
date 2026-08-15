@@ -4668,32 +4668,37 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
 bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled, const OverlayTabFlags flags,
                        OverlayWindow *window)
 {
-    u32 idx = data->GetTabById(label.Id);
+    const bool forDocking = flags & TabFlag_ForDocking;
+    const LayoutId tabId = forDocking ? label.Id : IdFromStack(label.Id);
+
+    u32 idx = data->GetTabById(tabId);
     m_LastItem = label.Id;
+
     if (idx == TKIT_U32_MAX)
     {
         idx = data->Tabs.GetSize();
-        data->Tabs.Append(label.Id, window, TKit::TierString{label.Title.GetData(), label.Title.GetSize()}, flags);
+        data->Tabs.Append(tabId, window, TKit::TierString{label.Title.GetData(), label.Title.GetSize()}, flags);
         data->Order.Append(idx);
     }
 
     Tab &tab = data->Tabs[idx];
+    tab.Id = tabId;
     Layout *ly = m_Active->GetActiveLayout();
 
     const bool mustStartOpen = (flags & OverlayTabFlag_StartOpen) && data->OpenId == NullLayoutId;
-    const bool opened = data->OpenId == label.Id || mustStartOpen;
+    const bool opened = data->OpenId == tabId || mustStartOpen;
     const bool pushId = !(flags & OverlayTabFlag_NoPushId);
 
     if (mustStartOpen)
-        data->OpenId = label.Id;
+        data->OpenId = tabId;
 
     if (tab.Flags & TabFlag_Enabled)
     {
         if (opened)
         {
             if (pushId)
-                PushId(label.Id);
-            ly->OpenPanel(label.Id);
+                PushId(tabId);
+            ly->OpenPanel(tabId);
             data->Current = idx;
             return true;
         }
@@ -4717,19 +4722,17 @@ bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled
         tab.Flags &= ~TabFlag_DrawCloseButton;
 
     tab.Flags |= TabFlag_Enabled;
-    if (data->OpenId != label.Id)
+    if (data->OpenId != tabId)
         return false;
 
-    const bool forDocking = flags & TabFlag_ForDocking;
-
     if (pushId)
-        PushId(label.Id);
+        PushId(tabId);
     TKIT_ASSERT(forDocking == bool(window),
                 "[ONYX][OVERLAY] If the _ForDocking tab flag is set, beginTab() must take a non null window");
-    ly->BeginPanel(label.Id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                     .Alignment = TopLeft,
-                                     .Sizing = {isAutoResize() ? fit() : grow(), forDocking ? grow() : fit()},
-                                     .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    ly->BeginPanel(tabId, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                  .Alignment = TopLeft,
+                                  .Sizing = {isAutoResize() ? fit() : grow(), forDocking ? grow() : fit()},
+                                  .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     data->Current = idx;
     return true;
@@ -6706,7 +6709,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         }
 
         ov->TextRaw("This is an example dock space. You may dock windows here");
-        ov->DockSpace("My dock host", dflags, windowFlags);
+        ov->DockSpace(ov->IdFromStack("My dock host"), dflags, windowFlags);
 
         ov->PopTree();
     }
