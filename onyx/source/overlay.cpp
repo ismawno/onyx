@@ -52,7 +52,6 @@ enum StateFlagBit : StateFlags
     StateFlag_DragPayloadAccepted = 1U << 15,
     StateFlag_DragPayloadRejected = 1U << 16,
     StateFlag_ActivePromotedFloatElement = 1U << 17,
-    StateFlag_DoNotClearGrabbedJustYet = 1U << 18,
 
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
@@ -1961,13 +1960,7 @@ u32 Overlay::processWindows()
     else
         gnw = gchild;
 
-    if (m_StateFlags & StateFlag_DoNotClearGrabbedJustYet)
-    {
-        m_StateFlags &= ~StateFlag_DoNotClearGrabbedJustYet;
-        if (m_Grabbed)
-            m_Grabbed->GetNative()->Flags &= ~NativeWindowFlag_CheckParentForGrab;
-    }
-    else if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
+    if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         gchild->Flags &= ~NativeWindowFlag_CheckParentForGrab;
         m_Grabbed->Flags &= ~WindowInternalFlag_HeaderGrabbed;
@@ -2983,14 +2976,13 @@ void Overlay::undockWindow(OverlayWindow *win)
 
             win->ScreenPos = winRoot->ToScreen(pos + f32v2{-win->MinSize[0], 0.5f * win->MinSize[1]});
 
-            m_Grabbed = win;
             adjustWindowPromotion();
 
+            m_Grabbed = win;
             win->Grab.ScreenPos = win->GetActivePosition();
             win->Grab.Size = win->Size;
             win->Flags |= WindowInternalFlag_HeaderGrabbed;
             win->Layer = toTop();
-            m_StateFlags |= StateFlag_DoNotClearGrabbedJustYet;
         }
         else
         {
