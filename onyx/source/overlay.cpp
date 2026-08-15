@@ -1771,7 +1771,6 @@ u32 Overlay::processWindows()
         });
         nativeHovered->Window->SetMouseCursor(cursor);
     }
-    const bool mustChangeToDefaultCursor = !m_Grabbed && !nativeHovered;
 
     // check for mouse events
     f32v2 scroll{0.f};
@@ -1779,8 +1778,6 @@ u32 Overlay::processWindows()
     {
         nw->TextInput.Clear();
         nw->Flags &= NativeWindowFlagPersist;
-        if (mustChangeToDefaultCursor)
-            nw->Window->SetMouseCursor(MouseCursor_Default);
         for (const Event &ev : nw->Window->GetNewEvents())
         {
             if (ev.Type == Event_WindowResized)
@@ -1845,6 +1842,7 @@ u32 Overlay::processWindows()
     }
 
     // remove some state and check whether the window is collapsed
+    const bool mustClearGrabInfo = !m_Grabbed && !nativeHovered;
     for (OverlayWindow *win : m_ActiveWindows)
     {
         const bool locallyCollapsed = win->CanCollapse() && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
@@ -1855,6 +1853,8 @@ u32 Overlay::processWindows()
                         WindowInternalFlag_MenuBarOpened | WindowInternalFlag_Popup);
         if (!(m_Flags & OverlayFlag_WindowPromotions))
             win->ClampToNative();
+        if (mustClearGrabInfo)
+            win->Grab = {};
     };
 
     bool canAssignHover = true;
@@ -1962,7 +1962,11 @@ u32 Overlay::processWindows()
         gnw = gchild;
 
     if (m_StateFlags & StateFlag_DoNotClearGrabbedJustYet)
+    {
         m_StateFlags &= ~StateFlag_DoNotClearGrabbedJustYet;
+        if (m_Grabbed)
+            m_Grabbed->GetNative()->Flags &= ~NativeWindowFlag_CheckParentForGrab;
+    }
     else if (gnw && !(gnw->Flags & NativeWindowFlag_PressingLeftMouse))
     {
         gchild->Flags &= ~NativeWindowFlag_CheckParentForGrab;
