@@ -3112,6 +3112,16 @@ void Overlay::undockMarked()
         if (isDocked && (!dockingEnabled || mustUndock || tooEmpty))
             undockWindow(win);
     });
+    // a second sweep because last sweep may have left some windows alone that would get undocked next frame with full
+    // window size
+    if (dockingEnabled)
+        iterateReverseWindows(m_OverlayWindows, [&](OverlayWindow *win) {
+            const bool tooEmpty = win->IsDocked() && win->DockRoot == win->DockParent &&
+                                  !(win->DockParent->Flags & OverlayDockNodeFlag_CanBeEmpty) &&
+                                  win->DockParent->Windows.GetSize() == 1;
+            if (tooEmpty)
+                undockWindow(win);
+        });
 }
 
 static constexpr i32 s_Horizontal = 0;
