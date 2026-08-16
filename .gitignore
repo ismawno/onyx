@@ -11,6 +11,7 @@ demo/sandbox/lattice*
 .cache/
 imgui.ini
 onyx-overlay.yaml
+onyx-overlay-floating.yaml
 docs/html/
 docs/latex/
 __pycache__/

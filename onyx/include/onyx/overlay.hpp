@@ -367,10 +367,9 @@ enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
     OverlayDockNodeFlag_NoResize = 1U << 1,
-    OverlayDockNodeFlag_UndockIfNotSubmitted = 1U << 2,
 
-    DockNodeFlag_MustUndock = 1U << 1,
-    DockNodeFlag_MustGrabWhenUndocked = 1U << 2,
+    DockNodeFlag_MustUndock = 1U << 2,
+    DockNodeFlag_MustGrabWhenUndocked = 1U << 3,
 };
 
 struct Tab
@@ -1173,7 +1172,8 @@ class Overlay
     void SetSerializationPath(const fs::path &p)
     {
         if (fs::is_directory(p))
-            m_SerializationPath = p / "onyx-overlay.yaml";
+            m_SerializationPath =
+                (Flags & OverlayFlag_FloatingMode) ? p / "onyx-overlay-floating.yaml" : p / "onyx-overlay.yaml";
         else
             m_SerializationPath = p;
     }
@@ -2051,7 +2051,7 @@ class Overlay
     OverlayWindow *createOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
     OverlayWindow *getOrCreateOverlayWindow(LayoutId id, OverlayWindow *parent = nullptr);
 
-    void assignNativeWindowSomehow(OverlayWindow *win);
+    void assignNativeWindowSomehow(OverlayWindow *win, bool avoidPromotion = false);
 
     void addActiveWindow(OverlayWindow *win);
     void drawWindowBorders(OverlayWindow *win);
