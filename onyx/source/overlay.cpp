@@ -3179,7 +3179,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
         DockNode *node = bdata.Node;
         ly->OpenPanel(node->ContentId);
 
-        // PushId(node);
+        PushId(node);
         node->BorderId = ly->Panel(IdFromStack("__onyx_id_Dock_axis"), LyPnPar{.FillColor = m_Style[bdata.BorderColor],
                                                                                .Sizing = bdata.BorderSize,
                                                                                .SelfOffset = bdata.BorderOffset,
@@ -3207,7 +3207,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
         }
 
         ly->EndPanel();
-        // PopId();
+        PopId();
     }
 }
 
