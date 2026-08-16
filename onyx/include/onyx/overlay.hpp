@@ -1126,6 +1126,8 @@ struct OverlaySpecs
 
 // TODO(Isma): Test serialization with floating mode
 // TODO(Isma): Add more dock node flags (NoResize for example)
+// TODO(Isma): Try not doing BFS in generate draw info
+// TODO(Isma): Have two arrays, one with only draws, and the other with full tree
 class Overlay
 {
     /////////////////////////////////////////////

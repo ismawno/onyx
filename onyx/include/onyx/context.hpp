@@ -557,7 +557,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         AlignX(Alignment_Left);
         AlignY(Alignment_Bottom);
     }
-    void LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D = nullptr);
+    void LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D = nullptr,
+                       bool useElementDepthCounter = false);
     void EndLayoutElements()
     {
         Pop();
@@ -733,15 +734,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_Generation > generation;
     }
 
-    u32 GetDepthCounter() const
-    {
-        return m_DepthCounter;
-    }
-    void SetDepthCounter(const u32 counter)
-    {
-        m_DepthCounter = counter;
-    }
-
     void AddTarget(const ViewMask viewMask)
     {
         m_ViewMask |= viewMask;
@@ -762,6 +754,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         RemoveTarget(view->GetViewBit());
     }
+
+    u32 DepthCounter = 0;
 
   protected:
     ContextState<D> m_State{};
@@ -824,7 +818,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     u64 m_Generation = 0;
     Color m_AmbientLight = Color{Color_White, 0.4f};
     ViewMask m_ViewMask = 0;
-    u32 m_DepthCounter = 0;
     u32 m_DynamicMeshCounter = 0;
 };
 

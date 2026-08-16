@@ -100,7 +100,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
     resizeInstanceData();
     ++m_Generation;
-    m_DepthCounter = 0;
+    DepthCounter = 0;
     m_DynamicMeshCounter = 0;
     m_PointLightData.Clear();
     m_DirectionalLightData.Clear();
@@ -491,7 +491,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
 {
     if (!m_State.RenderFlags)
         return;
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++m_DepthCounter);
+    const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData->Circles[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
     addInstanceData(buffer, idata);
 }
@@ -506,7 +506,7 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
     const u32 mid = GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
-        createStaticInstanceData(m_State, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
+        createStaticInstanceData(m_State, transform, Resources::GetMeshBounds<D>(mesh), ++DepthCounter);
 
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_StaticMesh][pid];
@@ -522,7 +522,7 @@ template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mes
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(mesh, Resource_DynamicMesh, D);
 
     const u32 mid = GetResourceId(mesh);
-    const DynamicInstanceData<D> idata = createInstanceData(m_State, transform, ++m_DepthCounter);
+    const DynamicInstanceData<D> idata = createInstanceData(m_State, transform, ++DepthCounter);
 
     InstanceResourceGroup &group = m_InstanceData->DynamicMeshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
     group.Registry.RegisterResourceId(mid);
@@ -542,7 +542,7 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(
-        m_State, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
+        m_State, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++DepthCounter);
 
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_ParametricMesh][pid];
@@ -578,7 +578,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_State.Sampler);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_State.Sampler, Resource_Sampler, D);
 
-    ++m_DepthCounter;
+    ++DepthCounter;
     const Alignment alg0 = m_State.Alignment[0] == Alignment_None ? Alignment_Left : m_State.Alignment[0];
     const Alignment alg1 = m_State.Alignment[1] == Alignment_None ? Alignment_Top : m_State.Alignment[1];
 
@@ -687,7 +687,7 @@ void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, 
     const u32 pid = GetResourcePoolId(glyph);
     const u32 gid = GetResourceId(glyph);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, m_DepthCounter);
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, DepthCounter);
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_GlyphMesh][pid];
 
@@ -702,7 +702,7 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_State.Sampler);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_State.Sampler, Resource_Sampler, D);
 
-    ++m_DepthCounter;
+    ++DepthCounter;
     const Resource font = Resources::GetFont(glyph);
     const FontData &fdata = Resources::GetFontData(font);
 
@@ -785,14 +785,20 @@ template <Dimension D> void IRenderContext<D>::Layout(const Onyx::Layout &layout
 {
     TKIT_PROFILE_NSCOPE("Onyx::Context::Layout");
     u32 depth = 0;
+    const bool useDepthCounter = layout.HasCustomDepthCounter();
     BeginLayoutElements();
     for (const LayoutDrawInfo &info : layout.GetDrawInfo())
         if (info.Flags & LayoutElementFlag_Drawable)
-            LayoutElement(info, &depth);
+            LayoutElement(info, &depth, useDepthCounter);
     EndLayoutElements();
 }
-template <Dimension D> void IRenderContext<D>::LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D)
+template <Dimension D>
+void IRenderContext<D>::LayoutElement(const LayoutDrawInfo &element, u32 *depthCounter3D,
+                                      const bool useElementDepthCounter)
 {
+    if (useElementDepthCounter)
+        DepthCounter = element.DepthCounter;
+
     Push();
     RenderFlags(element.RenderFlags);
     Texture(element.Texture, element.TexOffset, element.TexScale);

@@ -468,11 +468,15 @@ class Layout
     }
 
     void Reset();
-    void Compile();
+    void Compile(u32 *depthCounter = nullptr, u32 *floatDepthCounter = nullptr);
 
     const TKit::TierArray<LayoutDrawInfo> &GetDrawInfo() const
     {
         return m_DrawInfo;
+    }
+    const TKit::TierArray<LayoutElement> &GetElements() const
+    {
+        return m_Elements;
     }
 
     const LayoutSpecs &GetSpecs() const
@@ -490,13 +494,18 @@ class Layout
         return TKit::Hash(++m_AutoId.Id);
     }
 
+    bool HasCustomDepthCounter() const
+    {
+        return m_CustomDepth;
+    }
+
   private:
     void insertId(LayoutId id, u32 idx);
     void fitPass(const TKit::StackArray<u32> &fits, LayoutAxis axis);
     void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
     void wrapText(const TKit::StackArray<u32> &textElms);
     void positionPass(const TKit::StackArray<u32> &breadth);
-    void generateDrawInfo();
+    void generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter);
 
     void applySpecDefaults();
 
@@ -511,6 +520,7 @@ class Layout
 
     LayoutSpecs m_Specs{};
     LayoutId m_AutoId = usz(0);
+    bool m_CustomDepth = false;
 };
 } // namespace Onyx
 

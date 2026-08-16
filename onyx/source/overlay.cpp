@@ -6441,6 +6441,11 @@ void Overlay::Draw()
         }
     };
 
+    u32 depthCounter = 0;
+    u32 floatDepthCounter = 0;
+    for (const Layout *ly : m_Layouts)
+        floatDepthCounter += ly->GetElements().GetSize();
+
     for (OverlayWindow *win : m_ActiveWindows)
     {
         NativeWindow *nw = win->GetNative();
@@ -6457,10 +6462,11 @@ void Overlay::Draw()
             ctx->Quad();
             ctx->Pop();
         }
-        win->Layout->Compile();
+        win->Layout->Compile(&depthCounter, &floatDepthCounter);
 
         if (windowPromotions)
         {
+            const bool useDepthCounter = win->Layout->HasCustomDepthCounter();
             ctx->BeginLayoutElements();
 
             struct FloatRedirect
@@ -6534,7 +6540,7 @@ void Overlay::Draw()
                     continue;
 
                 if (stack.IsEmpty())
-                    ctx->LayoutElement(info);
+                    ctx->LayoutElement(info, nullptr, useDepthCounter);
                 else
                 {
                     LayoutDrawInfo elm = info;
@@ -6544,7 +6550,7 @@ void Overlay::Draw()
                         elm.ClipMax += offset;
                         elm.ClipMin += offset;
                     }
-                    ctx->LayoutElement(elm);
+                    ctx->LayoutElement(elm, nullptr, useDepthCounter);
                 }
             }
             for (const FloatRedirect &rd : stack)

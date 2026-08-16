@@ -707,12 +707,16 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
     }
 }
 
-void Layout::generateDrawInfo()
+void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateDrawInfo");
+    TKIT_ASSERT(bool(depthCounter) == bool(floatDepthCounter),
+                "[ONYX][LAYOUT] If a depth counter is provider, both depth counter types must be provided");
+
     TKit::StackArray<LayoutDrawInfo> floats{};
     floats.Reserve(m_Elements.GetSize());
 
+    m_CustomDepth = depthCounter && floatDepthCounter;
     m_DrawInfo.Clear();
     if (m_Elements.IsEmpty())
         return;
@@ -811,16 +815,23 @@ void Layout::generateDrawInfo()
             break;
         }
 
-        // TODO(Isma): Avoid this re direction with a smart trick with depth counter
-        if (elm.Flags & LayoutElementFlag_FloatDrawOnTop)
+        const bool isFloat = elm.Flags & LayoutElementFlag_FloatDrawOnTop;
+
+        if (m_CustomDepth)
+        {
+            info.DepthCounter = isFloat ? (*floatDepthCounter)++ : (*depthCounter)++;
+            m_DrawInfo.Append(info);
+        }
+        else if (isFloat)
             floats.Append(info);
         else
             m_DrawInfo.Append(info);
     }
-    m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
+    if (!m_CustomDepth)
+        m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 }
 
-void Layout::Compile()
+void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
     TKIT_PROFILE_SCOPE_VALUE(m_Elements.GetSize());
@@ -872,7 +883,7 @@ void Layout::Compile()
     growShrinkPass(breadth, LayoutAxis_Vertical);
     positionPass(breadth);
 
-    generateDrawInfo();
+    generateDrawInfo(depthCounter, floatDepthCounter);
 
     m_Elements.Clear();
     m_InsertedElements.Clear();
