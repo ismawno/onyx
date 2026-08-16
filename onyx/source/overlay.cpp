@@ -850,13 +850,11 @@ void Overlay::Deserialize()
             OverlayWindow *win = dockHost ? getOrCreateDockHost(id, parent) : getOrCreateOverlayWindow(id, parent);
             if (!parent)
                 win->ScreenPos = nwin["Position"].as<f32v2>();
-            TKit::PrintLine("GOT A POSITION 1 {}", nwin["Position"].as<f32v2>());
 
             win->Size = nwin["Size"].as<f32v2>();
             win->Layer = nwin["Layer"].as<u64>();
 
             maxLayer = Math::Max(maxLayer, win->Layer);
-            TKit::PrintLine("GOT A POSITION 2 {}", win->ScreenPos);
         }
         m_LayerCount = maxLayer + 1;
     }
