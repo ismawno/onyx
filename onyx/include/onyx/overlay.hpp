@@ -5,6 +5,9 @@
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
 #include "tkit/container/bitset.hpp"
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+#    include <filesystem>
+#endif
 
 // in general, elements beginning with OverlayXXX are to be used by the public
 
@@ -14,6 +17,9 @@
 
 namespace Onyx
 {
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+namespace fs = std::filesystem;
+#endif
 /////////////////////////////////////////////
 /// FLAG DEFINITIONS
 /////////////////////////////////////////////
@@ -62,9 +68,13 @@ enum OverlayFlagBit : OverlayFlags
 {
     OverlayFlag_WindowPromotions = 1U << 0,
     OverlayFlag_Docking = 1U << 1,
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+    OverlayFlag_AutoSerialize = 1U << 2,
+#endif
+    OverlayFlag_WindowPromotionInitialFrameCooldown = 1U << 3,
 
     // internal
-    OverlayFlag_FloatingMode = 1U << 2,
+    OverlayFlag_FloatingMode = 1U << 4,
 };
 
 /////////////////////////////////////////////
@@ -1114,6 +1124,8 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
+// TODO(Isma): Test serialization with floating mode
+// TODO(Isma): Add more dock node flags (NoResize for example)
 class Overlay
 {
     /////////////////////////////////////////////
@@ -1150,6 +1162,33 @@ class Overlay
     /////////////////////////////////////////////
     /// END INITIALIZATION
     /////////////////////////////////////////////
+
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+    const fs::path &GetSerializationPath() const
+    {
+        return m_SerializationPath;
+    }
+    void SetSerializationPath(const fs::path &p)
+    {
+        if (fs::is_directory(p))
+            m_SerializationPath = p / "onyx-overlay.yaml";
+        else
+            m_SerializationPath = p;
+    }
+
+    void Serialize();
+    void Serialize(const fs::path &p)
+    {
+        SetSerializationPath(p);
+        Serialize();
+    }
+    void Deserialize();
+    void Deserialize(const fs::path &p)
+    {
+        SetSerializationPath(p);
+        Deserialize();
+    }
+#endif
 
     /////////////////////////////////////////////
     /// WINDOWS/MENUS PUBLIC
@@ -1212,7 +1251,7 @@ class Overlay
     }
     const NativeWindow *GetMainNativeWindow() const
     {
-        return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
+        return (Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
     bool IsCurrentWindowPromoted() const;
 
@@ -1229,9 +1268,10 @@ class Overlay
         return m_Active->IsDocked();
     }
     void UndockWindow(LayoutId id);
+    void ApplyDockTree(LayoutId hostId, const OverlayDockNode *root);
     void SubmitDockTree(const LayoutId hostId, const OverlayDockNode *root)
     {
-        TKIT_ASSERT(m_Flags & OverlayFlag_Docking, "[ONYX][OVERLAY] Docking must be enabled to submit dock trees");
+        TKIT_ASSERT(Flags & OverlayFlag_Docking, "[ONYX][OVERLAY] Docking must be enabled to submit dock trees");
         TKIT_ASSERT(hostId != NullLayoutId, "[ONYX][OVERLAY] Host id may not be null");
         m_DockTrees.Append(hostId, root);
     }
@@ -1989,9 +2029,14 @@ class Overlay
     /// END DEMO
     /////////////////////////////////////////////
 
+    OverlayFlags Flags = 0;
+
   private:
     StateFlags m_StateFlags = 0;
-    OverlayFlags m_Flags = 0;
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+    fs::path m_SerializationPath{};
+#endif
+    u64 m_FrameCount = 0;
 
     /////////////////////////////////////////////
     /// WINDOWS/MENUS PRIVATE
@@ -2055,7 +2100,7 @@ class Overlay
     }
     NativeWindow *getMainNativeWindow()
     {
-        return (m_Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
+        return (Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
     }
 
     u64 toTop()
@@ -2097,6 +2142,8 @@ class Overlay
     void destroyDockNode(const DockNode *node);
     void removeDockNode(const DockNode *node);
 
+    OverlayWindow *getOrCreateDockHost(LayoutId id, OverlayWindow *parent = nullptr);
+    OverlayWindow *createDockHost(LayoutId id, OverlayWindow *parent = nullptr);
     OverlayWindow *createDockHost(const OverlayWindow *win, DockNode *rootNode, bool fromWindow);
     OverlayWindow *createDockHostFromWindow(const OverlayWindow *win, DockNode *rootNode)
     {

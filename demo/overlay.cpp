@@ -17,6 +17,9 @@ static bool runDemo(const bool floating)
         ui = win->CreateOverlay();
     }
 
+    // ui->Flags |= Onyx::OverlayFlag_AutoSerialize | Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_WindowPromotions;
+    // ui->Deserialize(".");
+
     // a simple example using the docking api. docking must be enabled when creating the ui!!
     // const Onyx::OverlayDockNode *root =
     //     Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f,

@@ -6,6 +6,11 @@
 #include "onyx/platform.hpp"
 #include "onyx/renderer.hpp"
 #include "tkit/profiling/macros.hpp"
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+#    include "tkit/serialization/yaml/tensor.hpp"
+#    include "tkit/serialization/yaml/container.hpp"
+#    include <filesystem>
+#endif
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4312)
@@ -19,6 +24,23 @@ namespace Onyx
 static constexpr f32 s_CheckboardLight = 0.5f;
 static constexpr f32 s_CheckboardDark = 0.3f;
 static constexpr usz s_BaseId = 0xA7C3E1D9B4F20856;
+
+static constexpr i32 s_Horizontal = 0;
+static constexpr i32 s_Vertical = 1;
+static constexpr i32 s_CenterAxis = -1;
+
+static constexpr i32 s_PositiveSide = 1;
+static constexpr i32 s_NegativeSide = -1;
+static constexpr i32 s_CenterSide = 0;
+
+static constexpr u32 s_Axis = 0;
+static constexpr u32 s_Side = 1;
+
+static constexpr i32v2 s_Center = {s_CenterAxis, s_CenterSide};
+static constexpr i32v2 s_Left = {s_Horizontal, s_NegativeSide};
+static constexpr i32v2 s_Right = {s_Horizontal, s_PositiveSide};
+static constexpr i32v2 s_Bottom = {s_Vertical, s_NegativeSide};
+static constexpr i32v2 s_Top = {s_Vertical, s_PositiveSide};
 
 /////////////////////////////////////////////
 /// END GLOBALS
@@ -662,7 +684,7 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, cons
 /////////////////////////////////////////////
 
 Overlay::Overlay(Window *win, const OverlaySpecs &specs)
-    : m_Flags(specs.Flags), m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
+    : Flags(specs.Flags), m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
 {
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
@@ -675,7 +697,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         nw->ScreenPos = f32v2{nw->Window->GetPosition()};
     }
     else
-        m_Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
+        Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
@@ -685,6 +707,10 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
 
 Overlay::~Overlay()
 {
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+    if (Flags & OverlayFlag_AutoSerialize)
+        Serialize();
+#endif
     for (OverlayWindow *win : m_OverlayWindows)
         destroyOverlayWindow(win, false);
 
@@ -704,6 +730,150 @@ Overlay::~Overlay()
 /////////////////////////////////////////////
 /// END INITIALIZATION
 /////////////////////////////////////////////
+
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
+static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node &n)
+{
+    using Node = TKit::Yaml::Node;
+    if (n["Windows"])
+    {
+        TKit::StackArray<LayoutId> windows{};
+        windows.Reserve(32);
+        for (const Node &id : n["Windows"])
+            windows.Append(id.as<usz>());
+
+        return DockTabBar(windows, n["Flags"].as<u32>());
+    }
+
+    return DockSplit(LayoutAxis(n["Axis"].as<u32>()), n["Ratio"].as<f32>(),
+                     createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
+                     n["Flags"].as<u32>());
+}
+void Overlay::Serialize()
+{
+    if (m_SerializationPath.empty())
+        return;
+
+    using Node = TKit::Yaml::Node;
+
+    Node root;
+    if (fs::exists(m_SerializationPath))
+    {
+        root = TKit::Yaml::FromFile(m_SerializationPath);
+        root["DockTrees"] = Node{};
+    }
+
+    Node windows = root["Windows"];
+    Node dockTrees = root["DockTrees"];
+    const bool isFloating = Flags & OverlayFlag_FloatingMode;
+    for (OverlayWindow *win : m_OverlayWindows)
+    {
+        Node n = windows[win->Id.Id];
+#    ifdef TKIT_ENABLE_ENSURE
+        if (!win->Title.IsEmpty())
+            n["Title"] = win->Title;
+#    endif
+        if (!win->IsRoot())
+            n["Parent"] = win->Parent->Id.Id;
+        else if (win->IsDocked())
+            n["Position"] = win->DockParent->ReadOnlyPosition;
+        else if (isFloating)
+            n["Position"] = win->Native->ScreenPos;
+        else if (win->Flags & WindowInternalFlag_OwnsNative)
+            n["Position"] = win->Native->ScreenPos - win->Native->Parent->ScreenPos;
+        else
+            n["Position"] = win->ScreenPos;
+
+        n["Size"] = win->Size;
+        n["Layer"] = win->Layer;
+        n["DockHost"] = win->IsDockHost();
+
+        if (win->IsDockHost())
+        {
+            TKit::StackArray<Node> nodes{};
+            nodes.Reserve(m_DockNodes.GetSize());
+            nodes.Append(dockTrees[win->Id.Id]);
+            iterateDockTree(win->DockRoot, [&](const DockNode *node) {
+                Node child = nodes.GetBack();
+                nodes.Pop();
+
+                child["Flags"] = u32(node->Flags);
+                if (node->IsLeaf())
+                    for (OverlayWindow *cwin : node->Windows)
+                        child["Windows"].push_back(cwin->Id.Id);
+                else
+                {
+                    child["Ratio"] = node->Ratio;
+                    child["Axis"] = u32(node->Axis);
+
+                    Node children = child["Children"];
+                    children.push_back(Node{});
+                    children.push_back(Node{});
+
+                    nodes.Append(children[1]);
+                    nodes.Append(children[0]);
+                }
+            });
+        }
+    }
+
+    TKit::Yaml::ToFile(m_SerializationPath, root);
+}
+void Overlay::Deserialize()
+{
+    if (m_SerializationPath.empty() || !fs::exists(m_SerializationPath))
+        return;
+
+    using Node = TKit::Yaml::Node;
+
+    const Node root = TKit::Yaml::FromFile(m_SerializationPath);
+    if (root["Windows"])
+    {
+        const Node &windows = root["Windows"];
+        u64 maxLayer = 0;
+        for (auto it = windows.begin(); it != windows.end(); ++it)
+        {
+            const usz id = it->first.as<usz>();
+            const Node &nwin = it->second;
+            const bool dockHost = nwin["DockHost"].as<bool>();
+            if (dockHost && (!root["DockTrees"] || !root["DockTrees"][id]))
+                continue;
+
+            OverlayWindow *parent = nullptr;
+            if (nwin["Parent"])
+            {
+                parent = findWindow(nwin["Parent"].as<usz>());
+                TKIT_ASSERT(parent,
+                            "[ONYX][OVERLAY] Serialization path claims window has a parent, but the parent has not "
+                            "been deserialized");
+            }
+            OverlayWindow *win = dockHost ? getOrCreateDockHost(id, parent) : getOrCreateOverlayWindow(id, parent);
+            if (!parent)
+                win->ScreenPos = nwin["Position"].as<f32v2>();
+            TKit::PrintLine("GOT A POSITION 1 {}", nwin["Position"].as<f32v2>());
+
+            win->Size = nwin["Size"].as<f32v2>();
+            win->Layer = nwin["Layer"].as<u64>();
+
+            maxLayer = Math::Max(maxLayer, win->Layer);
+            TKit::PrintLine("GOT A POSITION 2 {}", win->ScreenPos);
+        }
+        m_LayerCount = maxLayer + 1;
+    }
+    if (root["DockTrees"])
+    {
+        const Node &dockTrees = root["DockTrees"];
+        for (auto it = dockTrees.begin(); it != dockTrees.end(); ++it)
+        {
+            const usz hostId = it->first.as<usz>();
+            const Node &uroot = it->second;
+
+            const OverlayDockNode *root = createTreeBasedOnSerialized(uroot);
+            ApplyDockTree(hostId, root);
+        }
+    }
+}
+#endif
 
 /////////////////////////////////////////////
 /// WINDOWS/MENUS
@@ -863,7 +1033,7 @@ void Overlay::EndMenuBar()
 
 bool Overlay::BeginMainMenuBar()
 {
-    if (m_Flags & OverlayFlag_FloatingMode)
+    if (Flags & OverlayFlag_FloatingMode)
         return false;
 
     const NativeWindow *nw = GetMainNativeWindow();
@@ -1856,7 +2026,7 @@ u32 Overlay::processWindows()
         // we dont clear _Active flag yet as its needed for multi surface later
         win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_IsDockTarget |
                         WindowInternalFlag_MenuBarOpened | WindowInternalFlag_Popup);
-        if (!(m_Flags & OverlayFlag_WindowPromotions))
+        if (!(Flags & OverlayFlag_WindowPromotions))
             win->ClampToNative();
         if (mustClearGrabInfo)
             win->Grab = {};
@@ -2259,7 +2429,7 @@ void Overlay::removeNativeWindow(const NativeWindow *nw)
     for (u32 i = 0; i < m_NativeWindows.GetSize(); ++i)
         if (m_NativeWindows[i] == nw)
         {
-            TKIT_ASSERT((m_Flags & OverlayFlag_FloatingMode) || i != 0,
+            TKIT_ASSERT((Flags & OverlayFlag_FloatingMode) || i != 0,
                         "[ONYX][OVERLAY] Main native window can never be removed when not in floating mode!");
             destroyNativeWindow(nw);
             m_NativeWindows.RemoveUnordered(m_NativeWindows.begin() + i);
@@ -2484,12 +2654,86 @@ const OverlayDockNode *DockTabBar(const TKit::Span<const LayoutId> windows, Over
 
 void Overlay::UndockWindow(const LayoutId id)
 {
-    if (!(m_Flags & OverlayFlag_Docking))
+    if (!(Flags & OverlayFlag_Docking))
         return;
 
     OverlayWindow *win = findWindow(id);
     if (win && win->IsDocked())
         win->Flags |= WindowInternalFlag_MustUndock;
+}
+
+void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
+{
+    TKit::TierAllocator *tier = GetTier();
+    OverlayWindow *host = findWindow(hostId);
+    TKIT_ASSERT(!host || !host->IsDocked(), "[ONYX][OVERLAY] Cannot submit a window id as host that is already docked");
+
+    DockNode *root;
+    if (!host)
+        host = createDockHost(hostId);
+    else if (!host->DockRoot)
+    {
+        root = createDockNode();
+        root->Windows.Append(host);
+
+        host = createDockHostFromWindow(host, root);
+
+        host->DockRoot = root;
+        host->Id = hostId;
+    }
+    else
+        root = host->DockRoot;
+
+    struct DockInfo
+    {
+        const OverlayDockNode *UserNode;
+        DockNode *Node;
+    };
+
+    TKit::StackArray<DockInfo> nodes{};
+    nodes.Reserve(m_DockNodes.GetCapacity());
+
+    const auto getDirection = [&](const OverlayDockNode *node) {
+        if (node->IsLeaf())
+            return s_Center;
+
+        return node->Axis == LayoutAxis_Horizontal ? s_Top : s_Left;
+    };
+
+    nodes.Append(uroot, root);
+    while (!nodes.IsEmpty())
+    {
+        const DockInfo info = nodes.GetBack();
+        nodes.Pop();
+
+        const OverlayDockNode *unode = info.UserNode;
+        DockNode *node = info.Node;
+        node->Flags = unode->Flags;
+
+        DockNode *parent = dockInsert(node, getDirection(unode), unode->Ratio);
+
+        if (parent->IsRoot())
+            root = parent;
+
+        if (unode->IsLeaf())
+            for (const LayoutId &id : unode->Windows)
+            {
+                OverlayWindow *win = getOrCreateOverlayWindow(id);
+                ASSERT_WITH_WINDOW(win, !win->IsDocked() && !win->IsDockHost(),
+                                   "[ONYX][OVERLAY] Cannot submit a window to be docked that is already docked "
+                                   "elsewhere or is a dock host");
+
+                node->Windows.Append(win);
+                win->DockParent = node;
+                win->DockRoot = root;
+            }
+        else
+        {
+            nodes.Append(unode->Children[1], parent->Children[1]);
+            nodes.Append(unode->Children[0], parent->Children[0]);
+        }
+        tier->Destroy(unode);
+    }
 }
 
 LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags, const OverlayWindowFlags wflags)
@@ -2521,7 +2765,7 @@ LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags,
 
 LayoutId Overlay::FullScreenDockSpace(const OverlayDockNodeFlags flags, const OverlayWindowFlags wflags)
 {
-    TKIT_ASSERT(!(m_Flags & OverlayFlag_FloatingMode),
+    TKIT_ASSERT(!(Flags & OverlayFlag_FloatingMode),
                 "[ONYX][OVERLAY] Cannot have a full screen dockspace in floating mode");
 
     SetNextWindowPosition({0.f, m_MainDockSpaceOffset});
@@ -2602,6 +2846,23 @@ void Overlay::removeDockNode(const DockNode *node)
             return;
         }
     TKIT_FATAL("[ONYX][OVERLAY] Dock node to remove was not found!");
+}
+
+OverlayWindow *Overlay::getOrCreateDockHost(const LayoutId id, OverlayWindow *parent)
+{
+    OverlayWindow *win = findWindow(id);
+    if (win)
+        return win;
+    return createDockHost(id, parent);
+}
+
+OverlayWindow *Overlay::createDockHost(const LayoutId id, OverlayWindow *parent)
+{
+    OverlayWindow *host = createOverlayWindow(id, parent);
+    DockNode *root = createDockNode();
+    root->Host = host;
+    host->DockRoot = root;
+    return host;
 }
 
 OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootNode, const bool fromWindow)
@@ -2726,7 +2987,7 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
 bool Overlay::canDockingHappen(const OverlayWindow *target) const
 {
     const OverlayWindow *source = m_DockSource;
-    const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
+    const bool dockingEnabled = Flags & OverlayFlag_Docking;
     const bool dockAttempt = dockingEnabled && source && (source->Flags & WindowInternalFlag_HeaderGrabbed);
 
     const bool dockAllowed = dockAttempt && !((source->Flags | target->Flags) & OverlayWindowFlag_NoDocking);
@@ -3081,7 +3342,7 @@ void Overlay::undockNode(DockNode *node)
 }
 void Overlay::undockMarked()
 {
-    const bool dockingEnabled = m_Flags & OverlayFlag_Docking;
+    const bool dockingEnabled = Flags & OverlayFlag_Docking;
     if (dockingEnabled)
     {
         for (OverlayWindow *win : m_OverlayWindows)
@@ -3124,23 +3385,16 @@ void Overlay::undockMarked()
         });
 }
 
-static constexpr i32 s_Horizontal = 0;
-static constexpr i32 s_Vertical = 1;
-static constexpr i32 s_CenterAxis = -1;
+// insert a new node at the target node, involving usually creating a new parent and sibling
 
-static constexpr i32 s_PositiveSide = 1;
-static constexpr i32 s_NegativeSide = -1;
-static constexpr i32 s_CenterSide = 0;
+// target and source are convenient additions to specify, respectively, the dock host (target) and the new window to be
+// docked (source) what does it mean for target to be null? it means target must be derived from the target node's host
 
-static constexpr u32 s_Axis = 0;
-static constexpr u32 s_Side = 1;
+// if target is specified, targetNode can be null. this usually means a new dock tree is going to be born from 2
+// windows!
 
-static constexpr i32v2 s_Center = {s_CenterAxis, s_CenterSide};
-static constexpr i32v2 s_Left = {s_Horizontal, s_NegativeSide};
-static constexpr i32v2 s_Right = {s_Horizontal, s_PositiveSide};
-static constexpr i32v2 s_Bottom = {s_Vertical, s_NegativeSide};
-static constexpr i32v2 s_Top = {s_Vertical, s_PositiveSide};
-
+// what does it mean for source to be null? it means the node inserted will be empty: no "start" window will be attached
+// to it
 DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 ratio, OverlayWindow *source,
                               OverlayWindow *target)
 {
@@ -3149,6 +3403,9 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
 
     if (!target)
         target = targetNode->Host;
+    ASSERT_WITH_WINDOW(target, !targetNode || target == targetNode->Host,
+                       "[ONYX][OVERLAY] If both targetNode and target are specified, the target window must be the "
+                       "target node's host");
 
     LOG_DOCK_TREE(target, "Before insert");
     ASSERT_WITH_WINDOW(target, bool(target->DockRoot) == bool(targetNode),
@@ -3160,7 +3417,7 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
         "[ONYX][OVERLAY] If docking against a fully formed dock tree, the target window must be the host");
 
     ASSERT_WITH_WINDOW(
-        source, !source->DockRoot || source->IsDockHost(),
+        source, !source || !source->DockRoot || source->IsDockHost(),
         "[ONYX][OVERLAY] If the dock source has a dock root and is about to be docked, it must be a dock host");
 
     if (!target->DockRoot)
@@ -3434,99 +3691,8 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
 void Overlay::applyDockTrees()
 {
-    TKit::TierAllocator *tier = GetTier();
     for (const DockTreeDescription &tree : m_DockTrees)
-    {
-        OverlayWindow *host = findWindow(tree.HostId);
-        TKIT_ASSERT(!host || !host->IsDocked(),
-                    "[ONYX][OVERLAY] Cannot submit a window id as host that is already docked");
-
-        DockNode *root;
-        if (!host)
-        {
-            host = createOverlayWindow();
-
-            root = createDockNode();
-            root->Host = host;
-
-            host->Id = tree.HostId;
-            host->DockRoot = root;
-            host->Layout = createLayout();
-            host->Layer = toTop();
-
-            host->Flags |= OverlayWindowFlag_NoHeaderBar;
-            assignNativeWindowSomehow(host);
-        }
-        else if (!host->DockRoot)
-        {
-            root = createDockNode();
-            root->Windows.Append(host);
-
-            host = createDockHostFromWindow(host, root);
-
-            host->DockRoot = root;
-            host->Id = tree.HostId;
-        }
-        else
-            root = host->DockRoot;
-
-        struct DockInfo
-        {
-            const OverlayDockNode *UserNode;
-            DockNode *Node;
-        };
-
-        TKit::StackArray<DockInfo> nodes{};
-        nodes.Reserve(m_DockNodes.GetCapacity());
-
-        const auto getDirection = [&](const OverlayDockNode *node) {
-            if (node->IsLeaf())
-                return s_Center;
-
-            return node->Axis == LayoutAxis_Horizontal ? s_Top : s_Left;
-        };
-
-        nodes.Append(tree.Root, root);
-        while (!nodes.IsEmpty())
-        {
-            const DockInfo info = nodes.GetBack();
-            nodes.Pop();
-
-            const OverlayDockNode *unode = info.UserNode;
-            DockNode *node = info.Node;
-            node->Flags = unode->Flags;
-
-            DockNode *parent = dockInsert(node, getDirection(unode), unode->Ratio);
-
-            if (parent->IsRoot())
-                root = parent;
-
-            if (unode->IsLeaf())
-                for (const LayoutId &id : unode->Windows)
-                {
-                    OverlayWindow *win = getOrCreateOverlayWindow(id);
-                    ASSERT_WITH_WINDOW(
-                        win, !win->IsDocked(),
-                        "[ONYX][OVERLAY] Cannot submit a window to be docked that is already docked elsewhere");
-
-                    ASSERT_WITH_WINDOW(
-                        win, win->IsRoot(),
-                        "[ONYX][OVERLAY] Any window specified to be docked must be a free window (that is, not a child "
-                        "window). Child windows cannot be docked directly, and can only be turned into dock hosts");
-
-                    node->Windows.Append(win);
-                    win->DockParent = node;
-                    win->DockRoot = root;
-                }
-            else
-            {
-                nodes.Append(unode->Children[1], parent->Children[1]);
-                nodes.Append(unode->Children[0], parent->Children[0]);
-            }
-
-            tier->Destroy(unode);
-        }
-    }
+        ApplyDockTree(tree.HostId, tree.Root);
     m_DockTrees.Clear();
 }
 
@@ -5398,7 +5564,7 @@ f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 
     const f32v2 offset = f32v2{toffset, -2.f * toffset};
 
     f32v2 pos = win->WorldMouse + offset;
-    const bool windowPromotions = allowPromotions && (m_Flags & OverlayFlag_WindowPromotions);
+    const bool windowPromotions = allowPromotions && (Flags & OverlayFlag_WindowPromotions);
 
     const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
@@ -5457,7 +5623,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
         m_Active->Flags |= OverlayWindowFlag_NoPromotion;
 
     const f32v2 pos = computeMouseAlignedPosition(pnw, size, !noProm);
-    if (m_Flags & OverlayFlag_WindowPromotions)
+    if (Flags & OverlayFlag_WindowPromotions)
     {
         // we dont care about the window's actual position (as the tooltip is just visually driven, there is no active
         // interaction for which we would need to store its position) EXCEPT when multi window is involved. thats why we
@@ -6245,6 +6411,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElement *elm,
 
 void Overlay::Draw()
 {
+    ++m_FrameCount;
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Draw");
     TKIT_ASSERT(m_IdStack.IsEmpty(),
                 "[ONYX][OVERLAY] Id stack size mismatch (size = {}, should be 0). For every PushId(), there must "
@@ -6252,7 +6419,7 @@ void Overlay::Draw()
                 m_IdStack.GetSize());
 
     const u32 modalWindow = processWindows();
-    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+    const bool windowPromotions = Flags & OverlayFlag_WindowPromotions;
 
     for (const NativeWindow *nw : m_NativeWindows)
     {
@@ -6404,14 +6571,17 @@ void Overlay::Draw()
         if (dockTargetWin)
             dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
     };
+
+    static constexpr u64 framesUntilPromotionsAreAvailable = 60;
     const auto runWindowPromotions = [&] {
         if (!windowPromotions)
             demoteAllWindows();
-        else
+        else if (!(Flags & OverlayFlag_WindowPromotionInitialFrameCooldown) ||
+                 m_FrameCount > framesUntilPromotionsAreAvailable)
             manageWindowPromotions();
     };
 
-    const bool floating = m_Flags & OverlayFlag_FloatingMode;
+    const bool floating = Flags & OverlayFlag_FloatingMode;
     if (floating)
     {
         runWindowPromotions();
@@ -6486,7 +6656,7 @@ u32 Overlay::getFormatDecimals(const char *format)
 f32v4 Overlay::getWorldEffectiveBorders() const
 {
     const NativeWindow *nw = m_Active->GetNative();
-    const bool windowPromotions = m_Flags & OverlayFlag_WindowPromotions;
+    const bool windowPromotions = Flags & OverlayFlag_WindowPromotions;
     f32v2 topLeft;
     f32v2 bottomRight;
     if (windowPromotions)
@@ -7284,7 +7454,7 @@ void Overlay::ShowDemo(bool *enabled)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
-    static bool enableSettings = false;
+    static bool enableSettings = true;
     static bool enableRenderer = false;
     static bool enableStyleEditor = false;
     static bool enableMainMenu = false;
@@ -7293,7 +7463,7 @@ void Overlay::ShowDemo(bool *enabled)
 
     static bool fullScreenDockSpace = false;
 
-    if (m_Flags & OverlayFlag_FloatingMode)
+    if (ov->Flags & OverlayFlag_FloatingMode)
         fullScreenDockSpace = false;
     if (fullScreenDockSpace)
         ov->FullScreenDockSpace(Onyx::OverlayDockNodeFlag_CanBeEmpty,
@@ -7308,7 +7478,7 @@ void Overlay::ShowDemo(bool *enabled)
 
     if (ov->BeginWindow("Overlay demo", enabled, wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
-        drawDemoContents(ov, m_Flags, wflags, &fullScreenDockSpace, &enableSettings, &enableRenderer,
+        drawDemoContents(ov, ov->Flags, wflags, &fullScreenDockSpace, &enableSettings, &enableRenderer,
                          &enableStyleEditor, &enableMainMenu);
         ov->EndWindow();
     }

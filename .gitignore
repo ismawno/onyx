@@ -10,6 +10,7 @@ demo/sandbox/lattice*
 .clangd
 .cache/
 imgui.ini
+onyx-overlay.yaml
 docs/html/
 docs/latex/
 __pycache__/
