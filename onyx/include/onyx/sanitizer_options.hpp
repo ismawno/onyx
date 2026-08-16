@@ -8,6 +8,7 @@
         ":strict_string_checks=1"                                                                                      \
         ":detect_stack_use_after_return=1"                                                                             \
         ":check_initialization_order=1"                                                                                \
+        ":poison_history_size=16"                                                                                      \
         ":strict_init_order=1"
 #endif
 

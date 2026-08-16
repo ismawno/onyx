@@ -712,7 +712,7 @@ struct OverlayWindow
     }
     bool IsDocked() const
     {
-        return DockRoot && DockRoot->Host != this;
+        return DockParent;
     }
     bool IsCollapsed() const
     {
@@ -2624,7 +2624,13 @@ class Overlay
 
     LayoutSpecs m_LayoutSpecs{};
     TKit::TierArray<LayoutId> m_IdStack{};
-    TKit::TierArray<f32> m_DisabledStack{};
+    struct DisableInfo
+    {
+        f32 Alpha;
+        u32 Depth;
+    };
+    TKit::TierArray<DisableInfo> m_DisabledStack{};
+    u32 m_DisabledDepth = 0;
 
     TKit::TierHashMap<LayoutId, ScrollInfo> m_Scrollables{};
     TKit::TierArray<LayoutId> m_ScrollStack{};
