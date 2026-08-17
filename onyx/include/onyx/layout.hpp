@@ -269,7 +269,6 @@ inline bool operator==(const LayoutId &lhs, const usz &rhs)
 struct LayoutElement
 {
     LayoutId Id;
-    void *UserData;
     LayoutShape Shape;
     f32v2 Position{0.f};
     f32v2 Size;
@@ -279,7 +278,6 @@ struct LayoutElement
     f32v2 ClipMax;
     f32v2 ChildOffset;
     f32v2 SelfOffset;
-    f32v2 ShrinkTolerance;
     f32v2 ChildrenSize;
 
     vec2<LayoutSizingType> Sizing;
@@ -314,15 +312,26 @@ struct LayoutElement
     LayoutOverflowMode ChildOverflow;
     LayoutOverflowMode SelfOverflow;
     LayoutElementFlags Flags = 0;
+};
 
-    // NOTE(Isma, 25/06/26): Bool arg. not very nice but a bit overkill setting up flags for an option
+struct LayoutElementQueryInfo
+{
+    LayoutId Id;
+
+    f32v2 Position;
+    f32v2 Size;
+
+    f32v2 ClipMin;
+    f32v2 ClipMax;
+
+    f32v2 ChildrenSize;
+
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
 };
 
 struct LayoutDrawInfo
 {
     LayoutId Id;
-    void *UserData;
     TKit::TierString Text;
     f32v2 Position;
     f32v2 Size;
@@ -369,7 +378,6 @@ struct LayoutPanelParameters
     f32 ChildGap = 0.f;
     f32 OutlineWidth = 0.f;
     bool ForceBlend = false;
-    void *UserData = nullptr;
 };
 
 struct LayoutTextParameters
@@ -389,7 +397,6 @@ struct LayoutTextParameters
     f32v2 TexScale{1.f};
     LayoutOverflowMode Overflow = LayoutOverflow_None;
     bool ForceBlend = false;
-    void *UserData = nullptr;
 };
 
 using LayoutUnicodeParameters = LayoutTextParameters;
@@ -455,7 +462,7 @@ class Layout
         return m_Elements[m_ElementStack.GetBack()];
     }
 
-    const LayoutElement *QueryElement(LayoutId id) const;
+    const LayoutElementQueryInfo *QueryElement(LayoutId id) const;
 
     // modification of fields that actively participate on layout compilation is not supported
     LayoutElement *ModifyElement(LayoutId id);
@@ -463,7 +470,7 @@ class Layout
     bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f},
                    const bool applyPaddingToClip = true) const
     {
-        const LayoutElement *elm = QueryElement(id);
+        const LayoutElementQueryInfo *elm = QueryElement(id);
         return elm ? elm->IsHovered(point, padding, applyPaddingToClip) : false;
     }
 
@@ -517,7 +524,7 @@ class Layout
 
     TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};
 
-    TKit::TierArray<LayoutElement> m_GenerationalElements{};
+    TKit::TierArray<LayoutElementQueryInfo> m_GenerationalElements{};
     TKit::TierHashMap<LayoutId, u32> m_GenerationalMap{};
 
     LayoutSpecs m_Specs{};

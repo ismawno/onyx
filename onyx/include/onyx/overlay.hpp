@@ -2222,7 +2222,7 @@ class Overlay
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     SliderBoxInfo getSliderBoxInfo(const u32 idx, const T pval, T *value, const U mn, const U mx, const char *format,
-                                   const LayoutElement *elm, const OverlaySliderFlags flags)
+                                   const LayoutElementQueryInfo *elm, const OverlaySliderFlags flags)
     {
         const T clamped = Math::Clamp(pval, T(mn), T(mx));
         format = getFormat<T>(format);
@@ -2282,7 +2282,7 @@ class Overlay
     {
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
-        const LayoutElement *elm = ly->QueryElement(id);
+        const LayoutElementQueryInfo *elm = ly->QueryElement(id);
 
         const T pval = *value;
         if (!(flags & OverlaySliderFlag_NoInput))
@@ -2329,7 +2329,7 @@ class Overlay
                           .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
         const LayoutId txtId = IdFromStack("__onyx_id_Text_slot");
-        const LayoutElement *txtElm = ly->QueryElement(txtId);
+        const LayoutElementQueryInfo *txtElm = ly->QueryElement(txtId);
         const f32 txtOffset = txtElm ? (-0.5f * (txtElm->Size[0] + boxWidth)) : 0.f;
         const bool hasAccurateFlex = elm && txtElm;
 
@@ -2351,7 +2351,7 @@ class Overlay
     {
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
-        const LayoutElement *elm = ly->QueryElement(id);
+        const LayoutElementQueryInfo *elm = ly->QueryElement(id);
 
         const T pval = *value;
         const SliderBoxInfo sinfo = getSliderBoxInfo(1, pval, value, mn, mx, format, elm, flags);
@@ -2395,7 +2395,7 @@ class Overlay
 
     template <TKit::Numeric T, std::convertible_to<T> U>
     DragBoxInfo getDragBoxInfo(const u32 idx, T *value, const f32 speed, const U mn, const U mx, const char *format,
-                               const LayoutElement *elm, const OverlaySliderFlags flags)
+                               const LayoutElementQueryInfo *elm, const OverlaySliderFlags flags)
     {
         const bool hasLimits = mn < mx;
         format = getFormat<T>(format);
@@ -2439,7 +2439,7 @@ class Overlay
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_hbox");
 
-        const LayoutElement *elm = ly->QueryElement(id);
+        const LayoutElementQueryInfo *elm = ly->QueryElement(id);
         const T pval = *value;
         if (!(flags & OverlaySliderFlag_NoInput))
         {
@@ -2478,7 +2478,7 @@ class Overlay
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = IdFromStack("__onyx_id_Drag/Slider_vbox");
 
-        const LayoutElement *elm = ly->QueryElement(id);
+        const LayoutElementQueryInfo *elm = ly->QueryElement(id);
         const T pval = *value;
 
         const DragBoxInfo dinfo = getDragBoxInfo(1, value, speed, mn, mx, format, elm, flags);
@@ -2658,14 +2658,15 @@ class Overlay
     /// INTERACTION/INPUT PRIVATE
     /////////////////////////////////////////////
 
-    OverlayHoverQueryFlags queryHoverStatus(const LayoutElement *elm, const f32v2 &padding) const;
+    OverlayHoverQueryFlags queryHoverStatus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const;
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
     {
         return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
     }
-    bool isElementHovered(const LayoutElement *elm, OverlayHoveredFlags flags = 0, const f32v2 &padding = f32v2{0.f});
+    bool isElementHovered(const LayoutElementQueryInfo *elm, OverlayHoveredFlags flags = 0,
+                          const f32v2 &padding = f32v2{0.f});
 
-    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElement *elm, FocusFlags flags = 0,
+    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElementQueryInfo *elm, FocusFlags flags = 0,
                                                   const f32v2 &padding = f32v2{0.f},
                                                   OverlayHoveredFlags hoverFlags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);

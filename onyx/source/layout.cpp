@@ -188,7 +188,6 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
     current.FillColor = params.FillColor;
     current.OutlineColor = params.OutlineColor;
     current.OutlineWidth = params.OutlineWidth;
-    current.UserData = params.UserData;
 
     return current;
 }
@@ -259,7 +258,7 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     return id;
 }
 
-bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
+bool LayoutElementQueryInfo::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
 {
     const f32v2 hpad = 0.5f * padding;
 
@@ -281,7 +280,7 @@ bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool
     return check(pos, mn, mx) && check(pos, cmn, cmx);
 }
 
-const LayoutElement *Layout::QueryElement(const LayoutId id) const
+const LayoutElementQueryInfo *Layout::QueryElement(const LayoutId id) const
 {
     const auto it = m_GenerationalMap.Find(id.Id);
     if (it == m_GenerationalMap.end())
@@ -711,7 +710,7 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
             // else
             //     m_GenerationalElements[idx] = elm;
             m_GenerationalMap.Insert(elm.Id, m_GenerationalElements.GetSize());
-            m_GenerationalElements.Append(elm);
+            m_GenerationalElements.Append(elm.Id, elm.Position, elm.Size, elm.ClipMin, elm.ClipMax, elm.ChildrenSize);
         }
 
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
@@ -727,7 +726,6 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
         info.TexScale = elm.TexScale;
         info.Material = elm.Material;
         info.RenderFlags = 0;
-        info.UserData = elm.UserData;
         if (fill)
         {
             // NOTE(Isma): This is a weak check. If user passes a bad material that is not NullHandle, it will go
