@@ -7545,9 +7545,9 @@ void Overlay::ShowDemo(bool *enabled)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
-    static bool enableSettings = true;
-    static bool enableRenderer = true;
-    static bool enableStyleEditor = true;
+    static bool enableSettings = false;
+    static bool enableRenderer = false;
+    static bool enableStyleEditor = false;
     static bool enableMainMenu = false;
 
     Overlay *ov = this;
