@@ -556,6 +556,7 @@ struct GrabInfo
     f32 Ratio;
     f32 StartRatio;
     ResizeFlags Flags = 0;
+    bool DockNodePull = false;
 };
 
 struct NextWindowData
@@ -1123,8 +1124,9 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): Test serialization with floating mode
+// TODO(Isma): Run the demo with asan and get an overall feel
 // TODO(Isma): Add more dock node flags (NoResize for example)
+// perf:
 // TODO(Isma): Try not doing BFS in generate draw info
 // TODO(Isma): Have two arrays, one with only draws, and the other with full tree
 class Overlay

@@ -747,7 +747,7 @@ Overlay::~Overlay()
 /////////////////////////////////////////////
 
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node &n)
+static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node n)
 {
     using Node = TKit::Yaml::Node;
     if (n["Leaf"].as<bool>())
@@ -755,7 +755,7 @@ static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node
         TKit::StackArray<LayoutId> windows{};
         windows.Reserve(32);
         if (n["Windows"])
-            for (const Node &id : n["Windows"])
+            for (const Node id : n["Windows"])
                 windows.Append(id.as<usz>());
 
         return DockTabBar(windows, n["Flags"].as<u32>());
@@ -851,12 +851,12 @@ void Overlay::Deserialize()
     const Node root = TKit::Yaml::FromFile(m_SerializationPath);
     if (root["Windows"])
     {
-        const Node &windows = root["Windows"];
+        const Node windows = root["Windows"];
         u64 maxLayer = 0;
         for (auto it = windows.begin(); it != windows.end(); ++it)
         {
             const usz id = it->first.as<usz>();
-            const Node &nwin = it->second;
+            const Node nwin = it->second;
             const bool dockHost = nwin["DockHost"].as<bool>();
             if (dockHost && (!root["DockTrees"] || !root["DockTrees"][id]))
                 continue;
@@ -873,21 +873,21 @@ void Overlay::Deserialize()
             if (!parent)
                 win->ScreenPos = nwin["Position"].as<f32v2>();
             win->Size = nwin["Size"].as<f32v2>();
-            assignNativeWindowSomehow(win, nwin["Docked"].as<bool>());
-
             win->Layer = nwin["Layer"].as<u64>();
             win->Flags = nwin["Flags"].as<OverlayWindowFlags>();
+
+            assignNativeWindowSomehow(win, nwin["Docked"].as<bool>());
             maxLayer = Math::Max(maxLayer, win->Layer);
         }
         m_LayerCount = maxLayer + 1;
     }
     if (root["DockTrees"])
     {
-        const Node &dockTrees = root["DockTrees"];
+        const Node dockTrees = root["DockTrees"];
         for (auto it = dockTrees.begin(); it != dockTrees.end(); ++it)
         {
             const usz hostId = it->first.as<usz>();
-            const Node &uroot = it->second;
+            const Node uroot = it->second;
 
             const OverlayDockNode *root = createTreeBasedOnSerialized(uroot);
             ApplyDockTree(hostId, root);
@@ -1923,14 +1923,14 @@ u32 Overlay::processWindows()
                 }
             }
 
-            const bool ctrl = win->GetNative()->Window->IsKeyPressed(Key_LeftControl);
-            bool mustUseHand = false;
+            bool mustUseHand = win->GetNative()->Window->IsKeyPressed(Key_LeftControl);
             if (rflags == 0 && win->DockRoot)
-                mustUseHand = iterateDockTree(win->DockRoot, [&](DockNode *node) {
+                mustUseHand &= iterateDockTree(win->DockRoot, [&](DockNode *node) {
                     const f32v2 &size = node->ReadOnlySize;
 
                     const LayoutId id = node->BorderId;
-                    if (ly->IsHovered(id, nw->WorldMouse, bpadding))
+                    if ((!(node->Flags & OverlayDockNodeFlag_NoResize) || mustUseHand) &&
+                        ly->IsHovered(id, nw->WorldMouse, bpadding))
                     {
                         ginfo.InteractionColor = OverlayColor_WindowBorderHovered;
                         // represents the static dock node size. check GrabInfo definition
@@ -1947,7 +1947,8 @@ u32 Overlay::processWindows()
             else if (!canResize)
                 return true;
 
-            mustUseHand &= ctrl && ginfo.DockNode && ginfo.DockNode->CanUndock();
+            mustUseHand &= ginfo.DockNode && ginfo.DockNode->CanUndock();
+            ginfo.DockNodePull = mustUseHand;
 
             ginfo.Flags = rflags;
             const auto cf = [&](const ResizeFlags f) { return f & rflags; };
@@ -2107,8 +2108,9 @@ u32 Overlay::processWindows()
         const bool wantsDockResize = ginfo.Flags & ResizeFlag_DockBorder;
         if (!win->IsDocked() && pressed && (wantsResize || wantsMove))
         {
-            const bool allowGrab = (wantsMove && win->CanMove()) || (wantsResize && win->CanResize()) ||
-                                   (wantsDockResize && !(ginfo.DockNode->Flags & OverlayDockNodeFlag_NoResize));
+            const bool allowGrab =
+                (wantsMove && win->CanMove()) || (wantsResize && win->CanResize()) ||
+                (wantsDockResize && (!(ginfo.DockNode->Flags & OverlayDockNodeFlag_NoResize) || ginfo.DockNodePull));
 
             if (!(win->Flags & OverlayWindowFlag_NoBringToFocus))
                 win->SetLayer(toTop());
@@ -3558,7 +3560,8 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
             ASSERT_WITH_WINDOW(target, !target->DockParent,
                                "[ONYX][OVERLAY] Target cannot possibly have a dock parent if it is empty");
 
-            sourceRoot->Flags = target->DockRoot->Flags;
+            // removed bc its seemingly irrelevant
+            // sourceRoot->Flags = target->DockRoot->Flags;
             // we need to assign the _CanBeEmpty flag to a leaf node so that it can propagate upwards when detaching
             // windows. having it in the root or a parent node is irrelevant because parents are destroyed when
             // deletions occur
@@ -3700,7 +3703,8 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
     const auto topPreviewInsert = [&](const i32v2 loc, DockNode *targetNode) {
         const f32v2 middle = wpos + f32v2{whsize[0], -whsize[1]};
 
-        const f32 previewSize = Math::Min(20.f, 0.1f * Math::Min(wsize[0], wsize[1]));
+        const f32 mul = (!targetNode || targetNode->IsLeaf()) ? 0.1f : 0.04f;
+        const f32 previewSize = Math::Min(20.f, mul * Math::Min(wsize[0], wsize[1]));
         const f32 previewRadius = 0.4f * previewSize;
 
         const f32 dpos = previewSize + previewGap + 2.f * previewRadius;
@@ -7541,9 +7545,9 @@ void Overlay::ShowDemo(bool *enabled)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
-    static bool enableSettings = false;
-    static bool enableRenderer = false;
-    static bool enableStyleEditor = false;
+    static bool enableSettings = true;
+    static bool enableRenderer = true;
+    static bool enableStyleEditor = true;
     static bool enableMainMenu = false;
 
     Overlay *ov = this;
