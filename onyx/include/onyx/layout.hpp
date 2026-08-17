@@ -195,7 +195,7 @@ enum LayoutOverflowMode : u8
 };
 
 using LayoutElementFlags = u8;
-enum LayoutElementFlabBit : LayoutElementFlags
+enum LayoutElementFlagBit : LayoutElementFlags
 {
     LayoutElementFlag_FloatEnable = 1U << 0,
     LayoutElementFlag_FloatDrawOnTop = 1U << 1,
@@ -508,6 +508,8 @@ class Layout
     void generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter);
 
     void applySpecDefaults();
+
+    template <typename T> LayoutElement &insertElement(const LayoutId id, const T &params);
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_ElementStack{};

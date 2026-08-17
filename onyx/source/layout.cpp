@@ -43,68 +43,144 @@ void Layout::insertId(const LayoutId id, const u32 idx)
     m_InsertedElements.Insert(id, idx);
 }
 
-LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
+template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, const T &params)
 {
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
 
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
-    current.Id = id.Id;
+    current.Id = id;
 
     insertId(id, c);
-
-    if (params.Floating.Enable)
-    {
-        current.Type = LayoutElement_Floating;
-        current.FloatAttachment = params.Floating.Attachment;
-        current.FloatAlignment = params.Floating.Alignment;
-        current.Flags |= LayoutElementFlag_FloatEnable;
-        current.Flags |= params.Floating.Clip * LayoutElementFlag_FloatClip;
-        current.Flags |= params.Floating.DrawOnTop * LayoutElementFlag_FloatDrawOnTop;
-    }
-    else
-        current.Type = LayoutElement_Panel;
-
-    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
-
     const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
 
-    m_ElementStack.Append(c);
-    if (p != TKIT_U32_MAX)
+    if constexpr (std::is_same_v<T, LayoutPanelParameters>)
     {
-        LayoutElement &parent = m_Elements[p];
-        parent.Children.Append(c);
+        m_ElementStack.Append(c);
+        if (p != TKIT_U32_MAX)
+        {
+            LayoutElement &parent = m_Elements[p];
+            parent.Children.Append(c);
 
-        if (!params.Floating.Enable)
-            ++parent.NonFloatChildCount;
+            if (!params.Floating.Enable)
+                ++parent.NonFloatChildCount;
 
-        current.SelfOverflow = params.SelfOverflow == LayoutOverflow_None ? parent.ChildOverflow : params.SelfOverflow;
-        if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
-            current.Flags |= LayoutElementFlag_FloatDrawOnTop;
+            current.SelfOverflow =
+                params.SelfOverflow == LayoutOverflow_None ? parent.ChildOverflow : params.SelfOverflow;
+            if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
+                current.Flags |= LayoutElementFlag_FloatDrawOnTop;
+        }
+        else
+        {
+            TKIT_ASSERT(c == 0, "[ONYX][LAYOUT] Can only have one root per layout");
+            TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Normalized &&
+                            params.Sizing[1].Type != LayoutSizing_Normalized,
+                        "[ONYX][LAYOUT] The root layout element cannot have normalized sizing");
+            TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Normalized &&
+                            params.SelfOffset[1].Type != LayoutOffset_Normalized,
+                        "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
+
+            TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Relative &&
+                            params.Sizing[1].Type != LayoutSizing_Relative,
+                        "[ONYX][LAYOUT] The root layout element cannot have relative sizing");
+            TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Relative &&
+                            params.SelfOffset[1].Type != LayoutOffset_Relative,
+                        "[ONYX][LAYOUT] The root layout element cannot have relative offsets");
+
+            TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
+            current.ClipMin = f32v2{TKIT_F32_MIN};
+            current.ClipMax = f32v2{TKIT_F32_MAX};
+        }
+
+        current.ChildGap = params.ChildGap;
+        current.ChildOverflow = params.ChildOverflow;
+        current.Padding = params.Padding;
+        current.Direction = params.Direction;
+        current.Alignment = params.Alignment;
+        current.Shape = params.Shape;
+
+        if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
+        {
+            Resource handle = NullHandle;
+            switch (params.Shape.Type)
+            {
+            case LayoutShape_Rectangle:
+                handle = m_Specs.RectangleMesh;
+                break;
+            case LayoutShape_RoundedRectangle:
+                handle = m_Specs.RoundedRectangleMesh;
+                break;
+            default:
+                break;
+            }
+            current.Shape.Handle = handle;
+        }
+
+        for (u32 i = 0; i < 2; ++i)
+        {
+            // NOTE(Isma): This could be removed and hope the user sets the sizing correctly with the static methods
+            current.Sizing[i] = params.Sizing[i].Type;
+            if (params.Sizing[i].Type == LayoutSizing_Absolute || params.Sizing[i].Type == LayoutSizing_Normalized ||
+                params.Sizing[i].Type == LayoutSizing_Relative)
+            {
+                current.Size[i] = params.Sizing[i].Size;
+                current.MinSize[i] = current.Size[i];
+                current.MaxSize[i] = current.Size[i];
+            }
+            else
+            {
+                current.Size[i] = 0.f;
+                current.MinSize[i] = params.Sizing[i].Min;
+                current.MaxSize[i] = params.Sizing[i].Max;
+                if (current.Sizing[i] != LayoutSizing_Fit && current.Sizing[i] != LayoutSizing_Flex)
+                    current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
+            }
+
+            // bc fits get clamped in the fit pass
+
+            current.ChildOffset[i] = params.ChildOffset[i].Offset;
+            current.SelfOffset[i] = params.SelfOffset[i].Offset;
+            current.ChildOffsetType[i] = params.ChildOffset[i].Type;
+            current.SelfOffsetType[i] = params.SelfOffset[i].Type;
+        }
+        if (params.Floating.Enable)
+        {
+            current.Type = LayoutElement_Floating;
+            current.FloatAttachment = params.Floating.Attachment;
+            current.FloatAlignment = params.Floating.Alignment;
+            current.Flags |= LayoutElementFlag_FloatEnable;
+            current.Flags |= params.Floating.Clip * LayoutElementFlag_FloatClip;
+            current.Flags |= params.Floating.DrawOnTop * LayoutElementFlag_FloatDrawOnTop;
+        }
+        else
+            current.Type = LayoutElement_Panel;
     }
     else
     {
-        TKIT_ASSERT(c == 0, "[ONYX][LAYOUT] Can only have one root per layout");
-        TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Normalized &&
-                        params.Sizing[1].Type != LayoutSizing_Normalized,
-                    "[ONYX][LAYOUT] The root layout element cannot have normalized sizing");
-        TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Normalized &&
-                        params.SelfOffset[1].Type != LayoutOffset_Normalized,
-                    "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
+        TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text/unicode element cannot be a root ui element");
 
-        TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Relative && params.Sizing[1].Type != LayoutSizing_Relative,
-                    "[ONYX][LAYOUT] The root layout element cannot have relative sizing");
-        TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Relative &&
-                        params.SelfOffset[1].Type != LayoutOffset_Relative,
-                    "[ONYX][LAYOUT] The root layout element cannot have relative offsets");
+        LayoutElement &parent = m_Elements[p];
+        parent.Children.Append(c);
+        ++parent.NonFloatChildCount;
 
-        TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
-        current.ClipMin = f32v2{TKIT_F32_MIN};
-        current.ClipMax = f32v2{TKIT_F32_MAX};
+        current.Alignment = parent.Alignment;
+        current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
+        if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
+            current.Flags |= LayoutElementFlag_FloatDrawOnTop;
+
+        for (u32 i = 0; i < 2; ++i)
+        {
+            current.SelfOffset[i] = params.Offset[i].Offset;
+            current.SelfOffsetType[i] = params.Offset[i].Type;
+        }
+
+        current.MaxSize = f32v2{TKIT_F32_MAX};
+        // NOTE(Isma): This is a weak check. If user passes a bad font that is not NullHandle, it will go through
+        current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
     }
 
-    current.ChildGap = params.ChildGap;
+    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
     current.Texture = params.Texture;
     current.TexOffset = params.TexOffset;
     current.TexScale = params.TexScale;
@@ -112,58 +188,15 @@ LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &para
     current.FillColor = params.FillColor;
     current.OutlineColor = params.OutlineColor;
     current.OutlineWidth = params.OutlineWidth;
-    current.Direction = params.Direction;
-    current.Alignment = params.Alignment;
-    current.ChildOverflow = params.ChildOverflow;
-    current.Shape = params.Shape;
     current.UserData = params.UserData;
 
-    if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
-    {
-        Resource handle = NullHandle;
-        switch (params.Shape.Type)
-        {
-        case LayoutShape_Rectangle:
-            handle = m_Specs.RectangleMesh;
-            break;
-        case LayoutShape_RoundedRectangle:
-            handle = m_Specs.RoundedRectangleMesh;
-            break;
-        default:
-            break;
-        }
-        current.Shape.Handle = handle;
-    }
+    return current;
+}
 
-    for (u32 i = 0; i < 2; ++i)
-    {
-        // NOTE(Isma): This could be removed and hope the user sets the sizing correctly with the static methods
-        current.Sizing[i] = params.Sizing[i].Type;
-        if (params.Sizing[i].Type == LayoutSizing_Absolute || params.Sizing[i].Type == LayoutSizing_Normalized ||
-            params.Sizing[i].Type == LayoutSizing_Relative)
-        {
-            current.Size[i] = params.Sizing[i].Size;
-            current.MinSize[i] = current.Size[i];
-            current.MaxSize[i] = current.Size[i];
-        }
-        else
-        {
-            current.Size[i] = 0.f;
-            current.MinSize[i] = params.Sizing[i].Min;
-            current.MaxSize[i] = params.Sizing[i].Max;
-            if (current.Sizing[i] != LayoutSizing_Fit && current.Sizing[i] != LayoutSizing_Flex)
-                current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
-        }
-
-        // bc fits get clamped in the fit pass
-
-        current.ChildOffset[i] = params.ChildOffset[i].Offset;
-        current.SelfOffset[i] = params.SelfOffset[i].Offset;
-        current.ChildOffsetType[i] = params.ChildOffset[i].Type;
-        current.SelfOffsetType[i] = params.SelfOffset[i].Type;
-    }
-    current.Padding = params.Padding;
-    return current.Id;
+LayoutId Layout::BeginPanel(const LayoutId id, const LayoutPanelParameters &params)
+{
+    insertElement(id, params);
+    return id;
 }
 
 LayoutId Layout::OpenPanel(const LayoutId id)
@@ -188,116 +221,42 @@ void Layout::EndPanel()
 
 LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
 {
-    TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
-                "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
-    const u32 c = m_Elements.GetSize();
-    LayoutElement &current = m_Elements.Append();
-    current.Id = id.Id;
-    current.Type = LayoutElement_Text;
-    current.Shape.Type = LayoutShape_Text;
+    LayoutElement &elm = insertElement(id, params);
+    elm.Type = LayoutElement_Text;
+    elm.Shape.Type = LayoutShape_Text;
 
-    insertId(id, c);
-
-    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
-    TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
-
-    LayoutElement &parent = m_Elements[p];
-    parent.Children.Append(c);
-    ++parent.NonFloatChildCount;
-
-    current.Alignment = parent.Alignment;
-    current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
-    if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
-        current.Flags |= LayoutElementFlag_FloatDrawOnTop;
-
-    for (u32 i = 0; i < 2; ++i)
-    {
-        current.SelfOffset[i] = params.Offset[i].Offset;
-        current.SelfOffsetType[i] = params.Offset[i].Type;
-    }
-    current.FillColor = params.FillColor;
-    current.OutlineColor = params.OutlineColor;
-    current.OutlineWidth = params.OutlineWidth;
-    current.Text = TKit::TierString{text.GetData(), text.GetSize()};
-    // NOTE(Isma): This is a weak check. If user passes a bad font that is not NullHandle, it will go through
-    current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
-    current.Texture = params.Texture;
-    current.TexOffset = params.TexOffset;
-    current.TexScale = params.TexScale;
-    current.Material = params.Material;
-    current.TextMode = params.Mode;
-    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
-    current.UserData = params.UserData;
-
-    const FontData &fdata = Resources::GetFontData(current.Font);
-
+    const FontData &fdata = Resources::GetFontData(elm.Font);
     const f32 fs = params.FontSize;
-    current.FontSize = fs;
-    current.Size = Math::Max(fs * fdata.ComputeTextSize(text), params.MinSize);
 
-    current.MinSize[0] =
-        current.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : current.Size[0];
-    current.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero
+    elm.FontSize = fs;
+    elm.Text = TKit::TierString{text.GetData(), text.GetSize()};
+    elm.Size = Math::Max(fs * fdata.ComputeTextSize(text), params.MinSize);
+    elm.MinSize[0] = elm.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : elm.Size[0];
+    elm.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero
 
-    current.MinSize = Math::Max(current.MinSize, params.MinSize);
-    current.MaxSize = f32v2{TKIT_F32_MAX};
-    return current.Id;
+    elm.MinSize = Math::Max(elm.MinSize, params.MinSize);
+
+    return id;
 }
 
 // NOTE(Isma): A bit repetitive here with text
 LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUnicodeParameters &params)
 {
-    TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
-                "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
+    LayoutElement &elm = insertElement(id, params);
+    elm.Type = LayoutElement_Unicode;
+    elm.Shape.Type = LayoutShape_Unicode;
 
-    const u32 c = m_Elements.GetSize();
-
-    LayoutElement &current = m_Elements.Append();
-    current.Id = id.Id;
-    current.Type = LayoutElement_Unicode;
-    current.Shape.Type = LayoutShape_Unicode;
-
-    insertId(id, c);
-
-    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
-    TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A unicode element cannot be a root ui element");
-
-    LayoutElement &parent = m_Elements[p];
-    parent.Children.Append(c);
-    ++parent.NonFloatChildCount;
-
-    current.Alignment = parent.Alignment;
-    current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
-    if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
-        current.Flags |= LayoutElementFlag_FloatDrawOnTop;
-    for (u32 i = 0; i < 2; ++i)
-    {
-        current.SelfOffset[i] = params.Offset[i].Offset;
-        current.SelfOffsetType[i] = params.Offset[i].Type;
-    }
-    current.FillColor = params.FillColor;
-    current.OutlineColor = params.OutlineColor;
-    current.OutlineWidth = params.OutlineWidth;
-    current.Unicode = code;
-    current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
-    current.Texture = params.Texture;
-    current.TexOffset = params.TexOffset;
-    current.TexScale = params.TexScale;
-    current.Material = params.Material;
-    current.Flags |= params.ForceBlend * LayoutElementFlag_ForceBlend;
-    current.UserData = params.UserData;
-
-    const FontData &fdata = Resources::GetFontData(current.Font);
-    const Resource glyph = Resources::GetGlyph(current.Font, code);
+    const FontData &fdata = Resources::GetFontData(elm.Font);
+    const Resource glyph = Resources::GetGlyph(elm.Font, code);
     const GlyphData &gdata = Resources::GetGlyphData(glyph);
-
     const f32 fs = params.FontSize;
-    current.FontSize = fs;
-    current.Size = Math::Max(fs * f32v2{gdata.Advance, fdata.LineHeight}, params.MinSize);
 
-    current.MinSize = current.Size;
-    current.MaxSize = f32v2{TKIT_F32_MAX};
-    return current.Id;
+    elm.FontSize = fs;
+    elm.Unicode = code;
+    elm.Size = Math::Max(fs * f32v2{gdata.Advance, fdata.LineHeight}, params.MinSize);
+    elm.MinSize = elm.Size;
+
+    return id;
 }
 
 bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
