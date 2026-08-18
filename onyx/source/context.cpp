@@ -799,13 +799,15 @@ void IRenderContext<D>::LayoutElement(const LayoutDrawInfo &element, u32 *depthC
     if (useElementDepthCounter)
         DepthCounter = element.DepthCounter;
 
-    Push();
     RenderFlags(element.RenderFlags);
     Texture(element.Texture, element.TexOffset, element.TexScale);
     Material(element.Material);
     FillColor(element.FillColor);
     OutlineColor(element.OutlineColor);
     OutlineWidth(element.OutlineWidth);
+
+    const BlendPass bpass = m_State.Blend;
+    const f32m<D> t = m_State.Transform;
     if (element.Flags & LayoutElementFlag_ForceBlend)
         Blend();
 
@@ -875,7 +877,9 @@ void IRenderContext<D>::LayoutElement(const LayoutDrawInfo &element, u32 *depthC
     default:
         break;
     }
-    Pop();
+
+    m_State.Blend = bpass;
+    m_State.Transform = t;
 }
 
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)

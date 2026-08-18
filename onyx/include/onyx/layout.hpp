@@ -294,6 +294,7 @@ struct LayoutElement
     f32v2 TexOffset;
     f32v2 TexScale;
     u32 Unicode;
+    u32 Depth;
     TKit::TierString Text;
     TKit::TierArray<u32> Children{};
     u32 NonFloatChildCount = 0;
@@ -520,6 +521,7 @@ class Layout
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_ElementStack{};
+    TKit::TierArray<u32> m_DepthStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
     TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};

@@ -60,6 +60,10 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         m_ElementStack.Append(c);
         if (p != TKIT_U32_MAX)
         {
+            const u32 depth = m_DepthStack.GetBack();
+            current.Depth = depth;
+            m_DepthStack.Append(depth + 1);
+
             LayoutElement &parent = m_Elements[p];
             parent.Children.Append(c);
 
@@ -89,6 +93,9 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
                         "[ONYX][LAYOUT] The root layout element cannot have relative offsets");
 
             TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
+
+            m_DepthStack.Append(0);
+            current.Depth = 0;
             current.ClipMin = f32v2{TKIT_F32_MIN};
             current.ClipMax = f32v2{TKIT_F32_MAX};
         }
@@ -164,6 +171,7 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         parent.Children.Append(c);
         ++parent.NonFloatChildCount;
 
+        current.Depth = m_DepthStack.GetBack();
         current.Alignment = parent.Alignment;
         current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
         if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
@@ -207,6 +215,7 @@ LayoutId Layout::OpenPanel(const LayoutId id)
 
     const u32 c = m_InsertedElements[id];
     m_ElementStack.Append(c);
+    m_DepthStack.Append(m_Elements[c].Depth);
     return id;
 }
 
@@ -216,6 +225,7 @@ void Layout::EndPanel()
                 "[ONYX][LAYOUT] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
     m_ElementStack.Pop();
+    m_DepthStack.Pop();
 }
 
 LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
@@ -676,28 +686,8 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 
     m_CustomDepth = depthCounter && floatDepthCounter;
     m_DrawInfo.Clear();
-    if (m_Elements.IsEmpty())
-        return;
-
-    struct DepthInfo
+    for (const LayoutElement &elm : m_Elements)
     {
-        u32 Element;
-        u32 Depth;
-    };
-
-    TKit::StackArray<DepthInfo> dfsStack{};
-    dfsStack.Reserve(m_Elements.GetSize());
-    dfsStack.Append(0, 0);
-
-    while (!dfsStack.IsEmpty())
-    {
-        const DepthInfo dinfo = dfsStack.GetBack();
-        dfsStack.Pop();
-        const LayoutElement &elm = m_Elements[dinfo.Element];
-
-        for (u32 i = elm.Children.GetSize() - 1; i < elm.Children.GetSize(); --i)
-            dfsStack.Append(elm.Children[i], dinfo.Depth + 1);
-
         if (elm.Id != NullLayoutId)
         {
             // persisting all past elements costs too much memory in the long run. this is at the cost of more "one
@@ -717,10 +707,12 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
         const bool drawable = sized && (fill || outline);
+        if (!drawable)
+            continue;
 
         LayoutDrawInfo info;
         info.Id = elm.Id;
-        info.Depth = dinfo.Depth;
+        info.Depth = elm.Depth;
         info.Texture = elm.Texture;
         info.TexOffset = elm.TexOffset;
         info.TexScale = elm.TexScale;
@@ -784,6 +776,7 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
         else
             m_DrawInfo.Append(info);
     }
+
     if (!m_CustomDepth)
         m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 }
@@ -792,8 +785,8 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
     TKIT_PROFILE_SCOPE_VALUE(m_Elements.GetSize());
-    TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
-                m_ElementStack.GetSize());
+    TKIT_ASSERT(m_ElementStack.IsEmpty() && m_DepthStack.IsEmpty(),
+                "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!", m_ElementStack.GetSize());
 
     const u32 count = m_Elements.GetSize();
     TKit::StackArray<u32> breadth{};
