@@ -22,13 +22,35 @@ template <Numeric T> constexpr f32 FromType(const T val)
     else
         return T(val) / 255.f;
 }
-constexpr f32 ToLinear(const f32 c)
+constexpr f32 LinearColor(const f32 c)
 {
     return c <= 0.04045f ? c / 12.92f : Math::Power((c + 0.055f) / 1.055f, 2.4f);
 }
-constexpr f32 ToSrgb(const f32 c)
+constexpr f32 SrgbColor(const f32 c)
 {
     return c <= 0.0031308f ? c * 12.92f : 1.055f * Math::Power(c, 1.0f / 2.4f) - 0.055f;
+}
+
+static const TKit::FixedArray<f32, 256> s_ToLinear = [] {
+    TKit::FixedArray<f32, 256> data;
+    for (u32 i = 0; i < 256; ++i)
+        data[i] = LinearColor(f32(i) / 255.f);
+    return data;
+}();
+static const TKit::FixedArray<f32, 256> s_ToSrgb = [] {
+    TKit::FixedArray<f32, 256> data;
+    for (u32 i = 0; i < 256; ++i)
+        data[i] = SrgbColor(f32(i) / 256.f);
+    return data;
+}();
+
+constexpr f32 ToLinear(const f32 c)
+{
+    return s_ToLinear[u32(c * 255.f)];
+}
+constexpr f32 ToSrgb(const f32 c)
+{
+    return s_ToSrgb[u32(c * 255.f)];
 }
 
 // TODO(Isma, 02/07/26): If we end up supporting HDR, this will have to go
