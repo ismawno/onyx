@@ -1554,6 +1554,11 @@ class Overlay
     {
         m_TextId = id;
     }
+    void SetNextActivationKey(const Key key, const OverlayHoveredFlags flags = 0)
+    {
+        m_ActivationKey = key;
+        m_ActivationFlags = flags;
+    }
 
     void TextRaw(LayoutTextMode mode, TKit::StringView text);
     void TextRaw(const TKit::StringView text)
@@ -1712,6 +1717,16 @@ class Overlay
     template <typename... Args> bool SetItemTooltip(const fmt::format_string<Args...> str, Args &&...args)
     {
         return SetItemTooltip(0, str, std::forward<Args>(args)...);
+    }
+
+    bool SetItemTooltipRaw(const TKit::StringView text, const OverlayHoveredFlags flags = 0)
+    {
+        if (!BeginItemTooltip(flags))
+            return false;
+
+        TextRaw(text);
+        EndTooltip();
+        return true;
     }
 
     /////////////////////////////////////////////
@@ -2574,6 +2589,8 @@ class Overlay
     // underlying string may become stale. In practice, this is a throwaway id that gets discarded once used, so its not
     // that persistent. should be fine
     LayoutId m_TextId = NullLayoutId;
+    Key m_ActivationKey = Key_None;
+    OverlayHoveredFlags m_ActivationFlags = 0;
 
     /////////////////////////////////////////////
     /// END WIDGETS PRIVATE
@@ -2654,6 +2671,10 @@ class Overlay
     /////////////////////////////////////////////
 
     OverlayHoverQueryFlags queryHoverStatus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const;
+    bool isElementBlocked(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0) const
+    {
+        return ((qflags & ~flags) & ~OverlayHoverQueryFlag_Hovered) != 0;
+    }
     bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
     {
         return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;

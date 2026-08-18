@@ -6331,7 +6331,10 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
                                                        const f32v2 &padding, const OverlayHoveredFlags hoverFlags)
 {
     if (!elm)
+    {
+        m_ActivationKey = Key_None;
         return 0;
+    }
 
     OverlayFocusQueryFlags outFlags = 0;
     TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
@@ -6341,16 +6344,20 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
 
     const NativeWindow *nw = m_Active->GetNative();
-    const bool lmpressed = nw->Flags & NativeWindowFlag_LeftMousePressed;
-    const bool lmreleased = nw->Flags & NativeWindowFlag_LeftMouseReleased;
-
     const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
 
-    const bool focusHovered = isElementHovered(hflags, hoverFlags | standardHoverAllowance());
+    const bool actBlocked = isElementBlocked(hflags, m_ActivationFlags | standardHoverAllowance());
+    const bool actKeyPressed = !actBlocked && m_ActivationKey != Key_None && nw->EventKeys[m_ActivationKey];
+    const bool actKeyPressing = !actBlocked && m_ActivationKey != Key_None && nw->Window->IsKeyPressed(m_ActivationKey);
+
+    const bool lmpressed = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMousePressed);
+    const bool lmreleased = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMouseReleased);
+
+    const bool focusHovered = actKeyPressing || isElementHovered(hflags, hoverFlags | standardHoverAllowance());
 
     const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
-    const bool setPressed = !(flags & FocusFlag_DoNotSetPressedId);
-    const bool setActive = !(flags & FocusFlag_DoNotSetActiveId);
+    const bool setPressed = !actKeyPressing && !(flags & FocusFlag_DoNotSetPressedId);
+    const bool setActive = !actKeyPressing && !(flags & FocusFlag_DoNotSetActiveId);
     const bool setDragged = !(flags & FocusFlag_DoNotSetDraggedId);
     const bool protectPopup =
         !(flags & FocusFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
@@ -6365,6 +6372,8 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         // focus related deal. this is mostly done for user facing read only queries
         lclicked &= lmreleased && (!setPressed || m_PressedId == elm->Id);
 
+    lclicked |= actKeyPressed;
+
     // we leniently allow setting hovered id even when blocked by popups, so that windows dont eat into widget hover
     // signals
     // we additionally allow grab blocks here. this is required for window popups: their own grab event would block
@@ -6373,7 +6382,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         OverlayHoveredFlag_AllowBlockedByPopup | OverlayHoveredFlag_AllowBlockedByPopupCollapse |
         OverlayHoveredFlag_AllowBlockedByWindow | OverlayHoveredFlag_AllowBlockedByWindowGrab;
 
-    const bool popupHovered = isElementHovered(hflags, popHoverFlags);
+    const bool popupHovered = actKeyPressing || isElementHovered(hflags, popHoverFlags);
     if (popupHovered && protectPopup)
     {
         if (flags & FocusFlag_HoverOpensPopup)
@@ -6417,8 +6426,8 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
     const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
 
-    const bool pressed = (focusHovered || (evenWhenAway && m_PressedId == elm->Id)) && pressingMouse &&
-                         (allowOnEnter || lmpressed || m_PressedId == elm->Id);
+    const bool pressed = actKeyPressing || ((focusHovered || (evenWhenAway && m_PressedId == elm->Id)) &&
+                                            pressingMouse && (allowOnEnter || lmpressed || m_PressedId == elm->Id));
 
     if (focusHovered && setHovered)
     {
@@ -6526,6 +6535,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         }
     }
 
+    m_ActivationKey = Key_None;
     return outFlags;
 }
 
@@ -6917,7 +6927,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBoxFlags("OverlayFlag_WindowPromotions", &flags, Onyx::OverlayFlag_WindowPromotions);
         ov->EndDisabled();
         if (flags & Onyx::OverlayFlag_FloatingMode)
-            ov->SetItemTooltip("When in floating mode, window promotions must be on or terrible things will happen");
+            ov->SetItemTooltipRaw("When in floating mode, window promotions must be on or terrible things will happen");
 
         ov->CheckBoxFlags("OverlayFlag_Docking", &flags, Onyx::OverlayFlag_Docking);
         ov->PopTree();
@@ -6977,8 +6987,10 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
     if (ov->PushTree("Buttons", drawLines))
     {
         static bool helloText = false;
+        ov->SetNextActivationKey(Key_B);
         if (ov->Button("This is a button"))
             helloText = !helloText;
+        ov->SetItemTooltipRaw("You can also press 'B' to activate this button");
 
         if (helloText)
             ov->Text("Hi!");
@@ -7033,12 +7045,12 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBox("Enable full screen dock space", fullScreenDockSpace);
         ov->EndDisabled();
         if (flags & Onyx::OverlayFlag_FloatingMode)
-            ov->SetItemTooltip("When in floating mode, full screen dockspaces cannot exist");
+            ov->SetItemTooltipRaw("When in floating mode, full screen dockspaces cannot exist");
 
         ov->HorizontalSeparator("Dock node flags");
 
         ov->CheckBoxFlags("OverlayDockNodeFlag_CanBeEmpty", &dflags, Onyx::OverlayDockNodeFlag_CanBeEmpty);
-        ov->SetItemTooltip("It is strongly recommended you leave this on");
+        ov->SetItemTooltipRaw("It is strongly recommended you leave this on");
         ov->CheckBoxFlags("OverlayDockNodeFlag_NoResize", &dflags, Onyx::OverlayDockNodeFlag_NoResize);
         ov->CheckBoxFlags("OverlayDockNodeFlag_HideTabBar", &dflags, Onyx::OverlayDockNodeFlag_HideTabBar);
 
@@ -7227,7 +7239,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             if (ov->Button("Another one?"))
                 ov->OpenPopup("Yes, another one");
 
-            ov->SetItemTooltip("This will open another popup!");
+            ov->SetItemTooltipRaw("This will open another popup!");
 
             if (ov->BeginPopup("Yes, another one", pflags))
             {
