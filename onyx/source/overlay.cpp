@@ -3,8 +3,8 @@
 #include "pch.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
-#include "onyx/platform.hpp"
 #include "onyx/renderer.hpp"
+#include "onyx/platform.hpp"
 #include "tkit/profiling/macros.hpp"
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 #    include "tkit/serialization/yaml/tensor.hpp"
@@ -3606,21 +3606,21 @@ DockNode *Overlay::dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 
     return parent;
 }
 
-void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx)
+void Overlay::dockInsertAndDrawPreview(OverlayWindow *target, RenderContext<D2> *ctx)
 {
-    const bool ownsNative = win->Flags & WindowInternalFlag_OwnsNative;
-    NativeWindow *nw = win->GetNative();
+    const bool ownsNative = target->Flags & WindowInternalFlag_OwnsNative;
+    NativeWindow *nw = target->GetNative();
 
-    const f32v2 wpos = ownsNative ? nw->GetWorldTopLeft() : win->ToWorld(win->ScreenPos);
-    const f32v2 &wsize = win->Size;
+    const f32v2 wpos = ownsNative ? nw->GetWorldTopLeft() : target->ToWorld(target->ScreenPos);
+    const f32v2 &wsize = target->Size;
 
     const f32v2 &mpos = nw->WorldMouse;
 
     const bool mreleased = (nw->Flags | m_DockSource->GetNative()->Flags) & NativeWindowFlag_LeftMouseReleased;
     bool canDrawPreview = true;
-    if (!win->IsRoot())
+    if (!target->IsRoot())
     {
-        const OverlayWindow *p = win->Parent;
+        const OverlayWindow *p = target->Parent;
         const Layout *ly = p->GetActiveLayout();
         const LayoutElementQueryInfo *elm = ly->QueryElement(p->ContentAreaId);
 
@@ -3639,7 +3639,14 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
             return false;
 
         const f32v2 relPos = Math::Absolute(mpos - pos);
-        if ((relPos[0] <= hitSize[0] && relPos[1] <= hitSize[1]))
+        bool hovering = relPos[0] <= hitSize[0] && relPos[1] <= hitSize[1];
+        if (!hovering && loc[s_Axis] == s_CenterAxis)
+        {
+            const Layout *ly = target->GetActiveLayout();
+            hovering = ly->IsHovered(targetNode ? targetNode->TabData.Id : target->HeaderId, nw->WorldMouse);
+        }
+
+        if (hovering)
         {
             canDrawPreview = false;
             f32v2 offset = f32v2{0.f};
@@ -3665,7 +3672,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
 
             if (mreleased)
             {
-                dockInsert(targetNode, loc, 0.5f, m_DockSource, win);
+                dockInsert(targetNode, loc, 0.5f, m_DockSource, target);
                 return true;
             }
         }
@@ -3738,21 +3745,22 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
                     return true;
 
         const bool sourceIsALeaf = !m_DockSource->DockRoot || m_DockSource->DockRoot->IsLeaf();
-        const bool targetIsEmpty = win->DockRoot && win->DockRoot->IsLeaf() && win->DockRoot->Windows.IsEmpty();
+        const bool targetIsEmpty =
+            target->DockRoot && target->DockRoot->IsLeaf() && target->DockRoot->Windows.IsEmpty();
         if (sourceIsALeaf || targetIsEmpty)
             return bottomPreviewInsert(s_Center, node, pos, size);
         return false;
     };
     const auto insertAllTops = [&] {
         for (const i32v2 &s : sides)
-            if (topPreviewInsert(s, win->DockRoot))
+            if (topPreviewInsert(s, target->DockRoot))
                 return true;
         return false;
     };
 
-    if (!win->DockRoot || win->DockRoot->IsLeaf())
+    if (!target->DockRoot || target->DockRoot->IsLeaf())
     {
-        if (!insertAllBottoms(win->DockRoot, wpos, wsize, true))
+        if (!insertAllBottoms(target->DockRoot, wpos, wsize, true))
             insertAllTops();
         return;
     }
@@ -3760,7 +3768,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ct
     if (insertAllTops())
         return;
 
-    iterateDockTree(win->DockRoot, [&](DockNode *node) {
+    iterateDockTree(target->DockRoot, [&](DockNode *node) {
         const f32v2 &pos = node->ReadOnlyPosition;
         const f32v2 &size = node->ReadOnlySize;
         if (!node->IsLeaf())

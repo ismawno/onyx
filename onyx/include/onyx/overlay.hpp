@@ -1126,15 +1126,7 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): Run the demo with asan and get an overall feel
-// TODO(Isma): Add more dock node flags (NoResize for example)
-// perf:
-// TODO(Isma): Try not doing BFS in generate draw info
-// TODO(Isma): Have two arrays, one with only draws, and the other with full tree
-//
-// TODO(Isma): Poner child flag grow height y una grow que sea orear width y height
 // TODO(Isma): Poder hidear la tab bar
-// TODO(Isma): Poder dockear desde la tab bar (extraer la id de la tab bar)
 class Overlay
 {
     /////////////////////////////////////////////
