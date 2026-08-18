@@ -368,9 +368,11 @@ enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
     OverlayDockNodeFlag_NoResize = 1U << 1,
+    OverlayDockNodeFlag_HideTabBar = 1U << 2,
+    OverlayDockNodeFlag_StartWithTabBarHidden = 1U << 3,
 
-    DockNodeFlag_MustUndock = 1U << 2,
-    DockNodeFlag_MustGrabWhenUndocked = 1U << 3,
+    DockNodeFlag_MustUndock = 1U << 4,
+    DockNodeFlag_MustGrabWhenUndocked = 1U << 5,
 };
 
 struct Tab
@@ -976,9 +978,10 @@ enum OverlayTabBarFlagBit : OverlayTabBarFlags
 {
     OverlayTabBarFlag_Reorderable = 1U << 0,
     OverlayTabBarFlag_NoBottomLine = 1U << 1,
+    OverlayTabBarFlag_HideTabBar = 1U << 2,
 
-    TabBarFlag_ForDocking = 1U << 2,
-    TabBarFlag_HideTabBar = 1U << 3,
+    TabBarFlag_ForDocking = 1U << 3,
+    TabBarFlag_HideTabBar = 1U << 4,
 };
 
 enum OverlayTabFlagBit : OverlayTabFlags

@@ -1395,8 +1395,9 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
                            "[ONYX][OVERLAY] A title must be provided if the window has a tab");
 
-        if (beginTab(&active->DockParent->TabData, {active->Id, title}, closeButton ? opened : nullptr,
-                     OverlayTabFlag_StartOpen | OverlayTabFlag_NoPushId | TabFlag_ForDocking, active))
+        const OverlayTabBarFlags tflags = OverlayTabFlag_StartOpen | OverlayTabFlag_NoPushId | TabFlag_ForDocking;
+
+        if (beginTab(&active->DockParent->TabData, {active->Id, title}, closeButton ? opened : nullptr, tflags, active))
         {
             addActiveWindow(active);
             active->ContentAreaId = setupWindowContentArea();
@@ -2776,6 +2777,8 @@ LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags,
         DockNode *root = createDockNode();
         root->Host = host;
         host->DockRoot = root;
+        if (flags & OverlayDockNodeFlag_StartWithTabBarHidden)
+            root->TabData.Flags |= TabBarFlag_HideTabBar;
     }
     host->DockRoot->Flags = flags;
 
@@ -3120,8 +3123,13 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
                                                              .Padding = cpadding,
                                                              .ChildGap = cgap});
             if (!empty)
-                beginTabBar(&node->TabData, IdFromStack(nodeId),
-                            OverlayTabBarFlag_Reorderable | OverlayTabBarFlag_NoBottomLine | TabBarFlag_ForDocking);
+            {
+                OverlayTabBarFlags tflags =
+                    OverlayTabBarFlag_Reorderable | OverlayTabBarFlag_NoBottomLine | TabBarFlag_ForDocking;
+                if (node->Flags & OverlayDockNodeFlag_HideTabBar)
+                    tflags |= OverlayTabBarFlag_HideTabBar;
+                beginTabBar(&node->TabData, IdFromStack(nodeId), tflags);
+            }
             ly->EndPanel();
         }
         else
@@ -4749,27 +4757,31 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
                            .Sizing = {grow(), fit()},
                            .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius])});
 
-    const LayoutId hideId = IdFromStack("__onyx_id_Tab_bar_hide_button");
+    const bool permaHide = flags & OverlayTabBarFlag_HideTabBar;
+    const LayoutId hideId = permaHide ? LayoutId{NullLayoutId} : IdFromStack("__onyx_id_Tab_bar_hide_button");
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(hideId));
     OverlayColor col = OverlayColor_SelectablePressed;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
-        col = OverlayColor_SelectableIdle;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
-        col = OverlayColor_SelectableHovered;
 
-    if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
+    if (!permaHide)
     {
-        if (data->Flags & TabBarFlag_HideTabBar)
-            data->Flags &= ~TabBarFlag_HideTabBar;
-        else
-            data->Flags |= TabBarFlag_HideTabBar;
+        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(hideId));
+        if (focusFlags & OverlayFocusQueryFlag_Pressed)
+            col = OverlayColor_SelectableIdle;
+        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+            col = OverlayColor_SelectableHovered;
+        if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
+        {
+            if (data->Flags & TabBarFlag_HideTabBar)
+                data->Flags &= ~TabBarFlag_HideTabBar;
+            else
+                data->Flags |= TabBarFlag_HideTabBar;
+        }
     }
 
     // the id that will need to be opened by tab items to keep appending
 
     data->Flags = flags | (data->Flags & TabBarFlag_HideTabBar);
-    if (!(data->Flags & TabBarFlag_HideTabBar))
+    if (!(data->Flags & (TabBarFlag_HideTabBar | OverlayTabBarFlag_HideTabBar)))
     {
         data->Id = beginScroll({.Id = id,
                                 .Direction = LayoutDirection_LeftToRight,
@@ -4791,7 +4803,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
 {
     Layout *ly = m_Active->GetActiveLayout();
 
-    if (!(data->Flags & TabBarFlag_HideTabBar))
+    if (!(data->Flags & (TabBarFlag_HideTabBar | OverlayTabBarFlag_HideTabBar)))
     {
         ly->OpenPanel(data->Id);
 
@@ -7028,6 +7040,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBoxFlags("OverlayDockNodeFlag_CanBeEmpty", &dflags, Onyx::OverlayDockNodeFlag_CanBeEmpty);
         ov->SetItemTooltip("It is strongly recommended you leave this on");
         ov->CheckBoxFlags("OverlayDockNodeFlag_NoResize", &dflags, Onyx::OverlayDockNodeFlag_NoResize);
+        ov->CheckBoxFlags("OverlayDockNodeFlag_HideTabBar", &dflags, Onyx::OverlayDockNodeFlag_HideTabBar);
 
         if (ov->PushTree("Window flags", drawLines))
         {
@@ -7483,6 +7496,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         static bool tab3 = true;
         ov->CheckBoxFlags("OverlayTabBarFlag_Reorderable", &tflags, Onyx::OverlayTabBarFlag_Reorderable);
         ov->CheckBoxFlags("OverlayTabBarFlag_NoBottomLine", &tflags, Onyx::OverlayTabBarFlag_NoBottomLine);
+        ov->CheckBoxFlags("OverlayTabBarFlag_HideTabBar", &tflags, Onyx::OverlayTabBarFlag_HideTabBar);
         ov->CheckBox("Enable tab 1", &tab1);
         ov->CheckBox("Enable tab 3", &tab3);
 
