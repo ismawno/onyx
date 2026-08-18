@@ -219,6 +219,7 @@ enum OverlayStyleVariable : u8
 
     OverlayStyle_TabPadding,
     OverlayStyle_TabGap,
+    OverlayStyle_TabBarWidth,
 
     OverlayStyle_LineRadius,
     OverlayStyle_LineWidth,
@@ -977,6 +978,7 @@ enum OverlayTabBarFlagBit : OverlayTabBarFlags
     OverlayTabBarFlag_NoBottomLine = 1U << 1,
 
     TabBarFlag_ForDocking = 1U << 2,
+    TabBarFlag_HideTabBar = 1U << 3,
 };
 
 enum OverlayTabFlagBit : OverlayTabFlags
@@ -1126,7 +1128,8 @@ struct OverlaySpecs
     OverlayFlags Flags = 0;
 };
 
-// TODO(Isma): Poder hidear la tab bar
+// TODO(Isma): BUG: On windows, grabbed doesnt persist when ripping docked
+// TODO(Isma): BUG: Border keeps hovered when stepping away from native window
 class Overlay
 {
     /////////////////////////////////////////////

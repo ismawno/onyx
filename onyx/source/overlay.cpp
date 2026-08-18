@@ -117,6 +117,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
 
     vars[OverlayStyle_TabPadding] = 3.f;
     vars[OverlayStyle_TabGap] = 4.f;
+    vars[OverlayStyle_TabBarWidth] = 6.f;
 
     vars[OverlayStyle_LineRadius] = 0.f;
     vars[OverlayStyle_LineWidth] = 4.f;
@@ -1745,8 +1746,6 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-// TODO(Isma): BUG: On windows, grabbed doesnt persist when ripping docked
-// TODO(Isma): BUG: Border keeps hovered when stepping away from native window
 OverlayFocusQueryFlags Overlay::iconButtonFocus(const LayoutId id, const CodePoint code, const LySz ysizing,
                                                 const OverlayColor idle, const FocusFlags flags)
 {
@@ -4750,24 +4749,40 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
                            .Sizing = {grow(), fit()},
                            .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius])});
 
+    const LayoutId hideId = IdFromStack("__onyx_id_Tab_bar_hide_button");
+
+    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(hideId));
+    OverlayColor col = OverlayColor_SelectablePressed;
+    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        col = OverlayColor_SelectableIdle;
+    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        col = OverlayColor_SelectableHovered;
+
+    if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
+    {
+        if (data->Flags & TabBarFlag_HideTabBar)
+            data->Flags &= ~TabBarFlag_HideTabBar;
+        else
+            data->Flags |= TabBarFlag_HideTabBar;
+    }
+
     // the id that will need to be opened by tab items to keep appending
 
-    data->Flags = flags;
-    data->Id = beginScroll({.Id = id,
-                            .Direction = LayoutDirection_LeftToRight,
-                            .OuterSizing = scrollSizing,
-                            .ContentSizing = scrollSizing,
-                            .ContentPadding = 0.f,
-                            .ChildGap = m_Style[OverlayStyle_TabGap],
-                            .Flags = OverlayScrollFlag_NoVerticalScroll | OverlayScrollFlag_HorizontalScroll});
+    data->Flags = flags | (data->Flags & TabBarFlag_HideTabBar);
+    if (!(data->Flags & TabBarFlag_HideTabBar))
+    {
+        data->Id = beginScroll({.Id = id,
+                                .Direction = LayoutDirection_LeftToRight,
+                                .OuterSizing = scrollSizing,
+                                .ContentSizing = scrollSizing,
+                                .ContentPadding = 0.f,
+                                .ChildGap = m_Style[OverlayStyle_TabGap],
+                                .Flags = OverlayScrollFlag_NoVerticalScroll | OverlayScrollFlag_HorizontalScroll});
 
-    endScroll();
+        endScroll();
+    }
 
-    PushStyleColor(OverlayColor_Line, m_Style[OverlayColor_SelectablePressed]);
-    PushStyleVar(OverlayStyle_LineRadius, 0.f);
-    HorizontalLine();
-    PopStyleColor();
-    PopStyleVar();
+    ly->Panel(hideId, LyPnPar{.FillColor = m_Style[col], .Sizing = {grow(), sabs(m_Style[OverlayStyle_TabBarWidth])}});
 
     ly->EndPanel();
 }
@@ -4775,177 +4790,184 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
 void Overlay::endTabBar(TabBarData *data, DockNode *node)
 {
     Layout *ly = m_Active->GetActiveLayout();
-    ly->OpenPanel(data->Id);
 
-    PushId(data->Id);
-    if (data->Flags & TabBarFlag_ForDocking)
+    if (!(data->Flags & TabBarFlag_HideTabBar))
     {
-        ASSERT_WITH_WINDOW(
-            node->Host, node && node->IsLeaf(),
-            "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
+        ly->OpenPanel(data->Id);
 
-        const OverlayHoverQueryFlags focusFlags =
-            iconButtonFocus(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
-
-        if ((focusFlags & OverlayFocusQueryFlag_DragSource) && node->CanUndock())
+        PushId(data->Id);
+        if (data->Flags & TabBarFlag_ForDocking)
         {
-            if (node->Windows.GetSize() != 1)
-                node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
-            else if (focusFlags & OverlayFocusQueryFlag_DragSource)
-                node->Windows[0]->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+            ASSERT_WITH_WINDOW(
+                node->Host, node && node->IsLeaf(),
+                "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
+
+            const OverlayHoverQueryFlags focusFlags =
+                iconButtonFocus(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
+
+            if ((focusFlags & OverlayFocusQueryFlag_DragSource) && node->CanUndock())
+            {
+                if (node->Windows.GetSize() != 1)
+                    node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
+                else if (focusFlags & OverlayFocusQueryFlag_DragSource)
+                    node->Windows[0]->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+            }
         }
-    }
 
-    PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
-    PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
+        PushStyleVar(OverlayStyle_SelectableRadius, m_Style[OverlayStyle_TabRadius]);
+        PushStyleVar(OverlayStyle_WidgetPadding, m_Style[OverlayStyle_TabPadding]);
 
-    struct Permutation
-    {
-        u32 Order1;
-        u32 Order2;
-        bool Permuted = false;
-    };
+        struct Permutation
+        {
+            u32 Order1;
+            u32 Order2;
+            bool Permuted = false;
+        };
 
-    Permutation perm{};
-    auto &order = data->Order;
-    auto &tabs = data->Tabs;
+        Permutation perm{};
+        auto &order = data->Order;
+        auto &tabs = data->Tabs;
 
-    const bool reorderable = data->Flags & OverlayTabBarFlag_Reorderable;
+        const bool reorderable = data->Flags & OverlayTabBarFlag_Reorderable;
 
-    const NativeWindow *nw = m_Active->GetNative();
-    const f32 mydelta = Math::Absolute(nw->WorldMouse[1] - nw->WorldMouseOnPress[1]);
-    const f32 th = m_Style[OverlayStyle_DragThreshold];
-    const bool ydragging = mydelta > th;
+        const NativeWindow *nw = m_Active->GetNative();
+        const f32 mydelta = Math::Absolute(nw->WorldMouse[1] - nw->WorldMouseOnPress[1]);
+        const f32 th = m_Style[OverlayStyle_DragThreshold];
+        const bool ydragging = mydelta > th;
 
-    for (u32 i = 0; i < order.GetSize(); ++i)
-    {
-        const u32 idx = reorderable ? order[i] : i;
-        Tab &tab = tabs[idx];
+        for (u32 i = 0; i < order.GetSize(); ++i)
+        {
+            const u32 idx = reorderable ? order[i] : i;
+            Tab &tab = tabs[idx];
 
-        const bool opened = data->OpenId == tab.Id;
+            const bool opened = data->OpenId == tab.Id;
 
-        const auto lookForAnotherOpenTab = [&] {
-            bool found = false;
-            for (u32 i = idx + 1; i < tabs.GetSize(); ++i)
-                if (tabs[i].Flags & TabFlag_Enabled)
-                {
-                    data->OpenId = tabs[i].Id;
-                    found = true;
-                    break;
-                }
-
-            if (!found)
-                for (u32 i = 0; i < idx; ++i)
+            const auto lookForAnotherOpenTab = [&] {
+                bool found = false;
+                for (u32 i = idx + 1; i < tabs.GetSize(); ++i)
                     if (tabs[i].Flags & TabFlag_Enabled)
                     {
                         data->OpenId = tabs[i].Id;
+                        found = true;
                         break;
                     }
-        };
 
-        if (!(tab.Flags & TabFlag_Enabled))
-        {
-            if (opened)
-                lookForAnotherOpenTab();
-            continue;
+                if (!found)
+                    for (u32 i = 0; i < idx; ++i)
+                        if (tabs[i].Flags & TabFlag_Enabled)
+                        {
+                            data->OpenId = tabs[i].Id;
+                            break;
+                        }
+            };
+
+            if (!(tab.Flags & TabFlag_Enabled))
+            {
+                if (opened)
+                    lookForAnotherOpenTab();
+                continue;
+            }
+
+            const bool button = tab.Flags & TabFlag_DrawCloseButton;
+
+            if (button)
+                ly->BeginPanel(
+                    LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
+
+            if (BeginSelectable(IdFromStack(tab.Id), opened,
+                                OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight))
+            {
+                if (tab.Flags & TabFlag_Unselectable)
+                    tab.Flags &= ~TabFlag_Unselectable;
+                else
+                    data->OpenId = tab.Id;
+            }
+
+            ly->Text(ly->GenerateNextId(), tab.Title, getTextParams());
+            EndSelectable();
+
+            PushId(tab.Id);
+            const LayoutId butId = IdFromStack("__onyx_id_Tab_close");
+            PopId();
+
+            const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
+            const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm);
+
+            const bool dragSource = focusFlags & OverlayFocusQueryFlag_DragSource;
+            const bool canUndock = tab.Window && !(tab.Window->Flags & OverlayWindowFlag_NoUndocking);
+
+            if (dragSource && reorderable)
+                tab.Flags |= TabFlag_Unselectable;
+
+            if (dragSource && canUndock && ydragging)
+                tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+
+            if (reorderable && !perm.Permuted && dragSource)
+            {
+                const LayoutElementQueryInfo *belm = button ? ly->QueryElement(butId) : nullptr;
+
+                const f32 cgap = 0.5f * m_Style[OverlayStyle_ChildGap];
+                const f32 mpos = nw->WorldMouse[0];
+
+                const f32 pos = elm->Position[0] - cgap;
+                const f32 size = elm->Size[0] + (belm ? belm->Size[0] : 0.f) + cgap;
+
+                if (!(tab.Flags & TabFlag_JustPermuted))
+                {
+                    const u32 lastIndex = order.GetSize() - 1;
+                    if (mpos > pos + size)
+                    {
+                        if (i == lastIndex && canUndock)
+                            tab.Window->Flags |=
+                                WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+                        else if (i != lastIndex)
+                        {
+                            tab.Flags |= TabFlag_JustPermuted;
+                            perm.Permuted = true;
+                            perm.Order1 = i;
+                            perm.Order2 = i + 1;
+                        }
+                    }
+                    else if (mpos < pos)
+                    {
+                        if (i == 0 && canUndock)
+                            tab.Window->Flags |=
+                                WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
+                        else if (i != 0)
+                        {
+                            tab.Flags |= TabFlag_JustPermuted;
+                            perm.Permuted = true;
+                            perm.Order1 = i;
+                            perm.Order2 = i - 1;
+                        }
+                    }
+                }
+                else if (mpos <= pos + size && mpos > pos)
+                    tab.Flags &= ~TabFlag_JustPermuted;
+            }
+
+            if (button && iconButton(butId, CrossIcon, grow(), OverlayColor_SelectableIdle))
+            {
+                tab.Flags |= TabFlag_RequestClose;
+                if (opened)
+                    lookForAnotherOpenTab();
+            }
+
+            if (button)
+                ly->EndPanel();
         }
-
-        const bool button = tab.Flags & TabFlag_DrawCloseButton;
-
-        if (button)
-            ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = CenterLeft, .Sizing = fit()});
-
-        if (BeginSelectable(IdFromStack(tab.Id), opened,
-                            OverlaySelectableFlag_SpanLabelWidth | OverlaySelectableFlag_LeftToRight))
-        {
-            if (tab.Flags & TabFlag_Unselectable)
-                tab.Flags &= ~TabFlag_Unselectable;
-            else
-                data->OpenId = tab.Id;
-        }
-
-        ly->Text(ly->GenerateNextId(), tab.Title, getTextParams());
-        EndSelectable();
-
-        PushId(tab.Id);
-        const LayoutId butId = IdFromStack("__onyx_id_Tab_close");
         PopId();
 
-        const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm);
+        if (perm.Permuted)
+            std::swap(data->Order[perm.Order1], data->Order[perm.Order2]);
 
-        const bool dragSource = focusFlags & OverlayFocusQueryFlag_DragSource;
-        const bool canUndock = tab.Window && !(tab.Window->Flags & OverlayWindowFlag_NoUndocking);
+        PopStyleVar(2);
 
-        if (dragSource && reorderable)
-            tab.Flags |= TabFlag_Unselectable;
-
-        if (dragSource && canUndock && ydragging)
-            tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
-
-        if (reorderable && !perm.Permuted && dragSource)
-        {
-            const LayoutElementQueryInfo *belm = button ? ly->QueryElement(butId) : nullptr;
-
-            const f32 cgap = 0.5f * m_Style[OverlayStyle_ChildGap];
-            const f32 mpos = nw->WorldMouse[0];
-
-            const f32 pos = elm->Position[0] - cgap;
-            const f32 size = elm->Size[0] + (belm ? belm->Size[0] : 0.f) + cgap;
-
-            if (!(tab.Flags & TabFlag_JustPermuted))
-            {
-                const u32 lastIndex = order.GetSize() - 1;
-                if (mpos > pos + size)
-                {
-                    if (i == lastIndex && canUndock)
-                        tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
-                    else if (i != lastIndex)
-                    {
-                        tab.Flags |= TabFlag_JustPermuted;
-                        perm.Permuted = true;
-                        perm.Order1 = i;
-                        perm.Order2 = i + 1;
-                    }
-                }
-                else if (mpos < pos)
-                {
-                    if (i == 0 && canUndock)
-                        tab.Window->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
-                    else if (i != 0)
-                    {
-                        tab.Flags |= TabFlag_JustPermuted;
-                        perm.Permuted = true;
-                        perm.Order1 = i;
-                        perm.Order2 = i - 1;
-                    }
-                }
-            }
-            else if (mpos <= pos + size && mpos > pos)
-                tab.Flags &= ~TabFlag_JustPermuted;
-        }
-
-        if (button && iconButton(butId, CrossIcon, grow(), OverlayColor_SelectableIdle))
-        {
-            tab.Flags |= TabFlag_RequestClose;
-            if (opened)
-                lookForAnotherOpenTab();
-        }
-
-        if (button)
-            ly->EndPanel();
+        ly->EndPanel();
     }
-    PopId();
-
-    if (perm.Permuted)
-        std::swap(data->Order[perm.Order1], data->Order[perm.Order2]);
 
     for (Tab &tab : data->Tabs)
         tab.Flags &= ~TabFlag_Enabled;
-
-    PopStyleVar(2);
-
-    ly->EndPanel();
 
     if (!(data->Flags & OverlayTabBarFlag_NoBottomLine))
         HorizontalLine();
@@ -7838,6 +7860,7 @@ void Overlay::ShowStyleEditor()
         varSlider("TabRadius", OverlayStyle_TabRadius, 0.f, 50.f);
         varSlider("TabPadding", OverlayStyle_TabPadding, 0.f, 50.f);
         varSlider("TabGap", OverlayStyle_TabGap, 0.f, 50.f);
+        varSlider("TabBarWidth", OverlayStyle_TabBarWidth, 0.f, 50.f);
         varSlider("LineRadius", OverlayStyle_LineRadius, 0.f, 50.f);
         varSlider("LineWidth", OverlayStyle_LineWidth, 0.f, 50.f);
         varSlider("SeparatorTextOffset", OverlayStyle_SeparatorTextOffset, 0.f, 50.f);
