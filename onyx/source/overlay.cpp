@@ -2314,12 +2314,12 @@ u32 Overlay::processWindows()
 
 Layout *Overlay::createLayout()
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     return m_Layouts.Append(tier->Create<Layout>(m_LayoutSpecs));
 }
 void Overlay::destroyLayout(const Layout *ly)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(ly);
 }
 void Overlay::removeLayout(const Layout *ly)
@@ -2336,7 +2336,7 @@ void Overlay::removeLayout(const Layout *ly)
 
 OverlayWindow *Overlay::createOverlayWindow()
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     OverlayWindow *win = tier->Create<OverlayWindow>();
 
     win->MinSize = getWindowMinSize();
@@ -2352,7 +2352,7 @@ void Overlay::destroyOverlayWindow(const OverlayWindow *win, const bool scrub)
         if (win->Layout)
             removeLayout(win->Layout);
     }
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(win);
 }
 void Overlay::removeOverlayWindow(const OverlayWindow *win)
@@ -2386,7 +2386,7 @@ void Overlay::removeOverlayWindow(const OverlayWindow *win)
 
 NativeWindow *Overlay::createNativeWindow(Window *win)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     NativeWindow *nw = tier->Create<NativeWindow>();
 
     m_NativeWindows.Append(nw);
@@ -2438,7 +2438,7 @@ void Overlay::destroyNativeWindow(const NativeWindow *win)
     DestroyRenderContext(win->Context);
     CloseWindow(win->Window);
 
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(win);
 }
 void Overlay::removeNativeWindow(const NativeWindow *nw)
@@ -2648,7 +2648,7 @@ template <typename F> void Overlay::iterateReverseWindows(TKit::StaticArray32<Ov
 const OverlayDockNode *DockSplit(const LayoutAxis axis, const f32 ratio, const OverlayDockNode *child0,
                                  const OverlayDockNode *child1, OverlayDockNodeFlags flags)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     OverlayDockNode *node = tier->Create<OverlayDockNode>();
 
     node->Children[0] = child0;
@@ -2663,7 +2663,7 @@ const OverlayDockNode *DockSplit(const LayoutAxis axis, const f32 ratio, const O
 
 const OverlayDockNode *DockTabBar(const TKit::Span<const LayoutId> windows, OverlayDockNodeFlags flags)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     OverlayDockNode *node = tier->Create<OverlayDockNode>();
 
     for (const LayoutId &id : windows)
@@ -2685,7 +2685,7 @@ void Overlay::UndockWindow(const LayoutId id)
 
 void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     OverlayWindow *host = findWindow(hostId);
     TKIT_ASSERT(!host || !host->IsDocked(), "[ONYX][OVERLAY] Cannot submit a window id as host that is already docked");
 
@@ -2842,14 +2842,14 @@ bool DockNode::CanUndock() const
 
 DockNode *Overlay::createDockNode()
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     DockNode *node = tier->Create<DockNode>();
     return m_DockNodes.Append(node);
 }
 
 void Overlay::destroyDockNode(const DockNode *node)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(node);
 }
 
@@ -6647,7 +6647,7 @@ void Overlay::Draw()
     {
         m_Tooltip->Layout->EndPanel();
         m_Tooltip->Layout->EndPanel();
-        m_Tooltip->Layout->Compile();
+        m_Tooltip->Layout->Compile(&depthCounter, &floatDepthCounter);
         m_Tooltip->Native->Context->Layout(*m_Tooltip->Layout);
         if (windowPromotions && (m_Tooltip->Flags & WindowInternalFlag_OwnsNative))
             m_Tooltip->Native->Window->SetPosition(i32v2{m_Tooltip->Native->ScreenPos});

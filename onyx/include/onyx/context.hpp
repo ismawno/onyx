@@ -188,6 +188,7 @@ template <Dimension D> struct ContextState
 struct InstanceDataBuffer;
 struct ContextInstanceData;
 
+// contexts must always be created by the same thread
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
@@ -203,6 +204,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     IRenderContext(u32 immediateDynamicMeshCapacity);
     ~IRenderContext();
 
+    // Must always be called from the same thread
     void Flush();
 
     void Align(const vec<Alignment, D> &alg)
@@ -807,13 +809,17 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return getDynamicMeshHandle(&data);
     }
 
-    TKit::TierArray<ContextState<D>> m_StateStack{};
-
+    TKit::StaticArray16<ContextState<D>> m_StateStack{};
     ContextInstanceData *m_InstanceData;
 
+    // NOTE(Isma): This is not good for multithreading, as, unless its context is dutifully pinned to a thread, this
+    // tier array may try to race against another thread that is using the underlying tier allocator, because these
+    // arrays grow as lights are submitted. honestly, for the majority of cases, it should be fine. problems would arise
+    // if you call ctx->Add*Light() from a thread that the context did not allocate these array's memory in and happens
+    // to want to grow its capacity, accessing the allocator and tentatively racing with the allocator's owner thread.
+    // if something is gonna be done about this DONT FORGET THE SPOT LIGHTS AT THE END OF THIS FILE
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
-
     TKit::TierArray<DynamicMeshInfo<D>> m_ImmediateDynamicMeshes{};
 
     u64 m_Generation = 0;

@@ -331,7 +331,7 @@ static void initializeAllocators(const Specs &specs)
         if (userAlloc.Stack)
             libAlloc.Stack = userAlloc.Stack;
         else if (!libAlloc.Stack)
-            libAlloc.Stack = new TKit::StackAllocator(i == 0 ? 8_mib : 4_kib, TKIT_CACHE_LINE_SIZE);
+            libAlloc.Stack = new TKit::StackAllocator(i == 0 ? 8_mib : 16_kib, TKIT_CACHE_LINE_SIZE);
 
         if (userAlloc.Tier)
             libAlloc.Tier = userAlloc.Tier;

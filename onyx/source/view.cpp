@@ -138,7 +138,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
                    "this particular view",
                    m_AttachmentIndex + 1);
 
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
@@ -249,7 +249,7 @@ template <Dimension D> void RenderView<D>::drainWork()
 
 template <Dimension D> void RenderView<D>::destroyFramebuffers()
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (Framebuffer *fb : m_Framebuffers)
     {
         for (VKit::DeviceImage &att : fb->Attachments)

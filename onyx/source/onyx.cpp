@@ -206,7 +206,7 @@ bool CanRenderImGui(Window *window)
 
 Overlay *CreateFloatingOverlay(const OverlaySpecs &specs)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     Overlay *ov = tier->Create<Overlay>(nullptr, specs);
     return s_Data->Overlays.Append(ov);
 }
@@ -217,7 +217,7 @@ Overlay *CreateFloatingOverlay()
 
 static void destroyOverlay(const Overlay *ov)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(ov);
 }
 static void destroyOverlay(const u32 idx)
@@ -255,7 +255,7 @@ template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx)
 
 RenderTexture *CreateRenderTexture(const u32v2 &dimensions)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     RenderTexture *rtex = tier->Create<RenderTexture>(dimensions);
     return s_Data->RenderTextures.Append(rtex);
 }
@@ -267,7 +267,7 @@ void DestroyRenderTexture(const RenderTexture *rtex)
         const RenderTexture *r = s_Data->RenderTextures[i];
         if (r == rtex)
         {
-            TKit::TierAllocator *tier = GetTier();
+            TKit::TierAllocator *tier = TKit::GetTier();
             tier->Destroy(r);
             s_Data->RenderTextures.RemoveUnordered(s_Data->RenderTextures.begin() + i);
             return;
@@ -522,7 +522,7 @@ void InitializeApi()
 }
 void TerminateApi()
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (WindowData &wdata : s_Data->Windows)
         cleanupWindowData(wdata);
     for (Overlay *ov : s_Data->Overlays)

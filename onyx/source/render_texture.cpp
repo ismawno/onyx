@@ -44,7 +44,7 @@ static void nameImage(VKit::DeviceImage &img, const u32 idx)
 
 RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
 
     img->Image = createImage(dimensions);
@@ -104,7 +104,7 @@ void RenderTexture::Resize(const u32v2 &dims)
 
     FrontEndImage *main = m_Images.GetFront();
     FrontEndImage *mostUpToDate = m_Images[m_Writable];
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
 
     const auto destroyImage = [&](FrontEndImage *img) {
         Resources::DestroyTexture(img->Texture);
@@ -181,7 +181,7 @@ void RenderTexture::FindAvailableImages()
                    "this particular render texture",
                    m_Writable + 1);
 
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
 
     img->Image = createImage(m_Dimensions);

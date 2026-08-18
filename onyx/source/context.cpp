@@ -5,6 +5,7 @@
 #include "resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/multiprocessing/topology.hpp"
 
 namespace Onyx
 {
@@ -12,7 +13,7 @@ using namespace Detail;
 
 template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDynamicMeshCapacity)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     m_InstanceData = tier->Create<ContextInstanceData>();
     for (InstanceDataBuffer &buffer : m_InstanceData->Circles)
     {
@@ -54,7 +55,7 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
         if (Resources::IsResourceValid(info.Handle))
             Resources::DestroyDynamicMesh<D>(info.Handle);
 
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(m_InstanceData);
 }
 
@@ -390,6 +391,7 @@ static Geometry getGeometry(const ResourceType rtype)
 template <Dimension D> void IRenderContext<D>::resizeInstanceData()
 {
     const auto resize = [](const ResourceType rtype, InstanceResourceGroup &group, const u32 count, const u32 ncount) {
+        group.Registry.ResourceIds.Reserve(ncount);
         for (u32 k = count; k < ncount; ++k)
         {
             InstanceDataBuffer &buffer = group.Buffers.Append();

@@ -270,7 +270,7 @@ void Window::createSyncData()
     const auto table = GetDeviceTable();
 
     const u32 imageCount = m_Swapchain->GetImageCount();
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (u32 i = 0; i < imageCount; ++i)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
@@ -286,7 +286,7 @@ void Window::destroySyncData()
 {
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (const WindowSyncData *data : m_SyncData)
     {
         table->DestroySemaphore(device, data->ImageAvailableSemaphore, nullptr);
@@ -343,7 +343,7 @@ Window::Window(const WindowSpecs &specs)
                 "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", specs.Dimensions[0],
                 specs.Dimensions[1]);
 
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     m_Swapchain = tier->Create<VKit::Swapchain>();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -777,7 +777,7 @@ Overlay *Window::CreateOverlay()
 }
 Overlay *Window::CreateOverlay(const OverlaySpecs &specs)
 {
-    TKit::TierAllocator *tier = GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     Overlay *ov = tier->Create<Overlay>(this, specs);
     return m_Overlays.Append(ov);
 }
@@ -788,7 +788,7 @@ void Window::DestroyOverlay(const Overlay *overlay)
         const Overlay *ov = m_Overlays[i];
         if (ov == overlay)
         {
-            TKit::TierAllocator *tier = GetTier();
+            TKit::TierAllocator *tier = TKit::GetTier();
             tier->Destroy(ov);
             m_Overlays.RemoveUnordered(m_Overlays.begin() + i);
             return;
