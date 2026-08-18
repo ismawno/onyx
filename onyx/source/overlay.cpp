@@ -1147,7 +1147,7 @@ bool Overlay::BeginMenu(const OverlayLabel label)
     ly->BeginPanel(id,
                    LyPnPar{.FillColor = m_Style[col], .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
     if (verticalLayout)
     {
         ly->Panel(LyPnPar{.Sizing = grow()});
@@ -1541,7 +1541,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
             ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
                                "[ONYX][OVERLAY] A title must be provided if the window has a header");
-            ly->Text(ly->GenerateNextId(), title, getTextParams());
+            ly->Text(title, getTextParams());
             ly->EndPanel();
 
             if (closeButton)
@@ -3836,7 +3836,7 @@ bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
                                             .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
                                             .Padding = padding});
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
     ly->EndPanel();
     PopId();
     return focusFlags & OverlayFocusQueryFlag_LeftClicked;
@@ -3869,7 +3869,7 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
                       .Shape = circle()});
     ly->EndPanel();
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
 
     ly->EndPanel();
     PopId();
@@ -3908,7 +3908,7 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
                           .Shape = rect(m_Style[OverlayStyle_CheckBoxRadius])});
     ly->EndPanel();
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
 
     ly->EndPanel();
     PopId();
@@ -3996,7 +3996,7 @@ bool Overlay::Selectable(const OverlayLabel label, const bool enabled, const Ove
 {
     const bool selected = BeginSelectable(label.Id, enabled, flags);
     Layout *ly = m_Active->GetActiveLayout();
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
     EndSelectable();
 
     return selected;
@@ -4036,7 +4036,7 @@ void Overlay::ProgressBar(const OverlayLabel label, const TKit::StringView text,
                              .Alignment = TopLeft}});
 
     if (!text.IsEmpty())
-        ly->Text(ly->GenerateNextId(), text, getTextParams());
+        ly->Text(text, getTextParams());
 
     ly->EndPanel();
 
@@ -4096,7 +4096,7 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col
                             .Sizing = fit(),
                             .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-            ly->Text(ly->GenerateNextId(), title, getTextParams());
+            ly->Text(title, getTextParams());
             HorizontalLine();
         }
 
@@ -4157,7 +4157,7 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col
                         .ChildGap = m_Style[OverlayStyle_ChildGap]});
         drawColorPreview(col, tooltipSize, alpha);
         if (tlabel)
-            ly->Text(ly->GenerateNextId(), title, getTextParams());
+            ly->Text(title, getTextParams());
         ly->EndPanel();
     }
 }
@@ -4684,7 +4684,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
                            .Sizing = fit(),
                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly->Text(ly->GenerateNextId(), original ? "Current" : label.Title, getTextParams());
+    ly->Text(original ? "Current" : label.Title, getTextParams());
     if (drawPreview)
     {
         PushStyleVar(OverlayStyle_ColorPreviewSize, previewSize);
@@ -4692,7 +4692,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
         ColorPreview(label, col, flags);
         if (original)
         {
-            ly->Text(ly->GenerateNextId(), "Original", getTextParams());
+            ly->Text("Original", getTextParams());
             ColorPreview("Original", *original, flags);
         }
         PopStyleVar(2);
@@ -4895,7 +4895,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                     data->OpenId = tab.Id;
             }
 
-            ly->Text(ly->GenerateNextId(), tab.Title, getTextParams());
+            ly->Text(tab.Title, getTextParams());
             EndSelectable();
 
             PushId(tab.Id);
@@ -5092,7 +5092,7 @@ void Overlay::endHorizontalWidget(const TKit::StringView title)
     Layout *ly = m_Active->GetActiveLayout();
     ly->EndPanel();
     if (!title.IsEmpty())
-        ly->Text(ly->GenerateNextId(), title, getTextParams());
+        ly->Text(title, getTextParams());
     ly->EndPanel();
 }
 bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
@@ -5331,10 +5331,10 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         {
             tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
             // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
-            ly->Text(ly->GenerateNextId(), hint, tparams);
+            ly->Text(hint, tparams);
         }
         else
-            ly->Text(ly->GenerateNextId(), str, tparams);
+            ly->Text(str, tparams);
 
         // bc of layout solving, cursor is gonna be offsetted by the text. we have to work out how much to "bring it
         // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by
@@ -5441,10 +5441,10 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         {
             tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
             // tparams.FillColor *= m_Style[OverlayStyle_HintOpacity];
-            ly->Text(ly->GenerateNextId(), hint, tparams);
+            ly->Text(hint, tparams);
         }
         else
-            ly->Text(ly->GenerateNextId(), buf, tparams);
+            ly->Text(buf, tparams);
     }
 
     ly->EndPanel();
@@ -5596,7 +5596,7 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
         ly->BeginPanel(LyPnPar{
             .Alignment = CenterLeft, .Sizing = {grow(), fit()}, .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
-        ly->Text(ly->GenerateNextId(), preview, getTextParams());
+        ly->Text(preview, getTextParams());
         ly->EndPanel();
     }
 
@@ -5866,7 +5866,7 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32 maxHeight, const f
                            .Padding = borders ? padding : 0.f});
 
     if (flags & OverlayScrollFlag_Title)
-        ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+        ly->Text(label.Title, getTextParams());
 
     beginScroll({.Id = id,
                  .OuterSizing = outer,
@@ -5889,7 +5889,7 @@ void Overlay::HorizontalSeparator(const OverlayLabel label)
     ly->Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
     ly->Panel(LyPnPar{
         .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
     ly->EndPanel();
@@ -5948,7 +5948,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     ly->EndPanel();
 
-    ly->Text(ly->GenerateNextId(), label.Title, getTextParams());
+    ly->Text(label.Title, getTextParams());
     ly->EndPanel();
 
     if (toggleOpen)

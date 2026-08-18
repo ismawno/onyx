@@ -1317,15 +1317,6 @@ class Overlay
     bool BeginSelectable(LayoutId id, bool enabled = false, OverlaySelectableFlags flags = 0);
     bool BeginSelectable(LayoutId id, bool *enabled, OverlaySelectableFlags flags = 0);
 
-    bool BeginSelectable(const bool enabled = false, const OverlaySelectableFlags flags = 0)
-    {
-        return BeginSelectable(m_Active->GetActiveLayout()->GenerateNextId(), enabled, flags);
-    }
-    bool BeginSelectable(bool *enabled, const OverlaySelectableFlags flags = 0)
-    {
-        return BeginSelectable(m_Active->GetActiveLayout()->GenerateNextId(), enabled, flags);
-    }
-
     void EndSelectable();
 
     bool Selectable(OverlayLabel label, bool enabled = false, OverlaySelectableFlags flags = 0);
@@ -2343,7 +2334,7 @@ class Overlay
                                       .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
-        ly->Text(ly->GenerateNextId(), text, getTextParams());
+        ly->Text(text, getTextParams());
 
         ly->EndPanel();
         ly->EndPanel();
@@ -2380,9 +2371,9 @@ class Overlay
             Layout *tly = m_Active->GetActiveLayout();
 
             if (!title.IsEmpty())
-                tly->Text(tly->GenerateNextId(), title, getTextParams());
+                tly->Text(title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
-            tly->Text(tly->GenerateNextId(), text, getTextParams());
+            tly->Text(text, getTextParams());
 
             EndTooltip();
         }
@@ -2469,7 +2460,7 @@ class Overlay
                                    .Padding = m_Style[OverlayStyle_WidgetPadding]});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
-        ly->Text(ly->GenerateNextId(), text, getTextParams());
+        ly->Text(text, getTextParams());
 
         ly->EndPanel();
         return *value != pval;
@@ -2497,9 +2488,9 @@ class Overlay
             Layout *tly = m_Active->GetActiveLayout();
 
             if (!title.IsEmpty())
-                tly->Text(tly->GenerateNextId(), title, getTextParams());
+                tly->Text(title, getTextParams());
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
-            tly->Text(tly->GenerateNextId(), text, getTextParams());
+            tly->Text(text, getTextParams());
 
             EndTooltip();
         }

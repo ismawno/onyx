@@ -441,7 +441,7 @@ class Layout
     LayoutId Text(LayoutId id, TKit::StringView text, const LayoutTextParameters &params = {});
     LayoutId Text(const TKit::StringView text, const LayoutTextParameters &params = {})
     {
-        return Text(text, text, params);
+        return Text(NullLayoutId, text, params);
     }
 
     LayoutId Unicode(LayoutId id, CodePoint code, const LayoutUnicodeParameters &params = {});
@@ -451,7 +451,7 @@ class Layout
     }
     LayoutId Unicode(const CodePoint code, const LayoutUnicodeParameters &params = {})
     {
-        return Unicode(code, code, params);
+        return Unicode(NullLayoutId, code, params);
     }
     LayoutId Unicode(const TKit::StringView code, const LayoutUnicodeParameters &params = {})
     {
