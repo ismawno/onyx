@@ -1622,7 +1622,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
 
         const f32m4 proj = Transform<D3>::Orthographic(-width, width, -width, width, params.Near, params.Far);
         const f32m4 view = Transform<D3>::LookTowards(params.ViewPosition, dir);
-        c.ProjectionView = CreateTransformData<D3>(proj * view);
+        c.ProjectionView = PackTransform<D3>(proj * view);
 
         c.InvSize = 0.5f * f32v2{proj[0][0], proj[1][1]};
         c.DepthRange = params.Far - params.Near;
@@ -1731,7 +1731,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
             max[2] *= zmul;
 
         const f32m4 proj = Transform<D3>::Orthographic(min, max);
-        c.ProjectionView = CreateTransformData<D3>(proj * view);
+        c.ProjectionView = PackTransform<D3>(proj * view);
 
         c.InvSize = 0.5f * f32v2{proj[0][0], proj[1][1]};
         c.DepthRange = max[2] - min[2];
@@ -1788,7 +1788,7 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
         const f32m3 orth = Transform<D2>::Orthographic(-se, se, -le, le);
         const f32m3 view = Transform<D2>::ComputeInverseTransform(pos, f32v2{1.f}, params.Angle);
 
-        data.ProjectionView = CreateTransformData<D2>(orth * view);
+        data.ProjectionView = PackTransform<D2>(orth * view);
         data.Direction = dir;
         data.LightOffset = params.LightOffset;
         data.LightExtent = le;
@@ -2814,18 +2814,13 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
 }
 TKIT_COMPILER_WARNING_IGNORE_POP()
 
-template <Dimension D> static f32m4 createTransform(const TransformData<D> &transform)
+template <Dimension D> static f32m4 unpackTransform(const PackedTransform<D> &packed)
 {
     if constexpr (D == D2)
-        return f32m4{f32v4{transform.Column0, 0.f, 0.f}, f32v4{transform.Column1, 0.f, 0.f}, f32v4{0.f, 0.f, 0.f, 0.f},
-                     f32v4{transform.Column3, 0.f, 1.f}};
+        return f32m4{f32v4{packed[0], 0.f, 0.f}, f32v4{packed[1], 0.f, 0.f}, f32v4{0.f, 0.f, 0.f, 0.f},
+                     f32v4{packed[2], 0.f, 1.f}};
     else
-        return f32m4{f32v4{transform.Row0[0], transform.Row1[0], transform.Row2[0], 0.f},
-                     f32v4{transform.Row0[1], transform.Row1[1], transform.Row2[1], 0.f},
-                     f32v4{transform.Row0[2], transform.Row1[2], transform.Row2[2], 0.f},
-                     f32v4{transform.Row0[3], transform.Row1[3], transform.Row2[3], 1.f}
-
-        };
+        return f32m4{f32v4{packed[0], 0.f}, f32v4{packed[1], 0.f}, f32v4{packed[2], 0.f}, f32v4{packed[3], 1.f}};
 }
 
 static CullMode getCullMode(const Resource handle)
@@ -2969,7 +2964,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                         processMap(ocmap, Transform<D2>::Promote(pv));
                     }
                     else
-                        processMap(ocmap, createTransform(data.ProjectionView));
+                        processMap(ocmap, unpackTransform<D>(data.ProjectionView));
 
                     endShadowTransitionLayout<D2>(cmd, ocmap);
 
@@ -3043,7 +3038,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     {
                         for (u32 j = 0; j < data.CascadeCount; ++j)
                             if ((1U << j) & data.CascadeEnable)
-                                processMap(smap, createTransform(data.Cascades[j].ProjectionView), j);
+                                processMap(smap, unpackTransform<D>(data.Cascades[j].ProjectionView), j);
                     }
                     else
                         processMap(smap, data.ProjectionView);

@@ -11,9 +11,10 @@ struct Transform2D
 
 struct Transform3D
 {
-    f32 Elm00, Elm10, Elm20, Elm30;
-    f32 Elm01, Elm11, Elm21, Elm31;
-    f32 Elm02, Elm12, Elm22, Elm32;
+    f32 Elm00, Elm01, Elm02;
+    f32 Elm10, Elm11, Elm12;
+    f32 Elm20, Elm21, Elm22;
+    f32 Elm30, Elm31, Elm32;
 }
 
 struct WorldRect2D

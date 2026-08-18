@@ -9,36 +9,23 @@
 
 namespace Onyx
 {
-template <Dimension D> struct TransformData;
+template <Dimension D> using PackedTransform = f32t<D + 1, D>;
 
-template <> struct TransformData<D2>
+template <Dimension D> PackedTransform<D> PackTransform(const f32m<D> &transform)
 {
-    f32v2 Column0;
-    f32v2 Column1;
-    f32v2 Column3;
-};
-
-template <> struct TransformData<D3>
-{
-    f32v4 Row0;
-    f32v4 Row1;
-    f32v4 Row2;
-};
-
-template <Dimension D> TransformData<D> CreateTransformData(const f32m<D> &transform)
-{
-    TransformData<D> data;
+    PackedTransform<D> data;
     if constexpr (D == D2)
     {
-        data.Column0 = f32v2{transform[0]};
-        data.Column1 = f32v2{transform[1]};
-        data.Column3 = f32v2{transform[2]};
+        data[0] = f32v2{transform[0]};
+        data[1] = f32v2{transform[1]};
+        data[2] = f32v2{transform[2]};
     }
     else
     {
-        data.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
-        data.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
-        data.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
+        data[0] = f32v3{transform[0]};
+        data[1] = f32v3{transform[1]};
+        data[2] = f32v3{transform[2]};
+        data[3] = f32v3{transform[3]};
     }
     return data;
 }
@@ -47,7 +34,7 @@ template <Dimension D> TransformData<D> CreateTransformData(const f32m<D> &trans
 // alternative due to how contexts are designed to be independent and its data being read only once recorded
 template <Dimension D> struct InstanceData
 {
-    TransformData<D> Transform;
+    PackedTransform<D> Transform;
     WorldRect<D> Rect;
     u32 FillColor;
     u32 OutlineColor;
@@ -58,7 +45,7 @@ template <Dimension D> struct InstanceData
 };
 template <> struct InstanceData<D2>
 {
-    TransformData<D2> Transform;
+    PackedTransform<D2> Transform;
     WorldRect<D2> Rect;
     u32 FillColor;
     u32 OutlineColor;
@@ -159,7 +146,7 @@ template <> struct PointLightData<D2>
 template <Dimension D> struct DirectionalLightData;
 template <> struct DirectionalLightData<D2>
 {
-    TransformData<D2> ProjectionView;
+    PackedTransform<D2> ProjectionView;
     f32v2 Direction;
     f32 LightOffset;
     f32 LightExtent;
@@ -175,7 +162,7 @@ template <> struct DirectionalLightData<D2>
 
 struct CascadeData
 {
-    TransformData<D3> ProjectionView;
+    PackedTransform<D3> ProjectionView;
     f32v2 InvSize;
     f32 DepthRange;
     f32 Split;

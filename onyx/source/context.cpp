@@ -258,8 +258,7 @@ template <Dimension D> u32 packAlignment(const vec<Alignment, D> alg)
 }
 
 template <Dimension D>
-static InstanceData<D> createInstanceData(const ContextState<D> &state, const f32m<D> &transform,
-                                          const u32 depthCounter)
+static void fillInstanceData(InstanceData<D> &instanceData, const ContextState<D> &state, const u32 depthCounter)
 {
 #ifdef TKIT_ENABLE_ENSURE
     checkMaterial<D>(state.Material);
@@ -267,8 +266,6 @@ static InstanceData<D> createInstanceData(const ContextState<D> &state, const f3
     checkTexture<D>(state.Texture);
 #endif
     const bool flat = state.RenderFlags & RenderModeFlag_Flat;
-    InstanceData<D> instanceData;
-    instanceData.Transform = CreateTransformData<D>(transform);
     instanceData.Rect = state.Rect;
     instanceData.MatOrSamplerTex =
         flat ? Resources::CombineSamplerTexIntoId(state.Sampler, state.Texture) : GetResourceId(state.Material);
@@ -279,7 +276,15 @@ static InstanceData<D> createInstanceData(const ContextState<D> &state, const f3
     instanceData.OutlineWidth = state.OutlineWidth;
     if constexpr (D == D2)
         instanceData.DepthCounter = depthCounter;
+}
 
+template <Dimension D>
+static InstanceData<D> createInstanceData(const ContextState<D> &state, const f32m<D> &transform,
+                                          const u32 depthCounter)
+{
+    InstanceData<D> instanceData;
+    instanceData.Transform = PackTransform<D>(transform);
+    fillInstanceData(instanceData, state, depthCounter);
     return instanceData;
 }
 
@@ -335,14 +340,20 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
 }
 
 template <Dimension D>
+static void fillGlyphInstanceData(GlyphInstanceData<D> &instanceData, const ContextState<D> &state, const f32 unitRange)
+{
+    instanceData.SamplerAtlasId =
+        Resources::CombineSamplerTexIntoId(state.Sampler, Resources::GetFontAtlas(state.Font));
+    instanceData.UnitRange = unitRange;
+}
+
+template <Dimension D>
 static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> &state, const f32m<D> &transform,
                                                     const f32 unitRange, const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.SamplerAtlasId =
-        Resources::CombineSamplerTexIntoId(state.Sampler, Resources::GetFontAtlas(state.Font));
-    instanceData.UnitRange = unitRange;
+    fillGlyphInstanceData(instanceData, state, unitRange);
     return instanceData;
 }
 
@@ -594,8 +605,6 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
 
     const u32 size = text.GetSize();
 
-    f32m<D> t = transform;
-
     TKit::StackArray<Character> chars{};
     chars.Reserve(size);
 
@@ -656,6 +665,13 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const f32 dy = fdata.LineHeight + params.LineSpacing;
     pos[1] = dy * (yfactor * f32(lines.GetSize() - 1) - factors[alg1]);
 
+    GlyphInstanceData<D> instanceData;
+    instanceData.Data.Transform = PackTransform<D>(transform);
+    fillInstanceData(instanceData.Data, m_State, DepthCounter);
+    fillGlyphInstanceData(instanceData, m_State, fdata.UnitRange);
+
+    PackedTransform<D> &t = instanceData.Data.Transform;
+
     const auto updateTransform = [&] {
         f32v<D + 1> p = transform[D];
         for (u32 i = 0; i < 2; ++i)
@@ -664,30 +680,38 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
                 p[j] += t[i][j] * pos[i];
                 t[D][j] += t[i][j] * pos[i];
             }
-        t[D] = p;
+        t[D] = f32v<D>{p};
     };
+
+    auto &pools = m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_GlyphMesh];
     for (const CharLine &ln : lines)
     {
         pos[0] = -xfactor * ln.Width;
         for (u32 i = ln.Start; i < ln.End; ++i)
         {
-            if (params.CharacterCallback)
-                (*params.CharacterCallback)(i, text[i], pos);
-
             updateTransform();
-            addGlyphData(chars[i].Glyph, fdata.UnitRange, t);
+            const Resource glyph = chars[i].Glyph;
+            const u32 pid = GetResourcePoolId(glyph);
+            const u32 gid = GetResourceId(glyph);
+
+            InstanceResourceGroup &group = pools[pid];
+
+            group.Registry.RegisterResourceId(gid);
+            addInstanceData(group.Buffers[gid], instanceData);
             pos[0] += chars[i].Advance;
         }
         pos[1] -= dy;
     }
 }
+
 template <Dimension D>
 void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, const f32m<D> &transform)
 {
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, DepthCounter);
+
     const u32 pid = GetResourcePoolId(glyph);
     const u32 gid = GetResourceId(glyph);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, DepthCounter);
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_GlyphMesh][pid];
 

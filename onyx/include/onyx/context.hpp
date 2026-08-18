@@ -127,7 +127,6 @@ struct SpotLightParameters
 
 struct ContextTextParameters
 {
-    std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
     f32 MaxWidth = TKIT_F32_MAX;
@@ -772,10 +771,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
     void addStaticData(Resource mesh, const f32m<D> &transform);
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
+
     void addGlyphData(TKit::StringView text, const f32m<D> &transform, const ContextTextParameters &params);
     void addGlyphData(TKit::StringView text, const f32m<D> &transform);
     void addGlyphData(Resource glyph, f32 unitRange, const f32m<D> &transform);
     void addGlyphData(Resource glyph, const f32m<D> &transform);
+
     void addDynamicData(Resource mesh, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ENSURE
