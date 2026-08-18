@@ -707,8 +707,6 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
         const bool drawable = sized && (fill || outline);
-        if (!drawable)
-            continue;
 
         LayoutDrawInfo info;
         info.Id = elm.Id;
