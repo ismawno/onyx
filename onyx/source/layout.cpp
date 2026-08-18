@@ -17,7 +17,7 @@ Layout::Layout(const LayoutSpecs &spc) : m_Specs(spc)
     applySpecDefaults();
 }
 
-void Layout::insertId(const LayoutId id, const u32 idx)
+void Layout::insertId(const LayoutId id, const u16 idx)
 {
     if (id == NullLayoutId)
         return;
@@ -40,7 +40,7 @@ void Layout::insertId(const LayoutId id, const u32 idx)
             id.Id, id.onyx_DebugName);
     }
 #endif
-    m_InsertedElements.Insert(id, idx);
+    m_InsertedElements.Insert(id, u32(idx) | (u32(m_ElementWithIdCount++) << 16));
 }
 
 template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, const T &params)
@@ -48,19 +48,23 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
     TKIT_ASSERT(params.Texture == NullHandle || params.Material == NullHandle,
                 "[ONYX][LAYOUT] Cannot specify both material and texture at the same time");
 
-    const u32 c = m_Elements.GetSize();
+    const u16 c = u16(m_Elements.GetSize());
+    TKIT_ASSERT(c != TKIT_U16_MAX,
+                "[ONYX][LAYOUT] Maximum element count reached. The maximum layout elements allowed are {}",
+                TKIT_U16_MAX);
+
     LayoutElement &current = m_Elements.Append();
     current.Id = id;
 
     insertId(id, c);
-    const u32 p = m_ElementStack.IsEmpty() ? TKIT_U32_MAX : m_ElementStack.GetBack();
+    const u16 p = m_ElementStack.IsEmpty() ? TKIT_U16_MAX : m_ElementStack.GetBack();
 
     if constexpr (std::is_same_v<T, LayoutPanelParameters>)
     {
         m_ElementStack.Append(c);
-        if (p != TKIT_U32_MAX)
+        if (p != TKIT_U16_MAX)
         {
-            const u32 depth = m_DepthStack.GetBack();
+            const u16 depth = m_DepthStack.GetBack();
             current.Depth = depth;
             m_DepthStack.Append(depth + 1);
 
@@ -165,7 +169,7 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
     }
     else
     {
-        TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text/unicode element cannot be a root ui element");
+        TKIT_ASSERT(p != TKIT_U16_MAX, "[ONYX][LAYOUT] A text/unicode element cannot be a root ui element");
 
         LayoutElement &parent = m_Elements[p];
         parent.Children.Append(c);
@@ -213,7 +217,7 @@ LayoutId Layout::OpenPanel(const LayoutId id)
                 "recognized",
                 id.Id);
 
-    const u32 c = m_InsertedElements[id];
+    const u32 c = m_InsertedElements[id] & 0x0000FFFF;
     m_ElementStack.Append(c);
     m_DepthStack.Append(m_Elements[c].Depth);
     return id;
@@ -268,7 +272,7 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     return id;
 }
 
-bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
+bool LayoutElementQueryInfo::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
 {
     const f32v2 hpad = 0.5f * padding;
 
@@ -290,13 +294,13 @@ bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool
     return check(pos, mn, mx) && check(pos, cmn, cmx);
 }
 
-const LayoutElement *Layout::QueryElement(const LayoutId id) const
+const LayoutElementQueryInfo *Layout::QueryElement(const LayoutId id) const
 {
-    const auto it = m_GenerationalMap.Find(id.Id);
-    if (it == m_GenerationalMap.end())
+    const auto it = m_QueryMap.Find(id.Id);
+    if (it == m_QueryMap.end())
         return nullptr;
 
-    return &m_GenerationalElements[it->Value];
+    return &m_Queries[(it->Value & 0xFFFF0000) >> 16];
 }
 LayoutElement *Layout::ModifyElement(const LayoutId id)
 {
@@ -307,10 +311,10 @@ LayoutElement *Layout::ModifyElement(const LayoutId id)
     return &m_Elements[it->Value];
 }
 
-void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
+void Layout::fitPass(const TKit::StackArray<u16> &fits, const LayoutAxis axis)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::FitPass");
-    for (const u32 p : fits)
+    for (const u16 p : fits)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(parent.Sizing[axis] == LayoutSizing_Fit || parent.Sizing[axis] == LayoutSizing_Flex,
@@ -323,7 +327,7 @@ void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
 
         f32 childMinSizeTotal = 0.f;
         const f32 pmxsize = parent.MaxSize[axis];
-        for (const u32 c : parent.Children)
+        for (const u16 c : parent.Children)
         {
             const LayoutElement &child = m_Elements[c];
             if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative ||
@@ -356,10 +360,10 @@ void Layout::fitPass(const TKit::StackArray<u32> &fits, const LayoutAxis axis)
     }
 }
 
-void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAxis axis)
+void Layout::growShrinkPass(const TKit::StackArray<u16> &breadth, const LayoutAxis axis)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::GrowShrinkPass");
-    for (const u32 p : breadth)
+    for (const u16 p : breadth)
     {
         const LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
@@ -368,7 +372,7 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
 
         const f32 normFactor = parent.Size[axis];
         const f32 relFactor = Math::Max(0.f, normFactor - padding);
-        for (const u32 c : parent.Children)
+        for (const u16 c : parent.Children)
         {
             LayoutElement &child = m_Elements[c];
             if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative)
@@ -385,12 +389,12 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
         if (paxis == axis)
         {
             remainingSize -= parent.ChildGap * (parent.NonFloatChildCount - 1);
-            TKit::StackArray<u32> toGrow{};
+            TKit::StackArray<u16> toGrow{};
             toGrow.Reserve(m_Elements.GetSize());
-            TKit::StackArray<u32> toShrink{};
+            TKit::StackArray<u16> toShrink{};
             toShrink.Reserve(m_Elements.GetSize());
 
-            for (const u32 c : parent.Children)
+            for (const u16 c : parent.Children)
             {
                 const LayoutElement &child = m_Elements[c];
                 if (child.Type == LayoutElement_Floating)
@@ -414,12 +418,12 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
                     toShrink.Append(c);
             }
 
-            const auto distribute = [&](TKit::StackArray<u32> &candidates, const f32 sign) {
+            const auto distribute = [&](TKit::StackArray<u16> &candidates, const f32 sign) {
                 f32 extremal = sign > 0.f ? TKIT_F32_MAX : 0.f;
                 f32 secExtremal = extremal;
                 f32 budget = sign * remainingSize;
 
-                for (const u32 c : candidates)
+                for (const u16 c : candidates)
                 {
                     const LayoutElement &child = m_Elements[c];
                     const f32 csize = sign * child.Size[axis];
@@ -437,7 +441,7 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
 
                 for (u32 i = candidates.GetSize() - 1; i < candidates.GetSize(); --i)
                 {
-                    const u32 c = candidates[i];
+                    const u16 c = candidates[i];
                     LayoutElement &child = m_Elements[c];
                     f32 &csize = child.Size[axis];
                     if (!Math::Approximately(csize, sign * extremal))
@@ -465,7 +469,7 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
                 distribute(toShrink, -1.f);
         }
         else
-            for (const u32 c : parent.Children)
+            for (const u16 c : parent.Children)
             {
                 LayoutElement &child = m_Elements[c];
                 if (child.Type == LayoutElement_Floating)
@@ -490,10 +494,10 @@ void Layout::growShrinkPass(const TKit::StackArray<u32> &breadth, const LayoutAx
     }
 }
 
-void Layout::wrapText(const TKit::StackArray<u32> &textElms)
+void Layout::wrapText(const TKit::StackArray<u16> &textElms)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::WrapText");
-    for (const u32 c : textElms)
+    for (const u16 c : textElms)
     {
         LayoutElement &elm = m_Elements[c];
         TKIT_ASSERT(elm.Type == LayoutElement_Text || elm.Type == LayoutElement_Unicode,
@@ -509,7 +513,7 @@ void Layout::wrapText(const TKit::StackArray<u32> &textElms)
     }
 }
 
-void Layout::positionPass(const TKit::StackArray<u32> &breadth)
+void Layout::positionPass(const TKit::StackArray<u16> &breadth)
 {
     if (m_Elements.IsEmpty())
         return;
@@ -523,7 +527,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
             root.Position[axis] -= 0.5f * root.Size[axis];
 
     root.Position += root.SelfOffset;
-    for (const u32 p : breadth)
+    for (const u16 p : breadth)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
@@ -538,7 +542,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
             tcsize = 0.f;
             if (paxis == axis)
             {
-                for (const u32 c : parent.Children)
+                for (const u16 c : parent.Children)
                 {
                     const LayoutElement &child = m_Elements[c];
                     if (child.Type != LayoutElement_Floating)
@@ -547,7 +551,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                 tcsize += cgap * (parent.NonFloatChildCount - 1);
             }
             else
-                for (const u32 c : parent.Children)
+                for (const u16 c : parent.Children)
                     tcsize = Math::Max(tcsize, m_Elements[c].Size[axis]);
 
             const f32 p0 = parent.Padding[2 * axis];
@@ -617,7 +621,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
                 }
             };
 
-            const auto processChild = [&](const u32 c) {
+            const auto processChild = [&](const u16 c) {
                 LayoutElement &child = m_Elements[c];
 
                 const f32 csize = child.Size[axis];
@@ -666,7 +670,7 @@ void Layout::positionPass(const TKit::StackArray<u32> &breadth)
 
             const bool naturalDir = dir == LayoutDirection_LeftToRight || dir == LayoutDirection_BottomToTop;
             if (naturalDir)
-                for (const u32 c : parent.Children)
+                for (const u16 c : parent.Children)
                     processChild(c);
             else
                 for (u32 i = parent.Children.GetSize() - 1; i < parent.Children.GetSize(); --i)
@@ -686,8 +690,12 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 
     m_CustomDepth = depthCounter && floatDepthCounter;
     m_DrawInfo.Clear();
+    m_Queries.Clear();
     for (const LayoutElement &elm : m_Elements)
     {
+        if (elm.Id != NullLayoutId)
+            m_Queries.Append(elm.Id, elm.Position, elm.Size, elm.ClipMin, elm.ClipMax, elm.ChildrenSize);
+
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
@@ -763,8 +771,7 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
     if (!m_CustomDepth)
         m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
 
-    std::swap(m_Elements, m_GenerationalElements);
-    std::swap(m_InsertedElements, m_GenerationalMap);
+    std::swap(m_InsertedElements, m_QueryMap);
 
     m_Elements.Clear();
     m_InsertedElements.Clear();
@@ -778,16 +785,16 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
                 "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!", m_ElementStack.GetSize());
 
     const u32 count = m_Elements.GetSize();
-    TKit::StackArray<u32> breadth{};
+    TKit::StackArray<u16> breadth{};
     breadth.Reserve(count);
 
-    TKit::StackArray<u32> xfits{};
+    TKit::StackArray<u16> xfits{};
     xfits.Reserve(count);
 
-    TKit::StackArray<u32> yfits{};
+    TKit::StackArray<u16> yfits{};
     yfits.Reserve(count);
 
-    TKit::StackArray<u32> textElms{};
+    TKit::StackArray<u16> textElms{};
     textElms.Reserve(count);
 
     {
@@ -821,6 +828,7 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
 
     generateDrawInfo(depthCounter, floatDepthCounter);
     m_AutoId = usz(0);
+    m_ElementWithIdCount = 0;
 }
 
 void Layout::Reset()

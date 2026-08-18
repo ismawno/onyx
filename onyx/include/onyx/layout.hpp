@@ -293,19 +293,19 @@ struct LayoutElement
     Resource Material;
     f32v2 TexOffset;
     f32v2 TexScale;
-    u32 Unicode;
-    u32 Depth;
-    TKit::TierString Text;
-    TKit::TierArray<u32> Children{};
-    u32 NonFloatChildCount = 0;
-
     f32 CornerRadius;
     f32 ChildGap;
     f32 FontSize;
     f32 OutlineWidth;
+    u32 Unicode;
+    u32 NonFloatChildCount = 0;
+
+    TKit::TierString Text;
+    TKit::TierArray<u16> Children{};
 
     Color FillColor;
     Color OutlineColor;
+    u16 Depth;
     vec2<Alignment> Alignment{Alignment_Canonical};
     LayoutDirection Direction;
     LayoutElementType Type;
@@ -313,6 +313,19 @@ struct LayoutElement
     LayoutOverflowMode ChildOverflow;
     LayoutOverflowMode SelfOverflow;
     LayoutElementFlags Flags = 0;
+};
+
+struct LayoutElementQueryInfo
+{
+    LayoutId Id;
+
+    f32v2 Position;
+    f32v2 Size;
+
+    f32v2 ClipMin;
+    f32v2 ClipMax;
+
+    f32v2 ChildrenSize;
 
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
 };
@@ -327,7 +340,6 @@ struct LayoutDrawInfo
     f32v2 ClipMax;
     Color FillColor;
     Color OutlineColor;
-    u32 Depth;
     u32 DepthCounter;
     f32 Radius;
     f32 OutlineWidth;
@@ -337,6 +349,7 @@ struct LayoutDrawInfo
     Resource Material;
     f32v2 TexOffset;
     f32v2 TexScale;
+    u32 Depth;
     LayoutShapeType ShapeType;
     RenderModeFlags RenderFlags;
     LayoutElementFlags Flags;
@@ -450,7 +463,7 @@ class Layout
         return m_Elements[m_ElementStack.GetBack()];
     }
 
-    const LayoutElement *QueryElement(LayoutId id) const;
+    const LayoutElementQueryInfo *QueryElement(LayoutId id) const;
 
     // modification of fields that actively participate on layout compilation is not supported
     LayoutElement *ModifyElement(LayoutId id);
@@ -458,7 +471,7 @@ class Layout
     bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f},
                    const bool applyPaddingToClip = true) const
     {
-        const LayoutElement *elm = QueryElement(id);
+        const LayoutElementQueryInfo *elm = QueryElement(id);
         return elm ? elm->IsHovered(point, padding, applyPaddingToClip) : false;
     }
 
@@ -495,11 +508,11 @@ class Layout
     }
 
   private:
-    void insertId(LayoutId id, u32 idx);
-    void fitPass(const TKit::StackArray<u32> &fits, LayoutAxis axis);
-    void growShrinkPass(const TKit::StackArray<u32> &breadth, LayoutAxis axis);
-    void wrapText(const TKit::StackArray<u32> &textElms);
-    void positionPass(const TKit::StackArray<u32> &breadth);
+    void insertId(LayoutId id, u16 idx);
+    void fitPass(const TKit::StackArray<u16> &fits, LayoutAxis axis);
+    void growShrinkPass(const TKit::StackArray<u16> &breadth, LayoutAxis axis);
+    void wrapText(const TKit::StackArray<u16> &textElms);
+    void positionPass(const TKit::StackArray<u16> &breadth);
     void generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter);
 
     void applySpecDefaults();
@@ -509,12 +522,14 @@ class Layout
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};
 
-    TKit::TierArray<LayoutElement> m_GenerationalElements{};
-    TKit::TierHashMap<LayoutId, u32> m_GenerationalMap{};
+    TKit::TierArray<LayoutElementQueryInfo> m_Queries{};
+    TKit::TierHashMap<LayoutId, u32> m_QueryMap{};
 
-    TKit::TierArray<u32> m_ElementStack{};
-    TKit::TierArray<u32> m_DepthStack{};
+    TKit::TierArray<u16> m_ElementStack{};
+    TKit::TierArray<u16> m_DepthStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
+
+    u16 m_ElementWithIdCount = 0;
 
     LayoutSpecs m_Specs{};
     LayoutId m_AutoId = usz(0);
