@@ -268,7 +268,7 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     return id;
 }
 
-bool LayoutElementQueryInfo::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
+bool LayoutElement::IsHovered(const f32v2 &pos, const f32v2 &padding, const bool applyPaddingToClip) const
 {
     const f32v2 hpad = 0.5f * padding;
 
@@ -290,7 +290,7 @@ bool LayoutElementQueryInfo::IsHovered(const f32v2 &pos, const f32v2 &padding, c
     return check(pos, mn, mx) && check(pos, cmn, cmx);
 }
 
-const LayoutElementQueryInfo *Layout::QueryElement(const LayoutId id) const
+const LayoutElement *Layout::QueryElement(const LayoutId id) const
 {
     const auto it = m_GenerationalMap.Find(id.Id);
     if (it == m_GenerationalMap.end())
@@ -688,21 +688,6 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
     m_DrawInfo.Clear();
     for (const LayoutElement &elm : m_Elements)
     {
-        if (elm.Id != NullLayoutId)
-        {
-            // persisting all past elements costs too much memory in the long run. this is at the cost of more "one
-            // frame glitches" when past elements are not available
-
-            // const u32 genSize = m_GenerationalElements.GetSize();
-            // const u32 idx = m_GenerationalMap.TryInsert(elm.Id, genSize);
-            // if (idx == genSize)
-            //     m_GenerationalElements.Append(elm);
-            // else
-            //     m_GenerationalElements[idx] = elm;
-            m_GenerationalMap.Insert(elm.Id, m_GenerationalElements.GetSize());
-            m_GenerationalElements.Append(elm.Id, elm.Position, elm.Size, elm.ClipMin, elm.ClipMax, elm.ChildrenSize);
-        }
-
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
@@ -777,6 +762,12 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 
     if (!m_CustomDepth)
         m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
+
+    std::swap(m_Elements, m_GenerationalElements);
+    std::swap(m_InsertedElements, m_GenerationalMap);
+
+    m_Elements.Clear();
+    m_InsertedElements.Clear();
 }
 
 void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
@@ -798,9 +789,6 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
 
     TKit::StackArray<u32> textElms{};
     textElms.Reserve(count);
-
-    m_GenerationalElements.Clear();
-    m_GenerationalMap.Clear();
 
     {
         TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateBreadths");
@@ -832,9 +820,6 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
     positionPass(breadth);
 
     generateDrawInfo(depthCounter, floatDepthCounter);
-
-    m_Elements.Clear();
-    m_InsertedElements.Clear();
     m_AutoId = usz(0);
 }
 

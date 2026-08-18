@@ -313,19 +313,6 @@ struct LayoutElement
     LayoutOverflowMode ChildOverflow;
     LayoutOverflowMode SelfOverflow;
     LayoutElementFlags Flags = 0;
-};
-
-struct LayoutElementQueryInfo
-{
-    LayoutId Id;
-
-    f32v2 Position;
-    f32v2 Size;
-
-    f32v2 ClipMin;
-    f32v2 ClipMax;
-
-    f32v2 ChildrenSize;
 
     bool IsHovered(const f32v2 &pos, const f32v2 &padding = f32v2{0.f}, bool applyPaddingToClip = true) const;
 };
@@ -463,7 +450,7 @@ class Layout
         return m_Elements[m_ElementStack.GetBack()];
     }
 
-    const LayoutElementQueryInfo *QueryElement(LayoutId id) const;
+    const LayoutElement *QueryElement(LayoutId id) const;
 
     // modification of fields that actively participate on layout compilation is not supported
     LayoutElement *ModifyElement(LayoutId id);
@@ -471,7 +458,7 @@ class Layout
     bool IsHovered(const LayoutId id, const f32v2 &point, const f32v2 &padding = {0.f},
                    const bool applyPaddingToClip = true) const
     {
-        const LayoutElementQueryInfo *elm = QueryElement(id);
+        const LayoutElement *elm = QueryElement(id);
         return elm ? elm->IsHovered(point, padding, applyPaddingToClip) : false;
     }
 
@@ -520,14 +507,14 @@ class Layout
     template <typename T> LayoutElement &insertElement(const LayoutId id, const T &params);
 
     TKit::TierArray<LayoutElement> m_Elements{};
+    TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};
+
+    TKit::TierArray<LayoutElement> m_GenerationalElements{};
+    TKit::TierHashMap<LayoutId, u32> m_GenerationalMap{};
+
     TKit::TierArray<u32> m_ElementStack{};
     TKit::TierArray<u32> m_DepthStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
-
-    TKit::TierHashMap<LayoutId, u32> m_InsertedElements{};
-
-    TKit::TierArray<LayoutElementQueryInfo> m_GenerationalElements{};
-    TKit::TierHashMap<LayoutId, u32> m_GenerationalMap{};
 
     LayoutSpecs m_Specs{};
     LayoutId m_AutoId = usz(0);
