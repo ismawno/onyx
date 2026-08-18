@@ -962,7 +962,7 @@ bool OverlayWindow::CanMove() const
 bool OverlayWindow::CanCollapse() const
 {
     return !DockRoot && !(Flags & (OverlayWindowFlag_NoCollapse | OverlayWindowFlag_NoHeaderBar)) &&
-           !IsFullscreenBlocked();
+           (IsRoot() || !(Flags & OverlayWindowFlag_ChildGrowHeight)) && !IsFullscreenBlocked();
 }
 
 f32v2 OverlayWindow::ToScreen(const f32v2 &world) const
@@ -1456,11 +1456,15 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         LySz2 sizing;
         if (autoResize)
             sizing = {fit(), collapsed ? sabs(active->Size[1]) : fit()};
-        else if (!isRoot && (active->Flags & OverlayWindowFlag_ChildGrowWidth))
+        else if (!isRoot && (active->Flags & OverlayWindowFlag_ChildGrow))
         {
-            sizing = {grow(), sabs(active->Size[1])};
-            if (elm)
+            const bool gw = active->Flags & OverlayWindowFlag_ChildGrowWidth;
+            const bool gh = active->Flags & OverlayWindowFlag_ChildGrowHeight;
+            sizing = {gw ? grow() : sabs(active->Size[0]), gh ? grow(active->MinSize[1]) : sabs(active->Size[1])};
+            if (elm && gw)
                 active->Size[0] = elm->Size[0];
+            if (elm && gh)
+                active->Size[1] = elm->Size[1];
         }
         else
             sizing = sabs(active->Size);
@@ -1675,7 +1679,8 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     // to their own windows just because they are floats
 
     const bool isRoot = win->IsRoot();
-    const bool childGrow = !isRoot && (win->Flags & OverlayWindowFlag_ChildGrowWidth);
+    const bool gw = !isRoot && (win->Flags & OverlayWindowFlag_ChildGrowWidth);
+    const bool gh = !isRoot && (win->Flags & OverlayWindowFlag_ChildGrowHeight);
     const auto drawLeftBorder = [&] {
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
                                .Sizing = snorm(1.f),
@@ -1697,7 +1702,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
         ly->Panel(LyPnPar{.Sizing = grow()});
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Right"),
                                       LyPnPar{.FillColor = m_Style[r ? interaction : idle], .Sizing = hsizing});
-        ginfo.Ids[right] = childGrow ? LayoutId{NullLayoutId} : id;
+        ginfo.Ids[right] = gw ? LayoutId{NullLayoutId} : id;
         ly->EndPanel();
     };
     const auto drawBottomBorder = [&] {
@@ -1706,8 +1711,10 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
                                .Floating = fparams,
                                .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
-        ginfo.Ids[bottom] = ly->Panel(IdFromStack("__onyx_id_Bottom"),
+
+        const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Bottom"),
                                       LyPnPar{.FillColor = m_Style[b ? interaction : idle], .Sizing = vsizing});
+        ginfo.Ids[bottom] = gh ? LayoutId{NullLayoutId} : id;
         ly->EndPanel();
     };
     const auto drawTopBorder = [&] {
@@ -2907,8 +2914,7 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
     else
     {
         host->Parent = win->Parent;
-        host->Flags |=
-            (win->Flags & OverlayWindowFlag_ChildGrowWidth) | WindowInternalFlag_DockSpaceSubmissionOrderMatters;
+        host->Flags |= (win->Flags & OverlayWindowFlag_ChildGrow) | WindowInternalFlag_DockSpaceSubmissionOrderMatters;
     }
 
     NativeWindow *nw = win->GetNative();
@@ -6776,6 +6782,7 @@ static void editDemoWindowFlags(Overlay *ov, OverlayWindowFlags *flags)
                       Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
     ov->CheckBoxFlags("OverlayWindowFlag_MousePassThrough", flags, Onyx::OverlayWindowFlag_MousePassThrough);
     ov->CheckBoxFlags("OverlayWindowFlag_ChildGrowWidth", flags, Onyx::OverlayWindowFlag_ChildGrowWidth);
+    ov->CheckBoxFlags("OverlayWindowFlag_ChildGrowHeight", flags, Onyx::OverlayWindowFlag_ChildGrowHeight);
     ov->CheckBoxFlags("OverlayWindowFlag_NoUndocking", flags, Onyx::OverlayWindowFlag_NoUndocking);
     ov->CheckBoxFlags("OverlayWindowFlag_NoBackground", flags, Onyx::OverlayWindowFlag_NoBackground);
     ov->CheckBoxFlags("OverlayWindowFlag_NoBorders", flags, Onyx::OverlayWindowFlag_NoBorders);

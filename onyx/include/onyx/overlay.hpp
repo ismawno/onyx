@@ -517,10 +517,12 @@ enum NextWindowFlagBit : NextWindowFlags
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 41,
-    OverlayWindowFlag_MergeIdWithStack = 1ULL << 42,
-    OverlayWindowFlag_MousePassThrough = 1ULL << 43,
-    OverlayWindowFlag_ChildGrowWidth = 1ULL << 44,
+    OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 40,
+    OverlayWindowFlag_MergeIdWithStack = 1ULL << 41,
+    OverlayWindowFlag_MousePassThrough = 1ULL << 42,
+    OverlayWindowFlag_ChildGrowWidth = 1ULL << 43,
+    OverlayWindowFlag_ChildGrowHeight = 1ULL << 44,
+    OverlayWindowFlag_ChildGrow = OverlayWindowFlag_ChildGrowWidth | OverlayWindowFlag_ChildGrowHeight,
     OverlayWindowFlag_NoUndocking = 1ULL << 45,
     OverlayWindowFlag_NoBackground = 1ULL << 46,
     OverlayWindowFlag_NoBorders = 1ULL << 47,
