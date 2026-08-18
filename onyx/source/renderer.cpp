@@ -1089,20 +1089,9 @@ template <Dimension D> static void validateRanges()
 
 template <Dimension D, typename Range>
 static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffer &nbuffer, VKit::DeviceBuffer &buffer,
-                               TKit::TierArray<Range> &ranges, TKit::StackArray<Task> *tasks = nullptr,
+                               TKit::TierArray<Range> &ranges, const bool copyOldContents = false,
                                VKit::Queue *transfer = nullptr)
 {
-    // this is a proxy that tells *this function* if we need to copy old contents. we do this for instance, vertex and
-    // index ranges, but not for light ranges. we also happen to end all copy tasks on the three former, so thats how we
-    // know;
-    const bool copyOldContents = bool(tasks);
-    if (tasks)
-    {
-        for (const Task &task : *tasks)
-            task.WaitUntilFinished();
-        tasks->Clear();
-    }
-
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(2 * ranges.GetSize());
     TKit::StackArray<u64> values{};
@@ -1216,7 +1205,7 @@ static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &b
 
 template <Dimension D, typename Range, typename Pool, typename F>
 static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
-                                TKit::StackArray<Task> *tasks = nullptr)
+                                const bool copyOldContents = false)
 {
     auto &ranges = pool.Ranges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
@@ -1226,12 +1215,12 @@ static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, cons
             return splitRange(i, ranges, requiredMem);
 
     VKit::DeviceBuffer nbuffer = createBuffer();
-    return handlePoolResize<D>(requiredMem, nbuffer, pool.Buffer, ranges, tasks);
+    return handlePoolResize<D>(requiredMem, nbuffer, pool.Buffer, ranges, copyOldContents);
 }
 
 template <Dimension D>
 static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, TransferInstancePool &pool,
-                                                        const VkDeviceSize requiredMem, TKit::StackArray<Task> &tasks)
+                                                        const VkDeviceSize requiredMem)
 {
     return findTransferRange<D, TransferInstanceRange>(
         pool, requiredMem,
@@ -1239,7 +1228,7 @@ static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, Tran
             return createTransferInstanceBuffer<D>(
                 geo, computeNewInstanceCount(GetInstanceSize<D>(geo), pool.Buffer, requiredMem));
         },
-        &tasks);
+        true);
 }
 
 template <Dimension D>
@@ -1253,8 +1242,7 @@ static TransferLightRange *findTransferLightRange(const LightType light, Transfe
 }
 
 template <Dimension D>
-static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkDeviceSize requiredMem,
-                                              TKit::StackArray<Task> &tasks)
+static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
@@ -1262,22 +1250,21 @@ static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkD
             return createTransferVertexBuffer<D>(
                 computeNewInstanceCount(sizeof(DynamicVertex<D>), pool.Buffer, requiredMem));
         },
-        &tasks);
+        true);
 }
 template <Dimension D>
-static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDeviceSize requiredMem,
-                                             TKit::StackArray<Task> &tasks)
+static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
         [&] { return createTransferIndexBuffer<D>(computeNewInstanceCount(sizeof(Index), pool.Buffer, requiredMem)); },
-        &tasks);
+        true);
 }
 
 template <Dimension D, typename Range, typename Pool, typename F1, typename F2>
 static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F1 createBuffer,
-                                const F2 canRangeSplit, bool *resized = nullptr,
-                                TKit::StackArray<Task> *tasks = nullptr, VKit::Queue *transfer = nullptr)
+                                const F2 canRangeSplit, bool *resized = nullptr, const bool copyOldContents = false,
+                                VKit::Queue *transfer = nullptr)
 {
     auto &ranges = pool.Ranges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
@@ -1301,21 +1288,20 @@ static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, cons
     }
 
     VKit::DeviceBuffer nbuffer = createBuffer();
-    return handlePoolResize<D>(requiredMem, nbuffer, buffer, ranges, tasks, transfer);
+    return handlePoolResize<D>(requiredMem, nbuffer, buffer, ranges, copyOldContents, transfer);
 }
 template <Dimension D, typename Range, typename Pool, typename F>
 static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
-                                bool *resized = nullptr, TKit::StackArray<Task> *tasks = nullptr,
+                                bool *resized = nullptr, const bool copyOldContents = false,
                                 VKit::Queue *transfer = nullptr)
 {
     return findGraphicsRange<D, Range>(
-        pool, requiredMem, createBuffer, [](const auto &) { return true; }, resized, tasks, transfer);
+        pool, requiredMem, createBuffer, [](const auto &) { return true; }, resized, copyOldContents, transfer);
 }
 
 template <Dimension D>
 static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, GraphicsInstancePool &pool,
-                                                        const VkDeviceSize requiredMem, VKit::Queue *transfer,
-                                                        TKit::StackArray<Task> &tasks)
+                                                        const VkDeviceSize requiredMem, VKit::Queue *transfer)
 {
     RendererData<D> &rdata = getRendererData<D>();
     bool resized = false;
@@ -1325,7 +1311,7 @@ static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, Grap
             return createGraphicsInstanceBuffer<D>(
                 geo, computeNewInstanceCount(GetInstanceSize<D>(geo), pool.Buffer, requiredMem));
         },
-        [&](const GraphicsInstanceRange &range) { return rdata.AreAllContextRangesDirty(range); }, &resized, &tasks,
+        [&](const GraphicsInstanceRange &range) { return rdata.AreAllContextRangesDirty(range); }, &resized, true,
         transfer);
     if (resized)
         updateInstanceDescriptorSets<D>(geo);
@@ -1351,8 +1337,7 @@ static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLigh
 }
 
 template <Dimension D>
-GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer,
-                                       TKit::StackArray<Task> &tasks)
+GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
@@ -1360,16 +1345,15 @@ GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize re
             return createGraphicsVertexBuffer<D>(
                 computeNewInstanceCount(sizeof(DynamicVertex<D>), pool.Buffer, requiredMem));
         },
-        nullptr, &tasks, transfer);
+        nullptr, true, transfer);
 }
 template <Dimension D>
-GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer,
-                                      TKit::StackArray<Task> &tasks)
+GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
         [&] { return createGraphicsIndexBuffer<D>(computeNewInstanceCount(sizeof(Index), pool.Buffer, requiredMem)); },
-        nullptr, &tasks, transfer);
+        nullptr, true, transfer);
 }
 
 static VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
@@ -2029,8 +2013,6 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     if (dirtyContexts.IsEmpty())
         return;
 
-    u32 sindex = 0;
-
     // this struct is used to create the appropiate memory barriers in the copies ranges. takes a buffer so this works
     // for both instance and v/i buffers
     struct RangePair
@@ -2082,16 +2064,6 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     TKit::StackArray<ContextInstanceRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
 
-    TKit::ITaskManager *tm = GetTaskManager();
-
-    TKit::StackArray<Task> tasks{};
-    tasks.Reserve(upperCapacity);
-
-    const auto finishTasks = [&] {
-        for (const Task &task : tasks)
-            tm->WaitUntilFinished(task);
-    };
-
     const auto findInstanceRanges = [&](const u32 rmode, const u32 bpass, const u32 geo, const Resource handle,
                                         const auto getInstanceData) {
         u64 vgen = 0;
@@ -2109,15 +2081,10 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             igen = ++iarena.LatestGeneration;
 
             const auto processTransferArena = [&](TransferPool &pool, const auto &data, const bool vertices) {
-                TransferRange *trng = vertices ? findTransferVertexRange<D>(pool, data.GetBytes(), tasks)
-                                               : findTransferIndexRange<D>(pool, data.GetBytes(), tasks);
+                TransferRange *trng = vertices ? findTransferVertexRange<D>(pool, data.GetBytes())
+                                               : findTransferIndexRange<D>(pool, data.GetBytes());
                 trng->Tracker.MarkInUse(transfer, transferFlightValue);
-                const auto vcopy = [&, trng = *trng] {
-                    TKIT_PROFILE_NSCOPE("Onyx::Renderer::HostCopy");
-                    pool.Buffer.Write(data.GetData(), {.srcOffset = 0, .dstOffset = trng.Offset, .size = trng.Size});
-                };
-                Task &task = tasks.Append(vcopy);
-                sindex = tm->SubmitTask(&task, sindex);
+                pool.Buffer.Write(data.GetData(), {.srcOffset = 0, .dstOffset = trng->Offset, .size = trng->Size});
                 return trng;
             };
 
@@ -2126,8 +2093,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
             const auto processGraphicsArena = [&](GraphicsPool &pool, const VkDeviceSize reqMem,
                                                   const TransferRange *trng, const bool vertices) {
-                GraphicsRange *grng = vertices ? findGraphicsVertexRange<D>(pool, reqMem, transfer, tasks)
-                                               : findGraphicsIndexRange<D>(pool, reqMem, transfer, tasks);
+                GraphicsRange *grng = vertices ? findGraphicsVertexRange<D>(pool, reqMem, transfer)
+                                               : findGraphicsIndexRange<D>(pool, reqMem, transfer);
                 grng->TransferTracker.MarkInUse(transfer, transferFlightValue);
 
                 VkBufferCopy2KHR &copy = vertices ? copies.Vertex.Append() : copies.Index.Append();
@@ -2175,7 +2142,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         if (requiredMem == 0)
             return;
 
-        TransferInstanceRange *trange = findTransferInstanceRange<D>(Geometry(geo), tpool, requiredMem, tasks);
+        TransferInstanceRange *trange = findTransferInstanceRange<D>(Geometry(geo), tpool, requiredMem);
         trange->Tracker.MarkInUse(transfer, transferFlightValue);
 
         for (const ContextInstanceRange &crange : contextRanges)
@@ -2183,18 +2150,11 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             const RenderContext<D> *ctx = contexts[crange.ContextIndex].Context;
 
             const auto &idata = getInstanceData(ctx);
-            const auto copy = [&, crange, trange = *trange] {
-                TKIT_PROFILE_NSCOPE("Onyx::Renderer::HostCopy");
-                tpool.Buffer.Write(idata.Data.GetData(),
-                                   {.srcOffset = 0, .dstOffset = trange.Offset + crange.Offset, .size = crange.Size});
-            };
-
-            Task &task = tasks.Append(copy);
-            sindex = tm->SubmitTask(&task, sindex);
+            tpool.Buffer.Write(idata.Data.GetData(),
+                               {.srcOffset = 0, .dstOffset = trange->Offset + crange.Offset, .size = crange.Size});
         }
 
-        GraphicsInstanceRange *grange =
-            findGraphicsInstanceRange<D>(Geometry(geo), gpool, requiredMem, transfer, tasks);
+        GraphicsInstanceRange *grange = findGraphicsInstanceRange<D>(Geometry(geo), gpool, requiredMem, transfer);
         grange->Blend = BlendPass(bpass);
         grange->MeshHandle = handle;
         grange->ContextRanges = contextRanges;
@@ -2294,7 +2254,6 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                                                                   copies.Index);
 
     info.Command = command;
-    finishTasks();
 }
 
 TransferSubmitInfo Transfer(VKit::Queue *tqueue, const VkCommandBuffer command, const u32 maxLights,
