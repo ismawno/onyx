@@ -29,6 +29,7 @@
           pkg-config
           hwloc
           perf
+          hotspot
           ninja
           python313
 
