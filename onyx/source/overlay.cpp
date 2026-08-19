@@ -6828,6 +6828,24 @@ f32v4 Overlay::getWorldEffectiveBorders() const
 #define DEMO_MAX_OPEN_DEPTH 3
 // #define DEMO_START_OPEN
 
+#ifdef DEMO_START_OPEN
+static bool s_EnableSettings = true;
+static bool s_EnableRenderer = true;
+static bool s_EnableStyleEditor = true;
+#    ifdef TKIT_ENABLE_ENSURE
+static bool s_EnableTier = true;
+#    endif
+#else
+static bool s_EnableSettings = false;
+static bool s_EnableRenderer = false;
+static bool s_EnableStyleEditor = false;
+#    ifdef TKIT_ENABLE_ENSURE
+static bool s_EnableTier = false;
+#    endif
+#endif
+static bool s_EnableMainMenu = false;
+static bool s_FullScreenDockSpace = false;
+
 static void editDemoWindowFlags(Overlay *ov, OverlayWindowFlags *flags)
 {
     ov->CheckBoxFlags("OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted", flags,
@@ -6856,15 +6874,17 @@ static void editDemoWindowFlags(Overlay *ov, OverlayWindowFlags *flags)
     ov->CheckBoxFlags("OverlayWindowFlag_MoveWithHeader", flags, Onyx::OverlayWindowFlag_MoveWithHeader);
 }
 
-static void drawDemoMenus(Overlay *ov, bool *enableSettings, bool *enableRenderer, bool *enableStyleEditor,
-                          bool *enableMainMenu)
+static void drawDemoMenus(Overlay *ov)
 {
     if (ov->BeginMenu("Options"))
     {
-        ov->MenuItem("Window settings", enableSettings);
-        ov->MenuItem("Renderer stats", enableRenderer);
-        ov->MenuItem("Style editor", enableStyleEditor);
-        ov->MenuItem("Main menu bar", enableMainMenu);
+        ov->MenuItem("Window settings", &s_EnableSettings);
+        ov->MenuItem("Renderer stats", &s_EnableRenderer);
+        ov->MenuItem("Style editor", &s_EnableStyleEditor);
+#ifdef TKIT_ENABLE_ENSURE
+        ov->MenuItem("Tier stats", &s_EnableTier);
+#endif
+        ov->MenuItem("Main menu bar", &s_EnableMainMenu);
         ov->EndMenu();
     }
     if (ov->BeginMenu("Menu"))
@@ -6903,7 +6923,7 @@ static void drawDemoMenus(Overlay *ov, bool *enableSettings, bool *enableRendere
         }
         if (ov->BeginMenu("Recurse"))
         {
-            drawDemoMenus(ov, enableSettings, enableRenderer, enableStyleEditor, enableMainMenu);
+            drawDemoMenus(ov);
             ov->EndMenu();
         }
         ov->MenuItem("Select", &selected);
@@ -6911,9 +6931,7 @@ static void drawDemoMenus(Overlay *ov, bool *enableSettings, bool *enableRendere
     }
 }
 
-static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWindowFlags wflags,
-                             bool *fullScreenDockSpace, bool *enableSettings, bool *enableRenderer,
-                             bool *enableStyleEditor, bool *enableMainMenu, const u32 depth)
+static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWindowFlags wflags, const u32 depth)
 {
 #ifdef DEMO_START_OPEN
     const Onyx::OverlayTreeFlags drawLines = Onyx::OverlayTreeFlag_DrawLines | Onyx::OverlayTreeFlag_StartOpen;
@@ -6942,8 +6960,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         if (ov->BeginWindow("Overlay demo child", &enableChild,
                             wflags | Onyx::OverlayWindowFlag_MenuBar | Onyx::OverlayWindowFlag_MergeIdWithStack))
         {
-            drawDemoContents(ov, flags, wflags, fullScreenDockSpace, enableSettings, enableRenderer, enableStyleEditor,
-                             enableMainMenu, depth + 1);
+            drawDemoContents(ov, flags, wflags, depth + 1);
             ov->EndWindow();
         }
 
@@ -6979,7 +6996,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
     if (ov->BeginMenuBar())
     {
-        drawDemoMenus(ov, enableSettings, enableRenderer, enableStyleEditor, enableMainMenu);
+        drawDemoMenus(ov);
         ov->EndMenuBar();
     }
 
@@ -7042,7 +7059,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         static Onyx::OverlayWindowFlags windowFlags = 0;
 
         ov->BeginDisabled(flags & Onyx::OverlayFlag_FloatingMode);
-        ov->CheckBox("Enable full screen dock space", fullScreenDockSpace);
+        ov->CheckBox("Enable full screen dock space", &s_FullScreenDockSpace);
         ov->EndDisabled();
         if (flags & Onyx::OverlayFlag_FloatingMode)
             ov->SetItemTooltipRaw("When in floating mode, full screen dockspaces cannot exist");
@@ -7612,61 +7629,55 @@ void Overlay::ShowDemo(bool *enabled)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::Demo");
     static Onyx::OverlayWindowFlags wflags = 0;
-#ifdef DEMO_START_OPEN
-    static bool enableSettings = true;
-    static bool enableRenderer = true;
-    static bool enableStyleEditor = true;
-#else
-    static bool enableSettings = false;
-    static bool enableRenderer = false;
-    static bool enableStyleEditor = false;
-#endif
-    static bool enableMainMenu = false;
 
     Overlay *ov = this;
 
-    static bool fullScreenDockSpace = false;
-
     if (ov->Flags & OverlayFlag_FloatingMode)
-        fullScreenDockSpace = false;
-    if (fullScreenDockSpace)
+        s_FullScreenDockSpace = false;
+    if (s_FullScreenDockSpace)
         ov->FullScreenDockSpace(Onyx::OverlayDockNodeFlag_CanBeEmpty,
                                 Onyx::OverlayWindowFlag_NoBackground | Onyx::OverlayWindowFlag_MousePassThrough |
                                     Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
 
-    if (enableMainMenu && ov->BeginMainMenuBar())
+    if (s_EnableMainMenu && ov->BeginMainMenuBar())
     {
-        drawDemoMenus(ov, &enableSettings, &enableRenderer, &enableStyleEditor, &enableMainMenu);
+        drawDemoMenus(ov);
         ov->EndMainMenuBar();
     }
 
     if (ov->BeginWindow("Overlay demo", enabled, wflags | Onyx::OverlayWindowFlag_MenuBar))
     {
-        drawDemoContents(ov, ov->Flags, wflags, &fullScreenDockSpace, &enableSettings, &enableRenderer,
-                         &enableStyleEditor, &enableMainMenu, 0);
+        drawDemoContents(ov, ov->Flags, wflags, 0);
         ov->EndWindow();
     }
 
-    if (ov->BeginWindow("Window settings", &enableSettings, wflags))
+    if (ov->BeginWindow("Window settings", &s_EnableSettings, wflags))
     {
         if (ov->BeginMenuBar())
         {
-            drawDemoMenus(ov, &enableSettings, &enableRenderer, &enableStyleEditor, &enableMainMenu);
+            drawDemoMenus(ov);
             ov->EndMenuBar();
         }
         editDemoWindowFlags(ov, &wflags);
         ov->EndWindow();
     }
-    if (ov->BeginWindow("Renderer statistics", &enableRenderer, wflags))
+    if (ov->BeginWindow("Renderer statistics", &s_EnableRenderer, wflags))
     {
         ov->ShowRendererStatistics();
         ov->EndWindow();
     }
-    if (ov->BeginWindow("Style editor", &enableStyleEditor, wflags))
+    if (ov->BeginWindow("Style editor", &s_EnableStyleEditor, wflags))
     {
         ov->ShowStyleEditor();
         ov->EndWindow();
     }
+#ifdef TKIT_ENABLE_ENSURE
+    if (ov->BeginWindow("Tier allocator statistics", &s_EnableTier, wflags))
+    {
+        ov->ShowTierAllocatorStatistics();
+        ov->EndWindow();
+    }
+#endif
 
     if (ov->BeginWindow("Overlay demo"))
     {
@@ -7677,7 +7688,7 @@ void Overlay::ShowDemo(bool *enabled)
                                                 "been closed");
             if (ov->BeginMenu("A rogue menu item"))
             {
-                drawDemoMenus(ov, &enableSettings, &enableRenderer, &enableStyleEditor, &enableMainMenu);
+                drawDemoMenus(ov);
                 ov->EndMenu();
             }
             ov->PopTree();
@@ -7708,6 +7719,60 @@ void Overlay::ShowRendererStatistics()
 
     EndTabBar();
 }
+
+#ifdef TKIT_ENABLE_ENSURE
+static TKit::StackString fmts(const usz bytes)
+{
+    if (bytes > 1_gib)
+        return fmt("{:.2f} gib", f32(bytes) / f32(1_gib));
+    if (bytes > 1_mib)
+        return fmt("{:.2f} mib", f32(bytes) / f32(1_mib));
+    if (bytes > 1_kib)
+        return fmt("{:.2f} kib", f32(bytes) / f32(1_kib));
+    return fmt("{:L} b", bytes);
+}
+void Overlay::ShowTierAllocatorStatistics()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    const auto &tiers = tier->GetTiers();
+    Text("Allocations: {:L}", tier->GetAllocationCount());
+    Text("Deallocations: {:L}", tier->GetDeallocationCount());
+    Text("Net: {:L}", tier->GetAllocationCount() - tier->GetDeallocationCount());
+    Text("Memory used by the allocator: {}", fmts(tier->GetBufferSize()));
+    usz totMem = 0;
+    for (u32 i = 0; i < tiers.GetSize(); ++i)
+    {
+        const auto &tier = tiers[i];
+        const u32 usedSlots = tier.Allocations - tier.Deallocations;
+        const u32 slots = tier.Slots;
+        const f32 pct = f32(usedSlots) / f32(slots);
+
+        using String = TKit::StackString;
+
+        const String text = String::Format("Slots: {}/{}", usedSlots, slots);
+        const String title = String::Format("Tier: {}/{}", i + 1, tiers.GetSize());
+
+        ProgressBar({&tier, title}, text, pct);
+        const usz usedMem = tier.AllocationSize * usedSlots;
+        totMem += usedMem;
+        if (BeginItemTooltip())
+        {
+            const String fmtUsedMem = fmts(usedMem);
+            const String fmtTotalMem = fmts(tier.Size);
+
+            const String fmtRangeUpper = fmts(tier.AllocationSize);
+            const String fmtRangeLower = fmts(i == (tiers.GetSize() - 1) ? 0 : tiers[i + 1].AllocationSize + 1);
+
+            Text("Used memory: {}/{}", fmtUsedMem, fmtTotalMem);
+            Text("Allocation range: {} - {}", fmtRangeLower, fmtRangeUpper);
+            Text("Slots stolen: {}", tier.SlotsStolen);
+            Text("Slots removed: {}", tier.SlotsRemoved);
+            EndTooltip();
+        }
+    }
+    Text("Total memory usage: {}/{}", fmts(totMem), fmts(tier->GetBufferSize()));
+}
+#endif
 
 void Overlay::ShowStyleEditor()
 {

@@ -15,7 +15,6 @@
 #include "vkit/resource/device_image.hpp"
 #include "vkit/resource/sampler.hpp"
 #include "vkit/state/compute_pipeline.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
 
