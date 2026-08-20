@@ -234,6 +234,6 @@ ONYX_NO_DISCARD Result<FontData> LoadFontDataFromMemory(const std::byte *memory,
 ONYX_NO_DISCARD Result<FontData> LoadDefaultFont(const FontLoadOptions &opts = {});
 #    endif
 
-void DestroyFontData(const FontData &data);
+void UnloadFontData(const FontData &data);
 #endif
 } // namespace Onyx

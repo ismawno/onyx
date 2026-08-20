@@ -925,7 +925,7 @@ const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &op
         if (fres)
         {
             def.Font = RegisterFont(def.FontPool, *fres);
-            DestroyFontData(*fres);
+            UnloadFontData(*fres);
         }
     }
 #endif

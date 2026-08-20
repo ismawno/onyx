@@ -204,6 +204,10 @@ Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
     return loadFont(ft, font, opts);
 }
 #    endif
+void UnloadFontData(const FontData &data)
+{
+    TKit::Deallocate(data.AtlasData.Data);
+}
 #endif
 
 // NOTE(Isma): At some point we may need to cache/use explicit utf8 strings if this decoding thing becomes a problem
@@ -363,9 +367,5 @@ TKit::TierString FontData::WrapText(const TKit::StringView text, const f32 maxWi
     });
 
     return wrapped;
-}
-void DestroyFontData(const FontData &data)
-{
-    DestroyImageData(data.AtlasData);
 }
 } // namespace Onyx
