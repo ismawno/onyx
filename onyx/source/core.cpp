@@ -576,8 +576,7 @@ void Initialize(const Specs &specs)
 
     VKit::Specs vspecs{};
     vspecs.Allocators = s_Allocation[0];
-    vspecs.LoaderPath = "/nix/store/b1bldnpjpys7np3361plhp2wxcaw9iwr-vulkan-loader-1.4.328.0/lib/libvulkan.so";
-    // vspecs.LoaderPath = specs.VulkanLoaderPath;
+    vspecs.LoaderPath = specs.VulkanLoaderPath;
 
     PUSH_DELETER(VKit::Terminate());
     ONYX_CHECK_VKIT_RESULT(VKit::Initialize(vspecs));
