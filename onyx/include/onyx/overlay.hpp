@@ -1185,17 +1185,17 @@ class Overlay
             m_SerializationPath = p;
     }
 
-    void Serialize();
-    void Serialize(const fs::path &p)
+    bool Serialize();
+    bool Serialize(const fs::path &p)
     {
         SetSerializationPath(p);
-        Serialize();
+        return Serialize();
     }
-    void Deserialize();
-    void Deserialize(const fs::path &p)
+    bool Deserialize();
+    bool Deserialize(const fs::path &p)
     {
         SetSerializationPath(p);
-        Deserialize();
+        return Deserialize();
     }
 #endif
 

@@ -766,10 +766,10 @@ static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node
                      createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
                      n["Flags"].as<u32>());
 }
-void Overlay::Serialize()
+bool Overlay::Serialize()
 {
     if (m_SerializationPath.empty())
-        return;
+        return false;
 
     using Node = TKit::Yaml::Node;
 
@@ -841,11 +841,12 @@ void Overlay::Serialize()
     }
 
     TKit::Yaml::ToFile(m_SerializationPath, root);
+    return true;
 }
-void Overlay::Deserialize()
+bool Overlay::Deserialize()
 {
     if (m_SerializationPath.empty() || !fs::exists(m_SerializationPath))
-        return;
+        return false;
 
     using Node = TKit::Yaml::Node;
 
@@ -894,6 +895,7 @@ void Overlay::Deserialize()
             ApplyDockTree(hostId, root);
         }
     }
+    return true;
 }
 #endif
 
