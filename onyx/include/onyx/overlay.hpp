@@ -1289,7 +1289,11 @@ class Overlay
     // docked into
     LayoutId DockSpace(LayoutId id, OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
     // must be called before BeginMainMenuBar so that it doesnt clip into the dockspace!!
-    LayoutId FullScreenDockSpace(OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
+    LayoutId FullScreenDockSpace(LayoutId id, OverlayDockNodeFlags flags = 0, OverlayWindowFlags wflags = 0);
+    LayoutId FullScreenDockSpace(const OverlayDockNodeFlags flags = 0, const OverlayWindowFlags wflags = 0)
+    {
+        return FullScreenDockSpace("__onyx_id_Main_dockspace", flags, wflags);
+    }
 
     /////////////////////////////////////////////
     /// END DOCKING PUBLIC

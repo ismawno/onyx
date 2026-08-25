@@ -2801,15 +2801,16 @@ LayoutId Overlay::DockSpace(const LayoutId id, const OverlayDockNodeFlags flags,
     return id;
 }
 
-LayoutId Overlay::FullScreenDockSpace(const OverlayDockNodeFlags flags, const OverlayWindowFlags wflags)
+LayoutId Overlay::FullScreenDockSpace(const LayoutId id, const OverlayDockNodeFlags flags,
+                                      const OverlayWindowFlags wflags)
 {
     TKIT_ASSERT(!(Flags & OverlayFlag_FloatingMode),
                 "[ONYX][OVERLAY] Cannot have a full screen dockspace in floating mode");
 
     SetNextWindowPosition({0.f, m_MainDockSpaceOffset});
-    const LayoutId id = DockSpace("__onyx_id_Main_dockspace", flags,
-                                  wflags | OverlayWindowFlag_NoMove | OverlayWindowFlag_NoPromotion |
-                                      OverlayWindowFlag_NoBringToFocus | OverlayWindowFlag_NoBorders);
+    const LayoutId did = DockSpace(id, flags,
+                                   wflags | OverlayWindowFlag_NoMove | OverlayWindowFlag_NoPromotion |
+                                       OverlayWindowFlag_NoBringToFocus | OverlayWindowFlag_NoBorders);
 
     m_MainDockSpace = findWindow(id);
     m_MainDockSpace->Size = m_MainDockSpace->Native->Size;
@@ -2821,7 +2822,7 @@ LayoutId Overlay::FullScreenDockSpace(const OverlayDockNodeFlags flags, const Ov
         m_MainDockSpace, m_MainDockSpace->IsRoot(),
         "[ONYX][OVERLAY] The full screen dockspace can only be called outside a Begin/End window region");
 
-    return id;
+    return did;
 }
 
 bool DockNode::IsEmpty() const
