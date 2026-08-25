@@ -1210,12 +1210,8 @@ class Overlay
     }
     void EndWindow();
 
-    void DeclareWindow(const LayoutId id, const OverlayWindowFlags flags = 0, const LayoutId parentId = NullLayoutId)
-    {
-        TKIT_ASSERT(!findWindow(id), "[ONYX][OVERLAY] Cannot declare a window that already exists");
-        OverlayWindow *parent = parentId == NullLayoutId ? nullptr : findWindow(parentId);
-        createOverlayWindow(id, parent)->Flags |= flags;
-    }
+    void DeclareWindow(LayoutId id, LayoutId parentId = NullLayoutId);
+    void DeclareDockSpace(LayoutId id, LayoutId parentId = NullLayoutId);
 
     bool BeginMenuBar();
     void EndMenuBar();
@@ -2190,8 +2186,8 @@ class Overlay
 
     void undockMarked();
 
-    DockNode *dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 ration, OverlayWindow *source = nullptr,
-                         OverlayWindow *target = nullptr);
+    DockNode *dockInsert(DockNode *targetNode, const i32v2 &loc, const f32 ratio = 0.5f,
+                         OverlayWindow *source = nullptr, OverlayWindow *target = nullptr);
     void dockInsertAndDrawPreview(OverlayWindow *win, RenderContext<D2> *ctx);
 
     void applyDockTrees();

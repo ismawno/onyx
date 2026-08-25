@@ -1039,6 +1039,24 @@ void Overlay::EndWindow()
     PopId();
 }
 
+void Overlay::DeclareWindow(const LayoutId id, const LayoutId parentId)
+{
+    TKIT_ASSERT(!findWindow(id), "[ONYX][OVERLAY] Cannot declare a window that already exists");
+    OverlayWindow *parent = parentId == NullLayoutId ? nullptr : findWindow(parentId);
+    TKIT_ASSERT(parentId == NullLayoutId || parent,
+                "[ONYX][OVERLAY] If a parent is specified, it must have been previously declared as well");
+    createOverlayWindow(id, parent);
+}
+
+void Overlay::DeclareDockSpace(const LayoutId id, const LayoutId parentId)
+{
+    TKIT_ASSERT(!findWindow(id), "[ONYX][OVERLAY] Cannot declare a dock space that already exists");
+    OverlayWindow *parent = parentId == NullLayoutId ? nullptr : findWindow(parentId);
+    TKIT_ASSERT(parentId == NullLayoutId || parent,
+                "[ONYX][OVERLAY] If a parent is specified, it must have been previously declared as well");
+    createDockHost(id, parent);
+}
+
 bool Overlay::BeginMenuBar()
 {
     if (!(m_Active->Flags & OverlayWindowFlag_MenuBar))
@@ -2658,7 +2676,7 @@ template <typename F> void Overlay::iterateReverseWindows(TKit::StaticArray32<Ov
 /////////////////////////////////////////////
 
 const OverlayDockNode *DockSplit(const LayoutAxis axis, const f32 ratio, const OverlayDockNode *child0,
-                                 const OverlayDockNode *child1, OverlayDockNodeFlags flags)
+                                 const OverlayDockNode *child1, const OverlayDockNodeFlags flags)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     OverlayDockNode *node = tier->Create<OverlayDockNode>();
@@ -2673,7 +2691,7 @@ const OverlayDockNode *DockSplit(const LayoutAxis axis, const f32 ratio, const O
     return node;
 }
 
-const OverlayDockNode *DockTabBar(const TKit::Span<const LayoutId> windows, OverlayDockNodeFlags flags)
+const OverlayDockNode *DockTabBar(const TKit::Span<const LayoutId> windows, const OverlayDockNodeFlags flags)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     OverlayDockNode *node = tier->Create<OverlayDockNode>();
@@ -2714,7 +2732,7 @@ void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
 
         host = createDockHostFromWindow(host, root);
 
-        host->DockRoot = root;
+        root->Host = host;
         host->Id = hostId;
     }
     else
@@ -2728,14 +2746,6 @@ void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
 
     TKit::StackArray<DockInfo> nodes{};
     nodes.Reserve(m_DockNodes.GetCapacity());
-
-    const auto getDirection = [&](const OverlayDockNode *node) {
-        if (node->IsLeaf())
-            return s_Center;
-
-        return node->Axis == LayoutAxis_Horizontal ? s_Top : s_Left;
-    };
-
     nodes.Append(uroot, root);
     while (!nodes.IsEmpty())
     {
@@ -2744,12 +2754,8 @@ void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
 
         const OverlayDockNode *unode = info.UserNode;
         DockNode *node = info.Node;
+
         node->Flags = unode->Flags;
-
-        DockNode *parent = dockInsert(node, getDirection(unode), unode->Ratio);
-
-        if (parent->IsRoot())
-            root = parent;
 
         if (unode->IsLeaf())
             for (const LayoutId &id : unode->Windows)
@@ -2765,8 +2771,24 @@ void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
             }
         else
         {
-            nodes.Append(unode->Children[1], parent->Children[1]);
-            nodes.Append(unode->Children[0], parent->Children[0]);
+            TKit::PrintLine("WAAA {}", unode->Ratio);
+            node->Axis = unode->Axis;
+            node->Ratio = unode->Ratio;
+
+            DockNode *c0 = createDockNode();
+            DockNode *c1 = createDockNode();
+
+            c0->Parent = node;
+            c1->Parent = node;
+
+            c0->Host = host;
+            c1->Host = host;
+
+            node->Children[0] = c0;
+            node->Children[1] = c1;
+
+            nodes.Append(unode->Children[1], c1);
+            nodes.Append(unode->Children[0], c0);
         }
         tier->Destroy(unode);
     }
@@ -2994,6 +3016,12 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
                 r = 0.f;
             else if (c1->IsEmpty())
                 r = 1.f;
+            else
+            {
+                const f32 minRatio = Math::Min(0.5f, node->Host->MinSize[iaxis] / size[iaxis]);
+                r = Math::Clamp(r, minRatio, 1.f - minRatio);
+            }
+
             node->EffectiveRatio = r;
             size0[iaxis] *= r;
             size1[iaxis] *= 1.f - r;
@@ -3152,10 +3180,6 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
                 boffset = 0.f;
             else
                 boffset = 2.f * bwidth;
-
-            const u32 iaxis = 1 - node->Axis;
-            const f32 minRatio = Math::Min(0.5f, dockHost->MinSize[iaxis] / size[iaxis]);
-            node->Ratio = Math::Clamp(node->Ratio, minRatio, 1.f - minRatio);
 
             const f32 ratio = node->EffectiveRatio;
             bool resizing = dockHost->Grab.DockNode == node;
