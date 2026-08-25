@@ -32,8 +32,8 @@ using OverlayDropDownFlags = u8;
 using OverlayFlags = u8;
 using OverlayInteractionQueryFlags = u16;
 using OverlayInteractionFlags = u32;
-using OverlayHoveredFlags = u16;
-using OverlayHoverQueryFlags = OverlayHoveredFlags;
+using OverlayFocusFlags = u16;
+using OverlayFocusQueryFlags = OverlayFocusFlags;
 using OverlayInputFlags = u8;
 using OverlayPopupFlags = OverlayInteractionQueryFlags;
 using OverlayScrollFlags = u8;
@@ -844,33 +844,33 @@ enum OverlayInteractionFlagBit : OverlayInteractionFlags
     OverlayInteractionFlag_PressedEvenWhenAwayFromHover = InteractionFlag_PressedEvenWhenAwayFromHover
 };
 
-enum OverlayHoveredFlagBit : OverlayHoveredFlags
+enum OverlayFocusFlagBit : OverlayFocusFlags
 {
-    OverlayHoveredFlag_AllowBlockedByWindow = 1U << 0,
-    OverlayHoveredFlag_AllowBlockedByWindowGrab = 1U << 1,
-    OverlayHoveredFlag_AllowBlockedByPressedItem = 1U << 2,
-    OverlayHoveredFlag_AllowBlockedByActiveItem = 1U << 3,
-    OverlayHoveredFlag_AllowBlockedByPopup = 1U << 4,
-    OverlayHoveredFlag_AllowBlockedByPopupCollapse = 1U << 5,
-    OverlayHoveredFlag_AllowBlockedByDisabled = 1U << 6,
-    OverlayHoveredFlag_AllowBlockedByDrag = 1U << 7,
-    OverlayHoveredFlag_NoSharedDelay = 1U << 8,
-    OverlayHoveredFlag_ShortDelay = 1U << 9,
-    OverlayHoveredFlag_NormalDelay = 1U << 10,
-    OverlayHoveredFlag_Stationary = 1U << 11,
+    OverlayFocusFlag_AllowBlockedByWindow = 1U << 0,
+    OverlayFocusFlag_AllowBlockedByWindowGrab = 1U << 1,
+    OverlayFocusFlag_AllowBlockedByPressedItem = 1U << 2,
+    OverlayFocusFlag_AllowBlockedByActiveItem = 1U << 3,
+    OverlayFocusFlag_AllowBlockedByPopup = 1U << 4,
+    OverlayFocusFlag_AllowBlockedByPopupCollapse = 1U << 5,
+    OverlayFocusFlag_AllowBlockedByDisabled = 1U << 6,
+    OverlayFocusFlag_AllowBlockedByDrag = 1U << 7,
+    OverlayFocusFlag_NoSharedDelay = 1U << 8,
+    OverlayFocusFlag_ShortDelay = 1U << 9,
+    OverlayFocusFlag_NormalDelay = 1U << 10,
+    OverlayFocusFlag_Stationary = 1U << 11,
 };
 
-enum OverlayHoverQueryFlagBit : OverlayHoverQueryFlags
+enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
 {
-    OverlayHoverQueryFlag_BlockedByWindow = OverlayHoveredFlag_AllowBlockedByWindow,
-    OverlayHoverQueryFlag_BlockedByWindowGrab = OverlayHoveredFlag_AllowBlockedByWindowGrab,
-    OverlayHoverQueryFlag_BlockedByPressedItem = OverlayHoveredFlag_AllowBlockedByPressedItem,
-    OverlayHoverQueryFlag_BlockedByActiveItem = OverlayHoveredFlag_AllowBlockedByActiveItem,
-    OverlayHoverQueryFlag_BlockedByPopup = OverlayHoveredFlag_AllowBlockedByPopup,
-    OverlayHoverQueryFlag_BlockedByPopupCollapse = OverlayHoveredFlag_AllowBlockedByPopupCollapse,
-    OverlayHoverQueryFlag_BlockedByDisabled = OverlayHoveredFlag_AllowBlockedByDisabled,
-    OverlayHoverQueryFlag_BlockedByDrag = OverlayHoveredFlag_AllowBlockedByDrag,
-    OverlayHoverQueryFlag_Hovered = 1U << 15,
+    OverlayFocusQueryFlag_BlockedByWindow = OverlayFocusFlag_AllowBlockedByWindow,
+    OverlayFocusQueryFlag_BlockedByWindowGrab = OverlayFocusFlag_AllowBlockedByWindowGrab,
+    OverlayFocusQueryFlag_BlockedByPressedItem = OverlayFocusFlag_AllowBlockedByPressedItem,
+    OverlayFocusQueryFlag_BlockedByActiveItem = OverlayFocusFlag_AllowBlockedByActiveItem,
+    OverlayFocusQueryFlag_BlockedByPopup = OverlayFocusFlag_AllowBlockedByPopup,
+    OverlayFocusQueryFlag_BlockedByPopupCollapse = OverlayFocusFlag_AllowBlockedByPopupCollapse,
+    OverlayFocusQueryFlag_BlockedByDisabled = OverlayFocusFlag_AllowBlockedByDisabled,
+    OverlayFocusQueryFlag_BlockedByDrag = OverlayFocusFlag_AllowBlockedByDrag,
+    OverlayFocusQueryFlag_Hovered = 1U << 15,
 };
 
 /////////////////////////////////////////////
@@ -1555,7 +1555,7 @@ class Overlay
     {
         m_TextId = id;
     }
-    void SetNextActivationKey(const Key key, const OverlayHoveredFlags flags = 0)
+    void SetNextActivationKey(const Key key, const OverlayFocusFlags flags = 0)
     {
         m_ActivationKey = key;
         m_ActivationFlags = flags;
@@ -1703,10 +1703,10 @@ class Overlay
         SetTooltip(0, str, std::forward<Args>(args)...);
     }
 
-    bool BeginItemTooltip(OverlayHoveredFlags flags = 0);
+    bool BeginItemTooltip(OverlayFocusFlags flags = 0);
 
     template <typename... Args>
-    bool SetItemTooltip(const OverlayHoveredFlags flags, const fmt::format_string<Args...> str, Args &&...args)
+    bool SetItemTooltip(const OverlayFocusFlags flags, const fmt::format_string<Args...> str, Args &&...args)
     {
         if (!BeginItemTooltip(flags))
             return false;
@@ -1720,7 +1720,7 @@ class Overlay
         return SetItemTooltip(0, str, std::forward<Args>(args)...);
     }
 
-    bool SetItemTooltipRaw(const TKit::StringView text, const OverlayHoveredFlags flags = 0)
+    bool SetItemTooltipRaw(const TKit::StringView text, const OverlayFocusFlags flags = 0)
     {
         if (!BeginItemTooltip(flags))
             return false;
@@ -1949,9 +1949,9 @@ class Overlay
     }
     OverlayDragDropPayload AcceptDragDropPayload(TKit::StringView identifier);
 
-    OverlayHoverQueryFlags QueryItemHoverStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
+    OverlayFocusQueryFlags QueryItemFocusStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
     {
-        return queryHoverStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), hoverPadding);
+        return queryFocus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), hoverPadding);
     }
     OverlayInteractionQueryFlags QueryItemInteraction(const OverlayInteractionFlags flags = 0)
     {
@@ -1959,7 +1959,7 @@ class Overlay
         // InteractionFlag_ReadOnly);
         return queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags);
     }
-    bool IsItemHovered(const OverlayHoveredFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
+    bool IsItemHovered(const OverlayFocusFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
     {
         return isElementHovered(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags, hoverPadding);
     }
@@ -2597,7 +2597,7 @@ class Overlay
     // that persistent. should be fine
     LayoutId m_TextId = NullLayoutId;
     Key m_ActivationKey = Key_None;
-    OverlayHoveredFlags m_ActivationFlags = 0;
+    OverlayFocusFlags m_ActivationFlags = 0;
 
     /////////////////////////////////////////////
     /// END WIDGETS PRIVATE
@@ -2677,21 +2677,21 @@ class Overlay
     /// INTERACTION/INPUT PRIVATE
     /////////////////////////////////////////////
 
-    OverlayHoverQueryFlags queryHoverStatus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const;
-    bool isElementBlocked(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0) const
+    OverlayFocusQueryFlags queryFocus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const;
+    bool isElementBlocked(const OverlayFocusQueryFlags qflags, const OverlayFocusFlags flags = 0) const
     {
-        return ((qflags & ~flags) & ~OverlayHoverQueryFlag_Hovered) != 0;
+        return ((qflags & ~flags) & ~OverlayFocusQueryFlag_Hovered) != 0;
     }
-    bool isElementHovered(const OverlayHoverQueryFlags qflags, const OverlayHoveredFlags flags = 0)
+    bool isElementHovered(const OverlayFocusQueryFlags qflags, const OverlayFocusFlags flags = 0)
     {
-        return (qflags & ~flags) == OverlayHoverQueryFlag_Hovered;
+        return (qflags & ~flags) == OverlayFocusQueryFlag_Hovered;
     }
-    bool isElementHovered(const LayoutElementQueryInfo *elm, OverlayHoveredFlags flags = 0,
+    bool isElementHovered(const LayoutElementQueryInfo *elm, OverlayFocusFlags flags = 0,
                           const f32v2 &padding = f32v2{0.f});
 
     OverlayInteractionQueryFlags queryAndSetInteraction(const LayoutElementQueryInfo *elm, InteractionFlags flags = 0,
                                                         const f32v2 &padding = f32v2{0.f},
-                                                        OverlayHoveredFlags hoverFlags = 0);
+                                                        OverlayFocusFlags hoverFlags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     LayoutId m_HoveredId = NullLayoutId;
@@ -2731,7 +2731,7 @@ class Overlay
     const FontData &getFontData() const;
     f32 getLineHeight() const;
 
-    OverlayHoveredFlags standardHoverAllowance() const;
+    OverlayFocusFlags standardHoverAllowance() const;
     bool isAutoResize() const;
 
     f32v4 getWorldEffectiveBorders() const;

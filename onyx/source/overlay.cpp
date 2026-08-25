@@ -3212,7 +3212,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
                 elm,
                 InteractionFlag_ActiveAllowsInteraction | InteractionFlag_PressedAllowsInteraction |
                     InteractionFlag_HoveredAllowsInteraction,
-                m_Style[OverlayStyle_BorderHoverPadding], OverlayHoveredFlag_AllowBlockedByWindowGrab);
+                m_Style[OverlayStyle_BorderHoverPadding], OverlayFocusFlag_AllowBlockedByWindowGrab);
 
             if (iflags & OverlayInteractionQueryFlag_DragSource)
                 node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
@@ -4176,7 +4176,7 @@ void Overlay::ColorPreview(const OverlayLabel label, const Color &col, const Ove
     m_LastItem = id;
 
     const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
-    if (tooltip && BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
+    if (tooltip && BeginItemTooltip(OverlayFocusFlag_ShortDelay))
     {
         ColorPreviewTooltip(label.Title, col, flags);
         EndTooltip();
@@ -4820,7 +4820,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                 node->Host, node && node->IsLeaf(),
                 "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
 
-            const OverlayHoverQueryFlags iflags =
+            const OverlayFocusQueryFlags iflags =
                 iconButtonWithInteraction(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
 
             if ((iflags & OverlayInteractionQueryFlag_DragSource) && node->CanUndock())
@@ -5794,7 +5794,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 }
 
-bool Overlay::BeginItemTooltip(const OverlayHoveredFlags flags)
+bool Overlay::BeginItemTooltip(const OverlayFocusFlags flags)
 {
     if (!IsItemHovered(flags))
         return false;
@@ -6038,9 +6038,9 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
                                       .Padding = specs.ContentPadding,
                                       .ChildGap = specs.ChildGap});
 
-    if (appendStack && isElementHovered(ly->QueryElement(specs.Id), OverlayHoveredFlag_AllowBlockedByPressedItem |
-                                                                        OverlayHoveredFlag_AllowBlockedByActiveItem |
-                                                                        OverlayHoveredFlag_AllowBlockedByDrag |
+    if (appendStack && isElementHovered(ly->QueryElement(specs.Id), OverlayFocusFlag_AllowBlockedByPressedItem |
+                                                                        OverlayFocusFlag_AllowBlockedByActiveItem |
+                                                                        OverlayFocusFlag_AllowBlockedByDrag |
                                                                         standardHoverAllowance()))
         m_ScrollStack.Append(specs.Id);
 
@@ -6233,9 +6233,9 @@ bool Overlay::WantCaptureKeyboard() const
     return m_StateFlags & StateFlag_WantCaptureKeyboard;
 }
 
-OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const
+OverlayFocusQueryFlags Overlay::queryFocus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const
 {
-    OverlayHoverQueryFlags flags = 0;
+    OverlayFocusQueryFlags flags = 0;
     const LayoutId id = elm ? elm->Id : LayoutId{NullLayoutId};
 
     const NativeWindow *nw = m_Active->GetNative();
@@ -6251,27 +6251,27 @@ OverlayHoverQueryFlags Overlay::queryHoverStatus(const LayoutElementQueryInfo *e
     const bool disabledBlocked = m_DisabledDepth != 0;
     const bool dragBlocked = m_DraggedId != NullLayoutId && m_DraggedId != id;
 
-    flags |= OverlayHoverQueryFlag_Hovered * hovered;
-    flags |= OverlayHoverQueryFlag_BlockedByWindow * windowBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByWindowGrab * grabBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByPressedItem * pressBlock;
-    flags |= OverlayHoverQueryFlag_BlockedByActiveItem * activeBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByPopup * popupBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByDisabled * disabledBlocked;
-    flags |= OverlayHoverQueryFlag_BlockedByDrag * dragBlocked;
+    flags |= OverlayFocusQueryFlag_Hovered * hovered;
+    flags |= OverlayFocusQueryFlag_BlockedByWindow * windowBlock;
+    flags |= OverlayFocusQueryFlag_BlockedByWindowGrab * grabBlock;
+    flags |= OverlayFocusQueryFlag_BlockedByPressedItem * pressBlock;
+    flags |= OverlayFocusQueryFlag_BlockedByActiveItem * activeBlocked;
+    flags |= OverlayFocusQueryFlag_BlockedByPopup * popupBlocked;
+    flags |= OverlayFocusQueryFlag_BlockedByPopupCollapse * popupCollapseBlocked;
+    flags |= OverlayFocusQueryFlag_BlockedByDisabled * disabledBlocked;
+    flags |= OverlayFocusQueryFlag_BlockedByDrag * dragBlocked;
 
     return flags;
 }
 
-bool Overlay::isElementHovered(const LayoutElementQueryInfo *elm, const OverlayHoveredFlags flags, const f32v2 &padding)
+bool Overlay::isElementHovered(const LayoutElementQueryInfo *elm, const OverlayFocusFlags flags, const f32v2 &padding)
 {
-    const OverlayHoverQueryFlags qflags = queryHoverStatus(elm, padding);
+    const OverlayFocusQueryFlags qflags = queryFocus(elm, padding);
     const bool candidate = isElementHovered(qflags, flags);
 
-    const bool shortDelay = flags & OverlayHoveredFlag_ShortDelay;
-    const bool normalDelay = flags & OverlayHoveredFlag_NormalDelay;
-    const bool stationary = flags & OverlayHoveredFlag_Stationary;
+    const bool shortDelay = flags & OverlayFocusFlag_ShortDelay;
+    const bool normalDelay = flags & OverlayFocusFlag_NormalDelay;
+    const bool stationary = flags & OverlayFocusFlag_Stationary;
     TKIT_ASSERT(normalDelay + shortDelay != 2,
                 "[ONYX][OVERLAY] Cannot have short delay and normal delay at the same time in tooltip");
 
@@ -6290,7 +6290,7 @@ bool Overlay::isElementHovered(const LayoutElementQueryInfo *elm, const OverlayH
 
         const f32 delay = shortDelay ? m_Style[OverlayStyle_HoverDelayShort] : m_Style[OverlayStyle_HoverDelayNormal];
         const bool wasCandidate = m_HoveredWidgetCandidate == m_LastItem;
-        const bool noShared = flags & OverlayHoveredFlag_NoSharedDelay;
+        const bool noShared = flags & OverlayFocusFlag_NoSharedDelay;
 
         m_HoveredWidgetCandidate = m_LastItem;
         m_HoveredLayoutCandidate = ly;
@@ -6336,7 +6336,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 
 OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElementQueryInfo *elm,
                                                              const InteractionFlags flags, const f32v2 &padding,
-                                                             const OverlayHoveredFlags hoverFlags)
+                                                             const OverlayFocusFlags focusFlags)
 {
     if (!elm)
     {
@@ -6352,7 +6352,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     const bool evenWhenAway = flags & InteractionFlag_PressedEvenWhenAwayFromHover;
 
     const NativeWindow *nw = m_Active->GetNative();
-    const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
+    const OverlayFocusQueryFlags hflags = queryFocus(elm, padding);
 
     const bool actBlocked = isElementBlocked(hflags, m_ActivationFlags | standardHoverAllowance());
     const bool actKeyPressed = !actBlocked && m_ActivationKey != Key_None && nw->EventKeys[m_ActivationKey];
@@ -6361,7 +6361,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     const bool lmpressed = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMousePressed);
     const bool lmreleased = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMouseReleased);
 
-    const bool interactionHovered = actKeyPressing || isElementHovered(hflags, hoverFlags | standardHoverAllowance());
+    const bool interactionHovered = actKeyPressing || isElementHovered(hflags, focusFlags | standardHoverAllowance());
 
     const bool setHovered = !(flags & InteractionFlag_DoNotSetHoveredId);
     const bool setPressed = !actKeyPressing && !(flags & InteractionFlag_DoNotSetPressedId);
@@ -6386,9 +6386,9 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     // signals
     // we additionally allow grab blocks here. this is required for window popups: their own grab event would block
     // this hover check, thus disallowing the popup itself to protect itself because of its own interaction
-    const OverlayHoveredFlags popHoverFlags =
-        OverlayHoveredFlag_AllowBlockedByPopup | OverlayHoveredFlag_AllowBlockedByPopupCollapse |
-        OverlayHoveredFlag_AllowBlockedByWindow | OverlayHoveredFlag_AllowBlockedByWindowGrab;
+    const OverlayFocusFlags popHoverFlags =
+        OverlayFocusFlag_AllowBlockedByPopup | OverlayFocusFlag_AllowBlockedByPopupCollapse |
+        OverlayFocusFlag_AllowBlockedByWindow | OverlayFocusFlag_AllowBlockedByWindowGrab;
 
     const bool popupHovered = actKeyPressing || isElementHovered(hflags, popHoverFlags);
     if (popupHovered && protectPopup)
@@ -6451,9 +6451,9 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
         if (setDragged && drag >= th * th)
             m_DraggedId = elm->Id;
     }
-    const bool dragHovered = isElementHovered(hflags, OverlayHoveredFlag_AllowBlockedByPressedItem |
-                                                          OverlayHoveredFlag_AllowBlockedByActiveItem |
-                                                          OverlayHoveredFlag_AllowBlockedByDrag);
+    const bool dragHovered =
+        isElementHovered(hflags, OverlayFocusFlag_AllowBlockedByPressedItem |
+                                     OverlayFocusFlag_AllowBlockedByActiveItem | OverlayFocusFlag_AllowBlockedByDrag);
     if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
     {
         outFlags |= OverlayInteractionQueryFlag_DragTarget;
@@ -6780,12 +6780,12 @@ f32 Overlay::getLineHeight() const
 // used when having menu bars with windows that are not brought to focus. in those cases popups created by such
 // window will be blocked if there is another window existing with a greater layer. so in that case, we allow the
 // hover, apart from additional overloads used sometimes
-OverlayHoveredFlags Overlay::standardHoverAllowance() const
+OverlayFocusFlags Overlay::standardHoverAllowance() const
 {
     return (m_Active->PopupDepth != m_CurrentPopupDepth &&
                     (m_Active->Flags &
                      (OverlayWindowFlag_NoBringToFocus | OverlayWindowFlags(WindowInternalFlag_HasActiveChildren)))
-                ? OverlayHoveredFlag_AllowBlockedByWindow
+                ? OverlayFocusFlag_AllowBlockedByWindow
                 : 0);
 }
 
@@ -7295,36 +7295,34 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
     if (ov->PushTree("Queries", drawLines))
     {
-        ov->HorizontalSeparator("Hover flags");
-        static Onyx::OverlayHoveredFlags hflags = 0;
+        ov->HorizontalSeparator("Focus flags");
+        static Onyx::OverlayFocusFlags qflags = 0;
 
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindow", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByWindow);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByWindowGrab", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByWindowGrab);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPressedItem", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPressedItem);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByActiveItem", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByActiveItem);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopup", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPopup);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByPopupCollapse", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByPopupCollapse);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDisabled", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByDisabled);
-        ov->CheckBoxFlags("OverlayHoveredFlag_AllowBlockedByDrag", &hflags,
-                          Onyx::OverlayHoveredFlag_AllowBlockedByDrag);
-        ov->CheckBoxFlags("OverlayHoveredFlag_NoSharedDelay", &hflags, Onyx::OverlayHoveredFlag_NoSharedDelay);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByWindow", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByWindow);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByWindowGrab", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByWindowGrab);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByPressedItem", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByPressedItem);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByActiveItem", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByActiveItem);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByPopup", &qflags, Onyx::OverlayFocusFlag_AllowBlockedByPopup);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByPopupCollapse", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByPopupCollapse);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByDisabled", &qflags,
+                          Onyx::OverlayFocusFlag_AllowBlockedByDisabled);
+        ov->CheckBoxFlags("OverlayFocusFlag_AllowBlockedByDrag", &qflags, Onyx::OverlayFocusFlag_AllowBlockedByDrag);
+        ov->CheckBoxFlags("OverlayFocusFlag_NoSharedDelay", &qflags, Onyx::OverlayFocusFlag_NoSharedDelay);
 
-        ov->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_NormalDelay);
-        ov->CheckBoxFlags("OverlayHoveredFlag_ShortDelay", &hflags, Onyx::OverlayHoveredFlag_ShortDelay);
+        ov->BeginDisabled(qflags & Onyx::OverlayFocusFlag_NormalDelay);
+        ov->CheckBoxFlags("OverlayFocusFlag_ShortDelay", &qflags, Onyx::OverlayFocusFlag_ShortDelay);
         ov->EndDisabled();
 
-        ov->BeginDisabled(hflags & Onyx::OverlayHoveredFlag_ShortDelay);
-        ov->CheckBoxFlags("OverlayHoveredFlag_NormalDelay", &hflags, Onyx::OverlayHoveredFlag_NormalDelay);
+        ov->BeginDisabled(qflags & Onyx::OverlayFocusFlag_ShortDelay);
+        ov->CheckBoxFlags("OverlayFocusFlag_NormalDelay", &qflags, Onyx::OverlayFocusFlag_NormalDelay);
         ov->EndDisabled();
 
-        ov->CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
+        ov->CheckBoxFlags("OverlayFocusFlag_Stationary", &qflags, Onyx::OverlayFocusFlag_Stationary);
 
         ov->HorizontalSeparator("Interaction flags");
         static Onyx::OverlayInteractionFlags interFlags = 0;
@@ -7335,21 +7333,21 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         if (ov->PushTree("I am to be queried"))
             ov->PopTree();
 
-        const bool hovered = ov->IsItemHovered(hflags);
+        const bool hovered = ov->IsItemHovered(qflags);
         const bool opened = ov->IsItemOpened();
-        const Onyx::OverlayHoverQueryFlags hqflags = ov->QueryItemHoverStatus();
+        const Onyx::OverlayFocusQueryFlags fqflags = ov->QueryItemFocusStatus();
         const Onyx::OverlayInteractionQueryFlags iqflags = ov->QueryItemInteraction(interFlags);
 
         ov->HorizontalSeparator("Hovering info");
         ov->Text("Hovered: {}", hovered);
-        ov->Text("Blocked by window: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindow));
-        ov->Text("Blocked by window grab: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByWindowGrab));
-        ov->Text("Blocked by pressed item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPressedItem));
-        ov->Text("Blocked by active item: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByActiveItem));
-        ov->Text("Blocked by popup : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopup));
-        ov->Text("Blocked by popup collapse : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByPopupCollapse));
-        ov->Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
-        ov->Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
+        ov->Text("Blocked by window: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByWindow));
+        ov->Text("Blocked by window grab: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByWindowGrab));
+        ov->Text("Blocked by pressed item: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByPressedItem));
+        ov->Text("Blocked by active item: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByActiveItem));
+        ov->Text("Blocked by popup : {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByPopup));
+        ov->Text("Blocked by popup collapse : {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByPopupCollapse));
+        ov->Text("Blocked by disabled : {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_BlockedByDisabled));
+        ov->Text("Natively hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
 
         ov->HorizontalSeparator("Interaction info");
 
@@ -7592,15 +7590,15 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             ov->SetTooltip(tflags, "I am instant!");
 
         ov->Button("I am a short-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-        if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_ShortDelay))
+        if (ov->IsItemHovered(Onyx::OverlayFocusFlag_ShortDelay))
             ov->SetTooltip(tflags, "I am a bit delayed!");
 
         ov->Button("I am a normal-delayed tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-        if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_NormalDelay))
+        if (ov->IsItemHovered(Onyx::OverlayFocusFlag_NormalDelay))
             ov->SetTooltip(tflags, "I am delayed!");
 
         ov->Button("I am a stationary tooltip", Onyx::OverlayButtonFlag_SpanFullWidth);
-        if (ov->IsItemHovered(Onyx::OverlayHoveredFlag_Stationary | Onyx::OverlayHoveredFlag_NormalDelay))
+        if (ov->IsItemHovered(Onyx::OverlayFocusFlag_Stationary | Onyx::OverlayFocusFlag_NormalDelay))
             ov->SetTooltip(tflags, "I am stationary!");
         ov->PopTree();
     }
@@ -7816,7 +7814,7 @@ void Overlay::ShowStyleEditor()
                 backup[col] = m_Style.Colors[col];
                 flashClock.Restart();
             }
-            if (BeginItemTooltip(OverlayHoveredFlag_ShortDelay))
+            if (BeginItemTooltip(OverlayFocusFlag_ShortDelay))
             {
                 TextRaw("Press this button to flash this color and easily identify where it is used");
                 EndTooltip();

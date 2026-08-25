@@ -3829,10 +3829,10 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
                                                    .Alignment = {Alignment_Left, Alignment_Top}}});
 
         if (rmode != RenderMode_None)
-            ov->SetItemTooltip(OverlayHoveredFlag_ShortDelay, "{} - Offset: {} - Size: {} - Mesh: {:#010x} - Mode: {}",
+            ov->SetItemTooltip(OverlayFocusFlag_ShortDelay, "{} - Offset: {} - Size: {} - Mesh: {:#010x} - Mode: {}",
                                tooltipLabel, fmtb(offset), fmts(size), meshHandle, ToString(rmode));
         else
-            ov->SetItemTooltip(OverlayHoveredFlag_ShortDelay, "{} - Offset: {} - Size: {}", tooltipLabel, fmtb(offset),
+            ov->SetItemTooltip(OverlayFocusFlag_ShortDelay, "{} - Offset: {} - Size: {}", tooltipLabel, fmtb(offset),
                                fmts(size));
     };
 
