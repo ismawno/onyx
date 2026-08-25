@@ -30,12 +30,12 @@ using OverlayDockNodeFlags = u8;
 using OverlayDragDropFlags = u8;
 using OverlayDropDownFlags = u8;
 using OverlayFlags = u8;
-using OverlayFocusQueryFlags = u16;
-using OverlayFocusFlags = u32;
+using OverlayInteractionQueryFlags = u16;
+using OverlayInteractionFlags = u32;
 using OverlayHoveredFlags = u16;
 using OverlayHoverQueryFlags = OverlayHoveredFlags;
 using OverlayInputFlags = u8;
-using OverlayPopupFlags = OverlayFocusQueryFlags;
+using OverlayPopupFlags = OverlayInteractionQueryFlags;
 using OverlayScrollFlags = u8;
 using OverlaySelectableFlags = u8;
 using OverlaySliderFlags = u8;
@@ -45,7 +45,7 @@ using OverlayTreeFlags = u8;
 using OverlayTooltipFlags = u8;
 using OverlayWindowFlags = u64;
 
-using FocusFlags = OverlayFocusFlags;
+using InteractionFlags = OverlayInteractionFlags;
 using InputConvertInfoFlags = u8;
 using NativeWindowFlags = u16;
 using NextWindowFlags = u8;
@@ -795,52 +795,53 @@ struct OverlayWindow
 /// QUERY FLAGS
 /////////////////////////////////////////////
 
-// public focus query flags -> these flags are given to the user/dev by queries
-enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
+// public interaction query flags -> these flags are given to the user/dev by queries
+enum OverlayInteractionQueryFlagBit : OverlayInteractionQueryFlags
 {
-    OverlayFocusQueryFlag_Hovered = 1U << 0,
-    OverlayFocusQueryFlag_Pressed = 1U << 1,
-    OverlayFocusQueryFlag_LeftClicked = 1U << 2,
-    OverlayFocusQueryFlag_RightClicked = 1U << 3,
-    OverlayFocusQueryFlag_DoubleClicked = 1U << 4,
-    OverlayFocusQueryFlag_Active = 1U << 5,
-    OverlayFocusQueryFlag_JustActive = 1U << 6,
-    OverlayFocusQueryFlag_PopupOpen = 1U << 7,
-    OverlayFocusQueryFlag_DragSource = 1U << 8,
-    OverlayFocusQueryFlag_DragTarget = 1U << 9,
-    OverlayFocusQueryFlag_DragPayloadDropped = 1U << 10,
+    OverlayInteractionQueryFlag_Hovered = 1U << 0,
+    OverlayInteractionQueryFlag_Pressed = 1U << 1,
+    OverlayInteractionQueryFlag_LeftClicked = 1U << 2,
+    OverlayInteractionQueryFlag_RightClicked = 1U << 3,
+    OverlayInteractionQueryFlag_DoubleClicked = 1U << 4,
+    OverlayInteractionQueryFlag_Active = 1U << 5,
+    OverlayInteractionQueryFlag_JustActive = 1U << 6,
+    OverlayInteractionQueryFlag_PopupOpen = 1U << 7,
+    OverlayInteractionQueryFlag_DragSource = 1U << 8,
+    OverlayInteractionQueryFlag_DragTarget = 1U << 9,
+    OverlayInteractionQueryFlag_DragPayloadDropped = 1U << 10,
 };
 
-// internal focus flags -> these configure how querying focus behave
-enum FocusFlagBit : FocusFlags
+// internal interaction flags -> these configure how querying interaction behave
+enum InteractionFlagBit : InteractionFlags
 {
-    FocusFlag_PressedEvenWhenAwayFromHover = 1U << 8,
-    FocusFlag_ClickedOnMousePress = 1U << 9,
-    FocusFlag_KeepActiveOnPressed = 1U << 10,
-    FocusFlag_KeepActiveOnRelease = 1U << 11,
-    FocusFlag_SetActiveOnRelease = 1U << 12,
-    FocusFlag_ToggleActiveOnRelease = 1U << 13,
-    FocusFlag_HoveredAllowsInteraction = 1U << 14,
-    FocusFlag_PressedAllowsInteraction = 1U << 15,
-    FocusFlag_ActiveAllowsInteraction = 1U << 16,
-    FocusFlag_LeftClickOpensPopup = 1U << 17,
-    FocusFlag_RightClickOpensPopup = 1U << 18,
-    FocusFlag_HoverOpensPopup = 1U << 19,
-    FocusFlag_HoverRequestsPopupCollapse = 1U << 20,
-    FocusFlag_DoNotSetHoveredId = 1U << 21,
-    FocusFlag_DoNotSetPressedId = 1U << 22,
-    FocusFlag_DoNotSetDraggedId = 1U << 23,
-    FocusFlag_DoNotSetActiveId = 1U << 24,
-    FocusFlag_DoNotProtectPopup = 1U << 25,
-    FocusFlag_AllowPressedOnEnter = 1U << 26,
-    FocusFlag_ReadOnly = FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetDraggedId |
-                         FocusFlag_DoNotSetActiveId | FocusFlag_DoNotProtectPopup
+    InteractionFlag_PressedEvenWhenAwayFromHover = 1U << 8,
+    InteractionFlag_ClickedOnMousePress = 1U << 9,
+    InteractionFlag_KeepActiveOnPressed = 1U << 10,
+    InteractionFlag_KeepActiveOnRelease = 1U << 11,
+    InteractionFlag_SetActiveOnRelease = 1U << 12,
+    InteractionFlag_ToggleActiveOnRelease = 1U << 13,
+    InteractionFlag_HoveredAllowsInteraction = 1U << 14,
+    InteractionFlag_PressedAllowsInteraction = 1U << 15,
+    InteractionFlag_ActiveAllowsInteraction = 1U << 16,
+    InteractionFlag_LeftClickOpensPopup = 1U << 17,
+    InteractionFlag_RightClickOpensPopup = 1U << 18,
+    InteractionFlag_HoverOpensPopup = 1U << 19,
+    InteractionFlag_HoverRequestsPopupCollapse = 1U << 20,
+    InteractionFlag_DoNotSetHoveredId = 1U << 21,
+    InteractionFlag_DoNotSetPressedId = 1U << 22,
+    InteractionFlag_DoNotSetDraggedId = 1U << 23,
+    InteractionFlag_DoNotSetActiveId = 1U << 24,
+    InteractionFlag_DoNotProtectPopup = 1U << 25,
+    InteractionFlag_AllowPressedOnEnter = 1U << 26,
+    InteractionFlag_ReadOnly = InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
+                               InteractionFlag_DoNotSetDraggedId | InteractionFlag_DoNotSetActiveId |
+                               InteractionFlag_DoNotProtectPopup
 };
 
 // same as above, but public
-enum OverlayFocusFlagBit : OverlayFocusFlags
+enum OverlayInteractionFlagBit : OverlayInteractionFlags
 {
-    OverlayFocusFlag_PressedEvenWhenAwayFromHover = FocusFlag_PressedEvenWhenAwayFromHover
+    OverlayInteractionFlag_PressedEvenWhenAwayFromHover = InteractionFlag_PressedEvenWhenAwayFromHover
 };
 
 enum OverlayHoveredFlagBit : OverlayHoveredFlags
@@ -951,8 +952,8 @@ enum OverlayScrollFlagBit : OverlayScrollFlags
 
 enum OverlayPopupFlagBit : OverlayPopupFlags
 {
-    OverlayPopupFlag_LeftClick = OverlayFocusQueryFlag_LeftClicked,
-    OverlayPopupFlag_RightClick = OverlayFocusQueryFlag_RightClicked
+    OverlayPopupFlag_LeftClick = OverlayInteractionQueryFlag_LeftClicked,
+    OverlayPopupFlag_RightClick = OverlayInteractionQueryFlag_RightClicked
 };
 
 enum OverlaySelectableFlagBit : OverlaySelectableFlags
@@ -1016,7 +1017,7 @@ enum OverlayTooltipFlagBit : OverlayTooltipFlags
 
 enum InputConvertFlagBit : InputConvertInfoFlags
 {
-    InputConvertFlag_Hovered = OverlayFocusQueryFlag_Hovered,
+    InputConvertFlag_Hovered = OverlayInteractionQueryFlag_Hovered,
     InputConvertFlag_MustConvert = 1U << 1,
     InputConvertFlag_MustOverrideHighlight = 1U << 2,
     InputConvertFlag_AllowDoubleClick = 1U << 3,
@@ -1026,7 +1027,7 @@ enum InputConvertFlagBit : InputConvertInfoFlags
 enum WidgetStateFlagBit : WidgetStateFlags
 {
     WidgetStateFlag_Opened = 1U << 0,
-    // only used if OnHover focus flags are used
+    // only used if OnHover interaction flags are used
     WidgetStateFlag_Hovering = 1U << 1,
 };
 
@@ -1631,7 +1632,7 @@ class Overlay
     bool BeginPopupContextItem(const OverlayLabel label, const OverlayWindowFlags wflags = 0,
                                const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
     {
-        if (QueryItemFocusStatus() & flags)
+        if (QueryItemInteraction() & flags)
             OpenPopup(label.Id);
 
         return BeginPopup(label, wflags);
@@ -1952,51 +1953,51 @@ class Overlay
     {
         return queryHoverStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), hoverPadding);
     }
-    OverlayFocusQueryFlags QueryItemFocusStatus(const OverlayFocusFlags flags = 0)
+    OverlayInteractionQueryFlags QueryItemInteraction(const OverlayInteractionFlags flags = 0)
     {
-        // return queryAndSetFocusStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags |
-        // FocusFlag_ReadOnly);
-        return queryAndSetFocusStatus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags);
+        // return queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags |
+        // InteractionFlag_ReadOnly);
+        return queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags);
     }
     bool IsItemHovered(const OverlayHoveredFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
     {
         return isElementHovered(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags, hoverPadding);
     }
-    bool IsItemPressed(const OverlayFocusFlags flags = 0)
+    bool IsItemPressed(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_Pressed;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Pressed;
     }
-    bool IsItemLeftClicked(const OverlayFocusFlags flags = 0)
+    bool IsItemLeftClicked(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_LeftClicked;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_LeftClicked;
     }
-    bool IsItemRightClicked(const OverlayFocusFlags flags = 0)
+    bool IsItemRightClicked(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_RightClicked;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_RightClicked;
     }
-    bool IsItemDoubleClicked(const OverlayFocusFlags flags = 0)
+    bool IsItemDoubleClicked(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DoubleClicked;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_DoubleClicked;
     }
-    bool IsItemActive(const OverlayFocusFlags flags = 0)
+    bool IsItemActive(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_Active;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Active;
     }
-    bool IsItemJustActive(const OverlayFocusFlags flags = 0)
+    bool IsItemJustActive(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_JustActive;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_JustActive;
     }
-    bool IsItemDragged(const OverlayFocusFlags flags = 0)
+    bool IsItemDragged(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DragSource;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_DragSource;
     }
-    bool IsItemDragHovered(const OverlayFocusFlags flags = 0)
+    bool IsItemDragHovered(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_DragTarget;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_DragTarget;
     }
-    bool HasItemAnOpenPopup(const OverlayFocusFlags flags = 0)
+    bool HasItemAnOpenPopup(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemFocusStatus(flags) & OverlayFocusQueryFlag_PopupOpen;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_PopupOpen;
     }
     bool IsItemOpened() const
     {
@@ -2070,12 +2071,13 @@ class Overlay
 
     void addActiveWindow(OverlayWindow *win);
     void drawWindowBorders(OverlayWindow *win);
-    OverlayFocusQueryFlags iconButtonFocus(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(),
-                                           OverlayColor idle = OverlayColor_None, FocusFlags flags = 0);
+    OverlayInteractionQueryFlags iconButtonWithInteraction(LayoutId id, CodePoint code, LySz ysizing = LySz::Fit(),
+                                                           OverlayColor idle = OverlayColor_None,
+                                                           InteractionFlags flags = 0);
     bool iconButton(const LayoutId id, const CodePoint code, const LySz ysizing = LySz::Fit(),
-                    const OverlayColor idle = OverlayColor_None, const FocusFlags flags = 0)
+                    const OverlayColor idle = OverlayColor_None, const InteractionFlags flags = 0)
     {
-        return iconButtonFocus(id, code, ysizing, idle, flags) & OverlayFocusQueryFlag_LeftClicked;
+        return iconButtonWithInteraction(id, code, ysizing, idle, flags) & OverlayInteractionQueryFlag_LeftClicked;
     }
     void popWindowStack();
     u32 processWindows();
@@ -2230,7 +2232,7 @@ class Overlay
         f32 InnerWidth;
         f32 Offset;
         OverlayColor Color;
-        FocusFlags Flags;
+        InteractionFlags Flags;
     };
 
     template <TKit::Numeric T, std::convertible_to<T> U>
@@ -2241,11 +2243,12 @@ class Overlay
         format = getFormat<T>(format);
 
         OverlayColor col = OverlayColor_SliderIdle;
-        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags =
+            queryAndSetInteraction(elm, InteractionFlag_PressedEvenWhenAwayFromHover);
 
-        if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SliderPressed;
-        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        else if (iflags & OverlayInteractionQueryFlag_Hovered)
             col = OverlayColor_SliderHovered;
 
         const f32 length = elm ? elm->Size[idx] : 0.f;
@@ -2269,7 +2272,7 @@ class Overlay
         f32 offset = 0.f;
         const NativeWindow *nw = m_Active->GetNative();
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
-        if ((focusFlags & OverlayFocusQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
+        if ((iflags & OverlayInteractionQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
         {
             f32 relPos = nw->WorldMouse[idx] - elm->Position[idx] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
@@ -2287,7 +2290,7 @@ class Overlay
         else
             offset = normalized * maxOffset;
 
-        return {format, innerWidth, offset, col, focusFlags};
+        return {format, innerWidth, offset, col, iflags};
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U>
@@ -2301,7 +2304,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags =
-                mustConvertToInputBox(isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0);
+                mustConvertToInputBox(isElementHovered(elm) ? OverlayInteractionQueryFlag_Hovered : 0);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -2383,7 +2386,7 @@ class Overlay
 
         ly->EndPanel();
 
-        if (sinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
+        if (sinfo.Flags & (OverlayInteractionQueryFlag_Hovered | OverlayInteractionQueryFlag_Pressed))
         {
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout *tly = m_Active->GetActiveLayout();
@@ -2403,7 +2406,7 @@ class Overlay
     {
         const char *Format;
         OverlayColor Color;
-        FocusFlags Flags;
+        InteractionFlags Flags;
     };
 
     template <TKit::Numeric T, std::convertible_to<T> U>
@@ -2414,17 +2417,18 @@ class Overlay
         format = getFormat<T>(format);
 
         OverlayColor col = OverlayColor_DragIdle;
-        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags =
+            queryAndSetInteraction(elm, InteractionFlag_PressedEvenWhenAwayFromHover);
 
-        if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SliderPressed;
-        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        else if (iflags & OverlayInteractionQueryFlag_Hovered)
             col = OverlayColor_SliderHovered;
 
-        if (focusFlags & OverlayFocusQueryFlag_JustActive)
+        if (iflags & OverlayInteractionQueryFlag_JustActive)
             m_DragValue = f64(*value);
 
-        if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        if (iflags & OverlayInteractionQueryFlag_Pressed)
         {
             const u32 decimals = getFormatDecimals(format);
             const bool log = flags & OverlaySliderFlag_Logarithmic;
@@ -2442,7 +2446,7 @@ class Overlay
 
             *value = roundToFormat(T(nval), decimals);
         }
-        return {format, col, focusFlags};
+        return {format, col, iflags};
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U>
@@ -2457,7 +2461,7 @@ class Overlay
         if (!(flags & OverlaySliderFlag_NoInput))
         {
             const InputConvertInfoFlags cflags = mustConvertToInputBox(
-                (isElementHovered(elm) ? OverlayFocusQueryFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
+                (isElementHovered(elm) ? OverlayInteractionQueryFlag_Hovered : 0) | InputConvertFlag_AllowDoubleClick);
 
             if (cflags & InputConvertFlag_MustConvert)
             {
@@ -2500,7 +2504,7 @@ class Overlay
                               .Sizing = {sabs(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
                               .Shape = rect(m_Style[OverlayStyle_DragRadius])});
 
-        if (dinfo.Flags & (OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Pressed))
+        if (dinfo.Flags & (OverlayInteractionQueryFlag_Hovered | OverlayInteractionQueryFlag_Pressed))
         {
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout *tly = m_Active->GetActiveLayout();
@@ -2685,9 +2689,9 @@ class Overlay
     bool isElementHovered(const LayoutElementQueryInfo *elm, OverlayHoveredFlags flags = 0,
                           const f32v2 &padding = f32v2{0.f});
 
-    OverlayFocusQueryFlags queryAndSetFocusStatus(const LayoutElementQueryInfo *elm, FocusFlags flags = 0,
-                                                  const f32v2 &padding = f32v2{0.f},
-                                                  OverlayHoveredFlags hoverFlags = 0);
+    OverlayInteractionQueryFlags queryAndSetInteraction(const LayoutElementQueryInfo *elm, InteractionFlags flags = 0,
+                                                        const f32v2 &padding = f32v2{0.f},
+                                                        OverlayHoveredFlags hoverFlags = 0);
     InputConvertInfoFlags mustConvertToInputBox(InputConvertInfoFlags flags = 0);
 
     LayoutId m_HoveredId = NullLayoutId;

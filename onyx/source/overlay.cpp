@@ -1129,16 +1129,18 @@ bool Overlay::BeginMenu(const OverlayLabel label)
 
     const bool openOnHover = verticalLayout || checkWidgetState(m_Active->MenuBarId, WidgetStateFlag_Opened);
 
-    const FocusFlags fflags = openOnHover ? (FocusFlag_HoverOpensPopup | FocusFlag_HoverRequestsPopupCollapse)
-                                          : FocusFlag_LeftClickOpensPopup;
+    const InteractionFlags interFlags =
+        openOnHover ? (InteractionFlag_HoverOpensPopup | InteractionFlag_HoverRequestsPopupCollapse)
+                    : InteractionFlag_LeftClickOpensPopup;
 
     const f32v2 hoverPad = 12.f;
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, fflags, verticalLayout ? hoverPad : 0.f);
+    const OverlayInteractionQueryFlags iflags =
+        queryAndSetInteraction(elm, interFlags, verticalLayout ? hoverPad : 0.f);
 
-    const bool popupOpen = focusFlags & OverlayFocusQueryFlag_PopupOpen;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    const bool popupOpen = iflags & OverlayInteractionQueryFlag_PopupOpen;
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_MenuItemPressed;
-    else if (popupOpen || (focusFlags & OverlayFocusQueryFlag_Hovered))
+    else if (popupOpen || (iflags & OverlayInteractionQueryFlag_Hovered))
         col = OverlayColor_MenuItemHovered;
 
     const f32 padding = m_Style[OverlayStyle_MenuPadding];
@@ -1215,9 +1217,9 @@ bool Overlay::BeginMenu(const OverlayLabel label)
         PushStyleVar(OverlayStyle_WidgetPadding, padding);
         ++m_CurrentPopupDepth;
 
-        // we set a focus status to the background so that it can register inputs and collapse/persist popups
-        queryAndSetFocusStatus(ly->QueryElement(bid), FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId,
-                               hoverPad);
+        // we set an interaction status to the background so that it can register inputs and collapse/persist popups
+        queryAndSetInteraction(ly->QueryElement(bid),
+                               InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId, hoverPad);
         return true;
     }
     ly->EndPanel();
@@ -1504,8 +1506,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
                                            .ChildGap = cgap});
 
         if (isRoot)
-            queryAndSetFocusStatus(elm, FocusFlag_DoNotSetHoveredId | FocusFlag_DoNotSetPressedId |
-                                            FocusFlag_DoNotSetActiveId | FocusFlag_DoNotSetDraggedId);
+            queryAndSetInteraction(elm, InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
+                                            InteractionFlag_DoNotSetActiveId | InteractionFlag_DoNotSetDraggedId);
 
         if (!active->IsDockHost() && !(active->Flags & OverlayWindowFlag_NoBorders))
             drawWindowBorders(active);
@@ -1747,16 +1749,17 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
 }
 
 // TODO(Isma): Too much repetition between this and Button()
-OverlayFocusQueryFlags Overlay::iconButtonFocus(const LayoutId id, const CodePoint code, const LySz ysizing,
-                                                const OverlayColor idle, const FocusFlags flags)
+OverlayInteractionQueryFlags Overlay::iconButtonWithInteraction(const LayoutId id, const CodePoint code,
+                                                                const LySz ysizing, const OverlayColor idle,
+                                                                const InteractionFlags flags)
 {
     Layout *ly = m_Active->GetActiveLayout();
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(id), flags);
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id), flags);
 
     OverlayColor col = idle;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_ButtonPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_ButtonHovered;
 
     m_LastItem = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
@@ -1765,7 +1768,7 @@ OverlayFocusQueryFlags Overlay::iconButtonFocus(const LayoutId id, const CodePoi
 
     ly->Unicode(NullLayoutId, code, getUnicodeParams());
     ly->EndPanel();
-    return focusFlags;
+    return iflags;
 }
 
 void Overlay::popWindowStack()
@@ -3205,13 +3208,13 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
         if (nw->Window->IsKeyPressed(Key_LeftControl) && node->CanUndock())
         {
             const LayoutElementQueryInfo *elm = ly->QueryElement(node->BorderId);
-            const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(
+            const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(
                 elm,
-                FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedAllowsInteraction |
-                    FocusFlag_HoveredAllowsInteraction,
+                InteractionFlag_ActiveAllowsInteraction | InteractionFlag_PressedAllowsInteraction |
+                    InteractionFlag_HoveredAllowsInteraction,
                 m_Style[OverlayStyle_BorderHoverPadding], OverlayHoveredFlag_AllowBlockedByWindowGrab);
 
-            if (focusFlags & OverlayFocusQueryFlag_DragSource)
+            if (iflags & OverlayInteractionQueryFlag_DragSource)
                 node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
         }
 
@@ -3811,12 +3814,12 @@ bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
     Layout *ly = m_Active->GetActiveLayout();
     const LayoutId id = PushId(label.Id);
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(id));
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
 
     OverlayColor col = OverlayColor_ButtonIdle;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_ButtonPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_ButtonHovered;
 
     const bool spanFull = flags & OverlayButtonFlag_SpanFullWidth;
@@ -3839,7 +3842,7 @@ bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
     ly->Text(label.Title, getTextParams());
     ly->EndPanel();
     PopId();
-    return focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    return iflags & OverlayInteractionQueryFlag_LeftClicked;
 }
 
 bool Overlay::RadioButton(const OverlayLabel label, const bool active)
@@ -3847,12 +3850,12 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
     Layout *ly = m_Active->GetActiveLayout();
     const LayoutId id = PushId(label.Id);
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(id));
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
 
     OverlayColor col = OverlayColor_CheckBoxIdle;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_CheckBoxPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_CheckBoxHovered;
 
     m_LastItem = ly->BeginPanel(
@@ -3873,7 +3876,7 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
 
     ly->EndPanel();
     PopId();
-    return focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    return iflags & OverlayInteractionQueryFlag_LeftClicked;
 }
 
 // NOTE(Isma): Much repetition with radio button here
@@ -3882,15 +3885,15 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
     Layout *ly = m_Active->GetActiveLayout();
     const LayoutId id = PushId(label.Id);
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(id));
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
 
     OverlayColor col = OverlayColor_CheckBoxIdle;
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_CheckBoxPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_CheckBoxHovered;
 
-    if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
+    if (iflags & OverlayInteractionQueryFlag_LeftClicked)
         *enable = !*enable;
 
     m_LastItem = ly->BeginPanel(
@@ -3912,7 +3915,7 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
 
     ly->EndPanel();
     PopId();
-    return focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    return iflags & OverlayInteractionQueryFlag_LeftClicked;
 }
 
 bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySelectableFlags flags)
@@ -3921,16 +3924,16 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     id = PushId(id);
     const LayoutElementQueryInfo *elm = ly->QueryElement(id);
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm);
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(elm);
 
     const bool highlight = flags & OverlaySelectableFlag_Highlight;
     const bool cb = flags & OverlaySelectableFlag_CheckBox;
 
     OverlayColor col = highlight ? OverlayColor_SelectableHovered : OverlayColor_SelectableIdle;
 
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_SelectablePressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_SelectableHovered;
     else if (enabled && !cb)
         col = OverlayColor_SelectablePressed;
@@ -3970,9 +3973,9 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
                            .Padding = padding});
 
     if (!enabled && (flags & OverlaySelectableFlag_SelectOnDoubleClick))
-        return focusFlags & OverlayFocusQueryFlag_DoubleClicked;
+        return iflags & OverlayInteractionQueryFlag_DoubleClicked;
 
-    return focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    return iflags & OverlayInteractionQueryFlag_LeftClicked;
 }
 bool Overlay::BeginSelectable(const LayoutId id, bool *enabled, const OverlaySelectableFlags flags)
 {
@@ -4531,9 +4534,12 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     const LayoutElementQueryInfo *hueBarElm = ly->QueryElement(hueBarId);
     const LayoutElementQueryInfo *alphaBarElm = ly->QueryElement(alphaBarId);
 
-    const FocusFlags pickerFlags = queryAndSetFocusStatus(pickerElm, FocusFlag_PressedEvenWhenAwayFromHover);
-    const FocusFlags hueBarFlags = queryAndSetFocusStatus(hueBarElm, FocusFlag_PressedEvenWhenAwayFromHover);
-    const FocusFlags alphaBarFlags = queryAndSetFocusStatus(alphaBarElm, FocusFlag_PressedEvenWhenAwayFromHover);
+    const InteractionFlags pickerFlags =
+        queryAndSetInteraction(pickerElm, InteractionFlag_PressedEvenWhenAwayFromHover);
+    const InteractionFlags hueBarFlags =
+        queryAndSetInteraction(hueBarElm, InteractionFlag_PressedEvenWhenAwayFromHover);
+    const InteractionFlags alphaBarFlags =
+        queryAndSetInteraction(alphaBarElm, InteractionFlag_PressedEvenWhenAwayFromHover);
 
     constexpr f32 barWidth = 32.f;
 
@@ -4555,7 +4561,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     const f32 posOffset = 0.5f * pickerSize;
 
     const NativeWindow *nw = m_Active->GetNative();
-    if (pickerFlags & OverlayFocusQueryFlag_Pressed)
+    if (pickerFlags & OverlayInteractionQueryFlag_Pressed)
     {
         circleSize *= 1.2f;
         pdata->CirclePos = nw->WorldMouse - pickerElm->Position - posOffset;
@@ -4573,7 +4579,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
         pdata->CirclePos[1] = pickerSize * (hsv[2] - 0.5f);
     }
 
-    if (hueBarFlags & OverlayFocusQueryFlag_Pressed)
+    if (hueBarFlags & OverlayInteractionQueryFlag_Pressed)
     {
         pdata->HueRodPos = nw->WorldMouse[1] - hueBarElm->Position[1] - posOffset;
         pdata->HueRodPos = Math::Clamp(pdata->HueRodPos, -posOffset, posOffset);
@@ -4587,7 +4593,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     else
         pdata->HueRodPos = pickerSize * (0.5f - hsv[0]);
 
-    if (alphaBarFlags & OverlayFocusQueryFlag_Pressed)
+    if (alphaBarFlags & OverlayInteractionQueryFlag_Pressed)
     {
         pdata->AlphaRodPos = nw->WorldMouse[1] - alphaBarElm->Position[1] - posOffset;
         pdata->AlphaRodPos = Math::Clamp(pdata->AlphaRodPos, -posOffset, posOffset);
@@ -4764,12 +4770,12 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
 
     if (!permaHide)
     {
-        const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(hideId));
-        if (focusFlags & OverlayFocusQueryFlag_Pressed)
+        const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(hideId));
+        if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SelectableIdle;
-        else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+        else if (iflags & OverlayInteractionQueryFlag_Hovered)
             col = OverlayColor_SelectableHovered;
-        if (focusFlags & OverlayFocusQueryFlag_LeftClicked)
+        if (iflags & OverlayInteractionQueryFlag_LeftClicked)
         {
             if (data->Flags & TabBarFlag_HideTabBar)
                 data->Flags &= ~TabBarFlag_HideTabBar;
@@ -4814,14 +4820,14 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                 node->Host, node && node->IsLeaf(),
                 "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
 
-            const OverlayHoverQueryFlags focusFlags =
-                iconButtonFocus(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
+            const OverlayHoverQueryFlags iflags =
+                iconButtonWithInteraction(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
 
-            if ((focusFlags & OverlayFocusQueryFlag_DragSource) && node->CanUndock())
+            if ((iflags & OverlayInteractionQueryFlag_DragSource) && node->CanUndock())
             {
                 if (node->Windows.GetSize() != 1)
                     node->Flags |= DockNodeFlag_MustUndock | DockNodeFlag_MustGrabWhenUndocked;
-                else if (focusFlags & OverlayFocusQueryFlag_DragSource)
+                else if (iflags & OverlayInteractionQueryFlag_DragSource)
                     node->Windows[0]->Flags |= WindowInternalFlag_MustUndock | WindowInternalFlag_MustGrabWhenUndocked;
             }
         }
@@ -4903,9 +4909,9 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
             PopId();
 
             const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-            const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm);
+            const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(elm);
 
-            const bool dragSource = focusFlags & OverlayFocusQueryFlag_DragSource;
+            const bool dragSource = iflags & OverlayInteractionQueryFlag_DragSource;
             const bool canUndock = tab.Window && !(tab.Window->Flags & OverlayWindowFlag_NoUndocking);
 
             if (dragSource && reorderable)
@@ -5110,12 +5116,13 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const LayoutElementQueryInfo *ibox = ly->QueryElement(iboxId);
     const bool mustConvert = cflags & InputConvertFlag_MustConvert;
 
-    FocusFlags fflags = FocusFlag_ClickedOnMousePress | FocusFlag_KeepActiveOnRelease | FocusFlag_KeepActiveOnPressed |
-                        FocusFlag_ActiveAllowsInteraction | FocusFlag_PressedEvenWhenAwayFromHover;
+    InteractionFlags interFlags = InteractionFlag_ClickedOnMousePress | InteractionFlag_KeepActiveOnRelease |
+                                  InteractionFlag_KeepActiveOnPressed | InteractionFlag_ActiveAllowsInteraction |
+                                  InteractionFlag_PressedEvenWhenAwayFromHover;
     if (mustConvert)
-        fflags |= FocusFlag_AllowPressedOnEnter;
+        interFlags |= InteractionFlag_AllowPressedOnEnter;
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ibox, fflags);
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ibox, interFlags);
 
     ly->BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
                                    .Alignment = CenterLeft,
@@ -5135,13 +5142,13 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     LyTxPar tparams = getTextParams();
-    const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
-    const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
+    const bool pressed = iflags & OverlayInteractionQueryFlag_Pressed;
+    const bool hovered = iflags & OverlayInteractionQueryFlag_Hovered;
     if (pressed || hovered)
         m_Active->Flags |= WindowInternalFlag_InputHovered;
 
     bool updated = false;
-    if ((focusFlags & OverlayFocusQueryFlag_Active) || mustConvert)
+    if ((iflags & OverlayInteractionQueryFlag_Active) || mustConvert)
     {
         m_StateFlags |= StateFlag_RequestCaptureKeyboard | StateFlag_WantCaptureKeyboard;
 
@@ -5150,7 +5157,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         TKit::TierString &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
-        const bool justActive = (focusFlags & OverlayFocusQueryFlag_JustActive) || overrideHighlight;
+        const bool justActive = (iflags & OverlayInteractionQueryFlag_JustActive) || overrideHighlight;
         const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
 
         if (justActive)
@@ -5226,7 +5233,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         });
 
         const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
-        const bool clicked = focusFlags & OverlayFocusQueryFlag_LeftClicked;
+        const bool clicked = iflags & OverlayInteractionQueryFlag_LeftClicked;
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
         const u32 charCount = str.GetSize();
@@ -5574,11 +5581,11 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
     const LayoutElementQueryInfo *elm = ly->QueryElement(id);
     OverlayColor boxCol = OverlayColor_DropDownIdle;
 
-    const OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(elm, FocusFlag_LeftClickOpensPopup);
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(elm, InteractionFlag_LeftClickOpensPopup);
 
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         boxCol = OverlayColor_DropDownPressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         boxCol = OverlayColor_DropDownHovered;
 
     const bool hasPreview = !(flags & OverlayDropDownFlag_NoPreview);
@@ -5602,7 +5609,7 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
 
     // ly->Panel(IdFromStack("__onyx_id_Push"), LyPnPar{.Sizing = grow()});
 
-    const bool dropDownActive = focusFlags & OverlayFocusQueryFlag_PopupOpen;
+    const bool dropDownActive = iflags & OverlayInteractionQueryFlag_PopupOpen;
     if (!(flags & OverlayDropDownFlag_NoArrowButton))
     {
         OverlayColor buttonCol = dropDownActive ? OverlayColor_DropDownButton : OverlayColor_DropDownHovered;
@@ -5659,8 +5666,8 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
                      .ChildGap = cgap,
                      .Flags = OverlayScrollFlag_NoBackground});
 
-        // we set a focus status to the dropdown so that it can register inputs and collapse/persist popups
-        queryAndSetFocusStatus(delm, FocusFlag_DoNotSetPressedId | FocusFlag_DoNotSetActiveId);
+        // we set an interaction status to the dropdown so that it can register inputs and collapse/persist popups
+        queryAndSetInteraction(delm, InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId);
         return true;
     }
     endHorizontalWidget(label.Title);
@@ -5903,10 +5910,10 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     OverlayColor col = framed ? OverlayColor_TreeIdle : OverlayColor_None;
 
-    OverlayFocusQueryFlags focusFlags = queryAndSetFocusStatus(ly->QueryElement(id));
-    if (focusFlags & OverlayFocusQueryFlag_Pressed)
+    OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
+    if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_TreePressed;
-    else if (focusFlags & OverlayFocusQueryFlag_Hovered)
+    else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_TreeHovered;
 
     const bool horScroll = m_Active->Flags & OverlayWindowFlag_HorizontalScroll;
@@ -5930,12 +5937,12 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
         ly->BeginPanel(IdFromStack("__onyx_id_Tree_collapse"),
                        LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
 
-    bool toggleOpen = focusFlags & OverlayFocusQueryFlag_LeftClicked;
+    bool toggleOpen = iflags & OverlayInteractionQueryFlag_LeftClicked;
     if (toggleOpen)
     {
         const bool onArrow = flags & OverlayTreeFlag_ToggleOnArrow;
         const bool onDoubleClick = !opened && (flags & OverlayTreeFlag_OpenOnDoubleClick);
-        const bool doubleClicked = focusFlags & OverlayFocusQueryFlag_DoubleClicked;
+        const bool doubleClicked = iflags & OverlayInteractionQueryFlag_DoubleClicked;
         const NativeWindow *nw = m_Active->GetNative();
         if (onArrow)
             toggleOpen = ly->IsHovered(buttonId, nw->WorldMouse) || (onDoubleClick && doubleClicked);
@@ -6075,11 +6082,11 @@ bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
         const f32 maxElementTravel = csize - size;
         const f32 barToElement = maxBarTravel > TKIT_F32_EPSILON ? (maxElementTravel / maxBarTravel) : 0.f;
 
-        const OverlayFocusQueryFlags focusFlags =
-            queryAndSetFocusStatus(scrollBar, FocusFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags =
+            queryAndSetInteraction(scrollBar, InteractionFlag_PressedEvenWhenAwayFromHover);
 
-        const bool pressed = focusFlags & OverlayFocusQueryFlag_Pressed;
-        const bool hovered = focusFlags & OverlayFocusQueryFlag_Hovered;
+        const bool pressed = iflags & OverlayInteractionQueryFlag_Pressed;
+        const bool hovered = iflags & OverlayInteractionQueryFlag_Hovered;
         if (pressed || !Math::ApproachesZero(sinfo.WheelOffset))
         {
             const f32 wheel = barToElement > TKIT_F32_EPSILON ? (sinfo.WheelOffset / barToElement) : 0.f;
@@ -6144,9 +6151,9 @@ bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 {
     Layout *ly = m_Active->GetActiveLayout();
     const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-    const FocusFlags focusFlags = queryAndSetFocusStatus(elm);
+    const InteractionFlags iflags = queryAndSetInteraction(elm);
 
-    if (focusFlags & OverlayFocusQueryFlag_DragSource)
+    if (iflags & OverlayInteractionQueryFlag_DragSource)
     {
         BeginTooltip();
 
@@ -6171,10 +6178,10 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
 
     Layout *ly = m_Active->GetActiveLayout();
     const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-    const FocusFlags focusFlags = queryAndSetFocusStatus(elm);
+    const InteractionFlags iflags = queryAndSetInteraction(elm);
 
     m_DragDropFlags = flags;
-    const bool target = focusFlags & OverlayFocusQueryFlag_DragTarget;
+    const bool target = iflags & OverlayInteractionQueryFlag_DragTarget;
     if (target)
     {
         if (!(flags & OverlayDragDropFlag_TargetNoOutline))
@@ -6190,7 +6197,7 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
         }
     }
 
-    if (focusFlags & OverlayFocusQueryFlag_DragPayloadDropped)
+    if (iflags & OverlayInteractionQueryFlag_DragPayloadDropped)
     {
         m_DragDropFlags |= DragDropFlag_PayloadDropped;
         return true;
@@ -6327,8 +6334,9 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
     return outFlags;
 }
 
-OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryInfo *elm, const FocusFlags flags,
-                                                       const f32v2 &padding, const OverlayHoveredFlags hoverFlags)
+OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElementQueryInfo *elm,
+                                                             const InteractionFlags flags, const f32v2 &padding,
+                                                             const OverlayHoveredFlags hoverFlags)
 {
     if (!elm)
     {
@@ -6336,12 +6344,12 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         return 0;
     }
 
-    OverlayFocusQueryFlags outFlags = 0;
+    OverlayInteractionQueryFlags outFlags = 0;
     TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
                 "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
                 m_PopupStack.GetSize());
 
-    const bool evenWhenAway = flags & FocusFlag_PressedEvenWhenAwayFromHover;
+    const bool evenWhenAway = flags & InteractionFlag_PressedEvenWhenAwayFromHover;
 
     const NativeWindow *nw = m_Active->GetNative();
     const OverlayHoverQueryFlags hflags = queryHoverStatus(elm, padding);
@@ -6353,23 +6361,23 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     const bool lmpressed = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMousePressed);
     const bool lmreleased = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMouseReleased);
 
-    const bool focusHovered = actKeyPressing || isElementHovered(hflags, hoverFlags | standardHoverAllowance());
+    const bool interactionHovered = actKeyPressing || isElementHovered(hflags, hoverFlags | standardHoverAllowance());
 
-    const bool setHovered = !(flags & FocusFlag_DoNotSetHoveredId);
-    const bool setPressed = !actKeyPressing && !(flags & FocusFlag_DoNotSetPressedId);
-    const bool setActive = !actKeyPressing && !(flags & FocusFlag_DoNotSetActiveId);
-    const bool setDragged = !(flags & FocusFlag_DoNotSetDraggedId);
+    const bool setHovered = !(flags & InteractionFlag_DoNotSetHoveredId);
+    const bool setPressed = !actKeyPressing && !(flags & InteractionFlag_DoNotSetPressedId);
+    const bool setActive = !actKeyPressing && !(flags & InteractionFlag_DoNotSetActiveId);
+    const bool setDragged = !(flags & InteractionFlag_DoNotSetDraggedId);
     const bool protectPopup =
-        !(flags & FocusFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
+        !(flags & InteractionFlag_DoNotProtectPopup) && !(m_StateFlags & StateFlag_PopupProtectionForbidden);
 
-    bool lclicked = focusHovered;
+    bool lclicked = interactionHovered;
     // NOTE(Isma): Could add a _ClickedOnMousePress for right clicks as well
-    if (flags & FocusFlag_ClickedOnMousePress)
+    if (flags & InteractionFlag_ClickedOnMousePress)
         lclicked &= lmpressed;
     else
         // NOTE(Isma, 03/07/25): If we are not allowed to set pressed id, there is no way we can report left clicks on
         // release. thats why we allow setting a click event even if pressed id is not set. should not break any widget
-        // focus related deal. this is mostly done for user facing read only queries
+        // interaction related deal. this is mostly done for user facing read only queries
         lclicked &= lmreleased && (!setPressed || m_PressedId == elm->Id);
 
     lclicked |= actKeyPressed;
@@ -6385,15 +6393,15 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     const bool popupHovered = actKeyPressing || isElementHovered(hflags, popHoverFlags);
     if (popupHovered && protectPopup)
     {
-        if (flags & FocusFlag_HoverOpensPopup)
+        if (flags & InteractionFlag_HoverOpensPopup)
         {
-            TKIT_ASSERT(flags & FocusFlag_HoverRequestsPopupCollapse,
+            TKIT_ASSERT(flags & InteractionFlag_HoverRequestsPopupCollapse,
                         "[ONYX][OVERLAY] Causing hover to open a popup without forcing a collapse on this level "
                         "will cause the popup stack to grow indefinitely");
             OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+            outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
-        if (flags & FocusFlag_HoverRequestsPopupCollapse)
+        if (flags & InteractionFlag_HoverRequestsPopupCollapse)
             requestCollapsePopups();
         m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth);
     }
@@ -6401,7 +6409,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     if (m_CurrentPopupDepth != m_PopupStack.GetSize())
     {
         if (m_PopupStack[m_CurrentPopupDepth] == elm->Id)
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+            outFlags |= OverlayInteractionQueryFlag_PopupOpen;
 
         // hover id is essentially used to stop windows from moving/resizing when a widget is being hovered. we
         // want to allow immediate dragging when out of the popup, and close everything, except for intermediate
@@ -6413,7 +6421,7 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         // (setHovered && popupHovered && m_CurrentPopupDepth != 0)
         // {
         //     m_HoveredId = elm->Id;
-        //     if (flags & FocusFlag_HoveredAllowsInteraction)
+        //     if (flags & InteractionFlag_HoveredAllowsInteraction)
         //         m_StateFlags |= StateFlag_HoveredAllowsInteraction;
         //     else
         //         m_StateFlags &= ~StateFlag_HoveredAllowsInteraction;
@@ -6422,20 +6430,20 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
         return outFlags;
     }
 
-    const bool allowOnEnter = flags & FocusFlag_AllowPressedOnEnter;
-    const bool rclicked = focusHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
+    const bool allowOnEnter = flags & InteractionFlag_AllowPressedOnEnter;
+    const bool rclicked = interactionHovered && (nw->Flags & NativeWindowFlag_RightMouseReleased);
     const bool pressingMouse = nw->Flags & NativeWindowFlag_PressingLeftMouse;
 
-    const bool pressed = actKeyPressing || ((focusHovered || (evenWhenAway && m_PressedId == elm->Id)) &&
+    const bool pressed = actKeyPressing || ((interactionHovered || (evenWhenAway && m_PressedId == elm->Id)) &&
                                             pressingMouse && (allowOnEnter || lmpressed || m_PressedId == elm->Id));
 
-    if (focusHovered && setHovered)
+    if (interactionHovered && setHovered)
     {
         m_HoveredId = elm->Id;
-        outFlags |= OverlayFocusQueryFlag_Hovered;
+        outFlags |= OverlayInteractionQueryFlag_Hovered;
     }
 
-    const bool dragged = (focusHovered && lmpressed) || (m_PressedId == elm->Id && pressingMouse);
+    const bool dragged = (interactionHovered && lmpressed) || (m_PressedId == elm->Id && pressingMouse);
     if (dragged)
     {
         const f32 drag = Math::NormSquared(nw->WorldMouse - nw->WorldMouseOnPress);
@@ -6448,63 +6456,63 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
                                                           OverlayHoveredFlag_AllowBlockedByDrag);
     if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
     {
-        outFlags |= OverlayFocusQueryFlag_DragTarget;
+        outFlags |= OverlayInteractionQueryFlag_DragTarget;
         if (lmreleased)
-            outFlags |= OverlayFocusQueryFlag_DragPayloadDropped;
+            outFlags |= OverlayInteractionQueryFlag_DragPayloadDropped;
     }
 
     if (pressed)
     {
         if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
-            outFlags |= OverlayFocusQueryFlag_JustActive;
+            outFlags |= OverlayInteractionQueryFlag_JustActive;
 
-        if (setActive && !(flags & FocusFlag_SetActiveOnRelease))
+        if (setActive && !(flags & InteractionFlag_SetActiveOnRelease))
             m_ActiveId = elm->Id;
-        if (setPressed && !(flags & FocusFlag_DoNotSetPressedId))
+        if (setPressed && !(flags & InteractionFlag_DoNotSetPressedId))
             m_PressedId = elm->Id;
-        outFlags |= OverlayFocusQueryFlag_Pressed;
+        outFlags |= OverlayInteractionQueryFlag_Pressed;
     }
     if (lclicked)
     {
-        outFlags |= OverlayFocusQueryFlag_LeftClicked;
+        outFlags |= OverlayInteractionQueryFlag_LeftClicked;
         if (nw->OverflowClicks == 1)
-            outFlags |= OverlayFocusQueryFlag_DoubleClicked;
+            outFlags |= OverlayInteractionQueryFlag_DoubleClicked;
 
         if (setActive)
         {
-            if (flags & FocusFlag_ToggleActiveOnRelease)
+            if (flags & InteractionFlag_ToggleActiveOnRelease)
                 m_ActiveId = m_ActiveId == elm->Id ? LayoutId{NullLayoutId} : elm->Id;
             else
                 m_ActiveId = elm->Id;
         }
-        if (flags & FocusFlag_LeftClickOpensPopup)
+        if (flags & InteractionFlag_LeftClickOpensPopup)
         {
             OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+            outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
     }
     // no rclicked if lclicked, so that popup doesnt increase twice
     else if (rclicked)
     {
-        outFlags |= OverlayFocusQueryFlag_RightClicked;
-        if (flags & FocusFlag_RightClickOpensPopup)
+        outFlags |= OverlayInteractionQueryFlag_RightClicked;
+        if (flags & InteractionFlag_RightClickOpensPopup)
         {
             OpenPopup(elm->Id);
-            outFlags |= OverlayFocusQueryFlag_PopupOpen;
+            outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
     }
 
     if (m_PressedId == elm->Id && !lmreleased)
     {
         m_StateFlags |= StateFlag_PressedIdMustPersist;
-        if (flags & FocusFlag_PressedAllowsInteraction)
+        if (flags & InteractionFlag_PressedAllowsInteraction)
             m_StateFlags |= StateFlag_PressedAllowsInteraction;
         else
             m_StateFlags &= ~StateFlag_PressedAllowsInteraction;
     }
     if (m_HoveredId == elm->Id)
     {
-        if (flags & FocusFlag_HoveredAllowsInteraction)
+        if (flags & InteractionFlag_HoveredAllowsInteraction)
             m_StateFlags |= StateFlag_HoveredAllowsInteraction;
         else
             m_StateFlags &= ~StateFlag_HoveredAllowsInteraction;
@@ -6512,22 +6520,23 @@ OverlayFocusQueryFlags Overlay::queryAndSetFocusStatus(const LayoutElementQueryI
     if (m_DraggedId == elm->Id && !lmreleased)
     {
         m_StateFlags |= StateFlag_DraggedIdMustPersist;
-        outFlags |= OverlayFocusQueryFlag_DragSource;
+        outFlags |= OverlayInteractionQueryFlag_DragSource;
     }
 
     if (m_ActiveId == elm->Id)
     {
-        const bool unclaimOnPress = lmpressed && (!focusHovered || !(flags & FocusFlag_KeepActiveOnPressed));
-        const bool unclaimOnRelease = lmreleased && !(flags & FocusFlag_KeepActiveOnRelease);
+        const bool unclaimOnPress =
+            lmpressed && (!interactionHovered || !(flags & InteractionFlag_KeepActiveOnPressed));
+        const bool unclaimOnRelease = lmreleased && !(flags & InteractionFlag_KeepActiveOnRelease);
 
         // NOTE(Isma, 25/06/06): I dont remember what i meant by that
         // NOTE(Isma): Should allow flagging as active still?
         if (!unclaimOnPress && !unclaimOnRelease)
         {
             m_StateFlags |= StateFlag_ActiveIdMustPersist;
-            outFlags |= OverlayFocusQueryFlag_Active;
+            outFlags |= OverlayInteractionQueryFlag_Active;
 
-            if ((flags & FocusFlag_ActiveAllowsInteraction) && !pressed)
+            if ((flags & InteractionFlag_ActiveAllowsInteraction) && !pressed)
                 m_StateFlags |= StateFlag_ActiveAllowsInteraction;
             // NOTE(Isma, 25/06/06): Should consider unsetting this only on setActive bool var
             else
@@ -7317,10 +7326,10 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         ov->CheckBoxFlags("OverlayHoveredFlag_Stationary", &hflags, Onyx::OverlayHoveredFlag_Stationary);
 
-        ov->HorizontalSeparator("Focus flags");
-        static Onyx::OverlayFocusFlags fflags = 0;
-        ov->CheckBoxFlags("OverlayFocusFlag_PressedEvenWhenAwayFromHover", &fflags,
-                          Onyx::OverlayFocusFlag_PressedEvenWhenAwayFromHover);
+        ov->HorizontalSeparator("Interaction flags");
+        static Onyx::OverlayInteractionFlags interFlags = 0;
+        ov->CheckBoxFlags("OverlayInteractionFlag_PressedEvenWhenAwayFromHover", &interFlags,
+                          Onyx::OverlayInteractionFlag_PressedEvenWhenAwayFromHover);
 
         ov->HorizontalSeparator("The experiment");
         if (ov->PushTree("I am to be queried"))
@@ -7329,7 +7338,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         const bool hovered = ov->IsItemHovered(hflags);
         const bool opened = ov->IsItemOpened();
         const Onyx::OverlayHoverQueryFlags hqflags = ov->QueryItemHoverStatus();
-        const Onyx::OverlayFocusQueryFlags fqflags = ov->QueryItemFocusStatus(fflags);
+        const Onyx::OverlayInteractionQueryFlags iqflags = ov->QueryItemInteraction(interFlags);
 
         ov->HorizontalSeparator("Hovering info");
         ov->Text("Hovered: {}", hovered);
@@ -7342,34 +7351,34 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->Text("Blocked by disabled : {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_BlockedByDisabled));
         ov->Text("Natively hovered: {}", bool(hqflags & Onyx::OverlayHoverQueryFlag_Hovered));
 
-        ov->HorizontalSeparator("Focus info");
+        ov->HorizontalSeparator("Interaction info");
 
         static TKit::Clock lclickClock{};
         static TKit::Clock rclickClock{};
         static TKit::Clock dclickClock{};
 
-        if (fqflags & Onyx::OverlayFocusQueryFlag_LeftClicked)
+        if (iqflags & Onyx::OverlayInteractionQueryFlag_LeftClicked)
             lclickClock.Restart();
-        if (fqflags & Onyx::OverlayFocusQueryFlag_RightClicked)
+        if (iqflags & Onyx::OverlayInteractionQueryFlag_RightClicked)
             rclickClock.Restart();
-        if (fqflags & Onyx::OverlayFocusQueryFlag_DoubleClicked)
+        if (iqflags & Onyx::OverlayInteractionQueryFlag_DoubleClicked)
             dclickClock.Restart();
 
-        ov->Text("Hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Hovered));
-        ov->Text("Pressed: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Pressed));
+        ov->Text("Hovered: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Hovered));
+        ov->Text("Pressed: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Pressed));
         ov->Text("Left clicked: {:.1f} seconds ago", lclickClock.GetElapsed().AsSeconds());
         ov->Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
         ov->Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
-        ov->Text("Active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_Active));
-        ov->Text("Just active: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_JustActive));
-        ov->Text("Dragged: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DragSource));
-        ov->Text("Drag hovered: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_DragTarget));
-        ov->Text("Popup open: {}", bool(fqflags & Onyx::OverlayFocusQueryFlag_PopupOpen));
+        ov->Text("Active: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Active));
+        ov->Text("Just active: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_JustActive));
+        ov->Text("Dragged: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_DragSource));
+        ov->Text("Drag hovered: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_DragTarget));
+        ov->Text("Popup open: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_PopupOpen));
 
         ov->HorizontalSeparator("State info");
         ov->Text("Opened: {}", opened);
 
-        ov->HorizontalSeparator("Focus info");
+        ov->HorizontalSeparator("Interaction info");
         ov->Text("Want capture mouse: {}", ov->WantCaptureMouse());
         ov->Text("Want capture keyboard: {}", ov->WantCaptureKeyboard());
 
