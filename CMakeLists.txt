@@ -17,6 +17,9 @@ set(CMAKE_BUILD_TYPE
 set(ONYX_BUILD_DEMOS
     OFF
     CACHE BOOL "")
+set(ONYX_BUILD_EDITOR
+    OFF
+    CACHE BOOL "")
 set(ONYX_ENABLE_IMGUI
     OFF
     CACHE BOOL "")
@@ -67,7 +70,15 @@ if(ONYX_COMPILE_SHADERS_ON_EXEC AND NOT ONYX_ENABLE_SHADER_API)
   )
 endif()
 
+if(ONYX_BUILD_EDITOR AND NOT ONYX_INCLUDE_DEFAULT_FONT)
+  message(
+    ERROR
+    "ONYX - The editor requires ONYX_INCLUDE_DEFAULT_FONT set to ON to be built"
+  )
+endif()
+
 message(STATUS "ONYX - BUILD DEMOS: ${ONYX_BUILD_DEMOS}")
+message(STATUS "ONYX - BUILD EDITOR: ${ONYX_BUILD_EDITOR}")
 message(STATUS "ONYX - USE IMGUI: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - USE IMPLOT: ${ONYX_ENABLE_IMPLOT}")
 message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
@@ -85,4 +96,7 @@ add_subdirectory(onyx)
 
 if(ONYX_BUILD_DEMOS)
   add_subdirectory(demo)
+endif()
+if(ONYX_BUILD_EDITOR)
+  add_subdirectory(editor)
 endif()
