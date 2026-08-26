@@ -1596,15 +1596,37 @@ class Overlay
         TextIcon(icon, TextMode_Unbounded, str, std::forward<Args>(args)...);
     }
 
-    void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
+    void Image(const Resource texture, const LySz2 &size, const f32v2 &offset = f32v2{0.f},
                const f32v2 &scale = f32v2{1.f})
     {
         m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = Color_White,
-                                                   .Sizing = sabs(size),
+                                                   .Sizing = size,
                                                    .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
                                                    .Texture = texture,
                                                    .TexOffset = offset,
                                                    .TexScale = scale});
+    }
+    LayoutId Image(const LayoutId id, const Resource texture, const LySz2 &size, const f32v2 &offset = f32v2{0.f},
+                   const f32v2 &scale = f32v2{1.f})
+    {
+        m_LastItem = m_Active->GetActiveLayout()->Panel(id, LyPnPar{.FillColor = Color_White,
+                                                                    .Sizing = size,
+                                                                    .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
+                                                                    .Texture = texture,
+                                                                    .TexOffset = offset,
+                                                                    .TexScale = scale});
+        return m_LastItem;
+    }
+
+    void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
+               const f32v2 &scale = f32v2{1.f})
+    {
+        Image(texture, sabs(size), offset, scale);
+    }
+    LayoutId Image(const LayoutId id, const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
+                   const f32v2 &scale = f32v2{1.f})
+    {
+        return Image(id, texture, sabs(size), offset, scale);
     }
 
     void BeginDisabled(bool enabled = true);
@@ -1794,6 +1816,15 @@ class Overlay
     void Panel(const LyPnPar &params = {})
     {
         m_Active->GetActiveLayout()->Panel(params);
+    }
+
+    const LayoutElementQueryInfo *QueryElement(const LayoutId id)
+    {
+        return m_Active->GetActiveLayout()->QueryElement(id);
+    }
+    const LayoutElementQueryInfo *QueryLastItem()
+    {
+        return m_Active->GetActiveLayout()->QueryElement(m_LastItem);
     }
 
     bool PushTree(OverlayLabel label, const OverlayTreeFlags flags = 0);

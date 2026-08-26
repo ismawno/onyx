@@ -1709,7 +1709,10 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
                                .Sizing = snorm(1.f),
                                .Floating = fparams,
-                               .ChildOverflow = LayoutOverflow_Spill,
+                               // removed because it doesnt seem to have an effect and tampers with popup resize
+                               // announcements (see processWindows() function)
+
+                               // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
 
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Left"),
@@ -1721,7 +1724,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
                                .Sizing = snorm(1.f),
                                .Floating = fparams,
-                               .ChildOverflow = LayoutOverflow_Spill,
+                               // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
         ly->Panel(LyPnPar{.Sizing = grow()});
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Right"),
@@ -1733,7 +1736,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop,
                                .Sizing = snorm(1.f),
                                .Floating = fparams,
-                               .ChildOverflow = LayoutOverflow_Spill,
+                               // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
 
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Bottom"),
@@ -1745,7 +1748,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop,
                                .Sizing = snorm(1.f),
                                .Floating = fparams,
-                               .ChildOverflow = LayoutOverflow_Spill,
+                               // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
         ly->Panel(LyPnPar{.Sizing = grow()});
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Top"),

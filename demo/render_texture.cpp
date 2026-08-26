@@ -13,7 +13,7 @@ int main()
     Onyx::Resources::CreateDefaultResources();
 
     Onyx::Window *win = Onyx::OpenWindow();
-    Onyx::Overlay *ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_WindowPromotions});
+    Onyx::Overlay *ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking});
 
     u32v2 rdims1 = {800, 600};
     u32v2 rdims2 = {800, 600};
