@@ -3165,6 +3165,8 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
                     OverlayTabBarFlag_Reorderable | OverlayTabBarFlag_NoBottomLine | TabBarFlag_ForDocking;
                 if (node->Flags & OverlayDockNodeFlag_HideTabBar)
                     tflags |= OverlayTabBarFlag_HideTabBar;
+                if (node->Flags & OverlayDockNodeFlag_NoHorizontalScroll)
+                    tflags |= OverlayTabBarFlag_NoHorizontalScroll;
                 beginTabBar(&node->TabData, IdFromStack(nodeId), tflags);
             }
             ly->EndPanel();
@@ -4819,13 +4821,18 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
     data->Flags = flags | (data->Flags & TabBarFlag_HideTabBar);
     if (!(data->Flags & (TabBarFlag_HideTabBar | OverlayTabBarFlag_HideTabBar)))
     {
+        // if this is false, could actually just replace this begin scroll for a trivial panel
+        const bool hscroll = data->Tabs.GetSize() > 1 && !(flags & OverlayTabBarFlag_NoHorizontalScroll);
+        OverlayScrollFlags sflags = OverlayScrollFlag_NoVerticalScroll;
+        if (hscroll)
+            sflags |= OverlayScrollFlag_HorizontalScroll;
         data->Id = beginScroll({.Id = id,
                                 .Direction = LayoutDirection_LeftToRight,
                                 .OuterSizing = scrollSizing,
                                 .ContentSizing = scrollSizing,
                                 .ContentPadding = 0.f,
                                 .ChildGap = m_Style[OverlayStyle_TabGap],
-                                .Flags = OverlayScrollFlag_NoVerticalScroll | OverlayScrollFlag_HorizontalScroll});
+                                .Flags = sflags});
 
         endScroll();
     }
@@ -5879,8 +5886,7 @@ void Overlay::resetTooltip()
 /// LAYOUT
 /////////////////////////////////////////////
 
-void Overlay::BeginScroll(const OverlayLabel label, const f32 maxHeight, const f32 maxWidth,
-                          const OverlayScrollFlags flags)
+void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const OverlayScrollFlags flags)
 {
     const LayoutId id = PushId(label.Id);
     const bool autoResize = isAutoResize();
@@ -5889,10 +5895,13 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32 maxHeight, const f
 
     const bool borders = flags & OverlayScrollFlag_Borders;
     const bool tight = flags & OverlayScrollFlag_Tight;
+    const bool flexWidth = flags & OverlayScrollFlag_FlexWidth;
 
-    const f32 omw = maxWidth + 2.f * padding;
-    const LySz2 outer = {autoResize ? fit() : grow(0.f, omw), fit()};
-    const LySz2 content = {autoResize ? fit(0.f, maxWidth) : grow(0.f, maxWidth), fit(0.f, maxHeight)};
+    const auto sfun = flexWidth ? flex : grow;
+
+    const f32 omw = maxSize[0] == TKIT_F32_MAX ? TKIT_F32_MAX : (maxSize[0] + 2.f * padding);
+    const LySz2 outer = {autoResize ? fit() : sfun(0.f, omw), fit()};
+    const LySz2 content = {autoResize ? fit(0.f, maxSize[0]) : sfun(0.f, maxSize[0]), fit(0.f, maxSize[1])};
 
     Layout *ly = m_Active->GetActiveLayout();
     ly->BeginPanel(LyPnPar{.FillColor = borders ? m_Style[OverlayColor_ScrollAreaBorders] : Color_Transparent,
@@ -7109,6 +7118,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->SetItemTooltipRaw("It is strongly recommended you leave this on");
         ov->CheckBoxFlags("OverlayDockNodeFlag_NoResize", &dflags, Onyx::OverlayDockNodeFlag_NoResize);
         ov->CheckBoxFlags("OverlayDockNodeFlag_HideTabBar", &dflags, Onyx::OverlayDockNodeFlag_HideTabBar);
+        ov->CheckBoxFlags("OverlayDockNodeFlag_NoHorizontalScroll", &dflags,
+                          Onyx::OverlayDockNodeFlag_NoHorizontalScroll);
 
         if (ov->PushTree("Window flags", drawLines))
         {
@@ -7464,7 +7475,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         else
             ov->HorizontalSlider("Maximum dimensions", &dimensions, 50.f, 800.f, "{:.0f}");
 
-        ov->BeginScroll("Title", dimensions[1], xunlim ? TKIT_F32_MAX : dimensions[0], sflags);
+        ov->BeginScroll("Title", {xunlim ? TKIT_F32_MAX : dimensions[0], dimensions[1]}, sflags);
 
         ov->TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
                     "showcase the feature");
@@ -7476,7 +7487,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             ov->PopTree();
         }
 
-        ov->BeginScroll("I am yet another scroll", 200.f, 200.f, sflags);
+        ov->BeginScroll("I am yet another scroll", {200.f, 200.f}, sflags);
         if (ov->PushTree("Some more content"))
         {
             for (u32 i = 0; i < 10; ++i)
@@ -7563,6 +7574,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBoxFlags("OverlayTabBarFlag_Reorderable", &tflags, Onyx::OverlayTabBarFlag_Reorderable);
         ov->CheckBoxFlags("OverlayTabBarFlag_NoBottomLine", &tflags, Onyx::OverlayTabBarFlag_NoBottomLine);
         ov->CheckBoxFlags("OverlayTabBarFlag_HideTabBar", &tflags, Onyx::OverlayTabBarFlag_HideTabBar);
+        ov->CheckBoxFlags("OverlayTabBarFlag_NoHorizontalScroll", &tflags, Onyx::OverlayTabBarFlag_NoHorizontalScroll);
         ov->CheckBox("Enable tab 1", &tab1);
         ov->CheckBox("Enable tab 3", &tab3);
 

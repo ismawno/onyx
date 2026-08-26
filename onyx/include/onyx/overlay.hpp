@@ -370,9 +370,10 @@ enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
     OverlayDockNodeFlag_NoResize = 1U << 1,
     OverlayDockNodeFlag_HideTabBar = 1U << 2,
     OverlayDockNodeFlag_StartWithTabBarHidden = 1U << 3,
+    OverlayDockNodeFlag_NoHorizontalScroll = 1U << 4,
 
-    DockNodeFlag_MustUndock = 1U << 4,
-    DockNodeFlag_MustGrabWhenUndocked = 1U << 5,
+    DockNodeFlag_MustUndock = 1U << 5,
+    DockNodeFlag_MustGrabWhenUndocked = 1U << 6,
 };
 
 struct Tab
@@ -948,6 +949,7 @@ enum OverlayScrollFlagBit : OverlayScrollFlags
     OverlayScrollFlag_NoScrollBar = 1U << 4,
     OverlayScrollFlag_NoVerticalScroll = 1U << 5,
     OverlayScrollFlag_HorizontalScroll = 1U << 6,
+    OverlayScrollFlag_FlexWidth = 1U << 7,
 };
 
 enum OverlayPopupFlagBit : OverlayPopupFlags
@@ -980,9 +982,10 @@ enum OverlayTabBarFlagBit : OverlayTabBarFlags
     OverlayTabBarFlag_Reorderable = 1U << 0,
     OverlayTabBarFlag_NoBottomLine = 1U << 1,
     OverlayTabBarFlag_HideTabBar = 1U << 2,
+    OverlayTabBarFlag_NoHorizontalScroll = 1U << 3,
 
-    TabBarFlag_ForDocking = 1U << 3,
-    TabBarFlag_HideTabBar = 1U << 4,
+    TabBarFlag_ForDocking = 1U << 4,
+    TabBarFlag_HideTabBar = 1U << 5,
 };
 
 enum OverlayTabFlagBit : OverlayTabFlags
@@ -1760,10 +1763,10 @@ class Overlay
     /// LAYOUT PUBLIC
     /////////////////////////////////////////////
 
-    void BeginScroll(OverlayLabel label, f32 maxHeight, f32 maxWidth, OverlayScrollFlags flags = 0);
+    void BeginScroll(OverlayLabel label, const f32v2 &maxSize, OverlayScrollFlags flags = 0);
     void BeginScroll(OverlayLabel label, f32 maxHeight, OverlayScrollFlags flags = 0)
     {
-        BeginScroll(label, maxHeight, TKIT_F32_MAX, flags);
+        BeginScroll(label, {TKIT_F32_MAX, maxHeight}, flags);
     }
     void EndScroll()
     {
