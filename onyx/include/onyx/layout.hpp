@@ -430,7 +430,7 @@ class Layout
     }
     void Panel(const LayoutPanelParameters &params = {})
     {
-        Panel(GenerateNextId(), params);
+        Panel(NullLayoutId, params);
     }
 
     void EndPanel();
@@ -496,11 +496,6 @@ class Layout
         applySpecDefaults();
     }
 
-    LayoutId GenerateNextId()
-    {
-        return TKit::Hash(++m_AutoId.Id);
-    }
-
     bool HasCustomDepthCounter() const
     {
         return m_CustomDepth;
@@ -530,7 +525,6 @@ class Layout
     u16 m_ElementWithIdCount = 0;
 
     LayoutSpecs m_Specs{};
-    LayoutId m_AutoId = usz(0);
     bool m_CustomDepth = false;
 };
 } // namespace Onyx

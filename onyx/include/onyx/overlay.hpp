@@ -1850,7 +1850,7 @@ class Overlay
 
     void PushDirection(const LayoutDirection dir, const f32 childGap)
     {
-        BeginPanel({.Direction = dir, .Alignment = TopLeft, .Sizing = fit(), .ChildGap = childGap});
+        BeginPanel({.Direction = dir, .Alignment = TopLeft, .Sizing = {grow(), fit()}, .ChildGap = childGap});
     }
     void PushDirection(const LayoutDirection dir)
     {

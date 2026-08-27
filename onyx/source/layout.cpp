@@ -963,7 +963,6 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
     positionPass(breadth);
 
     generateDrawInfo(depthCounter, floatDepthCounter);
-    m_AutoId = usz(0);
     m_ElementWithIdCount = 0;
 }
 
@@ -973,7 +972,6 @@ void Layout::Reset()
     m_Elements.Clear();
     m_InsertedElements.Clear();
     m_DrawInfo.Clear();
-    m_AutoId = usz(0);
 }
 
 void Layout::applySpecDefaults()
