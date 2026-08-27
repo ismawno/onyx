@@ -627,6 +627,14 @@ struct NativeWindow
     {
         return View->ScreenToWorld(View->ToNormalized(screen - ScreenPos));
     }
+    f32v2 ToLocalScreen(const f32v2 &world) const
+    {
+        return View->ToAbsolute(View->WorldToScreen(world));
+    }
+    f32v2 ToLocalWorld(const f32v2 &screen) const
+    {
+        return View->ScreenToWorld(View->ToNormalized(screen));
+    }
 
     f32v2 GetWorldTopLeft() const
     {
@@ -778,13 +786,11 @@ struct OverlayWindow
 
     f32v2 ToLocalScreen(const f32v2 &world) const
     {
-        NativeWindow *nw = GetNative();
-        return nw->View->ToAbsolute(nw->View->WorldToScreen(world));
+        return GetNative()->ToLocalScreen(world);
     }
     f32v2 ToLocalWorld(const f32v2 &screen) const
     {
-        NativeWindow *nw = GetNative();
-        return nw->View->ScreenToWorld(nw->View->ToNormalized(screen));
+        return GetNative()->ToLocalWorld(screen);
     }
 };
 

@@ -15,17 +15,19 @@ struct IdLabelData
 
     Onyx::OverlayLabel Editor = "Editor";
     Onyx::OverlayLabel Hierarchy = "Hierarchy";
-    Onyx::OverlayLabel MainViewport = "Main viewport";
+    Onyx::OverlayLabel MainViewport = "Viewport 0";
     Onyx::OverlayLabel Entity = "Entity";
     Onyx::OverlayLabel Console = "Console";
     Onyx::OverlayLabel AssetBrowser = "Asset browser";
     Onyx::OverlayLabel Inspector = "Inspector";
+    Onyx::OverlayLabel Rendering = "Rendering";
 };
 
 struct Viewport
 {
     Onyx::RenderTexture *Target;
     f32v2 Position;
+    f32v2 Size;
     u32v2 Resolution;
     f32 Aspect;
 };
@@ -64,6 +66,7 @@ static Viewport init_CreateViewport()
 
     vp.Target = rt;
     vp.Position = 0.f;
+    vp.Size = 1.f;
     vp.Resolution = size;
     vp.Aspect = 16.f / 9.f;
 
@@ -84,12 +87,12 @@ static Onyx::Overlay *init_CreateOverlay(Onyx::Window *win)
 
         const Onyx::OverlayDockNode *mainTree = Onyx::DockTabBar(idData.Editor.Id);
         const Onyx::OverlayDockNode *editorTree = Onyx::DockSplit(
-            Onyx::LayoutAxis_Vertical, 0.35f,
+            Onyx::LayoutAxis_Vertical, 0.15f,
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f, Onyx::DockTabBar(idData.Hierarchy.Id),
                             Onyx::DockTabBar(idData.Entity.Id)),
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f,
                             Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(idData.MainViewport.Id),
-                                            Onyx::DockTabBar(idData.Inspector.Id)),
+                                            Onyx::DockTabBar({idData.Inspector.Id, idData.Rendering.Id})),
                             Onyx::DockTabBar({idData.Console.Id, idData.AssetBrowser.Id})));
 
         ov->ApplyDockTree(idData.MainDockSpace, mainTree);
@@ -159,10 +162,11 @@ static void viewportWindow_Draw()
                 w = h * vp.Aspect;
             }
 
-            ov->Image(*vp.Target, f32v2{w, h});
+            vp.Size = f32v2{w, h};
+            ov->Image(idData.Viewport, *vp.Target, vp.Size);
         }
         else
-            ov->Image(*vp.Target, Onyx::LayoutSizing::Grow());
+            ov->Image(idData.Viewport, *vp.Target, Onyx::LayoutSizing::Grow());
         ov->EndPanel();
 
         if (ov->BeginMenuBar())
@@ -418,7 +422,6 @@ static void consoleWindow_Draw()
         ov->EndWindow();
     }
 }
-
 static void inspectorWindow_Draw()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
@@ -428,8 +431,47 @@ static void inspectorWindow_Draw()
         ov->EndWindow();
     }
 }
+static void renderingWindow_Draw()
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    const IdLabelData &idData = s_Data->Labels;
+    if (ov->BeginWindow(idData.Rendering))
+    {
+        ov->EndWindow();
+    }
+}
 
-static void run_ControlCamera()
+template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
+{
+    const Viewport &vp = s_Data->Viewport;
+    const Onyx::RenderTexture *rt = vp.Target;
+
+    Onyx::Window *win = s_Data->Window;
+
+    const auto views = rt->GetSortedViews<D>();
+
+    const f32v2 vpScreenPos =
+        s_Data->Overlay->GetMainNativeWindow()->ToLocalScreen(vp.Position + f32v2{0.f, vp.Size[1]});
+
+    const f32v2 ampos = win->GetAbsoluteMousePosition() - vpScreenPos;
+    const f32v2 nmpos = ampos / vp.Size;
+
+    for (Onyx::RenderView<D> *rv : views)
+    {
+        const bool normalized = rv->GetFlags() & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
+        const f32v2 mpos = normalized ? nmpos : ampos;
+        if (rv->IsWithinViewport(normalized ? nmpos : ampos))
+        {
+            const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
+            if constexpr (D == D2)
+                rv->ZoomScroll(mpos, factor * scroll);
+            else
+                rv->ZoomScroll(f32v3{mpos, 0.5f}, factor * scroll);
+        }
+    }
+}
+
+static void editor_ControlCamera()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     Onyx::Window *win = s_Data->Window;
@@ -438,10 +480,16 @@ static void run_ControlCamera()
         const TKit::Timespan dt = Onyx::GetDeltaTime(win);
         win->ControlCamera(dt, &s_Data->EditorCamera);
     }
-    for (const Onyx::Event &ev : win->GetNewEvents())
-        if (ev.Type == Onyx::Event_Scrolled)
-        {
-        }
+
+    if (!ov->WantCaptureScroll())
+        for (const Onyx::Event &ev : win->GetNewEvents())
+            if (ev.Type == Onyx::Event_Scrolled)
+            {
+                const f32 scroll = ev.ScrollOffset[1];
+                editor_ApplyZoom<D2>(scroll);
+                editor_ApplyZoom<D3>(scroll);
+                break;
+            }
 }
 
 void Run()
@@ -461,8 +509,9 @@ void Run()
     assetBrowserWindow_Draw();
     consoleWindow_Draw();
     inspectorWindow_Draw();
+    renderingWindow_Draw();
 
-    run_ControlCamera();
+    editor_ControlCamera();
 
     s_Data->ActiveScene.Draw();
 
