@@ -2039,6 +2039,7 @@ class Overlay
         return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
     }
     bool WantCaptureMouse() const;
+    bool WantCaptureScroll() const;
     bool WantCaptureKeyboard() const;
 
     /////////////////////////////////////////////

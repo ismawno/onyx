@@ -68,11 +68,12 @@ enum StateFlagBit : StateFlags
     StateFlag_RequestCaptureKeyboard = 1U << 11,
 
     StateFlag_WantCaptureMouse = 1U << 12,
-    StateFlag_WantCaptureKeyboard = 1U << 13,
+    StateFlag_WantCaptureScroll = 1U << 13,
+    StateFlag_WantCaptureKeyboard = 1U << 14,
 
-    StateFlag_DragPayloadAccepted = 1U << 14,
-    StateFlag_DragPayloadRejected = 1U << 15,
-    StateFlag_ActivePromotedFloatElement = 1U << 16,
+    StateFlag_DragPayloadAccepted = 1U << 15,
+    StateFlag_DragPayloadRejected = 1U << 16,
+    StateFlag_ActivePromotedFloatElement = 1U << 17,
 
     // we include all flags except for the active allows interaction. that one is only cleared when active id is cleared
     StateFlagPersist = StateFlag_ActiveAllowsInteraction | StateFlag_PressedAllowsInteraction |
@@ -2333,6 +2334,9 @@ u32 Overlay::processWindows()
         if (!hinfo && (sinfo.Flags & OverlayWindowFlag_HorizontalScroll))
             hinfo = &sinfo.Horizontal;
     }
+
+    if (vinfo || hinfo)
+        m_StateFlags |= StateFlag_WantCaptureScroll;
 
     if (vinfo)
         vinfo->WheelOffset += scroll[1];
@@ -6267,6 +6271,10 @@ bool Overlay::WantCaptureMouse() const
 {
     return m_StateFlags & StateFlag_WantCaptureMouse;
 }
+bool Overlay::WantCaptureScroll() const
+{
+    return m_StateFlags & StateFlag_WantCaptureScroll;
+}
 bool Overlay::WantCaptureKeyboard() const
 {
     return m_StateFlags & StateFlag_WantCaptureKeyboard;
@@ -7419,6 +7427,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         ov->HorizontalSeparator("Interaction info");
         ov->Text("Want capture mouse: {}", ov->WantCaptureMouse());
+        ov->Text("Want capture scroll: {}", ov->WantCaptureScroll());
         ov->Text("Want capture keyboard: {}", ov->WantCaptureKeyboard());
 
         ov->PopTree();
