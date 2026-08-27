@@ -1792,7 +1792,7 @@ class Overlay
         else
             HorizontalLine();
     }
-    void HorizontalSeparator(OverlayLabel label);
+    void HorizontalSeparator(TKit::StringView title);
     void HorizontalLine()
     {
         m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],

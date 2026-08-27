@@ -233,7 +233,7 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
     const f32 fs = params.FontSize;
 
     elm.FontSize = fs;
-    elm.Text = TKit::TierString{text.GetData(), text.GetSize()};
+    elm.Text = text;
     elm.Size = Math::Max(fs * fdata.ComputeTextSize(text), params.MinSize);
     elm.MinSize[0] = elm.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : elm.Size[0];
     elm.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero

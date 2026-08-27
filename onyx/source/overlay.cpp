@@ -5056,7 +5056,7 @@ bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled
     if (idx == TKIT_U32_MAX)
     {
         idx = data->Tabs.GetSize();
-        data->Tabs.Append(tabId, window, TKit::TierString{label.Title.GetData(), label.Title.GetSize()}, flags);
+        data->Tabs.Append(tabId, window, label.Title, flags);
         data->Order.Append(idx);
     }
 
@@ -5937,7 +5937,7 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const 
                  .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
                  .Flags = flags});
 }
-void Overlay::HorizontalSeparator(const OverlayLabel label)
+void Overlay::HorizontalSeparator(const TKit::StringView title)
 {
     Layout *ly = m_Active->GetActiveLayout();
     ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
@@ -5951,7 +5951,7 @@ void Overlay::HorizontalSeparator(const OverlayLabel label)
     ly->Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
 
-    ly->Text(label.Title, getTextParams());
+    ly->Text(title, getTextParams());
     ly->Panel(LyPnPar{
         .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
     ly->EndPanel();
