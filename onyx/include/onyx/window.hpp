@@ -181,7 +181,7 @@ class Window final : public RenderTarget
 
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
-        const TKit::TierArray<RenderView<D> *> &rvs = getSortedViews<D>();
+        const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> rvs = GetSortedViews<D>();
         const f32v2 mpos = GetNormalizedMousePosition();
 
         for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
@@ -194,8 +194,8 @@ class Window final : public RenderTarget
     RenderTargetInfo CreateRenderTargetInfo() override
     {
         RenderTargetInfo info;
-        info.Views2 = getSortedViews<D2>();
-        info.Views3 = getSortedViews<D3>();
+        info.Views2 = GetSortedViews<D2>();
+        info.Views3 = GetSortedViews<D3>();
         info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
         info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
         return info;

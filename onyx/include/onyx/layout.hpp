@@ -305,7 +305,6 @@ struct LayoutElement
 
     Color FillColor;
     Color OutlineColor;
-    u16 Depth;
     vec2<Alignment> Alignment{Alignment_Canonical};
     LayoutDirection Direction;
     LayoutElementType Type;
@@ -526,7 +525,6 @@ class Layout
     TKit::TierHashMap<LayoutId, u32> m_QueryMap{};
 
     TKit::TierArray<u16> m_ElementStack{};
-    TKit::TierArray<u16> m_DepthStack{};
     TKit::TierArray<LayoutDrawInfo> m_DrawInfo{};
 
     u16 m_ElementWithIdCount = 0;

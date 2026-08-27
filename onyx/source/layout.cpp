@@ -64,10 +64,6 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         m_ElementStack.Append(c);
         if (p != TKIT_U16_MAX)
         {
-            const u16 depth = m_DepthStack.GetBack();
-            current.Depth = depth;
-            m_DepthStack.Append(depth + 1);
-
             LayoutElement &parent = m_Elements[p];
             parent.Children.Append(c);
 
@@ -98,8 +94,6 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
 
             TKIT_ASSERT(!params.Floating.Enable, "[ONYX][LAYOUT] The root layout element cannot be floating");
 
-            m_DepthStack.Append(0);
-            current.Depth = 0;
             current.ClipMin = f32v2{TKIT_F32_MIN};
             current.ClipMax = f32v2{TKIT_F32_MAX};
         }
@@ -175,7 +169,6 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         parent.Children.Append(c);
         ++parent.NonFloatChildCount;
 
-        current.Depth = m_DepthStack.GetBack();
         current.Alignment = parent.Alignment;
         current.SelfOverflow = params.Overflow == LayoutOverflow_None ? parent.ChildOverflow : params.Overflow;
         if (parent.Flags & LayoutElementFlag_FloatDrawOnTop)
@@ -219,7 +212,6 @@ LayoutId Layout::OpenPanel(const LayoutId id)
 
     const u32 c = m_InsertedElements[id] & 0x0000FFFF;
     m_ElementStack.Append(c);
-    m_DepthStack.Append(m_Elements[c].Depth);
     return id;
 }
 
@@ -229,7 +221,6 @@ void Layout::EndPanel()
                 "[ONYX][LAYOUT] Begin()/End() Mismatch! Every Begin() must be matched with an End()");
 
     m_ElementStack.Pop();
-    m_DepthStack.Pop();
 }
 
 LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const LayoutTextParameters &params)
@@ -679,6 +670,130 @@ void Layout::positionPass(const TKit::StackArray<u16> &breadth)
     }
 }
 
+// void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
+// {
+//     TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateDrawInfo");
+//     TKIT_ASSERT(bool(depthCounter) == bool(floatDepthCounter),
+//                 "[ONYX][LAYOUT] If a depth counter is provider, both depth counter types must be provided");
+//
+//     TKit::StackArray<LayoutDrawInfo> floats{};
+//     floats.Reserve(m_Elements.GetSize());
+//
+//     m_CustomDepth = depthCounter && floatDepthCounter;
+//     m_DrawInfo.Clear();
+//     if (m_Elements.IsEmpty())
+//         return;
+//
+//     struct DepthInfo
+//     {
+//         u32 Element;
+//         u32 Depth;
+//     };
+//
+//     TKit::StackArray<DepthInfo> dfsStack{};
+//     dfsStack.Reserve(m_Elements.GetSize());
+//     dfsStack.Append(0, 0);
+//
+//     while (!dfsStack.IsEmpty())
+//     {
+//         const DepthInfo dinfo = dfsStack.GetBack();
+//         dfsStack.Pop();
+//         const LayoutElement &elm = m_Elements[dinfo.Element];
+//
+//         for (u32 i = elm.Children.GetSize() - 1; i < elm.Children.GetSize(); --i)
+//             dfsStack.Append(elm.Children[i], dinfo.Depth + 1);
+//
+//         if (elm.Id != NullLayoutId)
+//         {
+//             // persisting all past elements costs too much memory in the long run. this is at the cost of more "one
+//             // frame glitches" when past elements are not available
+//
+//             // const u32 genSize = m_GenerationalElements.GetSize();
+//             // const u32 idx = m_GenerationalMap.TryInsert(elm.Id, genSize);
+//             // if (idx == genSize)
+//             //     m_GenerationalElements.Append(elm);
+//             // else
+//             //     m_GenerationalElements[idx] = elm;
+//             m_GenerationalMap.Insert(elm.Id, m_GenerationalElements.GetSize());
+//             m_GenerationalElements.Append(elm);
+//         }
+//
+//         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
+//         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
+//         const bool sized = !Math::ApproachesZero(elm.Size[0]) && !Math::ApproachesZero(elm.Size[1]);
+//         const bool drawable = sized && (fill || outline);
+//
+//         LayoutDrawInfo info;
+//         info.Id = elm.Id;
+//         info.Depth = dinfo.Depth;
+//         info.Texture = elm.Texture;
+//         info.TexOffset = elm.TexOffset;
+//         info.TexScale = elm.TexScale;
+//         info.Material = elm.Material;
+//         info.RenderFlags = 0;
+//         info.UserData = elm.UserData;
+//         if (fill)
+//         {
+//             // NOTE(Isma): This is a weak check. If user passes a bad material that is not NullHandle, it will go
+//             // through
+//             info.RenderFlags |= elm.Material == NullHandle ? RenderModeFlag_Flat : RenderModeFlag_Shaded;
+//             info.FillColor = elm.FillColor;
+//         }
+//         if (outline)
+//         {
+//             info.RenderFlags |= RenderModeFlag_Outlined;
+//             info.OutlineColor = elm.OutlineColor;
+//             info.OutlineWidth = elm.OutlineWidth;
+//         }
+//
+//         info.Position = elm.Position;
+//         info.ClipMin = elm.ClipMin;
+//         info.ClipMax = elm.ClipMax;
+//         info.ShapeType = elm.Shape.Type;
+//         info.Flags = elm.Flags | drawable * LayoutElementFlag_Drawable;
+//         switch (elm.Shape.Type)
+//         {
+//         case LayoutShape_Circle:
+//         case LayoutShape_Rectangle:
+//         case LayoutShape_Glyph:
+//         case LayoutShape_Static:
+//         case LayoutShape_Dynamic:
+//             info.Handle = elm.Shape.Handle;
+//             info.Size = elm.Size;
+//             break;
+//         case LayoutShape_RoundedRectangle:
+//             info.Handle = elm.Shape.Handle;
+//             info.Radius = Math::Min(elm.Shape.Radius, 0.5f * Math::Min(elm.Size[0], elm.Size[1]));
+//             info.Size = elm.Size - 2.f * info.Radius;
+//             break;
+//         case LayoutShape_Text:
+//             info.Handle = elm.Font;
+//             info.Text = elm.Text;
+//             info.Size = f32v2{elm.FontSize};
+//             break;
+//         case LayoutShape_Unicode:
+//             info.Handle = elm.Font;
+//             info.Unicode = elm.Unicode;
+//             info.Size = f32v2{elm.FontSize};
+//             break;
+//         }
+//
+//         const bool isFloat = elm.Flags & LayoutElementFlag_FloatDrawOnTop;
+//
+//         if (m_CustomDepth)
+//         {
+//             info.DepthCounter = isFloat ? (*floatDepthCounter)++ : (*depthCounter)++;
+//             m_DrawInfo.Append(info);
+//         }
+//         else if (isFloat)
+//             floats.Append(info);
+//         else
+//             m_DrawInfo.Append(info);
+//     }
+//     if (!m_CustomDepth)
+//         m_DrawInfo.Insert(m_DrawInfo.end(), floats.begin(), floats.end());
+// }
+
 void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::GenerateDrawInfo");
@@ -691,10 +806,31 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
     m_CustomDepth = depthCounter && floatDepthCounter;
     m_DrawInfo.Clear();
     m_Queries.Clear();
-    for (const LayoutElement &elm : m_Elements)
+    if (m_Elements.IsEmpty())
+        return;
+
+    struct DepthInfo
     {
+        u16 Element;
+        u16 Depth;
+    };
+
+    TKit::StackArray<DepthInfo> dfsStack{};
+    dfsStack.Reserve(m_Elements.GetSize());
+    dfsStack.Append(0, 0);
+
+    for (const LayoutElement &elm : m_Elements)
         if (elm.Id != NullLayoutId)
             m_Queries.Append(elm.Id, elm.Position, elm.Size, elm.ClipMin, elm.ClipMax, elm.ChildrenSize);
+
+    while (!dfsStack.IsEmpty())
+    {
+        const DepthInfo dinfo = dfsStack.GetBack();
+        dfsStack.Pop();
+
+        const LayoutElement &elm = m_Elements[dinfo.Element];
+        for (u32 i = elm.Children.GetSize() - 1; i < elm.Children.GetSize(); --i)
+            dfsStack.Append(elm.Children[i], dinfo.Depth + 1);
 
         const bool fill = !Math::ApproachesZero(elm.FillColor.rgba[3]);
         const bool outline = !Math::ApproachesZero(elm.OutlineWidth);
@@ -703,7 +839,7 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
 
         LayoutDrawInfo info;
         info.Id = elm.Id;
-        info.Depth = elm.Depth;
+        info.Depth = dinfo.Depth;
         info.Texture = elm.Texture;
         info.TexOffset = elm.TexOffset;
         info.TexScale = elm.TexScale;
@@ -781,8 +917,8 @@ void Layout::Compile(u32 *depthCounter, u32 *floatDepthCounter)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Layout::Compile");
     TKIT_PROFILE_SCOPE_VALUE(m_Elements.GetSize());
-    TKIT_ASSERT(m_ElementStack.IsEmpty() && m_DepthStack.IsEmpty(),
-                "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!", m_ElementStack.GetSize());
+    TKIT_ASSERT(m_ElementStack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
+                m_ElementStack.GetSize());
 
     const u32 count = m_Elements.GetSize();
     TKit::StackArray<u16> breadth{};

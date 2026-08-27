@@ -119,7 +119,10 @@ template <Dimension D> class RenderView
     bool IsWithinViewport(const f32v2 &screenPos) const
     {
         const f32v2 viewportPos = ScreenToViewport(screenPos);
-        return viewportPos[0] > -1.f && viewportPos[0] < 1.f && viewportPos[1] > -1.f && viewportPos[1] < 1.f;
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            return viewportPos[0] > -1.f && viewportPos[0] < 1.f && viewportPos[1] > -1.f && viewportPos[1] < 1.f;
+        return viewportPos[0] > 0.f && viewportPos[0] < m_Viewport.Extent[0] && viewportPos[1] > 0.f &&
+               viewportPos[1] < m_Viewport.Extent[1];
     }
 
     f32m<D> ComputeView() const;

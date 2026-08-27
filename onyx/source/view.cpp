@@ -684,7 +684,20 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeView() const
     if (m_Flags & RenderViewFlag_ManualProjectionView)
         return m_View;
 
-    f32m<D> view = m_Camera->View.ComputeInverseTransform();
+    // im not sure if this is the right way to go!! before, i was not shifting the origin so it matched the viewport
+    Transform<D> t = m_Camera->View;
+    if (m_Camera->Mode == CameraMode_Viewport)
+    {
+        const Viewport vp = GetAbsoluteViewport();
+        if constexpr (D == D2)
+            t.Translation += 0.5f * vp.Extent;
+        else
+            t.Translation += 0.5f * f32v3{vp.Extent, 0.f};
+    }
+
+    f32m<D> view = t.ComputeInverseTransform();
+    //
+    // f32m<D> view = m_Camera->View.ComputeInverseTransform();
     applyCoordinateSystemExtrinsic<D>(view);
     return view;
 }

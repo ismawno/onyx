@@ -21,8 +21,8 @@ struct LayerAssign
 };
 struct RenderTargetInfo
 {
-    TKit::TierArray<RenderView<D2> *> Views2;
-    TKit::TierArray<RenderView<D3> *> Views3;
+    TKit::StaticArray<RenderView<D2> *, ONYX_MAX_VIEWS> Views2;
+    TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> Views3;
 
     // only used in windows
     Onyx_Semaphore ImageAvailableSemaphore;
@@ -55,12 +55,19 @@ class RenderTarget
         else
             return m_RenderViews3;
     }
+    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> GetSortedViews() const
+    {
+        TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> views = GetRenderViews<D>();
+        std::sort(views.begin(), views.end(),
+                  [](const RenderView<D> *rv1, const RenderView<D> *rv2) { return rv1->Layer < rv2->Layer; });
+        return views;
+    }
 
     virtual RenderTargetInfo CreateRenderTargetInfo()
     {
         RenderTargetInfo info;
-        info.Views2 = getSortedViews<D2>();
-        info.Views3 = getSortedViews<D3>();
+        info.Views2 = GetSortedViews<D2>();
+        info.Views3 = GetSortedViews<D3>();
         info.ImageAvailableSemaphore = 0;
         info.RenderFinishedSemaphore = 0;
         return info;
@@ -73,13 +80,6 @@ class RenderTarget
     void findAvailableFramebuffers();
 
     // TODO(Isma): Implement sort here somehow. rename this to get sorted views
-    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> getSortedViews() const
-    {
-        TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> views = GetRenderViews<D>();
-        std::sort(views.begin(), views.end(),
-                  [](const RenderView<D> *rv1, const RenderView<D> *rv2) { return rv1->Layer < rv2->Layer; });
-        return views;
-    }
     template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &getRenderViews()
     {
         if constexpr (D == D2)

@@ -3255,8 +3255,9 @@ static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCo
 }
 
 template <Dimension D>
-static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics, const VkCommandBuffer cmd,
-                        const u64 graphicsFlight, TKit::StackArray<Execution::Tracker> &transferTrackers)
+static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views, VKit::Queue *graphics,
+                        const VkCommandBuffer cmd, const u64 graphicsFlight,
+                        TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
     Execution::Tracker tracker;
     tracker.Queue = graphics;
@@ -3347,7 +3348,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
 }
 
 template <Dimension D>
-static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, const VkCommandBuffer cmd,
+static void renderCompositor(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views, const VkCommandBuffer cmd,
                              const VKit::PipelineLayout &playout)
 {
     const auto &device = GetDevice();
