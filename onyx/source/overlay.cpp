@@ -2778,7 +2778,6 @@ void Overlay::ApplyDockTree(const LayoutId hostId, const OverlayDockNode *uroot)
             }
         else
         {
-            TKit::PrintLine("WAAA {}", unode->Ratio);
             node->Axis = unode->Axis;
             node->Ratio = unode->Ratio;
 
