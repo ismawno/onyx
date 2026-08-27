@@ -915,6 +915,15 @@ NativeWindow *OverlayWindow::GetNativeForGrab() const
     return checkParent ? nw->Parent : nw;
 }
 
+bool OverlayWindow::IsHovered() const
+{
+    return Flags & WindowInternalFlag_Hovered;
+}
+bool OverlayWindow::IsFocused() const
+{
+    return Flags & WindowInternalFlag_Focused;
+}
+
 const f32v2 &OverlayWindow::GetActivePosition() const
 {
     return (Flags & WindowInternalFlag_OwnsNative) ? Native->ScreenPos : ScreenPos;
@@ -993,6 +1002,7 @@ bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, const OverlayW
     const bool merge = flags & OverlayWindowFlag_MergeIdWithStack;
     const bool popup = flags & WindowInternalFlag_Popup;
     OverlayWindow *active = getOrCreateOverlayWindow(merge ? stackedId : label.Id, popup ? nullptr : m_Active);
+    active->MinSize = getWindowMinSize();
 
     ASSERT_WITH_WINDOW(
         active, active->IsRoot() || (active->Flags & WindowInternalFlag_Active) || (active->Parent == m_Active),
@@ -1801,6 +1811,12 @@ void Overlay::popWindowStack()
     m_Active = m_WindowStack.IsEmpty() ? nullptr : m_WindowStack.GetBack();
 }
 
+static f32 clampNodeRatio(const f32 ratio, const f32 size, const f32 minSize)
+{
+    const f32 minRatio = Math::Min(0.5f, minSize / size);
+    return Math::Clamp(ratio, minRatio, 1.f - minRatio);
+}
+
 u32 Overlay::processWindows()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Overlay::ProcessWindows");
@@ -1966,7 +1982,8 @@ u32 Overlay::processWindows()
                         // for more details
                         ginfo.Size = size;
                         ginfo.DockNode = node;
-                        ginfo.StartRatio = node->Ratio;
+                        const u32 iaxis = 1 - node->Axis;
+                        ginfo.StartRatio = clampNodeRatio(node->Ratio, size[iaxis], win->MinSize[iaxis]);
                         rflags |=
                             node->Axis == LayoutAxis_Horizontal ? ResizeFlag_DockHorizontal : ResizeFlag_DockVertical;
                         return false;
@@ -2266,8 +2283,7 @@ u32 Overlay::processWindows()
 
             ginfo.Ratio = ginfo.StartRatio + drag / size;
 
-            const f32 minRatio = Math::Min(0.5f, m_Grabbed->MinSize[iaxis] / size);
-            const f32 nratio = Math::Clamp(ginfo.Ratio, minRatio, 1.f - minRatio);
+            const f32 nratio = clampNodeRatio(ginfo.Ratio, size, m_Grabbed->MinSize[iaxis]);
 
             DockNode *c0 = node->Children[0];
             DockNode *c1 = node->Children[1];
@@ -3023,10 +3039,7 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
             else if (c1->IsEmpty())
                 r = 1.f;
             else
-            {
-                const f32 minRatio = Math::Min(0.5f, node->Host->MinSize[iaxis] / size[iaxis]);
-                r = Math::Clamp(r, minRatio, 1.f - minRatio);
-            }
+                r = clampNodeRatio(r, size[iaxis], node->Host->MinSize[iaxis]);
 
             node->EffectiveRatio = r;
             size0[iaxis] *= r;

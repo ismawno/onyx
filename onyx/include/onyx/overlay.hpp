@@ -717,6 +717,9 @@ struct OverlayWindow
     NativeWindow *GetNative() const;
     NativeWindow *GetNativeForGrab() const;
 
+    bool IsHovered() const;
+    bool IsFocused() const;
+
     bool IsRoot() const
     {
         return !Parent;
@@ -1880,7 +1883,11 @@ class Overlay
         EndPanel();
     }
 
-    Layout *GetActiveLayout()
+    OverlayWindow *GetActiveWindow() const
+    {
+        return m_Active;
+    }
+    Layout *GetActiveLayout() const
     {
         return m_Active->GetActiveLayout();
     }
