@@ -5,6 +5,9 @@
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
 
+#define NAME_BUF_SIZE 64
+#define DEFAULT_RESOLUTION u32v2{1920, 1080}
+
 namespace Editor
 {
 struct IdLabelData
@@ -14,24 +17,48 @@ struct IdLabelData
 
     Onyx::OverlayLabel Editor = "Editor";
     Onyx::OverlayLabel Hierarchy = "Hierarchy";
-    Onyx::OverlayLabel MainViewport = "Viewport 0";
     Onyx::OverlayLabel Entity = "Entity";
     Onyx::OverlayLabel Console = "Console";
     Onyx::OverlayLabel AssetBrowser = "Asset browser";
     Onyx::OverlayLabel Rendering = "Rendering";
 };
 
+template <Dimension D> struct Camera
+{
+    TKit::TierString Name{};
+    Onyx::Camera<D> *Camera;
+    // lol
+    u32 RefCount = 0;
+};
+
+template <Dimension D> struct RenderView
+{
+    TKit::TierString Name{};
+    Onyx::RenderView<D> *View;
+};
+
 struct Viewport
 {
+    TKit::TierString Name{};
     const Onyx::OverlayWindow *Window = nullptr;
     Onyx::RenderTexture *Target = nullptr;
-    TKit::TierString Title{};
+
+    TKit::TierArray<RenderView<D2>> Views2{};
+    TKit::TierArray<RenderView<D3>> Views3{};
 
     f32v2 Position{0.f};
     f32v2 Size{0.f};
     u32v2 Resolution{0};
     f32 Aspect = 0.f;
     bool Visible = true;
+
+    template <Dimension D> TKit::TierArray<RenderView<D>> &GetViews()
+    {
+        if constexpr (D == D2)
+            return Views2;
+        else
+            return Views3;
+    }
 };
 
 struct EditorData
@@ -44,10 +71,10 @@ struct EditorData
     const IdLabelData Labels{};
     Scene ActiveScene{};
     Entity SelectedEntity = TKit::NullEntity;
-    TKit::StaticArray8<Onyx::Camera<D2>> Cameras2{};
-    TKit::StaticArray8<Onyx::Camera<D3>> Cameras3{};
+    TKit::TierArray<Camera<D2>> Cameras2{};
+    TKit::TierArray<Camera<D3>> Cameras3{};
 
-    template <Dimension D> TKit::StaticArray8<Onyx::Camera<D>> &GetCameras()
+    template <Dimension D> TKit::TierArray<Camera<D>> &GetCameras()
     {
         if constexpr (D == D2)
             return Cameras2;
@@ -57,6 +84,159 @@ struct EditorData
 };
 
 static TKit::Storage<EditorData> s_Data{};
+
+static TKit::StackString utils_CreateDefaultName(const TKit::StringView prefix, const u32 idx)
+{
+    return TKit::StackString::Format("{} {}", prefix, idx);
+}
+
+template <typename T>
+static TKit::StackArray<TKit::StackString> utils_CreateNameArray(const TKit::Span<const T> elements)
+{
+    TKit::StackArray<TKit::StackString> names{};
+    names.Reserve(elements.GetSize());
+    for (const T &elm : elements)
+        names.Append(elm.Name);
+    return names;
+}
+
+struct Utils_ListBox
+{
+    TKit::StringView Title;
+    u32 *Selected;
+    const TKit::StackArray<TKit::StackString> *Labels;
+
+    std::function<void()> OnAdd = nullptr;
+    std::function<void()> OnRemove = nullptr;
+
+    TKit::StringView CannotAddTooltip{};
+    TKit::StringView CannotRemoveTooltip{};
+    bool CanAdd = true;
+    bool CanRemove = true;
+};
+
+static bool utils_ListBox(const Utils_ListBox &params)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+
+    u32 *selected = params.Selected;
+    const TKit::StackArray<TKit::StackString> &labels = *params.Labels;
+
+    ov->PushDirection(Onyx::LayoutDirection_TopToBottom, Onyx::LayoutSizing::Fit());
+    if (params.OnAdd)
+    {
+        const bool canAdd = params.CanAdd;
+        ov->BeginDisabled(!canAdd);
+        if (ov->Button("+"))
+            params.OnAdd();
+        ov->EndDisabled();
+
+        if (!canAdd && !params.CannotAddTooltip.IsEmpty())
+            ov->SetItemTooltipRaw(params.CannotAddTooltip);
+    }
+
+    if (params.OnRemove)
+    {
+        const bool exceeds = *selected >= labels.GetSize();
+        ov->BeginDisabled(!params.CanRemove || exceeds);
+        if (ov->Button("-", Onyx::OverlayButtonFlag_SpanFullWidth))
+            params.OnRemove();
+        ov->EndDisabled();
+
+        if (exceeds)
+            ov->SetItemTooltipRaw("Select an item to remove");
+        else if (!params.CanRemove && !params.CannotRemoveTooltip.IsEmpty())
+            ov->SetItemTooltipRaw(params.CannotRemoveTooltip);
+    }
+
+    ov->PopDirection();
+
+    const bool result =
+        ov->ListBox<TKit::StackString>(params.Title, selected, labels, Onyx::OverlaySelectableFlag_ListBoxUnselect);
+    ov->PopDirection();
+    return result;
+}
+
+template <Dimension D> static RenderView<D> &utils_CreateRenderView(Viewport &vp, Camera<D> &cam)
+{
+    ++cam.RefCount;
+
+    TKit::TierArray<RenderView<D>> &rvs = vp.GetViews<D>();
+    RenderView<D> &rv = rvs.Append(utils_CreateDefaultName("View", rvs.GetSize()));
+
+    rv.View = vp.Target->CreateRenderView<D>(cam.Camera, Onyx::RenderViewFlag_NormalizedCoordinates);
+    return rv;
+}
+
+template <Dimension D> static void utils_DestroyRenderView(Viewport &vp, const u32 idx, Camera<D> &cam)
+{
+    TKit::TierArray<RenderView<D>> &rvs = vp.GetViews<D>();
+    RenderView<D> &rv = rvs[idx];
+    TKIT_ASSERT(cam.Camera == rv.View->GetCamera(),
+                "[ONYX][EDITOR] When destroying a render view, the passed camera must be attached to the view");
+    --cam.RefCount;
+    vp.Target->DestroyRenderView(rv.View);
+    rvs.RemoveOrdered(rvs.begin() + idx);
+}
+template <Dimension D> static void utils_DestroyRenderView(Viewport &vp, const u32 idx)
+{
+    RenderView<D> &rv = vp.GetViews<D>()[idx];
+    for (Camera<D> &cam : s_Data->GetCameras<D>())
+        if (cam.Camera == rv.View->GetCamera())
+        {
+            utils_DestroyRenderView(vp, idx, cam);
+            return;
+        }
+    TKIT_FATAL("[ONYX][EDITOR] Found no camera related to render view {} of viewport {} to destroy", rv.Name, vp.Name);
+}
+
+static Viewport &utils_CreateViewport(const u32v2 resolution)
+{
+    const u32 count = s_Data->Viewports.GetSize();
+    Viewport &vp = s_Data->Viewports.Append();
+    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(resolution);
+
+    vp.Name = utils_CreateDefaultName("Viewport", count);
+    vp.Target = rt;
+    vp.Position = 0.f;
+    vp.Size = 1.f;
+    vp.Resolution = resolution;
+    vp.Aspect = 16.f / 9.f;
+
+    return vp;
+}
+
+static void utils_DestroyViewport(const u32 idx)
+{
+    Viewport &vp = s_Data->Viewports[idx];
+    Onyx::RenderTexture *rt = vp.Target;
+
+    // we do it "manually" cause we want to remove the refcounts of the cameras
+    for (u32 i = 0; i < vp.Views2.GetSize(); ++i)
+        utils_DestroyRenderView<D2>(vp, i);
+    for (u32 i = 0; i < vp.Views3.GetSize(); ++i)
+        utils_DestroyRenderView<D3>(vp, i);
+
+    Onyx::DestroyRenderTexture(rt);
+    s_Data->Viewports.RemoveOrdered(s_Data->Viewports.begin() + idx);
+}
+
+template <Dimension D> static Camera<D> &utils_CreateCamera()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+
+    TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
+    return cams.Append(utils_CreateDefaultName("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
+}
+
+template <Dimension D> static void utils_DestroyCamera(const u32 idx)
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
+    tier->Destroy(cams[idx].Camera);
+    cams.RemoveOrdered(cams.begin() + idx);
+}
 
 static Onyx::Window *init_CreateWindow()
 {
@@ -68,28 +248,6 @@ static Onyx::Window *init_CreateWindow()
     return Onyx::OpenWindow({.Window = {.Title = title}});
 }
 
-template <Dimension D> void init_CreateDefaultCameraAndViewFromTarget(Onyx::RenderTexture *rt)
-{
-    TKit::StaticArray8<Onyx::Camera<D>> &cams = s_Data->GetCameras<D>();
-    Onyx::Camera<D> &cam = cams.Append();
-    Onyx::RenderView<D> *rv = rt->CreateRenderView<D>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
-
-    s_Data->ActiveScene.AddTarget(rv);
-}
-
-static Viewport init_CreateViewport(const u32v2 resolution)
-{
-    Viewport vp;
-    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(resolution);
-
-    vp.Target = rt;
-    vp.Position = 0.f;
-    vp.Size = 1.f;
-    vp.Resolution = resolution;
-    vp.Aspect = 16.f / 9.f;
-
-    return vp;
-}
 static Onyx::Overlay *init_CreateOverlay(Onyx::Window *win)
 {
     Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_AutoSerialize});
@@ -97,6 +255,7 @@ static Onyx::Overlay *init_CreateOverlay(Onyx::Window *win)
     // TODO(Isma): Change this with a project-specific path!
     if (!ov->Deserialize("."))
     {
+        const Onyx::LayoutId mainViewportId = 0u;
         const IdLabelData &idData = s_Data->Labels;
         ov->DeclareWindow(idData.Editor.Id);
         ov->DeclareDockSpace(idData.EditorDockSpace.Id, idData.Editor.Id);
@@ -107,7 +266,7 @@ static Onyx::Overlay *init_CreateOverlay(Onyx::Window *win)
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f, Onyx::DockTabBar(idData.Hierarchy.Id),
                             Onyx::DockTabBar(idData.Entity.Id)),
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f,
-                            Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(idData.MainViewport.Id),
+                            Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(mainViewportId),
                                             Onyx::DockTabBar(idData.Rendering.Id)),
                             Onyx::DockTabBar({idData.Console.Id, idData.AssetBrowser.Id})));
 
@@ -127,11 +286,7 @@ void Initialize()
 
     s_Data->Window = init_CreateWindow();
     s_Data->Overlay = init_CreateOverlay(s_Data->Window);
-    s_Data->Viewports.Append(init_CreateViewport({1920, 1080}));
-
-    Onyx::RenderTexture *rt = s_Data->Viewports.GetFront().Target;
-    init_CreateDefaultCameraAndViewFromTarget<D2>(rt);
-    init_CreateDefaultCameraAndViewFromTarget<D3>(rt);
+    utils_CreateViewport(DEFAULT_RESOLUTION);
 }
 
 static void editorWindow_Draw()
@@ -155,17 +310,16 @@ static void viewportWindow_Draw()
         return;
 
     Onyx::Overlay *ov = s_Data->Overlay;
-    const IdLabelData &idData = s_Data->Labels;
-
-    const auto drawViewportWindow = [&](Viewport &vp, const Onyx::LayoutId id, const Onyx::LayoutId panelId,
-                                        const Onyx::OverlayLabel &winLabel) {
-        vp.Title = winLabel.Title;
-        if (ov->BeginWindow(winLabel, &vp.Visible, Onyx::OverlayWindowFlag_MenuBar))
+    const auto drawViewportWindow = [&](const u32 idx) {
+        Viewport &vp = vps[idx];
+        if (ov->BeginWindow({idx, vp.Name}, &vp.Visible, Onyx::OverlayWindowFlag_MenuBar))
         {
             vp.Window = ov->GetActiveWindow();
 
+            const Onyx::LayoutId panelId = &vp;
+            const Onyx::LayoutId imgId = &vp.Resolution;
             const Onyx::LayoutElementQueryInfo *vpParentElm = ov->QueryElement(panelId);
-            const Onyx::LayoutElementQueryInfo *vpElm = ov->QueryElement(id);
+            const Onyx::LayoutElementQueryInfo *vpElm = ov->QueryElement(imgId);
 
             ov->BeginPanel(panelId, Onyx::LayoutPanelParameters{.Alignment = Onyx::Alignment_Center,
                                                                 .Sizing = Onyx::LayoutSizing::Grow()});
@@ -191,10 +345,10 @@ static void viewportWindow_Draw()
                 }
 
                 vp.Size = f32v2{w, h};
-                ov->Image(id, *vp.Target, vp.Size);
+                ov->Image(imgId, *vp.Target, vp.Size);
             }
             else
-                ov->Image(id, *vp.Target, Onyx::LayoutSizing::Grow());
+                ov->Image(imgId, *vp.Target, Onyx::LayoutSizing::Grow());
             ov->EndPanel();
 
             if (ov->BeginMenuBar())
@@ -243,14 +397,8 @@ static void viewportWindow_Draw()
             ov->EndWindow();
         }
     };
-    const u32 size = vps.GetSize();
-    const u32 idOffset = 10 * size;
-    drawViewportWindow(vps[0], 0u, idOffset, idData.MainViewport);
-    for (u32 i = 1; i < size; ++i)
-    {
-        const TKit::StackString title = TKit::StackString::Format("Viewport {}", i);
-        drawViewportWindow(vps[i], i, i + idOffset, {i + 2 * idOffset, title});
-    }
+    for (u32 i = 0; i < vps.GetSize(); ++i)
+        drawViewportWindow(i);
 }
 static void hierarchyWindow_Draw()
 {
@@ -272,22 +420,24 @@ static void hierarchyWindow_Draw()
     }
 }
 template <typename C, typename... Args>
-static bool entityWindow_ChooseComponent(const Entity e, const char *name, TKit::Registry &registry, Onyx::Overlay *ov,
-                                         Args &&...args)
+static bool entityWindow_ChooseComponent(const Entity e, const char *name, TKit::Registry &registry, Args &&...args)
 {
     if (registry.HasComponent<C>(e))
         return true;
+
+    Onyx::Overlay *ov = s_Data->Overlay;
     if (ov->Button(name, Onyx::OverlayButtonFlag_SpanFullWidth))
         registry.AddComponent<C>(e, std::forward<Args>(args)...);
     return false;
 }
 template <template <Dimension> typename C>
-static bool entityWindow_ChooseComponent(const Entity e, const char *name, TKit::Registry &registry, Onyx::Overlay *ov,
+static bool entityWindow_ChooseComponent(const Entity e, const char *name, TKit::Registry &registry,
                                          const C<D2> &c2 = {}, const C<D3> &c3 = {})
 {
     if (registry.HasComponent<C<D2>>(e) || registry.HasComponent<C<D3>>(e))
         return true;
 
+    Onyx::Overlay *ov = s_Data->Overlay;
     ov->BeginPanel(Onyx::LayoutPanelParameters{.Direction = Onyx::LayoutDirection_LeftToRight,
                                                .Alignment = ov->TopLeft,
                                                .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
@@ -307,25 +457,17 @@ static bool entityWindow_ChooseComponent(const Entity e, const char *name, TKit:
     ov->EndPanel();
     return false;
 }
-static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry, Onyx::Overlay *ov)
+static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry)
 {
+    Onyx::Overlay *ov = s_Data->Overlay;
     NameComponent *name = registry.GetComponent<NameComponent>(e);
     TKIT_ASSERT(name, "[ONYX][EDITOR] All entities in the editor must have a name");
 
-    constexpr u32 size = 64;
-    char buf[size];
-
-    const u32 nameSize = Math::Min(name->Name.GetSize(), size - 1);
-    for (u32 i = 0; i < nameSize; ++i)
-        buf[i] = name->Name[i];
-    buf[nameSize] = 0;
-
-    if (ov->InputText("Name", buf, size))
-        name->Name = buf;
+    ov->InputText("Name", &name->Name, NAME_BUF_SIZE);
 }
-template <Dimension D>
-static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry, Onyx::Overlay *ov)
+template <Dimension D> static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry)
 {
+    Onyx::Overlay *ov = s_Data->Overlay;
     TransformComponent<D> *transform = registry.GetComponent<TransformComponent<D>>(e);
     if (transform)
     {
@@ -356,13 +498,17 @@ static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry 
         resetPopup("Reset##Scale", t.Scale, f32v<D>{1.f});
 
         if constexpr (D == D2)
-            ov->HorizontalDrag("Rotation", &t.Rotation, speed);
+        {
+            f32 degs = Math::Degrees(t.Rotation);
+            if (ov->HorizontalDrag("Rotation", &degs, speed))
+                t.Rotation = Math::Radians(degs);
+        }
         else
         {
             f32q &q = t.Rotation;
-            f32v3 euler = Math::ToEulerAngles(q);
+            f32v3 euler = Math::Degrees(Math::ToEulerAngles(q));
             if (ov->HorizontalDrag("Rotation", &euler, speed))
-                q = f32q::FromEulerAngles(euler);
+                q = f32q::FromEulerAngles(Math::Radians(euler));
         }
         resetPopup("Reset##Rotation", t.Rotation, Onyx::RotType<D>::Identity);
     }
@@ -420,11 +566,11 @@ static void entityWindow_Draw()
         {
             const Onyx::DefaultResources &defRes = Onyx::Resources::GetDefaultResources();
 
-            bool hasAllComponents = entityWindow_ChooseComponent<TransformComponent>(e, "Transform", r, ov);
-            hasAllComponents &= entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r, ov,
+            bool hasAllComponents = entityWindow_ChooseComponent<TransformComponent>(e, "Transform", r);
+            hasAllComponents &= entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r,
                                                                                   {1, defRes.Quad2}, {1, defRes.Quad3});
             hasAllComponents &= entityWindow_ChooseComponent<RenderContextComponent>(
-                e, "Render context", r, ov, {scene.GetMainRenderContext<D2>()}, {scene.GetMainRenderContext<D3>()});
+                e, "Render context", r, {scene.GetMainRenderContext<D2>()}, {scene.GetMainRenderContext<D3>()});
 
             if (hasAllComponents)
                 ov->CloseCurrentPopup();
@@ -434,9 +580,9 @@ static void entityWindow_Draw()
         if (ov->Button("Add component", Onyx::OverlayButtonFlag_SpanFullWidth))
             ov->OpenPopup("Components");
 
-        entityWindow_DisplayComponents(e, r, ov);
-        entityWindow_DisplayComponents<D2>(e, r, ov);
-        entityWindow_DisplayComponents<D3>(e, r, ov);
+        entityWindow_DisplayComponents(e, r);
+        entityWindow_DisplayComponents<D2>(e, r);
+        entityWindow_DisplayComponents<D3>(e, r);
 
         ov->EndWindow();
     }
@@ -459,108 +605,229 @@ static void consoleWindow_Draw()
         ov->EndWindow();
     }
 }
-template <Dimension D> static void renderingWindow_DisplayViews(const char *name, const Viewport &vp, Onyx::Overlay *ov)
+
+template <Dimension D> static void renderingWindow_DisplayView(RenderView<D> &view)
 {
-    const Onyx::RenderTexture *rt = vp.Target;
-    const TKit::StaticArray<Onyx::RenderView<D> *, ONYX_MAX_VIEWS> &views = rt->GetRenderViews<D>();
-    if (!views.IsEmpty())
-    {
-        ov->HorizontalSeparator(name);
-        u32 index = 0;
-        for (Onyx::RenderView<D> *rv : views)
+    Onyx::Overlay *ov = s_Data->Overlay;
+
+    ov->HorizontalSeparator(view.Name);
+    ov->InputText("Name", &view.Name, NAME_BUF_SIZE);
+
+    Onyx::RenderView<D> *rv = view.View;
+    TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
+    const TKit::StackArray<TKit::StackString> camLabels = utils_CreateNameArray<Camera<D>>(cams);
+    u32 selected = TKIT_U32_MAX;
+    for (u32 i = 0; i < cams.GetSize(); ++i)
+        if (cams[i].Camera == rv->GetCamera())
         {
-            const TKit::StackString title = TKit::StackString::Format("View {}", index++);
-            if (ov->PushTree({rv, title}, Onyx::OverlayTreeFlag_DrawLines))
-            {
-                ov->ColorEditor("Background color", &rv->ClearColor);
-
-                ov->HorizontalSeparator("Viewport");
-                Onyx::RenderViewFlags flags = rv->GetFlags();
-
-                const bool nv = flags & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
-                const auto getVp =
-                    nv ? &Onyx::RenderView<D>::GetNormalizedViewport : &Onyx::RenderView<D>::GetAbsoluteViewport;
-                const auto setVp =
-                    nv ? &Onyx::RenderView<D>::SetNormalizedViewport : &Onyx::RenderView<D>::SetAbsoluteViewport;
-
-                const bool ns = flags & Onyx::RenderViewFlag_NormalizedScissorCoordinates;
-                const auto getSc =
-                    ns ? &Onyx::RenderView<D>::GetNormalizedScissor : &Onyx::RenderView<D>::GetAbsoluteScissor;
-                const auto setSc =
-                    ns ? &Onyx::RenderView<D>::SetNormalizedScissor : &Onyx::RenderView<D>::SetAbsoluteScissor;
-
-                const f32 aspeed = 1.f;
-                const f32 nspeed = 0.001f;
-                const f32 vspeed = nv ? nspeed : aspeed;
-                const f32 sspeed = ns ? nspeed : aspeed;
-
-                Onyx::Viewport viewport = (rv->*getVp)();
-                bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
-                changed |= ov->HorizontalDrag("Extent##Viewport", &viewport.Extent, vspeed);
-                if (changed)
-                    (rv->*setVp)(viewport);
-
-                ov->HorizontalSeparator("Scissor");
-                Onyx::Scissor sc = (rv->*getSc)();
-                changed = ov->HorizontalDrag("Position##Scissor", &sc.Position, sspeed);
-                changed |= ov->HorizontalDrag("Extent##Scissor", &sc.Extent, sspeed);
-                if (changed)
-                    (rv->*setSc)(sc);
-
-                changed =
-                    ov->CheckBoxFlags("Normalized coordinates", &flags, Onyx::RenderViewFlag_NormalizedCoordinates);
-                changed |= ov->CheckBoxFlags("Shadows", &flags, Onyx::RenderViewFlag_Shadows);
-
-                if (ov->CheckBoxFlags("Post-process", &flags, Onyx::RenderViewFlag_PostProcess))
-                {
-                    if (!(flags & Onyx::RenderViewFlag_PostProcess))
-                        flags &= ~Onyx::RenderViewFlag_Outlines;
-
-                    changed = true;
-                }
-
-                const bool mustDisable = !(flags & Onyx::RenderViewFlag_PostProcess);
-                ov->BeginDisabled(mustDisable);
-                changed |= ov->CheckBoxFlags("Outlines", &flags, Onyx::RenderViewFlag_Outlines);
-                ov->EndDisabled();
-                if (mustDisable)
-                    ov->SetItemTooltipRaw("Outlines can only be enabled with post-processing");
-
-                changed |= ov->CheckBoxFlags("Transparency", &flags, Onyx::RenderViewFlag_Transparency);
-                changed |= ov->CheckBoxFlags("Hidden", &flags, Onyx::RenderViewFlag_Hidden);
-
-                if (changed)
-                    rv->SetFlags(flags);
-
-                ov->PopTree();
-            }
+            selected = i;
+            break;
         }
+    TKIT_ASSERT(selected != TKIT_U32_MAX,
+                "[ONYX][EDITOR] Could not find the camera the render view {} is associated with", view.Name);
+
+    const u32 prev = selected;
+    if (ov->DropDown<TKit::StackString>("Camera", &selected, camLabels) && selected != prev)
+    {
+        --cams[prev].RefCount;
+        ++cams[selected].RefCount;
+        rv->SetCamera(cams[selected].Camera);
+    }
+
+    ov->ColorEditor("Background color", &rv->ClearColor);
+
+    ov->HorizontalSeparator("Viewport");
+    Onyx::RenderViewFlags flags = rv->GetFlags();
+
+    const bool nv = flags & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
+    const auto getVp = nv ? &Onyx::RenderView<D>::GetNormalizedViewport : &Onyx::RenderView<D>::GetAbsoluteViewport;
+    const auto setVp = nv ? &Onyx::RenderView<D>::SetNormalizedViewport : &Onyx::RenderView<D>::SetAbsoluteViewport;
+
+    const bool ns = flags & Onyx::RenderViewFlag_NormalizedScissorCoordinates;
+    const auto getSc = ns ? &Onyx::RenderView<D>::GetNormalizedScissor : &Onyx::RenderView<D>::GetAbsoluteScissor;
+    const auto setSc = ns ? &Onyx::RenderView<D>::SetNormalizedScissor : &Onyx::RenderView<D>::SetAbsoluteScissor;
+
+    const f32 aspeed = 1.f;
+    const f32 nspeed = 0.001f;
+    const f32 vspeed = nv ? nspeed : aspeed;
+    const f32 sspeed = ns ? nspeed : aspeed;
+
+    Onyx::Viewport viewport = (rv->*getVp)();
+    bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
+    changed |= ov->HorizontalDrag("Extent##Viewport", &viewport.Extent, vspeed);
+    if (changed)
+        (rv->*setVp)(viewport);
+
+    ov->HorizontalSeparator("Scissor");
+    Onyx::Scissor sc = (rv->*getSc)();
+    changed = ov->HorizontalDrag("Position##Scissor", &sc.Position, sspeed);
+    changed |= ov->HorizontalDrag("Extent##Scissor", &sc.Extent, sspeed);
+    if (changed)
+        (rv->*setSc)(sc);
+
+    changed = ov->CheckBoxFlags("Normalized coordinates", &flags, Onyx::RenderViewFlag_NormalizedCoordinates);
+    changed |= ov->CheckBoxFlags("Shadows", &flags, Onyx::RenderViewFlag_Shadows);
+
+    if (ov->CheckBoxFlags("Post-process", &flags, Onyx::RenderViewFlag_PostProcess))
+    {
+        if (!(flags & Onyx::RenderViewFlag_PostProcess))
+            flags &= ~Onyx::RenderViewFlag_Outlines;
+
+        changed = true;
+    }
+
+    const bool mustDisable = !(flags & Onyx::RenderViewFlag_PostProcess);
+    ov->BeginDisabled(mustDisable);
+    changed |= ov->CheckBoxFlags("Outlines", &flags, Onyx::RenderViewFlag_Outlines);
+    ov->EndDisabled();
+    if (mustDisable)
+        ov->SetItemTooltipRaw("Outlines can only be enabled with post-processing");
+
+    changed |= ov->CheckBoxFlags("Transparency", &flags, Onyx::RenderViewFlag_Transparency);
+    changed |= ov->CheckBoxFlags("Hidden", &flags, Onyx::RenderViewFlag_Hidden);
+
+    if (changed)
+        rv->SetFlags(flags);
+}
+template <Dimension D> static void renderingWindow_DisplayViews(const char *name, Viewport &vp)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
+    {
+        TKit::TierArray<RenderView<D>> &views = vp.GetViews<D>();
+        static u32 selected = TKIT_U32_MAX;
+
+        const TKit::StackArray<TKit::StackString> labels = utils_CreateNameArray<RenderView<D>>(views);
+
+        if (ov->BeginPopup("Choose camera"))
+        {
+            u32 selected = TKIT_U32_MAX;
+            TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
+            for (u32 i = 0; i < cams.GetSize(); ++i)
+                if (ov->Button({i, cams[i].Name}, Onyx::OverlayButtonFlag_SpanFullWidth))
+                    selected = i;
+
+            if (selected < cams.GetSize())
+            {
+                utils_CreateRenderView(vp, cams[selected]);
+                ov->CloseCurrentPopup();
+            }
+
+            ov->EndPopup();
+        }
+
+        Utils_ListBox lb{"Views", &selected, &labels};
+        lb.OnAdd = [&] { ov->OpenPopup("Choose camera"); };
+        lb.OnRemove = [&] { utils_DestroyRenderView<D>(vp, selected); };
+
+        lb.CanAdd = !s_Data->GetCameras<D>().IsEmpty();
+        lb.CannotAddTooltip =
+            D == D2 ? "Add a 2D camera to be able to add a view" : "Add a 3D camera to be able to add a view";
+
+        utils_ListBox(lb);
+
+        if (selected < views.GetSize())
+            renderingWindow_DisplayView(views[selected]);
+        ov->PopTree();
     }
 }
+
+template <Dimension D> static void renderingWindow_DisplayCamera(Camera<D> &camera)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    const char *elements = D == D2 ? "Orthographic#Viewport" : "Orthographic#Viewport#Perspective";
+
+    ov->HorizontalSeparator(camera.Name);
+    ov->InputText("Name", &camera.Name, NAME_BUF_SIZE);
+
+    Onyx::Camera<D> *cam = camera.Camera;
+    ov->DropDown("Mode", &cam->Mode, elements);
+    if (cam->Mode == Onyx::CameraMode_Orthographic)
+    {
+        Onyx::OrthographicParameters<D> &params = cam->OrthoParameters;
+        ov->HorizontalDrag("Size", &params.Size, 0.05f, 0.f, TKIT_F32_MAX);
+        if constexpr (D == D3)
+        {
+            ov->HorizontalDrag("Near", &params.Near, 0.01f, 0.f, TKIT_F32_MAX);
+            ov->HorizontalDrag("Far", &params.Far, 0.1f, 0.f, TKIT_F32_MAX);
+        }
+    }
+    if constexpr (D == D3)
+        if (cam->Mode == Onyx::CameraMode_Perspective)
+        {
+            Onyx::PerspectiveParameters &params = cam->PerspParameters;
+            f32 fov = Math::Degrees(params.FieldOfView);
+            if (ov->HorizontalDrag("Field of view", &fov, 0.1f, 0.f, TKIT_F32_MAX))
+                params.FieldOfView = Math::Radians(fov);
+
+            ov->HorizontalDrag("Near", &params.Near, 0.1f, 0.001f, params.Far);
+            ov->HorizontalDrag("Far", &params.Far, 0.1f, params.Near, TKIT_F32_MAX);
+        }
+}
+template <Dimension D> static void renderingWindow_DisplayCameras(const char *name)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
+    {
+        TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
+        const TKit::StackArray<TKit::StackString> labels = utils_CreateNameArray<Camera<D>>(cams);
+        static u32 selected = TKIT_U32_MAX;
+
+        Utils_ListBox lb{"Cameras", &selected, &labels};
+        lb.OnAdd = [&] { utils_CreateCamera<D>(); };
+        lb.OnRemove = [&] { utils_DestroyCamera<D>(selected); };
+        lb.CanRemove = selected < cams.GetSize() && cams[selected].RefCount == 0;
+        lb.CannotRemoveTooltip =
+            "A view is currently using this camera. Remove the view or change its camera to delete this one";
+        utils_ListBox(lb);
+
+        if (selected < cams.GetSize())
+            renderingWindow_DisplayCamera(cams[selected]);
+        ov->PopTree();
+    }
+}
+
+static void renderingWindow_DisplayViewport(Viewport &vp)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    ov->HorizontalSeparator(vp.Name);
+    ov->InputText("Name", &vp.Name, NAME_BUF_SIZE);
+    ov->Text("Resolution: {}x{}", vp.Resolution[0], vp.Resolution[1]);
+    ov->CheckBox("Visible", &vp.Visible);
+
+    renderingWindow_DisplayViews<D2>("2D Views", vp);
+    renderingWindow_DisplayViews<D3>("3D Views", vp);
+}
+
+static void renderingWindow_DisplayViewports()
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    if (ov->PushTree("Viewports", Onyx::OverlayTreeFlag_DrawLines))
+    {
+        TKit::TierArray<Viewport> &vps = s_Data->Viewports;
+        const TKit::StackArray<TKit::StackString> labels = utils_CreateNameArray<Viewport>(vps);
+        static u32 selected = TKIT_U32_MAX;
+
+        Utils_ListBox lb{"Viewports", &selected, &labels};
+        lb.OnAdd = [&] { utils_CreateViewport(DEFAULT_RESOLUTION); };
+        lb.OnRemove = [&] { utils_DestroyViewport(selected); };
+        utils_ListBox(lb);
+
+        if (selected < vps.GetSize())
+            renderingWindow_DisplayViewport(vps[selected]);
+        ov->PopTree();
+    }
+}
+
 static void renderingWindow_Draw()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     const IdLabelData &idData = s_Data->Labels;
     if (ov->BeginWindow(idData.Rendering))
     {
-        if (ov->PushTree("Viewports", Onyx::OverlayTreeFlag_DrawLines))
-        {
-            for (Viewport &vp : s_Data->Viewports)
-            {
-                ov->HorizontalSeparator(vp.Title);
-                ov->Text("Resolution: {}x{}", vp.Resolution[0], vp.Resolution[1]);
-                ov->CheckBox("Visible", &vp.Visible);
-
-                ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
-                ov->Button("Add 2D view", Onyx::OverlayButtonFlag_SpanFullWidth);
-                ov->Button("Add 3D view", Onyx::OverlayButtonFlag_SpanFullWidth);
-                ov->PopDirection();
-
-                renderingWindow_DisplayViews<D2>("2D Views", vp, ov);
-                renderingWindow_DisplayViews<D3>("3D Views", vp, ov);
-            }
-            ov->PopTree();
-        }
+        renderingWindow_DisplayViewports();
+        renderingWindow_DisplayCameras<D2>("2D Editor cameras");
+        renderingWindow_DisplayCameras<D3>("3D Editor cameras");
         ov->EndWindow();
     }
 }
@@ -593,7 +860,7 @@ template <Dimension D> static Onyx::RenderView<D> *editor_GetHoveredView(const V
 template <Dimension D> static void editor_ApplyCameraMovement()
 {
     for (const Viewport &vp : s_Data->Viewports)
-        if (vp.Window->IsHovered())
+        if (vp.Window && vp.Window->IsHovered())
         {
             Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(vp);
             if (rv)
@@ -609,7 +876,7 @@ template <Dimension D> static void editor_ApplyCameraMovement()
 template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
 {
     for (const Viewport &vp : s_Data->Viewports)
-        if (vp.Window->IsHovered())
+        if (vp.Window && vp.Window->IsHovered())
         {
             f32v2 mpos;
             Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(vp, &mpos);
@@ -658,12 +925,12 @@ void Run()
                                 Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
 
     editorWindow_Draw();
-    viewportWindow_Draw();
     hierarchyWindow_Draw();
     entityWindow_Draw();
     assetBrowserWindow_Draw();
     consoleWindow_Draw();
     renderingWindow_Draw();
+    viewportWindow_Draw();
 
     editor_ControlCamera();
 
