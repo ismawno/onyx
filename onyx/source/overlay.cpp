@@ -712,6 +712,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
     {
         NativeWindow *nw = createNativeWindow(win);
         nw->ScreenPos = f32v2{nw->Window->GetPosition()};
+        nw->Size = f32v2{nw->Window->GetScreenDimensions()};
     }
     else
         Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
