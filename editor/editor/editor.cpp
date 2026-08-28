@@ -701,15 +701,15 @@ template <Dimension D> static void renderingWindow_DisplayViews(const char *name
 
         if (ov->BeginPopup("Choose camera"))
         {
-            u32 selected = TKIT_U32_MAX;
+            u32 camera = TKIT_U32_MAX;
             TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
             for (u32 i = 0; i < cams.GetSize(); ++i)
                 if (ov->Button({i, cams[i].Name}, Onyx::OverlayButtonFlag_SpanFullWidth))
-                    selected = i;
+                    camera = i;
 
-            if (selected < cams.GetSize())
+            if (camera < cams.GetSize())
             {
-                utils_CreateRenderView(vp, cams[selected]);
+                utils_CreateRenderView(vp, cams[camera]);
                 ov->CloseCurrentPopup();
             }
 
