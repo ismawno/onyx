@@ -26,7 +26,7 @@ struct IdLabelData
 template <Dimension D> struct Camera
 {
     TKit::TierString Name{};
-    Onyx::Camera<D> *Camera;
+    Onyx::Camera<D> *Handle;
     // lol
     u32 RefCount = 0;
 };
@@ -34,7 +34,7 @@ template <Dimension D> struct Camera
 template <Dimension D> struct RenderView
 {
     TKit::TierString Name{};
-    Onyx::RenderView<D> *View;
+    Onyx::RenderView<D> *Handle;
 };
 
 struct Viewport
@@ -165,7 +165,7 @@ template <Dimension D> static RenderView<D> &utils_CreateRenderView(Viewport &vp
     TKit::TierArray<RenderView<D>> &rvs = vp.GetViews<D>();
     RenderView<D> &rv = rvs.Append(utils_CreateDefaultName("View", rvs.GetSize()));
 
-    rv.View = vp.Target->CreateRenderView<D>(cam.Camera, Onyx::RenderViewFlag_NormalizedCoordinates);
+    rv.Handle = vp.Target->CreateRenderView<D>(cam.Handle, Onyx::RenderViewFlag_NormalizedCoordinates);
     return rv;
 }
 
@@ -173,17 +173,17 @@ template <Dimension D> static void utils_DestroyRenderView(Viewport &vp, const u
 {
     TKit::TierArray<RenderView<D>> &rvs = vp.GetViews<D>();
     RenderView<D> &rv = rvs[idx];
-    TKIT_ASSERT(cam.Camera == rv.View->GetCamera(),
+    TKIT_ASSERT(cam.Handle == rv.Handle->GetCamera(),
                 "[ONYX][EDITOR] When destroying a render view, the passed camera must be attached to the view");
     --cam.RefCount;
-    vp.Target->DestroyRenderView(rv.View);
+    vp.Target->DestroyRenderView(rv.Handle);
     rvs.RemoveOrdered(rvs.begin() + idx);
 }
 template <Dimension D> static void utils_DestroyRenderView(Viewport &vp, const u32 idx)
 {
     RenderView<D> &rv = vp.GetViews<D>()[idx];
     for (Camera<D> &cam : s_Data->GetCameras<D>())
-        if (cam.Camera == rv.View->GetCamera())
+        if (cam.Handle == rv.Handle->GetCamera())
         {
             utils_DestroyRenderView(vp, idx, cam);
             return;
@@ -234,7 +234,7 @@ template <Dimension D> static void utils_DestroyCamera(const u32 idx)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
-    tier->Destroy(cams[idx].Camera);
+    tier->Destroy(cams[idx].Handle);
     cams.RemoveOrdered(cams.begin() + idx);
 }
 
@@ -613,12 +613,12 @@ template <Dimension D> static void renderingWindow_DisplayView(RenderView<D> &vi
     ov->HorizontalSeparator(view.Name);
     ov->InputText("Name", &view.Name, NAME_BUF_SIZE);
 
-    Onyx::RenderView<D> *rv = view.View;
+    Onyx::RenderView<D> *rv = view.Handle;
     TKit::TierArray<Camera<D>> &cams = s_Data->GetCameras<D>();
     const TKit::StackArray<TKit::StackString> camLabels = utils_CreateNameArray<Camera<D>>(cams);
     u32 selected = TKIT_U32_MAX;
     for (u32 i = 0; i < cams.GetSize(); ++i)
-        if (cams[i].Camera == rv->GetCamera())
+        if (cams[i].Handle == rv->GetCamera())
         {
             selected = i;
             break;
@@ -631,7 +631,7 @@ template <Dimension D> static void renderingWindow_DisplayView(RenderView<D> &vi
     {
         --cams[prev].RefCount;
         ++cams[selected].RefCount;
-        rv->SetCamera(cams[selected].Camera);
+        rv->SetCamera(cams[selected].Handle);
     }
 
     ov->ColorEditor("Background color", &rv->ClearColor);
@@ -740,7 +740,7 @@ template <Dimension D> static void renderingWindow_DisplayCamera(Camera<D> &came
     ov->HorizontalSeparator(camera.Name);
     ov->InputText("Name", &camera.Name, NAME_BUF_SIZE);
 
-    Onyx::Camera<D> *cam = camera.Camera;
+    Onyx::Camera<D> *cam = camera.Handle;
     ov->DropDown("Mode", &cam->Mode, elements);
     if (cam->Mode == Onyx::CameraMode_Orthographic)
     {
