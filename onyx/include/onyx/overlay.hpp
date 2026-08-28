@@ -1669,7 +1669,7 @@ class Overlay
                                const OverlayPopupFlags flags = OverlayPopupFlag_RightClick)
     {
         if (QueryItemInteraction() & flags)
-            OpenPopup(label.Id);
+            OpenPopup((wflags & OverlayWindowFlag_MergeIdWithStack) ? IdFromStack(label.Id) : label.Id);
 
         return BeginPopup(label, wflags);
     }

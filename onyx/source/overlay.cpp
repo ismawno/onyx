@@ -4279,11 +4279,12 @@ bool Overlay::ColorButton(const OverlayLabel label, const OverlayColorHandle col
     ColorPreview(label, col, flags);
     bool changed = false;
 
-    const LayoutId id = IdFromStack(label.Id);
+    const LayoutId id = PushId(label.Id);
     if (!(flags & OverlayColorFlag_NoPicker) &&
-        BeginPopupContextItem(
-            label, OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar | OverlayWindowFlag_BringToTop,
-            OverlayPopupFlag_LeftClick))
+        BeginPopupContextItem(label,
+                              OverlayWindowFlag_AutoResize | OverlayWindowFlag_NoHeaderBar |
+                                  OverlayWindowFlag_BringToTop | OverlayWindowFlag_MergeIdWithStack,
+                              OverlayPopupFlag_LeftClick))
     {
         if (!checkWidgetState(id, WidgetStateFlag_Opened))
             m_PickerOriginal = col;
@@ -4294,6 +4295,7 @@ bool Overlay::ColorButton(const OverlayLabel label, const OverlayColorHandle col
     }
     else
         m_WidgetStates[id] = 0;
+    PopId();
 
     return changed;
 }
@@ -5605,16 +5607,17 @@ void Overlay::CollapsePopups()
 
 bool Overlay::BeginPopup(const OverlayLabel label, const OverlayWindowFlags flags)
 {
-    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != label.Id)
+    const LayoutId id = (flags & OverlayWindowFlag_MergeIdWithStack) ? IdFromStack(label.Id) : label.Id;
+    if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != id)
     {
-        m_WidgetStates[label.Id] = 0;
+        m_WidgetStates[id] = 0;
         return false;
     }
 
     ++m_CurrentPopupDepth;
-    if (getWidgetState(label.Id) == 0)
+    if (getWidgetState(id) == 0)
     {
-        OverlayWindow *win = getOrCreateOverlayWindow(label.Id);
+        OverlayWindow *win = getOrCreateOverlayWindow(id);
         if (!(win->Flags & WindowInternalFlag_OwnsNative))
             // we dont handle size because BeginWindow does that for us
             win->Native = m_Active->GetNative();
@@ -5623,7 +5626,7 @@ bool Overlay::BeginPopup(const OverlayLabel label, const OverlayWindowFlags flag
         win->SetActivePosition(
             win->ToScreen(computeMouseAlignedPosition(win->Native, size, !(flags & OverlayWindowFlag_NoPromotion))));
     }
-    m_WidgetStates[label.Id] = WidgetStateFlag_Opened;
+    m_WidgetStates[id] = WidgetStateFlag_Opened;
     return BeginWindow(label,
                        flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_Popup | OverlayWindowFlag_NoDocking);
 }
@@ -7124,7 +7127,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         static Onyx::Color col = Onyx::Color_Red;
         ov->ColorEditor("Color", &col, cflags);
         ov->ColorPreview("Preview", col, cflags);
-        ov->ColorButton("ov->Button", &col, cflags);
+        ov->ColorButton("Button", &col, cflags);
         ov->ColorPicker("Picker", &col, cflags);
         ov->PopTree();
     }
