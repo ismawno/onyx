@@ -397,8 +397,10 @@ static void viewportWindow_Draw()
             ov->EndWindow();
         }
     };
+    ov->PushStyleVar(Onyx::OverlayStyle_ContentAreaPadding, 0.f);
     for (u32 i = 0; i < vps.GetSize(); ++i)
         drawViewportWindow(i);
+    ov->PopStyleVar();
 }
 static void hierarchyWindow_Draw()
 {
