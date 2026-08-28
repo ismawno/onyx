@@ -1,4 +1,5 @@
 #include "scene.hpp"
+#include "components.hpp"
 #include "onyx/onyx.hpp"
 
 namespace Editor
@@ -12,7 +13,7 @@ Scene::Scene()
 Entity Scene::CreateEntity(const TKit::StringView name)
 {
     const Entity e = Registry.CreateEntity();
-    Registry.AddComponent<NameComponent>(e, TKit::TierString{name.GetData(), name.GetSize()});
+    Registry.AddComponent<NameComponent>(e, name);
     return e;
 }
 

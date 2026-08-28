@@ -27,6 +27,21 @@ template <Dimension D> struct RenderContextComponent
     Onyx::RenderContext<D> *Context = nullptr;
 };
 
-void RegisterComponents(TKit::Registry &registry);
+template <typename... Cs> struct ComponentList
+{
+};
+
+using AllComponents =
+    ComponentList<NameComponent, TransformComponent<D2>, StaticMeshComponent<D2>, RenderContextComponent<D2>,
+                  TransformComponent<D3>, StaticMeshComponent<D3>, RenderContextComponent<D3>>;
+
+template <typename F, typename... Cs> void ForEachComponentType(const ComponentList<Cs...>, F &&func)
+{
+    (func.template operator()<Cs>(), ...);
+}
+inline void RegisterComponents(TKit::Registry &registry)
+{
+    ForEachComponentType(AllComponents{}, [&]<typename C> { registry.RegisterComponent<C>(); });
+}
 
 } // namespace Editor

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "components.hpp"
+#include "alias.hpp"
+#include "tkit/container/ecs.hpp"
 #include "onyx/context.hpp"
 
 namespace Editor

@@ -1,5 +1,6 @@
 #include "editor.hpp"
 #include "scene.hpp"
+#include "components.hpp"
 #include "onyx/resources.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
@@ -10,8 +11,6 @@ struct IdLabelData
 {
     Onyx::LayoutId MainDockSpace = "__onyx_editor_Main_dockspace";
     Onyx::LayoutId EditorDockSpace = "__onyx_editor_Dockspace";
-    Onyx::LayoutId ViewportPanel = "__onyx_editor_Viewport_panel";
-    Onyx::LayoutId Viewport = "__onyx_editor_Viewport";
 
     Onyx::OverlayLabel Editor = "Editor";
     Onyx::OverlayLabel Hierarchy = "Hierarchy";
@@ -19,17 +18,20 @@ struct IdLabelData
     Onyx::OverlayLabel Entity = "Entity";
     Onyx::OverlayLabel Console = "Console";
     Onyx::OverlayLabel AssetBrowser = "Asset browser";
-    Onyx::OverlayLabel Inspector = "Inspector";
     Onyx::OverlayLabel Rendering = "Rendering";
 };
 
 struct Viewport
 {
-    Onyx::RenderTexture *Target;
-    f32v2 Position;
-    f32v2 Size;
-    u32v2 Resolution;
-    f32 Aspect;
+    const Onyx::OverlayWindow *Window = nullptr;
+    Onyx::RenderTexture *Target = nullptr;
+    TKit::TierString Title{};
+
+    f32v2 Position{0.f};
+    f32v2 Size{0.f};
+    u32v2 Resolution{0};
+    f32 Aspect = 0.f;
+    bool Visible = true;
 };
 
 struct EditorData
@@ -37,12 +39,21 @@ struct EditorData
     Onyx::Window *Window;
     Onyx::Overlay *Overlay;
 
-    Viewport Viewport;
+    TKit::TierArray<Viewport> Viewports{};
 
     const IdLabelData Labels{};
     Scene ActiveScene{};
     Entity SelectedEntity = TKit::NullEntity;
-    Onyx::Camera<D2> EditorCamera{};
+    TKit::StaticArray8<Onyx::Camera<D2>> Cameras2{};
+    TKit::StaticArray8<Onyx::Camera<D3>> Cameras3{};
+
+    template <Dimension D> TKit::StaticArray8<Onyx::Camera<D>> &GetCameras()
+    {
+        if constexpr (D == D2)
+            return Cameras2;
+        else
+            return Cameras3;
+    }
 };
 
 static TKit::Storage<EditorData> s_Data{};
@@ -56,21 +67,26 @@ static Onyx::Window *init_CreateWindow()
 #endif
     return Onyx::OpenWindow({.Window = {.Title = title}});
 }
-static Viewport init_CreateViewport()
+
+template <Dimension D> void init_CreateDefaultCameraAndViewFromTarget(Onyx::RenderTexture *rt)
+{
+    TKit::StaticArray8<Onyx::Camera<D>> &cams = s_Data->GetCameras<D>();
+    Onyx::Camera<D> &cam = cams.Append();
+    Onyx::RenderView<D> *rv = rt->CreateRenderView<D>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
+
+    s_Data->ActiveScene.AddTarget(rv);
+}
+
+static Viewport init_CreateViewport(const u32v2 resolution)
 {
     Viewport vp;
-    const u32v2 size = {1920, 1080};
-    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(size);
-    Onyx::RenderView<D2> *rv =
-        rt->CreateRenderView<D2>(&s_Data->EditorCamera, Onyx::RenderViewFlag_NormalizedCoordinates);
+    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture(resolution);
 
     vp.Target = rt;
     vp.Position = 0.f;
     vp.Size = 1.f;
-    vp.Resolution = size;
+    vp.Resolution = resolution;
     vp.Aspect = 16.f / 9.f;
-
-    s_Data->ActiveScene.AddTarget(rv);
 
     return vp;
 }
@@ -92,7 +108,7 @@ static Onyx::Overlay *init_CreateOverlay(Onyx::Window *win)
                             Onyx::DockTabBar(idData.Entity.Id)),
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f,
                             Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(idData.MainViewport.Id),
-                                            Onyx::DockTabBar({idData.Inspector.Id, idData.Rendering.Id})),
+                                            Onyx::DockTabBar(idData.Rendering.Id)),
                             Onyx::DockTabBar({idData.Console.Id, idData.AssetBrowser.Id})));
 
         ov->ApplyDockTree(idData.MainDockSpace, mainTree);
@@ -111,7 +127,11 @@ void Initialize()
 
     s_Data->Window = init_CreateWindow();
     s_Data->Overlay = init_CreateOverlay(s_Data->Window);
-    s_Data->Viewport = init_CreateViewport();
+    s_Data->Viewports.Append(init_CreateViewport({1920, 1080}));
+
+    Onyx::RenderTexture *rt = s_Data->Viewports.GetFront().Target;
+    init_CreateDefaultCameraAndViewFromTarget<D2>(rt);
+    init_CreateDefaultCameraAndViewFromTarget<D3>(rt);
 }
 
 static void editorWindow_Draw()
@@ -130,89 +150,106 @@ static void editorWindow_Draw()
 }
 static void viewportWindow_Draw()
 {
+    TKit::TierArray<Viewport> &vps = s_Data->Viewports;
+    if (vps.IsEmpty())
+        return;
+
     Onyx::Overlay *ov = s_Data->Overlay;
     const IdLabelData &idData = s_Data->Labels;
-    if (ov->BeginWindow(idData.MainViewport, Onyx::OverlayWindowFlag_MenuBar))
-    {
-        Viewport &vp = s_Data->Viewport;
 
-        const Onyx::LayoutElementQueryInfo *vpParentElm = ov->QueryElement(idData.ViewportPanel);
-        const Onyx::LayoutElementQueryInfo *vpElm = ov->QueryElement(idData.Viewport);
-
-        ov->BeginPanel(idData.ViewportPanel, Onyx::LayoutPanelParameters{.Alignment = Onyx::Alignment_Center,
-                                                                         .Sizing = Onyx::LayoutSizing::Grow()});
-        if (vpElm)
-            vp.Position = vpElm->Position;
-
-        if (vpParentElm)
+    const auto drawViewportWindow = [&](Viewport &vp, const Onyx::LayoutId id, const Onyx::LayoutId panelId,
+                                        const Onyx::OverlayLabel &winLabel) {
+        vp.Title = winLabel.Title;
+        if (ov->BeginWindow(winLabel, &vp.Visible, Onyx::OverlayWindowFlag_MenuBar))
         {
-            const f32v2 &size = vpParentElm->Size;
-            const f32 aspect = size[0] / size[1];
+            vp.Window = ov->GetActiveWindow();
 
-            f32 w;
-            f32 h;
-            if (aspect < vp.Aspect)
+            const Onyx::LayoutElementQueryInfo *vpParentElm = ov->QueryElement(panelId);
+            const Onyx::LayoutElementQueryInfo *vpElm = ov->QueryElement(id);
+
+            ov->BeginPanel(panelId, Onyx::LayoutPanelParameters{.Alignment = Onyx::Alignment_Center,
+                                                                .Sizing = Onyx::LayoutSizing::Grow()});
+            if (vpElm)
+                vp.Position = vpElm->Position;
+
+            if (vpParentElm)
             {
-                w = vpParentElm->Size[0];
-                h = w / vp.Aspect;
+                const f32v2 &size = vpParentElm->Size;
+                const f32 aspect = size[0] / size[1];
+
+                f32 w;
+                f32 h;
+                if (aspect < vp.Aspect)
+                {
+                    w = vpParentElm->Size[0];
+                    h = w / vp.Aspect;
+                }
+                else
+                {
+                    h = vpParentElm->Size[1];
+                    w = h * vp.Aspect;
+                }
+
+                vp.Size = f32v2{w, h};
+                ov->Image(id, *vp.Target, vp.Size);
             }
             else
+                ov->Image(id, *vp.Target, Onyx::LayoutSizing::Grow());
+            ov->EndPanel();
+
+            if (ov->BeginMenuBar())
             {
-                h = vpParentElm->Size[1];
-                w = h * vp.Aspect;
+                if (ov->BeginMenu("Resolution"))
+                {
+                    ov->BeginScroll("Scroll", 200.f,
+                                    Onyx::OverlayScrollFlag_NoBackground | Onyx::OverlayScrollFlag_FlexWidth);
+                    const auto addResolution = [&](const char *name, const u32 w, const u32 h) {
+                        const u32v2 r = u32v2{w, h};
+                        if (ov->MenuItem(name, vp.Resolution == r))
+                        {
+                            vp.Target->Resize(r);
+                            vp.Resolution = r;
+                            vp.Aspect = f32(w) / f32(h);
+                        }
+                    };
+
+                    addResolution("640x480 (4:3)", 640, 480);
+                    addResolution("800x600 (4:3)", 800, 600);
+                    addResolution("1024x768 (4:3)", 1024, 768);
+                    addResolution("1280x720 (16:9)", 1280, 720);
+                    addResolution("1280x800 (16:10)", 1280, 800);
+                    addResolution("1366x768 (~16:9)", 1366, 768);
+                    addResolution("1440x900 (16:10)", 1440, 900);
+                    addResolution("1600x900 (16:9)", 1600, 900);
+                    addResolution("1680x1050 (16:10)", 1680, 1050);
+                    addResolution("1920x1080 (16:9)", 1920, 1080);
+                    addResolution("1920x1200 (16:10)", 1920, 1200);
+                    addResolution("2560x1080 (21:9)", 2560, 1080);
+                    addResolution("2560x1440 (16:9)", 2560, 1440);
+                    addResolution("2560x1600 (16:10)", 2560, 1600);
+                    addResolution("3440x1440 (21:9)", 3440, 1440);
+                    addResolution("3840x1600 (21:9)", 3840, 1600);
+                    addResolution("3840x2160 (16:9)", 3840, 2160);
+                    addResolution("5120x1440 (32:9)", 5120, 1440);
+                    addResolution("5120x2160 (21:9)", 5120, 2160);
+                    addResolution("5120x2880 (16:9)", 5120, 2880);
+                    addResolution("7680x4320 (16:9)", 7680, 4320);
+                    ov->EndScroll();
+                    ov->EndMenu();
+                }
+                ov->EndMenuBar();
             }
 
-            vp.Size = f32v2{w, h};
-            ov->Image(idData.Viewport, *vp.Target, vp.Size);
+            ov->EndWindow();
         }
-        else
-            ov->Image(idData.Viewport, *vp.Target, Onyx::LayoutSizing::Grow());
-        ov->EndPanel();
-
-        if (ov->BeginMenuBar())
-        {
-            if (ov->BeginMenu("Resolution"))
-            {
-                ov->BeginScroll("Scroll", 200.f,
-                                Onyx::OverlayScrollFlag_NoBackground | Onyx::OverlayScrollFlag_FlexWidth);
-                const auto addResolution = [&](const char *name, const u32 w, const u32 h) {
-                    const u32v2 r = u32v2{w, h};
-                    if (ov->MenuItem(name, vp.Resolution == r))
-                    {
-                        vp.Target->Resize(r);
-                        vp.Resolution = r;
-                        vp.Aspect = f32(w) / f32(h);
-                    }
-                };
-
-                addResolution("640x480 (4:3)", 640, 480);
-                addResolution("800x600 (4:3)", 800, 600);
-                addResolution("1024x768 (4:3)", 1024, 768);
-                addResolution("1280x720 (16:9)", 1280, 720);
-                addResolution("1280x800 (16:10)", 1280, 800);
-                addResolution("1366x768 (~16:9)", 1366, 768);
-                addResolution("1440x900 (16:10)", 1440, 900);
-                addResolution("1600x900 (16:9)", 1600, 900);
-                addResolution("1680x1050 (16:10)", 1680, 1050);
-                addResolution("1920x1080 (16:9)", 1920, 1080);
-                addResolution("1920x1200 (16:10)", 1920, 1200);
-                addResolution("2560x1080 (21:9)", 2560, 1080);
-                addResolution("2560x1440 (16:9)", 2560, 1440);
-                addResolution("2560x1600 (16:10)", 2560, 1600);
-                addResolution("3440x1440 (21:9)", 3440, 1440);
-                addResolution("3840x1600 (21:9)", 3840, 1600);
-                addResolution("3840x2160 (16:9)", 3840, 2160);
-                addResolution("5120x1440 (32:9)", 5120, 1440);
-                addResolution("5120x2160 (21:9)", 5120, 2160);
-                addResolution("5120x2880 (16:9)", 5120, 2880);
-                addResolution("7680x4320 (16:9)", 7680, 4320);
-                ov->EndScroll();
-                ov->EndMenu();
-            }
-            ov->EndMenuBar();
-        }
-
-        ov->EndWindow();
+    };
+    const u32 size = vps.GetSize();
+    const u32 idOffset = 10 * size;
+    drawViewportWindow(vps[0], 0u, idOffset, idData.MainViewport);
+    for (u32 i = 1; i < size; ++i)
+    {
+        const TKit::StackString title = TKit::StackString::Format("Viewport {}", i);
+        drawViewportWindow(vps[i], i, i + idOffset, {i + 2 * idOffset, title});
     }
 }
 static void hierarchyWindow_Draw()
@@ -422,13 +459,82 @@ static void consoleWindow_Draw()
         ov->EndWindow();
     }
 }
-static void inspectorWindow_Draw()
+template <Dimension D> static void renderingWindow_DisplayViews(const char *name, const Viewport &vp, Onyx::Overlay *ov)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const IdLabelData &idData = s_Data->Labels;
-    if (ov->BeginWindow(idData.Inspector))
+    const Onyx::RenderTexture *rt = vp.Target;
+    const TKit::StaticArray<Onyx::RenderView<D> *, ONYX_MAX_VIEWS> &views = rt->GetRenderViews<D>();
+    if (!views.IsEmpty())
     {
-        ov->EndWindow();
+        ov->HorizontalSeparator(name);
+        u32 index = 0;
+        for (Onyx::RenderView<D> *rv : views)
+        {
+            const TKit::StackString title = TKit::StackString::Format("View {}", index++);
+            if (ov->PushTree({rv, title}, Onyx::OverlayTreeFlag_DrawLines))
+            {
+                ov->ColorEditor("Background color", &rv->ClearColor);
+
+                ov->HorizontalSeparator("Viewport");
+                Onyx::RenderViewFlags flags = rv->GetFlags();
+
+                const bool nv = flags & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
+                const auto getVp =
+                    nv ? &Onyx::RenderView<D>::GetNormalizedViewport : &Onyx::RenderView<D>::GetAbsoluteViewport;
+                const auto setVp =
+                    nv ? &Onyx::RenderView<D>::SetNormalizedViewport : &Onyx::RenderView<D>::SetAbsoluteViewport;
+
+                const bool ns = flags & Onyx::RenderViewFlag_NormalizedScissorCoordinates;
+                const auto getSc =
+                    ns ? &Onyx::RenderView<D>::GetNormalizedScissor : &Onyx::RenderView<D>::GetAbsoluteScissor;
+                const auto setSc =
+                    ns ? &Onyx::RenderView<D>::SetNormalizedScissor : &Onyx::RenderView<D>::SetAbsoluteScissor;
+
+                const f32 aspeed = 1.f;
+                const f32 nspeed = 0.001f;
+                const f32 vspeed = nv ? nspeed : aspeed;
+                const f32 sspeed = ns ? nspeed : aspeed;
+
+                Onyx::Viewport viewport = (rv->*getVp)();
+                bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
+                changed |= ov->HorizontalDrag("Extent##Viewport", &viewport.Extent, vspeed);
+                if (changed)
+                    (rv->*setVp)(viewport);
+
+                ov->HorizontalSeparator("Scissor");
+                Onyx::Scissor sc = (rv->*getSc)();
+                changed = ov->HorizontalDrag("Position##Scissor", &sc.Position, sspeed);
+                changed |= ov->HorizontalDrag("Extent##Scissor", &sc.Extent, sspeed);
+                if (changed)
+                    (rv->*setSc)(sc);
+
+                changed =
+                    ov->CheckBoxFlags("Normalized coordinates", &flags, Onyx::RenderViewFlag_NormalizedCoordinates);
+                changed |= ov->CheckBoxFlags("Shadows", &flags, Onyx::RenderViewFlag_Shadows);
+
+                if (ov->CheckBoxFlags("Post-process", &flags, Onyx::RenderViewFlag_PostProcess))
+                {
+                    if (!(flags & Onyx::RenderViewFlag_PostProcess))
+                        flags &= ~Onyx::RenderViewFlag_Outlines;
+
+                    changed = true;
+                }
+
+                const bool mustDisable = !(flags & Onyx::RenderViewFlag_PostProcess);
+                ov->BeginDisabled(mustDisable);
+                changed |= ov->CheckBoxFlags("Outlines", &flags, Onyx::RenderViewFlag_Outlines);
+                ov->EndDisabled();
+                if (mustDisable)
+                    ov->SetItemTooltipRaw("Outlines can only be enabled with post-processing");
+
+                changed |= ov->CheckBoxFlags("Transparency", &flags, Onyx::RenderViewFlag_Transparency);
+                changed |= ov->CheckBoxFlags("Hidden", &flags, Onyx::RenderViewFlag_Hidden);
+
+                if (changed)
+                    rv->SetFlags(flags);
+
+                ov->PopTree();
+            }
+        }
     }
 }
 static void renderingWindow_Draw()
@@ -437,38 +543,87 @@ static void renderingWindow_Draw()
     const IdLabelData &idData = s_Data->Labels;
     if (ov->BeginWindow(idData.Rendering))
     {
+        if (ov->PushTree("Viewports", Onyx::OverlayTreeFlag_DrawLines))
+        {
+            for (Viewport &vp : s_Data->Viewports)
+            {
+                ov->HorizontalSeparator(vp.Title);
+                ov->Text("Resolution: {}x{}", vp.Resolution[0], vp.Resolution[1]);
+                ov->CheckBox("Visible", &vp.Visible);
+
+                ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+                ov->Button("Add 2D view", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ov->Button("Add 3D view", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ov->PopDirection();
+
+                renderingWindow_DisplayViews<D2>("2D Views", vp, ov);
+                renderingWindow_DisplayViews<D3>("3D Views", vp, ov);
+            }
+            ov->PopTree();
+        }
         ov->EndWindow();
     }
 }
 
-template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
+template <Dimension D> static Onyx::RenderView<D> *editor_GetHoveredView(const Viewport &vp, f32v2 *outMpos = nullptr)
 {
-    const Viewport &vp = s_Data->Viewport;
+    Onyx::Window *win = s_Data->Window;
     const Onyx::RenderTexture *rt = vp.Target;
 
-    Onyx::Window *win = s_Data->Window;
-
     const auto views = rt->GetSortedViews<D>();
-
     const f32v2 vpScreenPos =
         s_Data->Overlay->GetMainNativeWindow()->ToLocalScreen(vp.Position + f32v2{0.f, vp.Size[1]});
 
     const f32v2 ampos = win->GetAbsoluteMousePosition() - vpScreenPos;
     const f32v2 nmpos = ampos / vp.Size;
-
     for (Onyx::RenderView<D> *rv : views)
     {
         const bool normalized = rv->GetFlags() & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
         const f32v2 mpos = normalized ? nmpos : ampos;
-        if (rv->IsWithinViewport(normalized ? nmpos : ampos))
+        if (rv->IsWithinViewport(mpos))
         {
-            const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
-            if constexpr (D == D2)
-                rv->ZoomScroll(mpos, factor * scroll);
-            else
-                rv->ZoomScroll(f32v3{mpos, 0.5f}, factor * scroll);
+            if (outMpos)
+                *outMpos = mpos;
+            return rv;
         }
     }
+    return nullptr;
+}
+
+template <Dimension D> static void editor_ApplyCameraMovement()
+{
+    for (const Viewport &vp : s_Data->Viewports)
+        if (vp.Window->IsHovered())
+        {
+            Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(vp);
+            if (rv)
+            {
+                Onyx::Window *win = s_Data->Window;
+                const TKit::Timespan dt = Onyx::GetDeltaTime(win);
+                win->ControlCamera(dt, rv->GetCamera());
+                return;
+            }
+        }
+}
+
+template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
+{
+    for (const Viewport &vp : s_Data->Viewports)
+        if (vp.Window->IsHovered())
+        {
+            f32v2 mpos;
+            Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(vp, &mpos);
+            if (rv)
+            {
+                Onyx::Window *win = s_Data->Window;
+                const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
+                if constexpr (D == D2)
+                    rv->ZoomScroll(mpos, factor * scroll);
+                else
+                    rv->ZoomScroll(f32v3{mpos, 0.5f}, factor * scroll);
+                return;
+            }
+        }
 }
 
 static void editor_ControlCamera()
@@ -477,8 +632,8 @@ static void editor_ControlCamera()
     Onyx::Window *win = s_Data->Window;
     if (!ov->WantCaptureKeyboard())
     {
-        const TKit::Timespan dt = Onyx::GetDeltaTime(win);
-        win->ControlCamera(dt, &s_Data->EditorCamera);
+        editor_ApplyCameraMovement<D2>();
+        editor_ApplyCameraMovement<D3>();
     }
 
     if (!ov->WantCaptureScroll())
@@ -508,7 +663,6 @@ void Run()
     entityWindow_Draw();
     assetBrowserWindow_Draw();
     consoleWindow_Draw();
-    inspectorWindow_Draw();
     renderingWindow_Draw();
 
     editor_ControlCamera();
