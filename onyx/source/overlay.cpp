@@ -892,8 +892,8 @@ bool Overlay::Deserialize()
             const usz hostId = it->first.as<usz>();
             const Node uroot = it->second;
 
-            const OverlayDockNode *root = createTreeBasedOnSerialized(uroot);
-            ApplyDockTree(hostId, root);
+            const OverlayDockNode *nroot = createTreeBasedOnSerialized(uroot);
+            ApplyDockTree(hostId, nroot);
         }
     }
     return true;
@@ -7826,9 +7826,9 @@ void Overlay::ShowTierAllocatorStatistics()
     usz totMem = 0;
     for (u32 i = 0; i < tiers.GetSize(); ++i)
     {
-        const auto &tier = tiers[i];
-        const u32 usedSlots = tier.Allocations - tier.Deallocations;
-        const u32 slots = tier.Slots;
+        const auto &t = tiers[i];
+        const u32 usedSlots = t.Allocations - t.Deallocations;
+        const u32 slots = t.Slots;
         const f32 pct = f32(usedSlots) / f32(slots);
 
         using String = TKit::StackString;
@@ -7836,21 +7836,21 @@ void Overlay::ShowTierAllocatorStatistics()
         const String text = String::Format("Slots: {}/{}", usedSlots, slots);
         const String title = String::Format("Tier: {}/{}", i + 1, tiers.GetSize());
 
-        ProgressBar({&tier, title}, text, pct);
-        const usz usedMem = tier.AllocationSize * usedSlots;
+        ProgressBar({&t, title}, text, pct);
+        const usz usedMem = t.AllocationSize * usedSlots;
         totMem += usedMem;
         if (BeginItemTooltip())
         {
             const String fmtUsedMem = fmts(usedMem);
-            const String fmtTotalMem = fmts(tier.Size);
+            const String fmtTotalMem = fmts(t.Size);
 
-            const String fmtRangeUpper = fmts(tier.AllocationSize);
+            const String fmtRangeUpper = fmts(t.AllocationSize);
             const String fmtRangeLower = fmts(i == (tiers.GetSize() - 1) ? 0 : tiers[i + 1].AllocationSize + 1);
 
             Text("Used memory: {}/{}", fmtUsedMem, fmtTotalMem);
             Text("Allocation range: {} - {}", fmtRangeLower, fmtRangeUpper);
-            Text("Slots stolen: {}", tier.SlotsStolen);
-            Text("Slots removed: {}", tier.SlotsRemoved);
+            Text("Slots stolen: {}", t.SlotsStolen);
+            Text("Slots removed: {}", t.SlotsRemoved);
             EndTooltip();
         }
     }
