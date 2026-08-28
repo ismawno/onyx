@@ -777,7 +777,7 @@ bool Overlay::Serialize()
     Node root;
     if (fs::exists(m_SerializationPath))
     {
-        root = TKit::Yaml::FromFile(m_SerializationPath);
+        root = TKit::Yaml::FromFile(m_SerializationPath.string());
         root["DockTrees"] = Node{};
     }
 
@@ -841,7 +841,7 @@ bool Overlay::Serialize()
         }
     }
 
-    TKit::Yaml::ToFile(m_SerializationPath, root);
+    TKit::Yaml::ToFile(m_SerializationPath.string(), root);
     return true;
 }
 bool Overlay::Deserialize()
@@ -851,7 +851,7 @@ bool Overlay::Deserialize()
 
     using Node = TKit::Yaml::Node;
 
-    const Node root = TKit::Yaml::FromFile(m_SerializationPath);
+    const Node root = TKit::Yaml::FromFile(m_SerializationPath.string());
     if (root["Windows"])
     {
         const Node windows = root["Windows"];
