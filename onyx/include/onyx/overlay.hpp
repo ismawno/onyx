@@ -604,12 +604,14 @@ struct NativeWindow
 
     // overflow clicks means how many rapid succession clicks have happened without counting the first (aka, == 1 is
     // a double click)
-    u32 OverflowClicks = 0;
+    u32 OverflowPresses = 0;
+    u32 OverflowReleases = 0;
     TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
     TKit::TierString TextInput{};
 
     TKit::TierString InputWidgetBuffer{};
-    TKit::Clock ClickClock{};
+    TKit::Clock PressClock{};
+    TKit::Clock ReleaseClock{};
 
     NativeWindowFlags Flags = 0;
 

@@ -2042,7 +2042,11 @@ u32 Overlay::processWindows()
             else if (ev.Type == Event_MousePressed)
             {
                 if (ev.Mouse.Button == Mouse_Button1)
+                {
                     nw->Flags |= NativeWindowFlag_LeftMousePressed | NativeWindowFlag_PressingLeftMouse;
+                    if (nw->PressClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
+                        ++nw->OverflowPresses;
+                }
                 if (ev.Mouse.Button == Mouse_Button2)
                     nw->Flags |= NativeWindowFlag_RightMousePressed;
                 requestCollapsePopups();
@@ -2054,8 +2058,8 @@ u32 Overlay::processWindows()
                     nw->Flags |= NativeWindowFlag_LeftMouseReleased;
                     nw->Flags &= ~NativeWindowFlag_PressingLeftMouse;
 
-                    if (nw->ClickClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
-                        ++nw->OverflowClicks;
+                    if (nw->ReleaseClock.Restart().AsMilliseconds() <= m_Style[OverlayStyle_ClickMilliseconds])
+                        ++nw->OverflowReleases;
                     m_StateFlags &= ~StateFlag_FocusBlockByPopupCollapse;
 
                     // NOTE(Isma, 06/08/26): I dont really like this
@@ -2083,8 +2087,10 @@ u32 Overlay::processWindows()
         if (!(nw->Flags & NativeWindowFlag_PressingLeftMouse))
             nw->WorldMouseOnPress = nw->WorldMouse;
 
-        if (nw->ClickClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
-            nw->OverflowClicks = 0;
+        if (nw->PressClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
+            nw->OverflowPresses = 0;
+        if (nw->ReleaseClock.GetElapsed().AsMilliseconds() > m_Style[OverlayStyle_ClickMilliseconds])
+            nw->OverflowReleases = 0;
     }
 
     // remove some state and check whether the window is collapsed
@@ -5187,8 +5193,10 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     // element querying is not available) must be valid in the sense that we need valid queries. boxPos is very
     // important. without it, we cannot auto highlight. so we try this proxy, by trying to get the position of
     // the parent box if thats the case
-    const LayoutElementQueryInfo *box =
-        mustConvert ? ly->QueryElement(IdFromStack("__onyx_id_Drag/Slider_hbox")) : ibox;
+    // EDIT: this is no longer true! codebase has gone through many changes so now that query trick causes a bug. i wish
+    // i knew why :) const LayoutElementQueryInfo *box =
+    //     mustConvert ? ly->QueryElement(IdFromStack("__onyx_id_Drag/Slider_hbox")) : ibox;
+    const LayoutElementQueryInfo *box = ibox;
     const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
     const FontData &fdata = getFontData();
@@ -5323,12 +5331,12 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 m_CursorEnd = charCount;
         }
 
-        if (nw->OverflowClicks == 2 || (justActive && autoSelectAll))
+        if (nw->OverflowReleases == 2 || (justActive && autoSelectAll))
         {
             m_CursorStart = 0;
             m_CursorEnd = charCount;
         }
-        else if (nw->OverflowClicks == 1)
+        else if (nw->OverflowReleases == 1)
         {
             if (m_CursorEnd != 0)
             {
@@ -6376,7 +6384,7 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
 
     const NativeWindow *nw = m_Active->GetNative();
     const bool ctrl = nw->Window->IsKeyPressed(Key_LeftControl);
-    const bool dclick = allowDoubleClick && (nw->OverflowClicks == 1);
+    const bool dclick = allowDoubleClick && (nw->OverflowPresses == 1);
 
     const bool triggered = hovered && (dclick || (ctrl && (nw->Flags & NativeWindowFlag_LeftMousePressed)));
     const bool persisted =
@@ -6534,7 +6542,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     if (lclicked)
     {
         outFlags |= OverlayInteractionQueryFlag_LeftClicked;
-        if (nw->OverflowClicks == 1)
+        if (nw->OverflowReleases == 1)
             outFlags |= OverlayInteractionQueryFlag_DoubleClicked;
 
         if (setActive)
