@@ -37,6 +37,8 @@ class RenderTexture final : public RenderTarget
         return m_Dimensions;
     }
 
+    void drainWork() const;
+
     Resource m_Handle;
     u32v2 m_Dimensions;
 

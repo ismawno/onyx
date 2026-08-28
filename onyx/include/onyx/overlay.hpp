@@ -977,6 +977,7 @@ enum OverlaySelectableFlagBit : OverlaySelectableFlags
     OverlaySelectableFlag_CheckBox = 1U << 3,
     OverlaySelectableFlag_FlexWidth = 1U << 4,
     OverlaySelectableFlag_LeftToRight = 1U << 5,
+    OverlaySelectableFlag_ListBoxUnselect = 1U << 6,
 };
 
 enum OverlaySliderFlagBit : OverlaySliderFlags
@@ -1362,7 +1363,27 @@ class Overlay
         endTab(&m_TabBarData[m_TabBarStack.GetBack()]);
     }
 
-    bool InputText(OverlayLabel label, char *buf, u32 size, TKit::StringView hint = {}, OverlayInputFlags flags = 0);
+    bool InputText(OverlayLabel label, char *buf, u32 bufSize, TKit::StringView hint = {}, OverlayInputFlags flags = 0);
+    template <typename AllocState>
+    bool InputText(const OverlayLabel label, TKit::String<AllocState> *str, const u32 bufSize,
+                   const TKit::StringView hint = {}, const OverlayInputFlags flags = 0)
+    {
+        TKit::StackAllocator *stack = TKit::GetStack();
+        char *buf = stack->Allocate<char>(bufSize);
+
+        const u32 nameSize = Math::Min(str->GetSize(), bufSize - 1);
+        for (u32 i = 0; i < nameSize; ++i)
+            buf[i] = str->At(i);
+        buf[nameSize] = 0;
+
+        const bool wrote = InputText(label, buf, bufSize, hint, flags);
+        if (wrote)
+            *str = buf;
+
+        stack->Deallocate<char>(buf, bufSize);
+        return wrote;
+    }
+
     template <TKit::Numeric T>
     bool InputNumeric(const OverlayLabel label, T *value, const char *format = nullptr,
                       const TKit::StringView hint = {}, const OverlayInputFlags flags = 0)
@@ -1380,7 +1401,8 @@ class Overlay
         PopId();
         return updated;
     }
-    template <TKit::Integer T, std::convertible_to<T> U> bool CheckBoxFlags(OverlayLabel label, T *flags, const U flag)
+    template <TKit::IntegerOrEnum T, std::convertible_to<T> U>
+    bool CheckBoxFlags(OverlayLabel label, T *flags, const U flag)
     {
         bool enabled = *flags & T(flag);
         if (CheckBox(label, &enabled))
@@ -1528,33 +1550,31 @@ class Overlay
     bool ColorButton(OverlayLabel label, OverlayColorHandle color, OverlayColorFlags flags = 0);
     bool ColorEditor(OverlayLabel label, OverlayColorHandle color, OverlayColorFlags flags = 0);
 
-    template <TKit::Integer T>
-    bool ListBox(const OverlayLabel label, T *current, const TKit::Span<const TKit::StringView> elements,
+    template <typename Str, TKit::IntegerOrEnum T>
+    bool ListBox(const OverlayLabel label, T *current, const TKit::Span<const Str> elements,
                  const OverlaySelectableFlags flags = 0)
     {
         const T val = *current;
         BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
                     OverlayScrollFlags(OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title));
 
+        const bool unselect = flags & OverlaySelectableFlag_ListBoxUnselect;
         for (u32 i = 0; i < elements.GetSize(); ++i)
-            if (Selectable(elements[i], val == i, flags))
-                *current = i;
+        {
+            const bool equal = val == T(i);
+            if (Selectable(elements[i], equal, flags))
+                *current = (equal && unselect) ? TKit::Limits<T>::Max() : T(i);
+        }
 
         EndScroll();
         return val != *current;
     }
-    template <TKit::Integer T>
+    template <TKit::IntegerOrEnum T>
     bool ListBox(const OverlayLabel label, T *current, const TKit::StringView elements,
                  const OverlaySelectableFlags flags = 0)
     {
-        const TKit::StackString str{elements.GetData(), elements.GetSize()};
-        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
-
-        TKit::StackArray<TKit::StringView> views{};
-        views.Reserve(splits.GetSize());
-        for (const TKit::StackString &elm : splits)
-            views.Append(elm);
-        return ListBox(label, current, views, flags);
+        const TKit::StackString str = elements;
+        return ListBox<TKit::StackString>(label, current, str.Split("#"), flags);
     }
 
     /////////////////////////////////////////////
@@ -1686,8 +1706,8 @@ class Overlay
         --m_CurrentPopupDepth;
     }
 
-    template <TKit::Integer T>
-    bool DropDown(const OverlayLabel label, T *current, const TKit::Span<const TKit::StringView> elements,
+    template <typename Str, TKit::IntegerOrEnum T>
+    bool DropDown(const OverlayLabel label, T *current, const TKit::Span<const Str> elements,
                   const OverlayDropDownFlags flags = 0, const OverlaySelectableFlags sflags = 0)
     {
         const T val = *current;
@@ -1696,25 +1716,19 @@ class Overlay
             for (u32 i = 0; i < elements.GetSize(); ++i)
                 if (Selectable(elements[i], val == i, sflags | OverlaySelectableFlag_FlexWidth))
                 {
-                    *current = i;
+                    *current = T(i);
                     CloseCurrentPopup();
                 }
             EndDropDown();
         }
         return val != *current;
     }
-    template <TKit::Integer T>
+    template <TKit::IntegerOrEnum T>
     bool DropDown(const OverlayLabel label, T *current, const TKit::StringView elements,
                   const OverlayDropDownFlags flags = 0)
     {
-        const TKit::StackString str{elements.GetData(), elements.GetSize()};
-        const TKit::StackArray<TKit::StackString> splits = str.Split("#");
-
-        TKit::StackArray<TKit::StringView> views{};
-        views.Reserve(splits.GetSize());
-        for (const TKit::StackString &elm : splits)
-            views.Append(elm);
-        return DropDown(label, current, views, flags);
+        const TKit::StackString str = elements;
+        return DropDown<TKit::StackString>(label, current, str.Split("#"), flags);
     }
 
     /////////////////////////////////////////////
@@ -1850,13 +1864,10 @@ class Overlay
         PopId();
     }
 
-    void PushDirection(const LayoutDirection dir, const f32 childGap)
+    void PushDirection(const LayoutDirection dir, const LySz2 sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()})
     {
-        BeginPanel({.Direction = dir, .Alignment = TopLeft, .Sizing = {grow(), fit()}, .ChildGap = childGap});
-    }
-    void PushDirection(const LayoutDirection dir)
-    {
-        PushDirection(dir, m_Style[OverlayStyle_ChildGap]);
+        BeginPanel(
+            {.Direction = dir, .Alignment = TopLeft, .Sizing = sizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
     }
     void PopDirection()
     {

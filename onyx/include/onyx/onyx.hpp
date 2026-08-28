@@ -57,7 +57,7 @@ template <Dimension D> RenderContext<D> *CreateRenderContext(u32 immediateDynami
 template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx);
 
 RenderTexture *CreateRenderTexture(const u32v2 &dimensions);
-void DestroyRenderTexture(RenderTexture *rtex);
+void DestroyRenderTexture(const RenderTexture *rtex);
 
 bool Running();
 void Quit(QuitFlags flags = 0);

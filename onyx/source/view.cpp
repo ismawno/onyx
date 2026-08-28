@@ -111,12 +111,13 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
+    drainWork();
     const VKit::DescriptorPool &pool = Descriptors::GetDescriptorPool();
+
     ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_BlendSet));
     ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_PostProcessSet));
     ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_CompositorSet));
 
-    drainWork();
     destroyFramebuffers();
 
     // TODO(Isma): Remove this!! This is responsibility of onyx.hpp, should not be in destructor
@@ -221,7 +222,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
     }
 }
 
-template <Dimension D> void RenderView<D>::drainWork()
+template <Dimension D> void RenderView<D>::drainWork() const
 {
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(m_Framebuffers.GetSize());

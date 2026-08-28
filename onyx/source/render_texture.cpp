@@ -57,6 +57,7 @@ RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
 }
 RenderTexture::~RenderTexture()
 {
+    drainWork();
     for (FrontEndImage *img : m_Images)
     {
         // may be the case that resources already freed everything on global tear-down
@@ -68,39 +69,7 @@ RenderTexture::~RenderTexture()
 
 void RenderTexture::Resize(const u32v2 &dims)
 {
-    // NOTE(Isma, 06/07/26): This sync step is just not enough and right now, im not sure why as the tracker waits
-    // should ensure all work with the images is done. there is something here im definitely missing, so ill just stick
-    // a device wait idle here. resize operations are supposed to be expensive and not frequent anyways
-    //
-    // NOTE(Isma, 09/07/26): Turns out i think i know what it is. i was not assigning a tracker to readable images, so
-    // gpu would read them while resizing. this is fixed now, but if errors still happen, revert do device wait idle
-    //
-    TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(m_Images.GetSize());
-
-    TKit::StackArray<u64> values{};
-    values.Reserve(m_Images.GetSize());
-
-    for (const FrontEndImage *img : m_Images)
-        if (img->Tracker.InFlight())
-        {
-            semaphores.Append(img->Tracker.Queue->GetTimelineSempahore());
-            values.Append(img->Tracker.InFlightValue);
-        }
-
-    if (!semaphores.IsEmpty())
-    {
-        const auto table = GetDeviceTable();
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = semaphores.GetSize();
-        waitInfo.pSemaphores = semaphores.GetData();
-        waitInfo.pValues = values.GetData();
-
-        const auto &device = GetDevice();
-        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
-    }
-    // DeviceWaitIdle();
+    drainWork();
 
     FrontEndImage *main = m_Images.GetFront();
     FrontEndImage *mostUpToDate = m_Images[m_Writable];
@@ -249,6 +218,43 @@ void RenderTexture::MarkWriteImageInUse(const Execution::Tracker &tracker)
 void RenderTexture::MarkReadImageInUse(const Execution::Tracker &tracker)
 {
     m_Images[m_Readable]->Tracker = tracker;
+}
+
+void RenderTexture::drainWork() const
+{
+    // NOTE(Isma, 06/07/26): This sync step is just not enough and right now, im not sure why as the tracker waits
+    // should ensure all work with the images is done. there is something here im definitely missing, so ill just stick
+    // a device wait idle here. resize operations are supposed to be expensive and not frequent anyways
+    //
+    // NOTE(Isma, 09/07/26): Turns out i think i know what it is. i was not assigning a tracker to readable images, so
+    // gpu would read them while resizing. this is fixed now, but if errors still happen, revert do device wait idle
+    //
+    TKit::StackArray<VkSemaphore> semaphores{};
+    semaphores.Reserve(m_Images.GetSize());
+
+    TKit::StackArray<u64> values{};
+    values.Reserve(m_Images.GetSize());
+
+    for (const FrontEndImage *img : m_Images)
+        if (img->Tracker.InFlight())
+        {
+            semaphores.Append(img->Tracker.Queue->GetTimelineSempahore());
+            values.Append(img->Tracker.InFlightValue);
+        }
+
+    if (!semaphores.IsEmpty())
+    {
+        const auto table = GetDeviceTable();
+        VkSemaphoreWaitInfoKHR waitInfo{};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+        waitInfo.semaphoreCount = semaphores.GetSize();
+        waitInfo.pSemaphores = semaphores.GetData();
+        waitInfo.pValues = values.GetData();
+
+        const auto &device = GetDevice();
+        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
+    }
+    // DeviceWaitIdle();
 }
 
 } // namespace Onyx

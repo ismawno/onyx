@@ -213,13 +213,13 @@ void Terminate();
 
 const char *ToString(ErrorCode code);
 
-TKit::ArenaAllocator *GetArena(u32 threadIndex = 0);
-TKit::StackAllocator *GetStack(u32 threadIndex = 0);
-TKit::TierAllocator *GetTier(u32 threadIndex = 0);
+TKit::ArenaAllocator *GetArena(u32 threadIndex);
+TKit::StackAllocator *GetStack(u32 threadIndex);
+TKit::TierAllocator *GetTier(u32 threadIndex);
 
-void PushArena(u32 threadIndex = 0);
-void PushStack(u32 threadIndex = 0);
-void PushTier(u32 threadIndex = 0);
+void PushArena(u32 threadIndex);
+void PushStack(u32 threadIndex);
+void PushTier(u32 threadIndex);
 
 // for Pop, you use TKit::Pop.
 // NOTE(Isma): Should implement Pop for consistency

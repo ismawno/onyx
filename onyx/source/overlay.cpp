@@ -1425,8 +1425,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
     const auto beginDockedWindow = [&] {
         ly->OpenPanel(active->DockParent->ContentId);
         active->Size = active->DockParent->ReadOnlySize;
-        ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
-                           "[ONYX][OVERLAY] A title must be provided if the window has a tab");
+        // ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
+        //                    "[ONYX][OVERLAY] A title must be provided if the window has a tab");
 
         const OverlayTabBarFlags tflags = OverlayTabFlag_StartOpen | OverlayTabFlag_NoPushId | TabFlag_ForDocking;
 
@@ -1572,8 +1572,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
                     active->SyncNativeSize();
             }
 
-            ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
-                               "[ONYX][OVERLAY] A title must be provided if the window has a header");
+            // ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
+            //                    "[ONYX][OVERLAY] A title must be provided if the window has a header");
             ly->Text(title, getTextParams());
             ly->EndPanel();
 
@@ -5070,6 +5070,7 @@ bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled
 
     Tab &tab = data->Tabs[idx];
     tab.Id = tabId;
+    tab.Title = label.Title;
     Layout *ly = m_Active->GetActiveLayout();
 
     const bool mustStartOpen = (flags & OverlayTabFlag_StartOpen) && data->OpenId == NullLayoutId;
@@ -7095,7 +7096,9 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->Button("I have a twin##Cant see me eiter");
         ov->Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
 
-        ov->PushDirection(Onyx::LayoutDirection_LeftToRight, 0.f);
+        ov->PushStyleVar(OverlayStyle_ChildGap, 0.f);
+        ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+        ov->PopStyleVar();
         ov->TextRaw("A small button can be easily ");
         ov->Button("embedded", Onyx::OverlayButtonFlag_Small);
         ov->TextRaw(" in text");
@@ -7269,7 +7272,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         const TKit::FixedArray<TKit::StringView, 8> elements{"Element 1", "Element 2", "Element 3", "Element 4",
                                                              "Element 5", "Element 6", "Element 7", "Element 8"};
         static u32 idx = 0;
-        ov->DropDown("One-liner 1", &idx, elements, dflags);
+        ov->DropDown<TKit::StringView>("One-liner 1", &idx, elements, dflags);
         ov->DropDown("One-liner 2##You should not see this", &idx, "I am#part of#the same#string", dflags);
         ov->PopTree();
     }
@@ -7483,7 +7486,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
                                                              "Element 5", "Element 6", "Element 7", "Element 8"};
 
         static u32 idx = 0;
-        ov->ListBox("List box 1", &idx, elements, sflags);
+        ov->ListBox<TKit::StringView>("List box 1", &idx, elements, sflags);
         ov->ListBox("List box 2##You should not see this", &idx, "I am#part of#the same#string", sflags);
 
         ov->PopTree();

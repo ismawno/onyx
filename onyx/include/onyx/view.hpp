@@ -298,7 +298,7 @@ template <Dimension D> class RenderView
         destroyFramebuffers();
         findAvailableFramebuffer();
     }
-    void drainWork();
+    void drainWork() const;
 
     Viewport asNormalizedViewport() const
     {
