@@ -124,7 +124,12 @@ static TKit::StackString editor_CreateDefaultName(const TKit::StringView prefix,
 struct Utils_NameArray
 {
     TKit::StackArray<TKit::StackString> Names{};
-    TKit::StackArray<u32> Ids{};
+    TKit::TierArray<u32> Ids{};
+
+    u32 GetId(const u32 idx) const
+    {
+        return idx < Ids.GetSize() ? Ids[idx] : TKIT_U32_MAX;
+    }
 };
 
 template <typename T> static Utils_NameArray editor_CreateNameArray(const TKit::TierHive<T> &elements)
@@ -236,7 +241,7 @@ Viewport Scene_CreateViewport(const Scene sc, const u32v2 &resolution)
 void Scene_DestroyViewport(const Scene sc, const Viewport vp)
 {
     Editor_Scene &scene = s_Data->Scenes[sc];
-    Editor_Viewport &viewport = scene.Viewports[sc];
+    Editor_Viewport &viewport = scene.Viewports[vp];
 
     // we do it "manually" cause we want to remove the refcounts of the cameras
     const TKit::StackArray<RenderView> rvs2 = viewport.Views2.GetValidIds();
@@ -893,7 +898,7 @@ template <Dimension D> static void renderingWindow_DisplayViews(const char *name
 
         editor_ListBox(lb);
 
-        const RenderView selectedRv = labels.Ids[selected];
+        const RenderView selectedRv = labels.GetId(selected);
         if (views.Contains(selectedRv))
             renderingWindow_DisplayView(views[selectedRv]);
         ov->PopTree();
@@ -984,7 +989,7 @@ static void renderingWindow_DisplayViewports()
         lb.OnRemove = [&] { Scene_DestroyViewport(s_Data->ActiveScene, labels.Ids[selected]); };
         editor_ListBox(lb);
 
-        const Viewport selectedVp = labels.Ids[selected];
+        const Viewport selectedVp = labels.GetId(selected);
         if (scene.Viewports.Contains(selectedVp))
             renderingWindow_DisplayViewport(scene.Viewports[selectedVp]);
         ov->PopTree();
