@@ -300,6 +300,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables();
 OverlayPalette CreateSlateOverlayPalette();
 OverlayPalette CreateEmberOverlayPalette();
 OverlayPalette CreateBabyBlueOverlayPalette();
+OverlayPalette CreateOnyxOverlayPalette();
 
 OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette);
 
@@ -318,7 +319,7 @@ struct StyleBackup
 struct OverlayStyle
 {
     OverlayStyleVariables Variables = CreateDefaultOverlayVariables();
-    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateBabyBlueOverlayPalette());
+    OverlayColors Colors = CreateOverlayColorsFromPalette(CreateOnyxOverlayPalette());
 
     constexpr f32 operator[](const OverlayStyleVariable idx) const
     {

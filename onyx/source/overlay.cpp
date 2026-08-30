@@ -279,6 +279,33 @@ OverlayPalette CreateBabyBlueOverlayPalette()
     return palette;
 }
 
+OverlayPalette CreateOnyxOverlayPalette()
+{
+    OverlayPalette palette;
+    palette[OverlayPalette_Idle0] = hex("32323A");
+    palette[OverlayPalette_Idle1] = hex("42424A");
+    palette[OverlayPalette_Idle2] = hex("38383F");
+
+    palette[OverlayPalette_Hovered0] = hex("46464E");
+    palette[OverlayPalette_Hovered1] = hex("5A5A64");
+    palette[OverlayPalette_Hovered2] = hex("3D3D44");
+    palette[OverlayPalette_Hovered3] = hex("505058");
+
+    palette[OverlayPalette_Pressed0] = hex("555D5F");
+    palette[OverlayPalette_Pressed1] = hex("4B5356");
+    palette[OverlayPalette_Pressed2] = hex("616A6E");
+
+    palette[OverlayPalette_Text0] = hex("E4EAEC");
+
+    palette[OverlayPalette_Inner0] = hex("5BA8A0");
+    palette[OverlayPalette_Inner1] = hex("6CBAB2");
+
+    palette[OverlayPalette_Background0] = hex("232328");
+    palette[OverlayPalette_Background1] = hex("343438");
+    palette[OverlayPalette_Background2] = hex("1A1A1F");
+
+    return palette;
+}
 OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
 {
     OverlayColors colors;
