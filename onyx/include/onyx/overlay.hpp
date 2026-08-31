@@ -1319,7 +1319,7 @@ class Overlay
     bool Button(OverlayLabel label, OverlayButtonFlags flags = 0);
     bool RadioButton(OverlayLabel label, bool active);
 
-    template <TKit::Numeric T, std::convertible_to<T> U>
+    template <TKit::IntegerOrEnum T, std::convertible_to<T> U>
     bool RadioButton(const OverlayLabel label, T *value, const U reference)
     {
         if (RadioButton(label, *value == T(reference)))

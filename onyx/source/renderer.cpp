@@ -1876,7 +1876,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         ContextInfo<D> &cinfo = contexts[i];
         RenderContext<D> *ctx = cinfo.Context;
 
-        const ViewMask vmask = ctx->GetViewMask();
+        const ViewMask vmask = ctx->ViewMask;
         if (!vmask)
             continue;
 
@@ -2132,7 +2132,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             crange.Size = idata.Instances * idata.InstanceSize;
             crange.Generation = ctx->GetGeneration();
 
-            const ViewMask vm = ctx->GetViewMask();
+            const ViewMask vm = ctx->ViewMask;
             viewMask |= vm;
             crange.ViewMask = vm;
 
@@ -3065,7 +3065,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     // TODO(Isma): At some point would be good letting the user decide what strategy to use to aggregate ambient
     Color ambient{0.f, 0.f};
     for (const ContextInfo<D> &info : rdata.Contexts)
-        if (info.Context->GetViewMask() & viewBit)
+        if (info.Context->ViewMask & viewBit)
         {
             const Color &a = info.Context->GetAmbientLight();
             ambient.rgba = Math::Max(ambient.rgba, a.rgba);

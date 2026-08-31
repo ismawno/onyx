@@ -22,7 +22,6 @@ template <Dimension D> static void scene_Render(TKit::Registry &r)
 
 void Scene_Render(const Scene sc)
 {
-    Scene_FlushContexts(sc);
     TKit::Registry &r = Scene_GetRegistry(sc);
     scene_Render<D2>(r);
     scene_Render<D3>(r);

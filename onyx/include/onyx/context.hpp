@@ -721,10 +721,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_DirectionalLightData;
     }
 
-    ViewMask GetViewMask() const
-    {
-        return m_ViewMask;
-    }
     u64 GetGeneration() const
     {
         return m_Generation;
@@ -737,13 +733,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void AddTarget(const ViewMask viewMask)
     {
-        m_ViewMask |= viewMask;
+        ViewMask |= viewMask;
         ++m_Generation;
     }
-
     void RemoveTarget(const ViewMask viewMask)
     {
-        m_ViewMask &= ~viewMask;
+        ViewMask &= ~viewMask;
         ++m_Generation;
     }
 
@@ -756,6 +751,20 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         RemoveTarget(view->GetViewBit());
     }
 
+    bool HasAllTargets(const ViewMask viewMask) const
+    {
+        return (ViewMask & viewMask) == viewMask;
+    }
+    bool HasAnyTarget(const ViewMask viewMask) const
+    {
+        return ViewMask & viewMask;
+    }
+    bool HasTarget(const RenderView<D> *view)
+    {
+        return HasAllTargets(view->GetViewBit());
+    }
+
+    ViewMask ViewMask = 0;
     u32 DepthCounter = 0;
 
   protected:
@@ -824,7 +833,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     u64 m_Generation = 0;
     Color m_AmbientLight = Color{Color_White, 0.4f};
-    ViewMask m_ViewMask = 0;
     u32 m_DynamicMeshCounter = 0;
 };
 

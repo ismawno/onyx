@@ -228,6 +228,7 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
     LayoutElement &elm = insertElement(id, params);
     elm.Type = LayoutElement_Text;
     elm.Shape.Type = LayoutShape_Text;
+    elm.TextMode = params.Mode;
 
     const FontData &fdata = Resources::GetFontData(elm.Font);
     const f32 fs = params.FontSize;

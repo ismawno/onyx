@@ -7,6 +7,8 @@
 #define NAME_BUF_SIZE 64
 #define DEFAULT_RESOLUTION u32v2{1920, 1080}
 
+#define NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
+
 namespace Engine
 {
 struct Editor_Ids
@@ -19,7 +21,7 @@ struct Editor_Ids
     Onyx::OverlayLabel Entity = "Entity";
     Onyx::OverlayLabel Console = "Console";
     Onyx::OverlayLabel AssetBrowser = "Asset browser";
-    Onyx::OverlayLabel Rendering = "Rendering";
+    Onyx::OverlayLabel Scene = "Scene";
 };
 
 template <Dimension D> struct Editor_Camera
@@ -41,6 +43,7 @@ template <Dimension D> struct Editor_RenderContext
 {
     TKit::TierString Name{};
     Onyx::RenderContext<D> *Handle;
+    bool DrawAxes = false;
 };
 
 struct Editor_Viewport
@@ -83,6 +86,20 @@ struct Editor_Scene
     TKit::TierHive<Editor_RenderContext<D2>> Contexts2{};
     TKit::TierHive<Editor_RenderContext<D3>> Contexts3{};
 
+    u32 Dim = D2;
+
+    template <Dimension D> bool HasDimension() const
+    {
+        return Dim == 0 || Dim == D;
+    }
+    template <Dimension D> bool IsDimension() const
+    {
+        return Dim == D;
+    }
+    bool HasBothDimensions() const
+    {
+        return Dim == 0;
+    }
     template <Dimension D> TKit::TierArray<Editor_Camera<D>> &GetCameras()
     {
         if constexpr (D == D2)
@@ -143,6 +160,15 @@ template <typename T> static Utils_NameArray editor_CreateNameArray(const TKit::
         array.Ids.Append(id);
     });
     return array;
+}
+
+template <typename T> static TKit::StackArray<u32> editor_CreateIdArray(const TKit::TierHive<T> &elements)
+{
+    TKit::StackArray<u32> ids{};
+    ids.Reserve(elements.GetSize());
+
+    elements.IterateByInsertionOrder([&](const u32 id) { ids.Append(id); });
+    return ids;
 }
 
 template <typename T>
@@ -274,6 +300,11 @@ template <Dimension D> void Scene_DestroyRenderContext(const Scene sc, const Ren
     TKit::TierHive<Editor_RenderContext<D>> &rcs = scene.GetContexts<D>();
 
     Editor_RenderContext<D> &rctx = rcs[rc];
+    scene.Registry.Query<RenderContextComponent<D>>().Each([&](RenderContextComponent<D> &comp) {
+        if (comp.Context == rctx.Handle)
+            comp.Context = nullptr;
+    });
+
     Onyx::DestroyRenderContext(rctx.Handle);
     rcs.Remove(rc);
 }
@@ -345,7 +376,7 @@ static Onyx::Overlay *editor_CreateOverlay(Onyx::Window *win)
                             Onyx::DockTabBar(idData.Entity.Id)),
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f,
                             Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(mainViewportId),
-                                            Onyx::DockTabBar(idData.Rendering.Id)),
+                                            Onyx::DockTabBar(idData.Scene.Id)),
                             Onyx::DockTabBar({idData.Console.Id, idData.AssetBrowser.Id})));
 
         ov->ApplyDockTree(idData.MainDockSpace, mainTree);
@@ -391,10 +422,31 @@ static void viewportWindow_Draw()
         return;
 
     Onyx::Overlay *ov = s_Data->Overlay;
+    const Editor_Scene &scene = s_Data->GetActiveScene();
     const auto drawViewportWindow = [&](const Viewport vp) {
         Editor_Viewport &viewport = vps[vp];
         if (ov->BeginWindow({vp, viewport.Name}, &viewport.Visible, Onyx::OverlayWindowFlag_MenuBar))
         {
+            const char *warning = nullptr;
+            const bool e2 = viewport.GetViews<D2>().IsEmpty();
+            const bool e3 = viewport.GetViews<D3>().IsEmpty();
+            if (scene.HasBothDimensions() && e2 && e3)
+                warning = "This viewport has no views and will not display contents until one is created from the "
+                          "'Scene' tab";
+            else if (scene.IsDimension<D2>() && e2)
+                warning = "This viewport has no 2D views and will not display contents until one is created from the "
+                          "'Scene' tab";
+            else if (scene.IsDimension<D3>() && e3)
+                warning = "This viewport has no 3D views and will not display contents until one is created from the "
+                          "'Scene' tab";
+
+            if (warning)
+            {
+                ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Orange);
+                ov->TextRaw(Onyx::TextMode_Wrapped, warning);
+                ov->PopStyleColor();
+            }
+
             viewport.Window = ov->GetActiveWindow();
 
             const Onyx::LayoutId panelId = &viewport;
@@ -648,7 +700,33 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         else
             ov->HorizontalSeparator("Render context 3D");
 
-        ov->TextRaw("Placeholder: currently, there is only one context available for rendering");
+        Editor_Scene &scene = s_Data->GetActiveScene();
+        const TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
+
+        if (!ctxs.IsEmpty())
+        {
+            const Utils_NameArray labels = editor_CreateNameArray(ctxs);
+
+            u32 selected = TKIT_U32_MAX;
+            for (u32 i = 0; i < labels.Ids.GetSize(); ++i)
+                if (ctxs[labels.Ids[i]].Handle == rc->Context)
+                {
+                    selected = i;
+                    break;
+                }
+
+            ov->DropDown<TKit::StackString>("Context", &selected, labels.Names);
+
+            const RenderContext handle = labels.GetId(selected);
+            if (handle != NullRenderContext)
+                rc->Context = ctxs[handle].Handle;
+        }
+        else
+        {
+            ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Orange);
+            ov->TextRaw("No context has been added. Add one from the 'Scene' tab");
+            ov->PopStyleColor();
+        }
     }
     ov->PopId();
 }
@@ -664,16 +742,37 @@ static void entityWindow_Draw()
     {
         TKit::Registry &r = scene.Registry;
 
-        const auto hasAllComponents = [&] { return r.HasAllComponents(AllComponents{}, e); };
+        const auto hasAllComponents = [&] {
+            if (scene.HasBothDimensions())
+                return r.HasAllComponents(AllComponents{}, e);
+            else if (scene.HasDimension<D2>())
+                return r.HasAllComponents(AllComponentsWithDimension<D2>{}, e);
+            return r.HasAllComponents(AllComponentsWithDimension<D3>{}, e);
+        };
 
         if (ov->BeginPopup("Components"))
         {
             const Onyx::DefaultResources &defRes = Onyx::Resources::GetDefaultResources();
 
-            entityWindow_ChooseComponent<TransformComponent>(e, "Transform", r);
-            entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r, {1, defRes.Quad2},
-                                                              {1, defRes.Quad3});
-            entityWindow_ChooseComponent<RenderContextComponent>(e, "Render context", r);
+            if (scene.HasBothDimensions())
+            {
+                entityWindow_ChooseComponent<TransformComponent>(e, "Transform", r);
+                entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r, {1, defRes.Quad2},
+                                                                  {1, defRes.Quad3});
+                entityWindow_ChooseComponent<RenderContextComponent>(e, "Render context", r);
+            }
+            else if (scene.HasDimension<D2>())
+            {
+                entityWindow_ChooseComponent<TransformComponent<D2>>(e, "Transform", r);
+                entityWindow_ChooseComponent<StaticMeshComponent<D2>>(e, "Static mesh", r, 1, defRes.Quad2);
+                entityWindow_ChooseComponent<RenderContextComponent<D2>>(e, "Render context", r);
+            }
+            else
+            {
+                entityWindow_ChooseComponent<TransformComponent<D3>>(e, "Transform", r);
+                entityWindow_ChooseComponent<StaticMeshComponent<D3>>(e, "Static mesh", r, 1, defRes.Quad3);
+                entityWindow_ChooseComponent<RenderContextComponent<D3>>(e, "Render context", r);
+            }
 
             if (hasAllComponents())
                 ov->CloseCurrentPopup();
@@ -773,7 +872,7 @@ static bool editor_ListBox(const Utils_ListBox &params)
     return result;
 }
 
-template <Dimension D> static void renderingWindow_DisplayView(Editor_RenderView<D> &view)
+template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> &view)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
 
@@ -859,14 +958,13 @@ template <Dimension D> static void renderingWindow_DisplayView(Editor_RenderView
     if (changed)
         rv->SetFlags(flags);
 }
-template <Dimension D> static void renderingWindow_DisplayViews(const char *name, Editor_Viewport &viewport)
+template <Dimension D> static void sceneWindow_DisplayViews(const char *name, Editor_Viewport &viewport)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
     {
         TKit::TierHive<Editor_RenderView<D>> &views = viewport.GetViews<D>();
 
-        static u32 selected = TKIT_U32_MAX;
         const Utils_NameArray labels = editor_CreateNameArray(views);
 
         Editor_Scene &scene = s_Data->GetActiveScene();
@@ -888,6 +986,7 @@ template <Dimension D> static void renderingWindow_DisplayViews(const char *name
             ov->EndPopup();
         }
 
+        static u32 selected = TKIT_U32_MAX;
         Utils_ListBox lb{"Views", &selected, &labels.Names};
         lb.OnAdd = [&] { ov->OpenPopup("Choose camera"); };
         lb.OnRemove = [&] { viewport_DestroyRenderView<D>(scene, viewport, labels.Ids[selected]); };
@@ -900,12 +999,12 @@ template <Dimension D> static void renderingWindow_DisplayViews(const char *name
 
         const RenderView selectedRv = labels.GetId(selected);
         if (views.Contains(selectedRv))
-            renderingWindow_DisplayView(views[selectedRv]);
+            sceneWindow_DisplayView(views[selectedRv]);
         ov->PopTree();
     }
 }
 
-template <Dimension D> static void renderingWindow_DisplayCamera(Editor_Camera<D> &camera)
+template <Dimension D> static void sceneWindow_DisplayCamera(Editor_Camera<D> &camera)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     const char *elements = D == D2 ? "Orthographic#Viewport" : "Orthographic#Viewport#Perspective";
@@ -937,7 +1036,7 @@ template <Dimension D> static void renderingWindow_DisplayCamera(Editor_Camera<D
             ov->HorizontalDrag("Far", &params.Far, 0.1f, params.Near, TKIT_F32_MAX);
         }
 }
-template <Dimension D> static void renderingWindow_DisplayCameras(const char *name)
+template <Dimension D> static void sceneWindow_DisplayCameras(const char *name)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
@@ -957,12 +1056,66 @@ template <Dimension D> static void renderingWindow_DisplayCameras(const char *na
         editor_ListBox(lb);
 
         if (selected < cams.GetSize())
-            renderingWindow_DisplayCamera(cams[selected]);
+            sceneWindow_DisplayCamera(cams[selected]);
         ov->PopTree();
     }
 }
 
-static void renderingWindow_DisplayViewport(Editor_Viewport &viewport)
+template <Dimension D> static void sceneWindow_DisplayContext(Editor_RenderContext<D> &rctx)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+
+    ov->HorizontalSeparator(rctx.Name);
+    ov->InputText("Name", &rctx.Name, NAME_BUF_SIZE);
+
+    ov->CheckBox("Axes", &rctx.DrawAxes);
+    if (ov->PushTree("Targets"))
+    {
+        Onyx::RenderContext<D> *context = rctx.Handle;
+        Editor_Scene &scene = s_Data->GetActiveScene();
+        for (Editor_Viewport &vp : scene.Viewports)
+        {
+            ov->HorizontalSeparator(vp.Name);
+            const TKit::TierHive<Editor_RenderView<D>> &views = vp.GetViews<D>();
+            const TKit::StackArray<RenderView> ids = editor_CreateIdArray(views);
+            for (const RenderView rv : ids)
+            {
+                const Editor_RenderView<D> &rview = views[rv];
+                ov->PushId(&rview);
+                ov->CheckBoxFlags(rview.Name, &context->ViewMask, rview.Handle->GetViewBit());
+                ov->PopId();
+            }
+        }
+        ov->PopTree();
+    }
+}
+
+template <Dimension D> static void sceneWindow_DisplayContexts(const char *name)
+{
+    Onyx::Overlay *ov = s_Data->Overlay;
+    if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
+    {
+        Editor_Scene &scene = s_Data->GetActiveScene();
+
+        TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
+        const Utils_NameArray labels = editor_CreateNameArray(ctxs);
+
+        static u32 selected = TKIT_U32_MAX;
+        Utils_ListBox lb{"Contexts", &selected, &labels.Names};
+        lb.OnAdd = [&] { Scene_CreateRenderContext<D>(s_Data->ActiveScene); };
+        lb.OnRemove = [&] { Scene_DestroyRenderContext<D>(s_Data->ActiveScene, labels.Ids[selected]); };
+
+        editor_ListBox(lb);
+
+        const RenderContext selectedRc = labels.GetId(selected);
+        if (ctxs.Contains(selectedRc))
+            sceneWindow_DisplayContext(ctxs[selectedRc]);
+
+        ov->PopTree();
+    }
+}
+
+static void sceneWindow_DisplayViewport(Editor_Viewport &viewport)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     ov->HorizontalSeparator(viewport.Name);
@@ -970,11 +1123,14 @@ static void renderingWindow_DisplayViewport(Editor_Viewport &viewport)
     ov->Text("Resolution: {}x{}", viewport.Resolution[0], viewport.Resolution[1]);
     ov->CheckBox("Visible", &viewport.Visible);
 
-    renderingWindow_DisplayViews<D2>("2D Views", viewport);
-    renderingWindow_DisplayViews<D3>("3D Views", viewport);
+    const Editor_Scene &scene = s_Data->GetActiveScene();
+    if (scene.HasDimension<D2>())
+        sceneWindow_DisplayViews<D2>(NAME_BY_DIM("2D", "Views"), viewport);
+    if (scene.HasDimension<D3>())
+        sceneWindow_DisplayViews<D3>(NAME_BY_DIM("3D", "Views"), viewport);
 }
 
-static void renderingWindow_DisplayViewports()
+static void sceneWindow_DisplayViewports()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     if (ov->PushTree("Viewports", Onyx::OverlayTreeFlag_DrawLines))
@@ -991,20 +1147,37 @@ static void renderingWindow_DisplayViewports()
 
         const Viewport selectedVp = labels.GetId(selected);
         if (scene.Viewports.Contains(selectedVp))
-            renderingWindow_DisplayViewport(scene.Viewports[selectedVp]);
+            sceneWindow_DisplayViewport(scene.Viewports[selectedVp]);
         ov->PopTree();
     }
 }
 
-static void renderingWindow_Draw()
+static void sceneWindow_Draw()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     const Editor_Ids &idData = s_Data->Labels;
-    if (ov->BeginWindow(idData.Rendering))
+    if (ov->BeginWindow(idData.Scene))
     {
-        renderingWindow_DisplayViewports();
-        renderingWindow_DisplayCameras<D2>("2D Editor cameras");
-        renderingWindow_DisplayCameras<D3>("3D Editor cameras");
+        Editor_Scene &scene = s_Data->GetActiveScene();
+
+        ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+        ov->RadioButton("2D", &scene.Dim, D2);
+        ov->RadioButton("3D", &scene.Dim, D3);
+        ov->RadioButton("Both", &scene.Dim, 0);
+        ov->PopDirection();
+
+        sceneWindow_DisplayViewports();
+
+        if (scene.HasDimension<D2>())
+            sceneWindow_DisplayCameras<D2>(NAME_BY_DIM("2D", "Editor cameras"));
+        if (scene.HasDimension<D3>())
+            sceneWindow_DisplayCameras<D3>(NAME_BY_DIM("3D", "Editor cameras"));
+
+        if (scene.HasDimension<D2>())
+            sceneWindow_DisplayContexts<D2>(NAME_BY_DIM("2D", "Render contexts"));
+        if (scene.HasDimension<D3>())
+            sceneWindow_DisplayContexts<D3>(NAME_BY_DIM("3D", "Render contexts"));
+
         ov->EndWindow();
     }
 }
@@ -1094,6 +1267,14 @@ static void editor_ControlCamera()
             }
 }
 
+template <Dimension D> static void editor_DrawAxes()
+{
+    Editor_Scene &scene = s_Data->GetActiveScene();
+    for (const Editor_RenderContext<D> &rc : scene.GetContexts<D>())
+        if (rc.DrawAxes)
+            rc.Handle->Axes();
+}
+
 void Run()
 {
     Onyx::Overlay *ov = s_Data->Overlay;
@@ -1110,12 +1291,16 @@ void Run()
         entityWindow_Draw();
         assetBrowserWindow_Draw();
         consoleWindow_Draw();
-        renderingWindow_Draw();
+        sceneWindow_Draw();
         viewportWindow_Draw();
 
         editor_ControlCamera();
 
-        Scene_Render(s_Data->ActiveScene);
+        const Scene active = s_Data->ActiveScene;
+        Scene_FlushContexts(active);
+        editor_DrawAxes<D2>();
+        editor_DrawAxes<D3>();
+        Scene_Render(active);
 
         ov->Draw();
 
