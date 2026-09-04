@@ -3,6 +3,7 @@
 #include "tkit/utils/alias.hpp"
 #include "tkit/utils/literals.hpp"
 #include "tkit/utils/dimension.hpp"
+#include "tkit/math/math.hpp"
 
 namespace Engine
 {

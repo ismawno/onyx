@@ -302,28 +302,30 @@ class Gradient
 };
 #undef CHECK_RGBA
 
-#ifdef ONYX_ENABLE_COLOR_SERIALIZATION
+} // namespace Onyx
+
+#ifdef TKIT_ENABLE_YAML_SERIALIZATION
 #    include "tkit/serialization/yaml/codec.hpp"
 
 template <> struct TKit::Yaml::Codec<Onyx::Color>
 {
     static Node Encode(const Onyx::Color &color)
     {
-        return Node{"#" + color.ToHexadecimal<std::string>(color.Alpha() != 255)};
+        return Node{"#" + color.ToHexadecimal<std::string>(color.a() != 255)};
     }
 
     static bool Decode(const Node &node, Onyx::Color &color)
     {
         if (node.IsScalar())
         {
-            const std::string color = node.as<std::string>();
-            if (color[0] == '#')
+            const std::string str = node.as<std::string>();
+            if (str[0] == '#')
             {
-                const std::string hex = color.substr(1);
+                const std::string hex = str.substr(1);
                 color = Onyx::Color::FromHexadecimal(hex);
                 return true;
             }
-            color = Onyx::Color::FromString(color);
+            color = Onyx::Color::FromString(str);
             return true;
         }
         if (node.IsSequence())
@@ -339,5 +341,3 @@ template <> struct TKit::Yaml::Codec<Onyx::Color>
     }
 };
 #endif
-
-} // namespace Onyx

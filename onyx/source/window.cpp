@@ -130,7 +130,7 @@ u32v2 Window::GetPixelDimensions() const
 f32 Window::GetAspect() const
 {
     const u32v2 pdim = GetPixelDimensions();
-    return f32(pdim[1]) / f32(pdim[0]);
+    return f32(pdim[0]) / f32(pdim[1]);
 }
 
 f32 Window::GetOpacity() const

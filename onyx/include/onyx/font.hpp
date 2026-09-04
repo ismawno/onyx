@@ -4,6 +4,7 @@
 #include "onyx/image.hpp"
 #include "tkit/container/hash_set.hpp"
 #include "tkit/container/hash_map.hpp"
+#include "tkit/container/span.hpp"
 
 namespace Onyx
 {

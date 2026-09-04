@@ -7,11 +7,15 @@ namespace Onyx
 {
 template <Dimension D> struct OrthographicParameters
 {
+    TKIT_REFLECT_DECLARE(OrthographicParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(OrthographicParameters)
     f32 Size = 5.f;
 };
 
 template <> struct OrthographicParameters<D3>
 {
+    TKIT_REFLECT_DECLARE(OrthographicParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(OrthographicParameters)
     f32 Size = 5.f;
     f32 Near = -5.f;
     f32 Far = 5.f;
@@ -19,6 +23,8 @@ template <> struct OrthographicParameters<D3>
 
 struct PerspectiveParameters
 {
+    TKIT_REFLECT_DECLARE(PerspectiveParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(PerspectiveParameters)
     f32 FieldOfView = Math::Radians(75.f);
     f32 Near = 0.1f;
     f32 Far = 100.f;
@@ -54,6 +60,10 @@ template <> struct CameraControls<D3>
 
 namespace Onyx
 {
+
+TKIT_REFLECT_DECLARE_ENUM(CameraMode)
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(CameraMode)
+
 enum CameraMode : u8
 {
     CameraMode_Orthographic,
@@ -63,6 +73,8 @@ enum CameraMode : u8
 
 template <Dimension D> struct Camera
 {
+    TKIT_REFLECT_DECLARE(Camera)
+    TKIT_YAML_SERIALIZE_DECLARE(Camera)
     Transform<D> View{};
     OrthographicParameters<D> OrthoParameters{};
     CameraMode Mode = CameraMode_Orthographic;
@@ -70,6 +82,8 @@ template <Dimension D> struct Camera
 
 template <> struct Camera<D3>
 {
+    TKIT_REFLECT_DECLARE(Camera)
+    TKIT_YAML_SERIALIZE_DECLARE(Camera)
     Transform<D3> View{};
     OrthographicParameters<D3> OrthoParameters{};
     PerspectiveParameters PerspParameters{};

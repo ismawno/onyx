@@ -18,6 +18,8 @@ namespace Onyx
 {
 struct Viewport
 {
+    TKIT_REFLECT_DECLARE(Viewport)
+    TKIT_YAML_SERIALIZE_DECLARE(Viewport)
     f32v2 Position{0.f};
     f32v2 Extent{1.f};
     f32v2 Depth{0.f, 1.f};
@@ -25,6 +27,8 @@ struct Viewport
 
 struct Scissor
 {
+    TKIT_REFLECT_DECLARE(Scissor)
+    TKIT_YAML_SERIALIZE_DECLARE(Scissor)
     f32v2 Position{0.f};
     f32v2 Extent{1.f};
 };
@@ -182,42 +186,42 @@ template <Dimension D> class RenderView
     Viewport GetNormalizedViewport() const
     {
         if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-            return m_Viewport;
+            return ViewportData;
         return asNormalizedViewport();
     }
     Viewport GetAbsoluteViewport() const
     {
         if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
             return asAbsoluteViewport();
-        return m_Viewport;
+        return ViewportData;
     }
 
     void SetNormalizedViewport(const Viewport &vp);
     void SetAbsoluteViewport(const Viewport &vp);
     void SetNormalizedViewportPosition(const f32v2 &pos)
     {
-        m_Viewport.Position = Math::Clamp(pos, 0.f, 1.f);
+        ViewportData.Position = Math::Clamp(pos, 0.f, 1.f);
         if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
-            m_Viewport = asAbsoluteViewport();
+            ViewportData = asAbsoluteViewport();
     }
     void SetAbsoluteViewportPosition(const f32v2 &pos)
     {
-        m_Viewport.Position = Math::Clamp(pos, f32v2{0.f}, f32v2{m_ParentExtent});
+        ViewportData.Position = Math::Clamp(pos, f32v2{0.f}, f32v2{m_ParentExtent});
         if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-            m_Viewport = asNormalizedViewport();
+            ViewportData = asNormalizedViewport();
     }
 
     Scissor GetNormalizedScissor() const
     {
         if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
-            return m_Scissor;
+            return ScissorData;
         return asNormalizedScissor();
     }
     Scissor GetAbsoluteScissor() const
     {
         if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
             return asAbsoluteScissor();
-        return m_Scissor;
+        return ScissorData;
     }
 
     void SetNormalizedScissor(const Scissor &sc);
@@ -289,6 +293,8 @@ template <Dimension D> class RenderView
     // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
     u64 Layer = 0;
+    Viewport ViewportData;
+    Scissor ScissorData;
 
   private:
     void findAvailableFramebuffer();
@@ -303,30 +309,30 @@ template <Dimension D> class RenderView
     Viewport asNormalizedViewport() const
     {
         const f32v2 extent = f32v2{m_ParentExtent};
-        const f32v2 pos = m_Viewport.Position / extent;
-        const f32v2 ext = m_Viewport.Extent / extent;
-        return {pos, ext, m_Viewport.Depth};
+        const f32v2 pos = ViewportData.Position / extent;
+        const f32v2 ext = ViewportData.Extent / extent;
+        return {pos, ext, ViewportData.Depth};
     }
     Scissor asNormalizedScissor() const
     {
         const f32v2 extent = GetAbsoluteViewport().Extent;
-        const f32v2 pos = m_Scissor.Position / extent;
-        const f32v2 ext = m_Scissor.Extent / extent;
+        const f32v2 pos = ScissorData.Position / extent;
+        const f32v2 ext = ScissorData.Extent / extent;
         return {pos, ext};
     }
 
     Viewport asAbsoluteViewport() const
     {
         const f32v2 extent = f32v2{m_ParentExtent};
-        const f32v2 pos = m_Viewport.Position * extent;
-        const f32v2 ext = m_Viewport.Extent * extent;
-        return {pos, ext, m_Viewport.Depth};
+        const f32v2 pos = ViewportData.Position * extent;
+        const f32v2 ext = ViewportData.Extent * extent;
+        return {pos, ext, ViewportData.Depth};
     }
     Scissor asAbsoluteScissor() const
     {
         const f32v2 extent = GetAbsoluteViewport().Extent;
-        const f32v2 pos = m_Scissor.Position * extent;
-        const f32v2 ext = m_Scissor.Extent * extent;
+        const f32v2 pos = ScissorData.Position * extent;
+        const f32v2 ext = ScissorData.Extent * extent;
         return {pos, ext};
     }
 
@@ -338,8 +344,6 @@ template <Dimension D> class RenderView
     }
 
     Camera<D> *m_Camera;
-    Viewport m_Viewport;
-    Scissor m_Scissor;
     ViewMask m_ViewBit;
 
     u32v2 m_ParentExtent{};

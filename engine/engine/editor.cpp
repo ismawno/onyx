@@ -3,14 +3,28 @@
 #include "onyx/resources.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
+#include "tkit/serialization/yaml/container.hpp"
+#include "tkit/serialization/yaml/tensor.hpp"
+#include "tkit/serialization/yaml/quaternion.hpp"
+#include "tkit/serialization/yaml/include/onyx/camera.hpp"
+#include "tkit/serialization/yaml/include/onyx/transform.hpp"
+#include "tkit/serialization/yaml/include/onyx/camera.hpp"
+#include "tkit/serialization/yaml/include/onyx/view.hpp"
+#include "tkit/serialization/yaml/engine/components.hpp"
 
 #define NAME_BUF_SIZE 64
 #define DEFAULT_RESOLUTION u32v2{1920, 1080}
 
 #define NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
+#define DIMENSION_GETTER(varname)                                                                                      \
+    if constexpr (D == D2)                                                                                             \
+        return varname##2;                                                                                             \
+    else                                                                                                               \
+        return varname##3
 
 namespace Engine
 {
+using Node = TKit::Yaml::Node;
 struct Editor_Ids
 {
     Onyx::LayoutId MainDockSpace = "__onyx_editor_Main_dockspace";
@@ -26,6 +40,7 @@ struct Editor_Ids
 
 template <Dimension D> struct Editor_Camera
 {
+    TKIT_YAML_SERIALIZE_DECLARE(Editor_Camera)
     TKit::TierString Name{};
     Onyx::Camera<D> *Handle;
     // lol
@@ -37,6 +52,7 @@ template <Dimension D> struct Editor_RenderView
     TKit::TierString Name{};
     Onyx::RenderView<D> *Handle;
     // TODO(Isma): Need to store here as well what entity's camera will take over the view when play is hit
+    u32 EditorCameraIndex = TKIT_U32_MAX;
 };
 
 template <Dimension D> struct Editor_RenderContext
@@ -61,12 +77,13 @@ struct Editor_Viewport
     f32 Aspect = 0.f;
     bool Visible = true;
 
+    template <Dimension D> const TKit::TierHive<Editor_RenderView<D>> &GetViews() const
+    {
+        DIMENSION_GETTER(Views);
+    }
     template <Dimension D> TKit::TierHive<Editor_RenderView<D>> &GetViews()
     {
-        if constexpr (D == D2)
-            return Views2;
-        else
-            return Views3;
+        DIMENSION_GETTER(Views);
     }
 };
 
@@ -100,19 +117,21 @@ struct Editor_Scene
     {
         return Dim == 0;
     }
+    template <Dimension D> const TKit::TierArray<Editor_Camera<D>> &GetCameras() const
+    {
+        DIMENSION_GETTER(Cameras);
+    }
     template <Dimension D> TKit::TierArray<Editor_Camera<D>> &GetCameras()
     {
-        if constexpr (D == D2)
-            return Cameras2;
-        else
-            return Cameras3;
+        DIMENSION_GETTER(Cameras);
+    }
+    template <Dimension D> const TKit::TierHive<Editor_RenderContext<D>> &GetContexts() const
+    {
+        DIMENSION_GETTER(Contexts);
     }
     template <Dimension D> TKit::TierHive<Editor_RenderContext<D>> &GetContexts()
     {
-        if constexpr (D == D2)
-            return Contexts2;
-        else
-            return Contexts3;
+        DIMENSION_GETTER(Contexts);
     }
 };
 
@@ -120,6 +139,9 @@ struct Editor_Data
 {
     Onyx::Window *Window;
     Onyx::Overlay *Overlay;
+
+    fs::path ProjectPath{};
+    ProjectSettings Settings{};
 
     const Editor_Ids Labels{};
     TKit::TierHive<Editor_Scene> Scenes{};
@@ -181,8 +203,10 @@ static TKit::StackArray<TKit::StackString> editor_CreateNameArray(const TKit::Sp
     return names;
 }
 
-template <Dimension D> static RenderView viewport_CreateRenderView(Editor_Viewport &viewport, Editor_Camera<D> &cam)
+template <Dimension D>
+static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport &viewport, const u32 editorCamIdx)
 {
+    Editor_Camera<D> &cam = scene.GetCameras<D>()[editorCamIdx];
     ++cam.RefCount;
 
     TKit::TierHive<Editor_RenderView<D>> &rvs = viewport.GetViews<D>();
@@ -191,35 +215,23 @@ template <Dimension D> static RenderView viewport_CreateRenderView(Editor_Viewpo
     Editor_RenderView<D> &rview = rvs[rv];
     rview.Name = editor_CreateDefaultName("View", rv);
     rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle, Onyx::RenderViewFlag_NormalizedCoordinates);
+    rview.EditorCameraIndex = editorCamIdx;
 
     return rv;
 }
 
 template <Dimension D>
-static void viewport_DestroyRenderView(Editor_Viewport &viewport, const RenderView rv, Editor_Camera<D> &cam)
+static void viewport_DestroyRenderView(Editor_Scene &scene, Editor_Viewport &viewport, const RenderView rv)
 {
     TKit::TierHive<Editor_RenderView<D>> &rvs = viewport.GetViews<D>();
     Editor_RenderView<D> &rview = rvs[rv];
+    Editor_Camera<D> &cam = scene.GetCameras<D>()[rview.EditorCameraIndex];
 
     TKIT_ASSERT(cam.Handle == rview.Handle->GetCamera(),
                 "[ONYX][EDITOR] When destroying a render view, the passed camera must be attached to the view");
     --cam.RefCount;
     viewport.Target->DestroyRenderView(rview.Handle);
     rvs.Remove(rv);
-}
-
-template <Dimension D>
-static void viewport_DestroyRenderView(Editor_Scene &scene, Editor_Viewport &viewport, RenderView rv)
-{
-    Editor_RenderView<D> &rview = viewport.GetViews<D>()[rv];
-    for (Editor_Camera<D> &cam : scene.GetCameras<D>())
-        if (cam.Handle == rview.Handle->GetCamera())
-        {
-            viewport_DestroyRenderView(viewport, rv, cam);
-            return;
-        }
-    TKIT_FATAL("[ONYX][EDITOR] Found no camera related to render view {} of viewport {} to destroy", rview.Name,
-               viewport.Name);
 }
 
 Scene Scene_Create()
@@ -231,9 +243,9 @@ Scene Scene_Create()
     return sc;
 }
 
-void Scene_Destroy(const Scene sc)
+static void scene_ClearReferences(const Scene sc)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    const Editor_Scene &scene = s_Data->Scenes[sc];
     const TKit::StackArray<Viewport> vps = scene.Viewports.GetValidIds();
 
     for (const Viewport vp : vps)
@@ -244,7 +256,11 @@ void Scene_Destroy(const Scene sc)
         tier->Destroy(cam.Handle);
     for (const Editor_Camera<D3> &cam : scene.Cameras3)
         tier->Destroy(cam.Handle);
+}
 
+void Scene_Destroy(const Scene sc)
+{
+    scene_ClearReferences(sc);
     s_Data->Scenes.Remove(sc);
 }
 
@@ -316,6 +332,243 @@ void Scene_FlushContexts(const Scene sc)
         ctx.Handle->Flush();
     for (const Editor_RenderContext<D3> &ctx : scene.Contexts3)
         ctx.Handle->Flush();
+}
+
+template <Dimension D> static void serialize_Cameras(const char *name, Node root, const Editor_Scene &scene)
+{
+    Node cameras = root[name];
+    for (const Editor_Camera<D> &cam : scene.GetCameras<D>())
+    {
+        Node node;
+        node["Name"] = cam.Name;
+        node["RefCount"] = cam.RefCount;
+        node["Camera"] = *cam.Handle;
+        cameras.push_back(node);
+    }
+}
+
+template <Dimension D> static void serialize_Contexts(const char *name, Node root, const Editor_Scene &scene)
+{
+    Node contexts = root[name];
+    const TKit::TierHive<Editor_RenderContext<D>> &rcs = scene.GetContexts<D>();
+    contexts["Indices"] = rcs.GetIndices();
+    contexts["Ids"] = rcs.GetIds();
+    for (const Editor_RenderContext<D> &rc : scene.GetContexts<D>())
+    {
+        Node node;
+        node["Name"] = rc.Name;
+        node["Draw axes"] = rc.DrawAxes;
+
+        for (const Viewport vp : scene.Viewports.GetValidIds())
+            for (const RenderView rv : scene.Viewports[vp].GetViews<D>().GetValidIds())
+                if (rc.Handle->HasTarget(scene.Viewports[vp].GetViews<D>()[rv].Handle))
+                {
+                    Node target;
+                    target["Viewport"] = vp;
+                    target["View"] = rv;
+                    node["Targets"].push_back(target);
+                }
+        contexts["Contexts"].push_back(node);
+    }
+}
+
+template <Dimension D> static void serialize_Views(const char *name, Node root, const Editor_Viewport &viewport)
+{
+    Node views = root[name];
+    const TKit::TierHive<Editor_RenderView<D>> &rviews = viewport.GetViews<D>();
+    views["Indices"] = rviews.GetIndices();
+    views["Ids"] = rviews.GetIds();
+    for (const Editor_RenderView<D> &rv : rviews)
+    {
+        Node node;
+        node["Name"] = rv.Name;
+        node["Viewport data"] = rv.Handle->ViewportData;
+        node["Scissor data"] = rv.Handle->ScissorData;
+        node["Editor camera"] = rv.EditorCameraIndex;
+        node["Flags"] = rv.Handle->GetFlags();
+        views["Views"].push_back(node);
+    }
+}
+
+template <Dimension D>
+static u32 editor_FindContextInsertionIndex(const Editor_Scene &scene, const Onyx::RenderContext<D> *ctx)
+{
+    const TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
+    u32 idx = 0;
+    const bool found = ctxs.IterateByInsertionOrder([&](const Editor_RenderContext<D> &rc) {
+        if (rc.Handle == ctx)
+            return false;
+        ++idx;
+        return true;
+    });
+    return found ? idx : TKIT_U32_MAX;
+}
+
+template <typename C>
+static void serialize_Component(const char *name, Node root, const Entity e, const TKit::Registry &r)
+{
+    const C *comp = r.GetComponent<C>(e);
+    if (comp)
+        root[name] = *comp;
+}
+
+template <Dimension D>
+static void serialize_RenderContextComponent(const char *name, Node root, const Editor_Scene &scene, const Entity e,
+                                             const TKit::Registry &r)
+{
+    const RenderContextComponent<D> *comp = r.GetComponent<RenderContextComponent<D>>(e);
+    if (comp)
+        root[name] = editor_FindContextInsertionIndex(scene, comp->Context);
+}
+
+void Scene_Serialize(const Scene sc, const fs::path &path)
+{
+    const Editor_Scene &scene = s_Data->Scenes[sc];
+    const TKit::Registry &r = scene.Registry;
+
+    Node root;
+    root["Name"] = scene.Name;
+
+    serialize_Cameras<D2>("2D Cameras", root, scene);
+    serialize_Cameras<D3>("3D Cameras", root, scene);
+
+    serialize_Contexts<D2>("2D Contexts", root, scene);
+    serialize_Contexts<D3>("3D Contexts", root, scene);
+
+    Node viewports = root["Viewports"];
+    viewports["Indices"] = scene.Viewports.GetIndices();
+    viewports["Ids"] = scene.Viewports.GetIds();
+    for (const Editor_Viewport &vp : scene.Viewports)
+    {
+        Node node;
+        node["Name"] = vp.Name;
+        node["Resolution"] = vp.Resolution;
+        node["Aspect"] = vp.Aspect;
+        node["Visible"] = vp.Visible;
+
+        serialize_Views<D2>("2D Views", node, vp);
+        serialize_Views<D3>("3D Views", node, vp);
+
+        viewports["Viewports"].push_back(node);
+    }
+
+    Node entities = root["Entities"];
+    r.IterateEntitiesByInsertionOrder([&](const Entity e) {
+        Node node;
+        serialize_Component<NameComponent>("NameComponent", node, e, r);
+
+        serialize_Component<TransformComponent<D2>>("TransformComponent2D", node, e, r);
+        serialize_Component<TransformComponent<D3>>("TransformComponent3D", node, e, r);
+
+        serialize_Component<StaticMeshComponent<D2>>("StaticMeshComponent2D", node, e, r);
+        serialize_Component<StaticMeshComponent<D3>>("StaticMeshComponent3D", node, e, r);
+
+        serialize_RenderContextComponent<D2>("RenderContextComponent2D", node, scene, e, r);
+        serialize_RenderContextComponent<D3>("RenderContextComponent2D", node, scene, e, r);
+    });
+
+    TKit::Yaml::ToFile(path.string(), root);
+}
+
+template <Dimension D> static void deserialize_Cameras(const char *name, const Node root, Editor_Scene &scene)
+{
+    const Node cameras = root[name];
+    TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (const Node node : cameras)
+    {
+        Editor_Camera<D> &cam = cams.Append();
+        cam.Name = node["Name"].as<TKit::TierString>();
+        cam.RefCount = node["RefCount"].as<u32>();
+        cam.Handle = tier->Create<Onyx::Camera<D>>(node["Camera"].as<Onyx::Camera<D>>());
+    }
+}
+
+template <Dimension D> static void deserialize_Contexts(const char *name, const Node root, Editor_Scene &scene)
+{
+    const Node contexts = root[name];
+    const TKit::StackArray<u32> indices = contexts["Indices"].as<TKit::StackArray<u32>>();
+    const TKit::StackArray<RenderContext> ids = contexts["Ids"].as<TKit::StackArray<RenderContext>>();
+
+    TKit::TierHive<Editor_RenderContext<D>> ctxs{indices, ids};
+    if (contexts["Contexts"])
+        for (const Node node : contexts["Contexts"])
+        {
+            Editor_RenderContext<D> &ctx = ctxs[ctxs.Insert()];
+            ctx.Name = node["Name"].as<TKit::TierString>();
+            ctx.DrawAxes = node["Draw axes"].as<bool>();
+            ctx.Handle = Onyx::CreateRenderContext<D>();
+
+            if (node["Targets"])
+                for (const Node target : node["Targets"])
+                {
+                    const Viewport vp = target["Viewport"].as<Viewport>();
+                    const RenderView rv = target["View"].as<RenderView>();
+                    ctx.Handle->AddTarget(scene.Viewports[vp].GetViews<D>()[rv].Handle);
+                }
+        }
+    scene.GetContexts<D>() = ctxs;
+}
+
+template <Dimension D>
+static void deserialize_Views(const char *name, const Node root, const Editor_Scene &scene, Editor_Viewport &viewport)
+{
+    const Node views = root[name];
+    const TKit::StackArray<u32> indices = views["Indices"].as<TKit::StackArray<u32>>();
+    const TKit::StackArray<RenderView> ids = views["Ids"].as<TKit::StackArray<RenderView>>();
+
+    TKit::TierHive<Editor_RenderView<D>> rviews{indices, ids};
+    if (views["Views"])
+        for (const Node node : views["Views"])
+        {
+            Editor_RenderView<D> &rview = rviews[rviews.Insert()];
+
+            rview.Name = node["Name"].as<TKit::TierString>();
+            rview.EditorCameraIndex = node["Editor camera"].as<u32>();
+            rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[rview.EditorCameraIndex].Handle,
+                                                                node["Flags"].as<Onyx::RenderViewFlags>());
+            rview.Handle->ViewportData = node["Viewport data"].as<Onyx::Viewport>();
+            rview.Handle->ScissorData = node["Scissor data"].as<Onyx::Scissor>();
+        }
+
+    viewport.GetViews<D>() = rviews;
+}
+
+void Scene_Deserialize(const Scene sc, const fs::path &path)
+{
+    const Node root = TKit::Yaml::FromFile(path.string());
+
+    scene_ClearReferences(sc);
+    Editor_Scene &scene = s_Data->Scenes[sc];
+
+    scene.Cameras2.Clear();
+    scene.Cameras3.Clear();
+
+    deserialize_Cameras<D2>("2D Cameras", root, scene);
+    deserialize_Cameras<D3>("3D Cameras", root, scene);
+
+    const Node viewports = root["Viewports"];
+
+    const TKit::StackArray<u32> indices = viewports["Indices"].as<TKit::StackArray<u32>>();
+    const TKit::StackArray<Viewport> ids = viewports["Ids"].as<TKit::StackArray<Viewport>>();
+
+    TKit::TierHive<Editor_Viewport> vps{indices, ids};
+    if (viewports["Viewports"])
+        for (const Node node : viewports["Viewports"])
+        {
+            Editor_Viewport &vp = vps[vps.Insert()];
+            vp.Name = node["Name"].as<TKit::TierString>();
+            vp.Resolution = node["Resolution"].as<u32v2>();
+            vp.Aspect = node["Aspect"].as<f32>();
+            vp.Visible = node["Visible"].as<bool>();
+            vp.Target = Onyx::CreateRenderTexture(vp.Resolution);
+
+            deserialize_Views<D2>("2D Views", node, scene, vp);
+            deserialize_Views<D3>("3D Views", node, scene, vp);
+        }
+
+    scene.Viewports = vps;
+    scene.Name = root["Name"].as<TKit::TierString>();
 }
 
 TKit::Registry &Scene_GetRegistry(const Scene sc)
@@ -407,11 +660,23 @@ static void editorWindow_Draw()
     const Editor_Ids &idData = s_Data->Labels;
 
     ov->PushStyleVar(Onyx::OverlayStyle_ContentAreaPadding, 0.f);
-    const bool opened = ov->BeginWindow(idData.Editor);
+    const bool opened = ov->BeginWindow(idData.Editor, Onyx::OverlayWindowFlag_MenuBar);
     ov->PopStyleVar();
     if (opened)
     {
         ov->DockSpace(idData.EditorDockSpace, Onyx::OverlayDockNodeFlag_CanBeEmpty, Onyx::OverlayWindowFlag_ChildGrow);
+        if (ov->BeginMenuBar())
+        {
+            if (ov->BeginMenu("File"))
+            {
+                if (ov->MenuItem("Save"))
+                    Scene_Serialize(s_Data->ActiveScene, "./test.yaml");
+                if (ov->MenuItem("Load"))
+                    Scene_Deserialize(s_Data->ActiveScene, "./test.yaml");
+                ov->EndMenu();
+            }
+            ov->EndMenuBar();
+        }
         ov->EndWindow();
     }
 }
@@ -612,9 +877,8 @@ static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry 
 {
     Onyx::Overlay *ov = s_Data->Overlay;
     NameComponent *name = registry.GetComponent<NameComponent>(e);
-    TKIT_ASSERT(name, "[ONYX][EDITOR] All entities in the editor must have a name");
-
-    ov->InputText("Name", &name->Name, NAME_BUF_SIZE);
+    if (name)
+        ov->InputText("Name", &name->Name, NAME_BUF_SIZE);
 }
 template <Dimension D> static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry)
 {
@@ -680,15 +944,15 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         defShapes.Append(defRes.GetTriangle<D>());
         defShapes.Append(defRes.GetQuad<D>());
         if constexpr (D == D2)
-            ov->DropDown("Shape", &statMesh->Index, "Triangle#Quad");
+            ov->DropDown("Shape", &statMesh->Type, "Triangle#Quad");
         else
         {
             defShapes.Append(defRes.Box);
             defShapes.Append(defRes.Sphere);
             defShapes.Append(defRes.Cylinder);
-            ov->DropDown("Shape", &statMesh->Index, "Triangle#Quad#Box#Sphere#Cylinder");
+            ov->DropDown("Shape", &statMesh->Type, "Triangle#Quad#Box#Sphere#Cylinder");
         }
-        statMesh->Mesh = defShapes[statMesh->Index];
+        statMesh->Mesh = defShapes[statMesh->Type];
         ov->ColorEditor("Base color", &statMesh->Color);
     }
 
@@ -700,21 +964,13 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         else
             ov->HorizontalSeparator("Render context 3D");
 
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        const Editor_Scene &scene = s_Data->GetActiveScene();
         const TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
 
         if (!ctxs.IsEmpty())
         {
             const Utils_NameArray labels = editor_CreateNameArray(ctxs);
-
-            u32 selected = TKIT_U32_MAX;
-            for (u32 i = 0; i < labels.Ids.GetSize(); ++i)
-                if (ctxs[labels.Ids[i]].Handle == rc->Context)
-                {
-                    selected = i;
-                    break;
-                }
-
+            u32 selected = editor_FindContextInsertionIndex(scene, rc->Context);
             ov->DropDown<TKit::StackString>("Context", &selected, labels.Names);
 
             const RenderContext handle = labels.GetId(selected);
@@ -754,24 +1010,30 @@ static void entityWindow_Draw()
         {
             const Onyx::DefaultResources &defRes = Onyx::Resources::GetDefaultResources();
 
+            const StaticMeshComponent<D2> defSt2 = {defRes.Quad2, Onyx::Color_White, StaticMesh_Quad};
+            const StaticMeshComponent<D3> defSt3 = {defRes.Quad3, Onyx::Color_White, StaticMesh_Quad};
+
+            RenderContextComponent<D2> defCtx2 = {scene.Contexts2.IsEmpty() ? nullptr
+                                                                            : scene.Contexts2.AtByIndex(0).Handle};
+            RenderContextComponent<D3> defCtx3 = {scene.Contexts3.IsEmpty() ? nullptr
+                                                                            : scene.Contexts3.AtByIndex(0).Handle};
             if (scene.HasBothDimensions())
             {
                 entityWindow_ChooseComponent<TransformComponent>(e, "Transform", r);
-                entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r, {1, defRes.Quad2},
-                                                                  {1, defRes.Quad3});
-                entityWindow_ChooseComponent<RenderContextComponent>(e, "Render context", r);
+                entityWindow_ChooseComponent<StaticMeshComponent>(e, "Static mesh", r, defSt2, defSt3);
+                entityWindow_ChooseComponent<RenderContextComponent>(e, "Render context", r, defCtx2, defCtx3);
             }
             else if (scene.HasDimension<D2>())
             {
                 entityWindow_ChooseComponent<TransformComponent<D2>>(e, "Transform", r);
-                entityWindow_ChooseComponent<StaticMeshComponent<D2>>(e, "Static mesh", r, 1, defRes.Quad2);
-                entityWindow_ChooseComponent<RenderContextComponent<D2>>(e, "Render context", r);
+                entityWindow_ChooseComponent<StaticMeshComponent<D2>>(e, "Static mesh", r, defSt2);
+                entityWindow_ChooseComponent<RenderContextComponent<D2>>(e, "Render context", r, defCtx2);
             }
             else
             {
                 entityWindow_ChooseComponent<TransformComponent<D3>>(e, "Transform", r);
-                entityWindow_ChooseComponent<StaticMeshComponent<D3>>(e, "Static mesh", r, 1, defRes.Quad3);
-                entityWindow_ChooseComponent<RenderContextComponent<D3>>(e, "Render context", r);
+                entityWindow_ChooseComponent<StaticMeshComponent<D3>>(e, "Static mesh", r, defSt3);
+                entityWindow_ChooseComponent<RenderContextComponent<D3>>(e, "Render context", r, defCtx3);
             }
 
             if (hasAllComponents())
@@ -979,7 +1241,7 @@ template <Dimension D> static void sceneWindow_DisplayViews(const char *name, Ed
 
             if (camera < cams.GetSize())
             {
-                viewport_CreateRenderView(viewport, cams[camera]);
+                viewport_CreateRenderView<D>(scene, viewport, camera);
                 ov->CloseCurrentPopup();
             }
 
@@ -1072,8 +1334,8 @@ template <Dimension D> static void sceneWindow_DisplayContext(Editor_RenderConte
     if (ov->PushTree("Targets"))
     {
         Onyx::RenderContext<D> *context = rctx.Handle;
-        Editor_Scene &scene = s_Data->GetActiveScene();
-        for (Editor_Viewport &vp : scene.Viewports)
+        const Editor_Scene &scene = s_Data->GetActiveScene();
+        for (const Editor_Viewport &vp : scene.Viewports)
         {
             ov->HorizontalSeparator(vp.Name);
             const TKit::TierHive<Editor_RenderView<D>> &views = vp.GetViews<D>();

@@ -10,5 +10,7 @@ add_executable(onyx-editor ${EDITOR_SOURCES})
 tkit_default_configure(onyx-engine)
 tkit_default_configure(onyx-editor)
 
+tkit_register_for_yaml_serialization(onyx-engine SOURCES engine/components.hpp)
+
 target_link_libraries(onyx-engine PUBLIC onyx)
 target_link_libraries(onyx-editor PRIVATE onyx-engine)
