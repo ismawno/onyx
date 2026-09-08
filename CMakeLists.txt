@@ -70,10 +70,11 @@ if(ONYX_COMPILE_SHADERS_ON_EXEC AND NOT ONYX_ENABLE_SHADER_API)
   )
 endif()
 
-if(ONYX_BUILD_ENGINE AND NOT ONYX_INCLUDE_DEFAULT_FONT)
+if(ONYX_BUILD_ENGINE AND (NOT ONYX_INCLUDE_DEFAULT_FONT
+                          OR NOT TOOLKIT_ENABLE_YAML_SERIALIZATION))
   message(
     ERROR
-    "ONYX - The engine (editor+runtime) requires ONYX_INCLUDE_DEFAULT_FONT set to ON to be built"
+    "ONYX - The engine (editor+runtime) requires ONYX_INCLUDE_DEFAULT_FONT, TOOLKIT_ENABLE_YAML_SERIALIZATION set to ON to be built"
   )
 endif()
 

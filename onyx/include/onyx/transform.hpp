@@ -219,6 +219,8 @@ template <Dimension D> struct Transform;
  */
 template <> struct Transform<D3> : ITransform<D3>
 {
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D3>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D3>)
     using ITransform<D3>::Extract;
 
     /**
@@ -392,6 +394,8 @@ template <> struct Transform<D3> : ITransform<D3>
  */
 template <> struct Transform<D2> : ITransform<D2>
 {
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D2>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D2>)
     using ITransform<D2>::Extract;
 
     /**

@@ -1,10 +1,14 @@
 #pragma once
 
 #include "alias.hpp"
+#include "onyx/overlay.hpp"
 #include "tkit/container/ecs.hpp"
+#include <filesystem>
 
 namespace Engine
 {
+namespace fs = std::filesystem;
+
 void Initialize();
 void Terminate();
 void Run();
@@ -31,6 +35,15 @@ template <Dimension D> void Scene_DestroyRenderContext(Scene sc, RenderContext r
 void Scene_FlushContexts(Scene sc);
 void Scene_Render(Scene sc);
 
+void Scene_Serialize(Scene sc, const fs::path &path);
+void Scene_Deserialize(Scene sc, const fs::path &path);
+inline Scene Scene_Deserialize(const fs::path &path)
+{
+    const Scene sc = Scene_Create();
+    Scene_Deserialize(sc, path);
+    return sc;
+}
+
 TKit::Registry &Scene_GetRegistry(Scene sc);
 
 // on hold right now: we need to pass the camera component this view will be attached to when the scene plays
@@ -41,4 +54,10 @@ TKit::Registry &Scene_GetRegistry(Scene sc);
 // template <Dimension D> RenderView Viewport_CreateRenderView(Viewport vp);
 // template <Dimension D> void Viewport_DestroyRenderView(Viewport vp, RenderView rv);
 
+struct ProjectSettings
+{
+    Onyx::OverlayFlags OverlayFlags = Onyx::OverlayFlag_Docking;
+    Onyx::PresentMode PresentMode = Onyx::PresentMode_Immediate;
+    TKit::Timespan DeltaTarget{};
+};
 } // namespace Engine

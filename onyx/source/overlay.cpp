@@ -777,90 +777,91 @@ Overlay::~Overlay()
 /////////////////////////////////////////////
 
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::Yaml::Node n)
+static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlNode n)
 {
-    using Node = TKit::Yaml::Node;
-    if (n["Leaf"].as<bool>())
+    using ConstYamlNode = TKit::ConstYamlNode;
+    if (n["Leaf"].Read<bool>())
     {
         TKit::StackArray<LayoutId> windows{};
         windows.Reserve(32);
-        if (n["Windows"])
-            for (const Node id : n["Windows"])
-                windows.Append(id.as<usz>());
+        if (n.HasChild("Windows"))
+            for (const ConstYamlNode id : n["Windows"])
+                windows.Append(id.Read<usz>());
 
-        return DockTabBar(windows, n["Flags"].as<u32>());
+        return DockTabBar(windows, n["Flags"].Read<u32>());
     }
 
-    return DockSplit(LayoutAxis(n["Axis"].as<u32>()), n["Ratio"].as<f32>(),
+    return DockSplit(LayoutAxis(n["Axis"].Read<u32>()), n["Ratio"].Read<f32>(),
                      createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
-                     n["Flags"].as<u32>());
+                     n["Flags"].Read<u32>());
 }
 bool Overlay::Serialize()
 {
     if (m_SerializationPath.empty())
         return false;
 
-    using Node = TKit::Yaml::Node;
+    using YamlNode = TKit::YamlNode;
+    using YamlTree = TKit::YamlTree;
 
-    Node root;
-    if (fs::exists(m_SerializationPath))
-    {
-        root = TKit::Yaml::FromFile(m_SerializationPath.string());
-        root["DockTrees"] = Node{};
-    }
+    YamlTree tree{};
+    YamlNode root = tree.GetRoot();
 
-    Node windows = root["Windows"];
-    Node dockTrees = root["DockTrees"];
+    YamlNode windows = root["Windows"];
+    YamlNode dockTrees = root["DockTrees"];
     const bool isFloating = Flags & OverlayFlag_FloatingMode;
     for (OverlayWindow *win : m_OverlayWindows)
     {
-        Node n = windows[win->Id.Id];
+        YamlNode n = windows.ByKey(win->Id.Id);
 #    ifdef TKIT_ENABLE_ENSURE
         if (!win->Title.IsEmpty())
-            n["Title"] = win->Title;
+            n["Title"] << win->Title;
 #    endif
         if (!win->IsRoot())
-            n["Parent"] = win->Parent->Id.Id;
+            n["Parent"] << win->Parent->Id.Id;
         else if (win->IsDocked())
-            n["Position"] = win->DockParent->ReadOnlyPosition;
+            n["Position"] << win->DockParent->ReadOnlyPosition;
         else if (isFloating && win->Native)
-            n["Position"] = win->Native->ScreenPos;
+            n["Position"] << win->Native->ScreenPos;
         else if (!isFloating && (win->Flags & WindowInternalFlag_OwnsNative))
-            n["Position"] = win->Native->ScreenPos - win->Native->Parent->ScreenPos;
+            n["Position"] << win->Native->ScreenPos - win->Native->Parent->ScreenPos;
         else
-            n["Position"] = win->ScreenPos;
+            n["Position"] << win->ScreenPos;
 
         // these flags must persist
-        n["Flags"] = win->Flags & (WindowInternalFlag_DockSpace | WindowInternalFlag_DockSpaceSubmissionOrderMatters |
-                                   OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
-        n["Size"] = win->IsDocked() ? win->DockParent->ReadOnlySize : win->Size;
-        n["Layer"] = win->Layer;
-        n["Docked"] = win->IsDocked();
-        n["DockHost"] = win->IsDockHost();
+        n["Flags"] << (win->Flags & (WindowInternalFlag_DockSpace | WindowInternalFlag_DockSpaceSubmissionOrderMatters |
+                                     OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted));
+        n["Size"] << (win->IsDocked() ? win->DockParent->ReadOnlySize : win->Size);
+        n["Layer"] << win->Layer;
+        n["Docked"] << win->IsDocked();
+        n["DockHost"] << win->IsDockHost();
 
         if (win->IsDockHost())
         {
-            TKit::StackArray<Node> nodes{};
+            TKit::StackArray<YamlNode> nodes{};
             nodes.Reserve(m_DockNodes.GetSize());
-            nodes.Append(dockTrees[win->Id.Id]);
+            nodes.Append(dockTrees.ByKey(win->Id.Id));
             iterateDockTree(win->DockRoot, [&](const DockNode *node) {
-                Node child = nodes.GetBack();
+                YamlNode child = nodes.GetBack();
                 nodes.Pop();
 
-                child["Flags"] = u32(node->Flags);
+                child["Flags"] << u32(node->Flags);
                 const bool leaf = node->IsLeaf();
-                child["Leaf"] = leaf;
+                child["Leaf"] << leaf;
                 if (leaf)
+                {
                     for (OverlayWindow *cwin : node->Windows)
-                        child["Windows"].push_back(cwin->Id.Id);
+                        child["Windows"].Append(cwin->Id.Id);
+                    if (!node->Windows.IsEmpty())
+                        child["Windows"] |= TKit::YamlFlagsBasedOnContainer(node->Windows.GetSize(), 4);
+                }
                 else
                 {
-                    child["Ratio"] = node->Ratio;
-                    child["Axis"] = u32(node->Axis);
+                    child["Ratio"] << node->Ratio;
+                    child["Axis"] << u32(node->Axis);
 
-                    Node children = child["Children"];
-                    children.push_back(Node{});
-                    children.push_back(Node{});
+                    YamlNode children = child["Children"];
+                    children.Append();
+                    children.Append();
 
                     nodes.Append(children[1]);
                     nodes.Append(children[0]);
@@ -869,7 +870,7 @@ bool Overlay::Serialize()
         }
     }
 
-    TKit::Yaml::ToFile(m_SerializationPath.string(), root);
+    tree.ToFile(m_SerializationPath);
     return true;
 }
 bool Overlay::Deserialize()
@@ -877,48 +878,48 @@ bool Overlay::Deserialize()
     if (m_SerializationPath.empty() || !fs::exists(m_SerializationPath))
         return false;
 
-    using Node = TKit::Yaml::Node;
+    using ConstYamlNode = TKit::ConstYamlNode;
+    using YamlTree = TKit::YamlTree;
 
-    const Node root = TKit::Yaml::FromFile(m_SerializationPath.string());
+    const YamlTree tree = YamlTree::FromFile(m_SerializationPath);
+    const ConstYamlNode root = tree.GetRoot();
     if (root["Windows"])
     {
-        const Node windows = root["Windows"];
+        const ConstYamlNode windows = root["Windows"];
         u64 maxLayer = 0;
-        for (auto it = windows.begin(); it != windows.end(); ++it)
+        for (const ConstYamlNode nwin : windows)
         {
-            const usz id = it->first.as<usz>();
-            const Node nwin = it->second;
-            const bool dockHost = nwin["DockHost"].as<bool>();
-            if (dockHost && (!root["DockTrees"] || !root["DockTrees"][id]))
+            const usz id = nwin.ReadKey<usz>();
+            const bool dockHost = nwin["DockHost"].Read<bool>();
+            if (dockHost && (!root.HasChild("DockTrees") || !root["DockTrees"].HasChild(id)))
                 continue;
 
             OverlayWindow *parent = nullptr;
-            if (nwin["Parent"])
+            if (nwin.HasChild("Parent"))
             {
-                parent = findWindow(nwin["Parent"].as<usz>());
+                parent = findWindow(nwin["Parent"].Read<usz>());
                 TKIT_ASSERT(parent,
                             "[ONYX][OVERLAY] Serialization path claims window has a parent, but the parent has not "
                             "been deserialized");
             }
             OverlayWindow *win = dockHost ? getOrCreateDockHost(id, parent) : getOrCreateOverlayWindow(id, parent);
             if (!parent)
-                win->ScreenPos = nwin["Position"].as<f32v2>();
-            win->Size = nwin["Size"].as<f32v2>();
-            win->Layer = nwin["Layer"].as<u64>();
-            win->Flags = nwin["Flags"].as<OverlayWindowFlags>();
+                win->ScreenPos = nwin["Position"].Read<f32v2>();
+            win->Size = nwin["Size"].Read<f32v2>();
+            win->Layer = nwin["Layer"].Read<u64>();
+            win->Flags = nwin["Flags"].Read<OverlayWindowFlags>();
 
-            assignNativeWindowSomehow(win, nwin["Docked"].as<bool>());
+            assignNativeWindowSomehow(win, nwin["Docked"].Read<bool>());
             maxLayer = Math::Max(maxLayer, win->Layer);
         }
         m_LayerCount = maxLayer + 1;
     }
-    if (root["DockTrees"])
+    if (root.HasChild("DockTrees"))
     {
-        const Node dockTrees = root["DockTrees"];
-        for (auto it = dockTrees.begin(); it != dockTrees.end(); ++it)
+        const ConstYamlNode dockTrees = root["DockTrees"];
+        for (const ConstYamlNode uroot : dockTrees)
         {
-            const usz hostId = it->first.as<usz>();
-            const Node uroot = it->second;
+            const usz hostId = uroot.ReadKey<usz>();
 
             const OverlayDockNode *nroot = createTreeBasedOnSerialized(uroot);
             ApplyDockTree(hostId, nroot);

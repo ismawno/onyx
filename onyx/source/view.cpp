@@ -262,16 +262,16 @@ template <Dimension D> void RenderView<D>::destroyFramebuffers()
 
 template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screenPos) const
 {
-    const f32v2 dif = screenPos - m_Viewport.Position;
+    const f32v2 dif = screenPos - ViewportData.Position;
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return dif / m_Viewport.Extent;
+        return dif / ViewportData.Extent;
     return dif;
 }
 template <Dimension D> f32v2 RenderView<D>::ViewportToScreen(const f32v2 &viewportPos) const
 {
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return viewportPos * m_Viewport.Extent + m_Viewport.Position;
-    return viewportPos + m_Viewport.Position;
+        return viewportPos * ViewportData.Extent + ViewportData.Position;
+    return viewportPos + ViewportData.Position;
 }
 
 template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &viewportPos) const
@@ -279,7 +279,7 @@ template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &vie
     const f32m<D> pv = Math::Inverse(m_ProjectionView);
     const f32v2 remapped = 2.f * ((m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
                                       ? f32v2{viewportPos}
-                                      : (f32v2{viewportPos} / f32v2{m_Viewport.Extent})) -
+                                      : (f32v2{viewportPos} / f32v2{ViewportData.Extent})) -
                            1.f;
 
     if constexpr (D == D2)
@@ -686,18 +686,18 @@ template <Dimension D> bool RenderView<D>::IsWithinViewport(const f32v2 &screenP
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
         return viewportPos[0] > 0.f && viewportPos[0] < 1.f && viewportPos[1] > 0.f && viewportPos[1] < 1.f;
 
-    return viewportPos[0] > 0.f && viewportPos[0] < m_Viewport.Extent[0] && viewportPos[1] > 0.f &&
-           viewportPos[1] < m_Viewport.Extent[1];
+    return viewportPos[0] > 0.f && viewportPos[0] < ViewportData.Extent[0] && viewportPos[1] > 0.f &&
+           viewportPos[1] < ViewportData.Extent[1];
 }
 
 template <Dimension D> void RenderView<D>::SetNormalizedViewport(const Viewport &vp)
 {
     const f32v2 ip = 1.f / f32v2{m_ParentExtent};
-    m_Viewport.Position = Math::Clamp(vp.Position, 0.f, 1.f);
-    m_Viewport.Extent = Math::Clamp(vp.Extent, ip, f32v2{1.f});
+    ViewportData.Position = Math::Clamp(vp.Position, 0.f, 1.f);
+    ViewportData.Extent = Math::Clamp(vp.Extent, ip, f32v2{1.f});
 
     if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
-        m_Viewport = asAbsoluteViewport();
+        ViewportData = asAbsoluteViewport();
 
     CacheMatrices();
     if (!(m_Flags & RenderViewFlag_DynamicViewport))
@@ -708,11 +708,11 @@ template <Dimension D> void RenderView<D>::SetNormalizedViewport(const Viewport 
 }
 template <Dimension D> void RenderView<D>::SetAbsoluteViewport(const Viewport &vp)
 {
-    m_Viewport.Position = Math::Clamp(vp.Position, f32v2{0.f}, f32v2{m_ParentExtent});
-    m_Viewport.Extent = Math::Clamp(vp.Extent, f32v2{1.f}, f32v2{m_ParentExtent});
+    ViewportData.Position = Math::Clamp(vp.Position, f32v2{0.f}, f32v2{m_ParentExtent});
+    ViewportData.Extent = Math::Clamp(vp.Extent, f32v2{1.f}, f32v2{m_ParentExtent});
 
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        m_Viewport = asNormalizedViewport();
+        ViewportData = asNormalizedViewport();
 
     CacheMatrices();
     if (!(m_Flags & RenderViewFlag_DynamicViewport))
@@ -726,20 +726,20 @@ template <Dimension D> void RenderView<D>::SetNormalizedScissor(const Scissor &s
 {
     const u32v2 ext = GetExtent();
     const f32v2 ip = 1.f / f32v2{ext};
-    m_Scissor.Position = Math::Clamp(sc.Position, 0.f, 1.f);
-    m_Scissor.Extent = Math::Clamp(sc.Extent, ip, f32v2{1.f});
+    ScissorData.Position = Math::Clamp(sc.Position, 0.f, 1.f);
+    ScissorData.Extent = Math::Clamp(sc.Extent, ip, f32v2{1.f});
 
     if (!(m_Flags & RenderViewFlag_NormalizedScissorCoordinates))
-        m_Scissor = asAbsoluteScissor();
+        ScissorData = asAbsoluteScissor();
 }
 template <Dimension D> void RenderView<D>::SetAbsoluteScissor(const Scissor &sc)
 {
     const u32v2 ext = GetExtent();
-    m_Scissor.Position = Math::Clamp(sc.Position, f32v2{0.f}, f32v2{ext});
-    m_Scissor.Extent = Math::Clamp(sc.Extent, f32v2{1.f}, f32v2{ext});
+    ScissorData.Position = Math::Clamp(sc.Position, f32v2{0.f}, f32v2{ext});
+    ScissorData.Extent = Math::Clamp(sc.Extent, f32v2{1.f}, f32v2{ext});
 
     if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
-        m_Scissor = asNormalizedScissor();
+        ScissorData = asNormalizedScissor();
 }
 
 template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
@@ -751,14 +751,14 @@ template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
     const RenderViewFlags nsc = RenderViewFlag_NormalizedScissorCoordinates;
 
     if ((f & nsc) && !(flags & nsc))
-        m_Scissor = asAbsoluteScissor();
+        ScissorData = asAbsoluteScissor();
     else if (!(f & nsc) && (flags & nsc))
-        m_Scissor = asNormalizedScissor();
+        ScissorData = asNormalizedScissor();
 
     if ((f & nvc) && !(flags & nvc))
-        m_Viewport = asAbsoluteViewport();
+        ViewportData = asAbsoluteViewport();
     else if (!(f & nvc) && (flags & nvc))
-        m_Viewport = asNormalizedViewport();
+        ViewportData = asNormalizedViewport();
     m_Flags = flags;
 
     const RenderViewFlags fbFlags =
