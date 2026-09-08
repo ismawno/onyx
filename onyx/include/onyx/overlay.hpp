@@ -64,6 +64,63 @@ using WidgetStateFlags = u8;
 struct OverlayWindow;
 struct DockNode;
 
+struct OverlayTitle
+{
+    OverlayTitle() = default;
+
+    OverlayTitle(const u32 cp) : CodePoint(cp)
+    {
+    }
+    OverlayTitle(const TKit::StringView text) : Text(text)
+    {
+    }
+    OverlayTitle(const char *text) : OverlayTitle(TKit::StringView{text})
+    {
+    }
+    template <typename AllocState>
+    OverlayTitle(const TKit::String<AllocState> &text) : OverlayTitle(TKit::StringView(text))
+    {
+    }
+
+    bool IsUnicode() const
+    {
+        return CodePoint != TKIT_U32_MAX;
+    }
+
+    TKit::StringView Text{};
+    u32 CodePoint = TKIT_U32_MAX;
+};
+
+struct OverlayLabel
+{
+    OverlayLabel() = default;
+    OverlayLabel(const LayoutId id, const OverlayTitle title) : Id(id), Title(title)
+    {
+    }
+    OverlayLabel(const TKit::StringView label)
+    {
+        u32 idx = label.FindFirstOf("##");
+        if (idx != TKit::StringView::npos && label[idx + 2] == '#')
+            Id = label.SubString(idx + 3);
+        else
+            Id = label;
+        Title = label.SubString(0, idx);
+    }
+    OverlayLabel(const char *label) : OverlayLabel(TKit::StringView(label))
+    {
+    }
+    template <typename AllocState>
+    OverlayLabel(const TKit::String<AllocState> &str) : OverlayLabel(TKit::StringView(str))
+    {
+    }
+    OverlayLabel(const u32 cp) : Id(cp), Title(cp)
+    {
+    }
+
+    LayoutId Id;
+    OverlayTitle Title{};
+};
+
 enum OverlayFlagBit : OverlayFlags
 {
     OverlayFlag_WindowPromotions = 1U << 0,
@@ -383,7 +440,8 @@ struct Tab
     // only used for docking
     OverlayWindow *Window = nullptr;
     //
-    TKit::TierString Title{};
+    // A BIT TENSE bc title is not owning!
+    OverlayTitle Title{};
     OverlayTabFlags Flags = 0;
 };
 
@@ -737,7 +795,7 @@ struct OverlayWindow
     }
     bool IsCollapsed() const
     {
-        return HeaderIcon == ArrowRightIcon;
+        return HeaderIcon == CodePoint_ArrowRight;
     }
 
     OverlayWindow *GetRoot()
@@ -1104,33 +1162,6 @@ struct OverlayDragDropPayload
     {
         return Size != 0;
     }
-};
-
-struct OverlayLabel
-{
-    OverlayLabel() = default;
-    OverlayLabel(const LayoutId id, const TKit::StringView title) : Id(id), Title(title)
-    {
-    }
-    OverlayLabel(const TKit::StringView label)
-    {
-        u32 idx = label.FindFirstOf("##");
-        if (idx != TKit::StringView::npos && label[idx + 2] == '#')
-            Id = label.SubString(idx + 3);
-        else
-            Id = label;
-        Title = label.SubString(0, idx);
-    }
-    OverlayLabel(const char *label) : OverlayLabel(TKit::StringView(label))
-    {
-    }
-    template <typename AllocState>
-    OverlayLabel(const TKit::String<AllocState> &str) : OverlayLabel(TKit::StringView(str))
-    {
-    }
-
-    LayoutId Id;
-    TKit::StringView Title;
 };
 
 /////////////////////////////////////////////
@@ -1528,7 +1559,7 @@ class Overlay
         return VerticalDrag(label, Math::AsPointer(*value), speed, mn, mx, format, N, flags);
     }
 
-    void ColorPreviewTooltip(TKit::StringView title, const Color &col, OverlayColorFlags flags = 0);
+    void ColorPreviewTooltip(OverlayTitle title, const Color &col, OverlayColorFlags flags = 0);
     void ColorPreview(OverlayLabel label, const Color &col, OverlayColorFlags flags = 0);
 
     bool ColorPicker(OverlayLabel label, OverlayColorHandle color, const Color *original, f32 pickerSize,
@@ -2122,7 +2153,7 @@ class Overlay
     /// WINDOWS/MENUS PRIVATE
     /////////////////////////////////////////////
 
-    bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, TKit::StringView title = {},
+    bool beginWindow(OverlayWindow *active, bool *opened, OverlayWindowFlags flags, const OverlayTitle &title = {},
                      bool redirectedByHostedWindow = false);
 
     OverlayWindow *findWindow(LayoutId id);
@@ -2277,7 +2308,7 @@ class Overlay
 
     void beginHorizontalWidget(LayoutId id, const LySz2 &outerSizing, const LySz2 &innerSizing);
     void beginHorizontalWidget(LayoutId id, f32 normSize = 0.7f);
-    void endHorizontalWidget(TKit::StringView title = {});
+    void endHorizontalWidget(const OverlayTitle &title = {});
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
                       InputConvertInfoFlags cflags = 0);
@@ -2424,7 +2455,7 @@ class Overlay
         return *value != pval;
     }
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool verticalSliderBox(const TKit::StringView title, T *value, const U mn, const U mx, const char *format,
+    bool verticalSliderBox(const OverlayTitle &title, T *value, const U mn, const U mx, const char *format,
                            const OverlaySliderFlags flags)
     {
         Layout *ly = m_Active->GetActiveLayout();
@@ -2453,8 +2484,7 @@ class Overlay
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout *tly = m_Active->GetActiveLayout();
 
-            if (!title.IsEmpty())
-                tly->Text(title, getTextParams());
+            titleText(tly, title);
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
             tly->Text(text, getTextParams());
 
@@ -2551,7 +2581,7 @@ class Overlay
     }
 
     template <TKit::Numeric T, std::convertible_to<T> U>
-    bool verticalDragBox(const TKit::StringView title, T *value, const f32 speed, const U mn, const U mx,
+    bool verticalDragBox(const OverlayTitle &title, T *value, const f32 speed, const U mn, const U mx,
                          const char *format, const OverlaySliderFlags flags)
     {
         Layout *ly = m_Active->GetActiveLayout();
@@ -2571,8 +2601,7 @@ class Overlay
             BeginTooltip(OverlayTooltipFlag_Reset);
             Layout *tly = m_Active->GetActiveLayout();
 
-            if (!title.IsEmpty())
-                tly->Text(title, getTextParams());
+            titleText(tly, title);
             const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(dinfo.Format), *value);
             tly->Text(text, getTextParams());
 
@@ -2832,6 +2861,13 @@ class Overlay
     LyUnPar getUnicodeParams() const
     {
         return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_UnicodeSize]};
+    }
+    void titleText(Layout *ly, const OverlayTitle &title) const
+    {
+        if (title.IsUnicode())
+            ly->Unicode(title.CodePoint, getUnicodeParams());
+        else if (!title.Text.IsEmpty())
+            ly->Text(title.Text, getTextParams());
     }
 
     static constexpr LySz fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)

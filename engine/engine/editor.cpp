@@ -451,8 +451,11 @@ void Scene_Serialize(const Scene sc, const fs::path &path)
     }
 
     YamlNode entities = root["Entities"];
+    entities["Indices"] << r.GetEntityIndices();
+    entities["Ids"] << r.GetEntityIds();
+
     r.IterateEntitiesByInsertionOrder([&](const Entity e) {
-        YamlNode node = entities.Append();
+        YamlNode node = entities["Entities"].Append();
         serialize_Component<NameComponent>("NameComponent", node, e, r);
 
         serialize_Component<TransformComponent<D2>>("TransformComponent2D", node, e, r);
@@ -539,16 +542,22 @@ static void deserialize_Views(const char *name, const ConstYamlNode root, const 
     viewport.GetViews<D>() = rviews;
 }
 
-template <typename C> static void deserialize_Component(const ConstYamlNode node, const Entity e, TKit::Registry &r)
+template <typename C>
+static void deserialize_Component(const char *name, const ConstYamlNode node, const Entity e, TKit::Registry &r)
 {
-    r.AddComponent<C>(e, node.Read<C>());
+    if (node.HasChild(name))
+        r.AddComponent<C>(e, node[name].Read<C>());
 }
 template <Dimension D>
-static void deserialize_RenderContextComponent(const ConstYamlNode node, const Editor_Scene &scene, const Entity e,
-                                               TKit::Registry &r)
+static void deserialize_RenderContextComponent(const char *name, const ConstYamlNode node, const Editor_Scene &scene,
+                                               const Entity e, TKit::Registry &r)
 {
-    const u32 idx = node.Read<u32>();
-    r.AddComponent<RenderContextComponent<D>>(e, scene.GetContexts<D>().AtByIndex(idx).Handle);
+    if (node.HasChild(name))
+    {
+        const u32 idx = node[name].Read<u32>();
+        r.AddComponent<RenderContextComponent<D>>(e, idx != TKIT_U32_MAX ? scene.GetContexts<D>().AtByIndex(idx).Handle
+                                                                         : nullptr);
+    }
 }
 
 void Scene_Deserialize(const Scene sc, const fs::path &path)
@@ -558,7 +567,8 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
 
     scene_ClearReferences(sc);
     Editor_Scene &scene = s_Data->Scenes[sc];
-    scene.Registry.Clear();
+    TKit::Registry &r = scene.Registry;
+    r.Clear();
 
     scene.Cameras2.Clear();
     scene.Cameras3.Clear();
@@ -586,23 +596,25 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
             deserialize_Views<D3>("3D Views", node, scene, vp);
         }
 
-    if (root.HasChild("Entities"))
+    if (root.HasChild("Entities") && root["Entities"].HasChild("Indices"))
     {
-        TKit::Registry &r = scene.Registry;
         const ConstYamlNode entities = root["Entities"];
-        for (const ConstYamlNode entity : entities)
+        const TKit::StackArray<u32> indices = entities["Indices"].Read<TKit::StackArray<u32>>();
+        const TKit::StackArray<RenderContext> ids = entities["Ids"].Read<TKit::StackArray<RenderContext>>();
+        r.EstablishEntityIndicesAndIds(indices, ids);
+        for (const ConstYamlNode entity : entities["Entities"])
         {
             const Entity e = r.CreateEntity();
-            deserialize_Component<NameComponent>(entity["NameComponent"], e, r);
+            deserialize_Component<NameComponent>("NameComponent", entity, e, r);
 
-            deserialize_Component<TransformComponent<D2>>(entity["TransformComponent2D"], e, r);
-            deserialize_Component<TransformComponent<D3>>(entity["TransformComponent3D"], e, r);
+            deserialize_Component<TransformComponent<D2>>("TransformComponent2D", entity, e, r);
+            deserialize_Component<TransformComponent<D3>>("TransformComponent3D", entity, e, r);
 
-            deserialize_Component<StaticMeshComponent<D2>>(entity["StaticMeshComponent2D"], e, r);
-            deserialize_Component<StaticMeshComponent<D3>>(entity["StaticMeshComponent3D"], e, r);
+            deserialize_Component<StaticMeshComponent<D2>>("StaticMeshComponent2D", entity, e, r);
+            deserialize_Component<StaticMeshComponent<D3>>("StaticMeshComponent3D", entity, e, r);
 
-            deserialize_RenderContextComponent<D2>(entity["RenderContextComponent2D"], scene, e, r);
-            deserialize_RenderContextComponent<D3>(entity["RenderContextComponent2D"], scene, e, r);
+            deserialize_RenderContextComponent<D2>("RenderContextComponent2D", entity, scene, e, r);
+            deserialize_RenderContextComponent<D3>("RenderContextComponent3D", entity, scene, e, r);
         }
     }
 
@@ -859,8 +871,21 @@ static void hierarchyWindow_Draw()
         r.IterateEntitiesByInsertionOrder([&](const Entity e) {
             const NameComponent *nc = scene.Registry.GetComponent<NameComponent>(e);
             TKIT_ASSERT(nc, "[ONYX][EDITOR] All editor entities must have a name, but entity {} does not", e);
-            if (ov->Selectable({e, nc->Name}, e == scene.SelectedEntity))
+            ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+
+            ov->PushId(e);
+            const bool selected = e == scene.SelectedEntity;
+            if (ov->Button(Onyx::CodePoint_Cross))
+            {
+                scene.Registry.DestroyEntity(e);
+                if (selected)
+                    scene.SelectedEntity = NullEntity;
+            }
+            if (ov->Selectable(nc->Name, selected))
                 scene.SelectedEntity = e;
+            ov->PopId();
+
+            ov->PopDirection();
         });
 
         ov->EndWindow();

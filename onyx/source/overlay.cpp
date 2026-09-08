@@ -1209,11 +1209,11 @@ bool Overlay::BeginMenu(const OverlayLabel label)
     ly->BeginPanel(id,
                    LyPnPar{.FillColor = m_Style[col], .Alignment = CenterLeft, .Sizing = sizing, .Padding = padding});
 
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
     if (verticalLayout)
     {
         ly->Panel(LyPnPar{.Sizing = grow()});
-        ly->Unicode(NullLayoutId, ArrowRightIcon, getUnicodeParams());
+        ly->Unicode(NullLayoutId, CodePoint_ArrowRight, getUnicodeParams());
     }
 
     if (popupOpen)
@@ -1302,11 +1302,12 @@ bool Overlay::IsCurrentWindowPromoted() const
 }
 
 bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWindowFlags flags,
-                          const TKit::StringView title, const bool redirectedByHostedWindow)
+                          const OverlayTitle &title, const bool redirectedByHostedWindow)
 {
     VALIDATE_WINDOW_HIERARCHY("BeginWindow()");
 #ifdef TKIT_ENABLE_ENSURE
-    active->Title = {title.GetData(), title.GetSize()};
+    if (!title.IsUnicode())
+        active->Title = title.Text;
 #endif
 
     Layout *ly = active->GetActiveLayout();
@@ -1603,16 +1604,17 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
             // ASSERT_WITH_WINDOW(active, !title.IsEmpty(),
             //                    "[ONYX][OVERLAY] A title must be provided if the window has a header");
-            ly->Text(title, getTextParams());
+            titleText(ly, title);
             ly->EndPanel();
 
             if (closeButton)
             {
                 const LayoutId bid = IdFromStack("__onyx_id_Close_button");
                 const bool shouldClose = ownsNative && nw->Window->ShouldClose();
-                if (opened && (iconButton(bid, CrossIcon) || shouldClose))
+                if (opened && (iconButton(bid, CodePoint_Cross) || shouldClose))
                     *opened = false;
-                else if ((active->Flags & WindowInternalFlag_Popup) && (iconButton(bid, CrossIcon) || shouldClose))
+                else if ((active->Flags & WindowInternalFlag_Popup) &&
+                         (iconButton(bid, CodePoint_Cross) || shouldClose))
                     CloseCurrentPopup();
             }
 
@@ -1661,7 +1663,7 @@ OverlayWindow *Overlay::createOverlayWindow(const LayoutId id, OverlayWindow *pa
 {
     OverlayWindow *win = createOverlayWindow();
     win->Id = id;
-    win->HeaderIcon = ArrowDownIcon;
+    win->HeaderIcon = CodePoint_ArrowDown;
     win->Parent = parent;
     if (parent)
     {
@@ -2127,7 +2129,7 @@ u32 Overlay::processWindows()
     for (OverlayWindow *win : m_ActiveWindows)
     {
         const bool locallyCollapsed = win->CanCollapse() && Math::Approximately(win->Size[1], win->MinSize[1], 1.f);
-        win->HeaderIcon = locallyCollapsed ? ArrowRightIcon : ArrowDownIcon;
+        win->HeaderIcon = locallyCollapsed ? CodePoint_ArrowRight : CodePoint_ArrowDown;
 
         // we dont clear _Active flag yet as its needed for multi surface later
         win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_IsDockTarget |
@@ -3922,7 +3924,7 @@ bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
                                             .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
                                             .Padding = padding});
 
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
     ly->EndPanel();
     PopId();
     return iflags & OverlayInteractionQueryFlag_LeftClicked;
@@ -3955,7 +3957,7 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
                       .Shape = circle()});
     ly->EndPanel();
 
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
 
     ly->EndPanel();
     PopId();
@@ -3994,7 +3996,7 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
                           .Shape = rect(m_Style[OverlayStyle_CheckBoxRadius])});
     ly->EndPanel();
 
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
 
     ly->EndPanel();
     PopId();
@@ -4082,7 +4084,7 @@ bool Overlay::Selectable(const OverlayLabel label, const bool enabled, const Ove
 {
     const bool selected = BeginSelectable(label.Id, enabled, flags);
     Layout *ly = m_Active->GetActiveLayout();
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
     EndSelectable();
 
     return selected;
@@ -4165,7 +4167,7 @@ bool Overlay::InputText(const OverlayLabel label, char *buf, const u32 size, con
     return updated;
 }
 
-void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col, const OverlayColorFlags flags)
+void Overlay::ColorPreviewTooltip(const OverlayTitle title, const Color &col, const OverlayColorFlags flags)
 {
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
     const bool tlabel = !(flags & OverlayColorFlag_NoTooltipLabel);
@@ -4182,7 +4184,7 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col
                             .Sizing = fit(),
                             .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-            ly->Text(title, getTextParams());
+            titleText(ly, title);
             HorizontalLine();
         }
 
@@ -4243,7 +4245,7 @@ void Overlay::ColorPreviewTooltip(const TKit::StringView title, const Color &col
                         .ChildGap = m_Style[OverlayStyle_ChildGap]});
         drawColorPreview(col, tooltipSize, alpha);
         if (tlabel)
-            ly->Text(title, getTextParams());
+            titleText(ly, title);
         ly->EndPanel();
     }
 }
@@ -4775,7 +4777,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
                            .Sizing = fit(),
                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
-    ly->Text(original ? "Current" : label.Title, getTextParams());
+    titleText(ly, original ? "Current" : label.Title);
     if (drawPreview)
     {
         PushStyleVar(OverlayStyle_ColorPreviewSize, previewSize);
@@ -4911,7 +4913,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                 "[ONYX][OVERLAY] If the _ForDocking tab flag is set, endTabBar() must take a non null dock node leaf");
 
             const OverlayFocusQueryFlags iflags =
-                iconButtonWithInteraction(IdFromStack("__onyx_id_Tab_header_button"), ArrowDownIcon, grow());
+                iconButtonWithInteraction(IdFromStack("__onyx_id_Tab_header_button"), CodePoint_ArrowDown, grow());
 
             if ((iflags & OverlayInteractionQueryFlag_DragSource) && node->CanUndock())
             {
@@ -4991,7 +4993,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                     data->OpenId = tab.Id;
             }
 
-            ly->Text(tab.Title, getTextParams());
+            titleText(ly, tab.Title);
             EndSelectable();
 
             PushId(tab.Id);
@@ -5054,7 +5056,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                     tab.Flags &= ~TabFlag_JustPermuted;
             }
 
-            if (button && iconButton(butId, CrossIcon, grow(), OverlayColor_SelectableIdle))
+            if (button && iconButton(butId, CodePoint_Cross, grow(), OverlayColor_SelectableIdle))
             {
                 tab.Flags |= TabFlag_RequestClose;
                 if (opened)
@@ -5184,12 +5186,11 @@ void Overlay::beginHorizontalWidget(const LayoutId id, const f32 normSize)
 
     return beginHorizontalWidget(id, outerSizing, innerSizing);
 }
-void Overlay::endHorizontalWidget(const TKit::StringView title)
+void Overlay::endHorizontalWidget(const OverlayTitle &title)
 {
     Layout *ly = m_Active->GetActiveLayout();
     ly->EndPanel();
-    if (!title.IsEmpty())
-        ly->Text(title, getTextParams());
+    titleText(ly, title);
     ly->EndPanel();
 }
 bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView hint, const OverlayInputFlags flags,
@@ -5710,7 +5711,7 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
         ly->BeginPanel(LyPnPar{.FillColor = m_Style[buttonCol],
                                .Alignment = Center,
                                .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
-        ly->Unicode(NullLayoutId, ArrowDownIcon, getUnicodeParams());
+        ly->Unicode(NullLayoutId, CodePoint_ArrowDown, getUnicodeParams());
         ly->EndPanel();
     }
 
@@ -5969,7 +5970,7 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const 
                            .Padding = borders ? padding : 0.f});
 
     if (flags & OverlayScrollFlag_Title)
-        ly->Text(label.Title, getTextParams());
+        titleText(ly, label.Title);
 
     beginScroll({.Id = id,
                  .OuterSizing = outer,
@@ -6046,12 +6047,12 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
             toggleOpen = doubleClicked;
     }
 
-    const CodePoint code = opened ? ArrowDownIcon : ArrowRightIcon;
+    const CodePoint code = opened ? CodePoint_ArrowDown : CodePoint_ArrowRight;
     ly->Unicode(NullLayoutId, code, getUnicodeParams());
 
     ly->EndPanel();
 
-    ly->Text(label.Title, getTextParams());
+    titleText(ly, label.Title);
     ly->EndPanel();
 
     if (toggleOpen)
@@ -6072,7 +6073,8 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     if (indent)
     {
-        const f32 iconWidth = Math::Max(fs * fdata.GetGlyph(ArrowDownIcon)->Advance, m_Style[OverlayStyle_IconWidth]);
+        const f32 iconWidth =
+            Math::Max(fs * fdata.GetGlyph(CodePoint_ArrowDown)->Advance, m_Style[OverlayStyle_IconWidth]);
         const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
 
         ly->BeginPanel(LyPnPar{
@@ -6098,7 +6100,7 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
     sinfo.Flags = specs.Flags;
 
     const bool noHeader = m_Active->Flags & OverlayWindowFlag_NoHeaderBar;
-    const bool collapsed = !noHeader && m_Active->HeaderIcon == ArrowRightIcon;
+    const bool collapsed = !noHeader && m_Active->HeaderIcon == CodePoint_ArrowRight;
     const bool drawBar = !(specs.Flags & OverlayScrollFlag_NoScrollBar);
 
     const bool borders = specs.Flags & OverlayScrollFlag_Borders;
@@ -7681,8 +7683,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->TextRaw("This is some raw text");
         ov->TextRaw(Onyx::TextMode_Wrapped,
                     "This is some text that should wrap because it is too long to fit into the width of the window");
-        ov->TextIconRaw(Onyx::BulletIcon, "A bullet!");
-        ov->TextIcon(Onyx::ArrowRightIcon, "Here is the delta time again: {:.2f} ms", ftime);
+        ov->TextIconRaw(Onyx::CodePoint_Bullet, "A bullet!");
+        ov->TextIcon(Onyx::CodePoint_ArrowRight, "Here is the delta time again: {:.2f} ms", ftime);
         ov->PopTree();
     }
 

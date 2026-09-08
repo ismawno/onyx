@@ -104,10 +104,10 @@ struct DefaultResources
     }
 };
 
-constexpr CodePoint ArrowDownIcon = 0x25BC;
-constexpr CodePoint ArrowRightIcon = 0x25B6;
-constexpr CodePoint BulletIcon = 0x2022;
-constexpr CodePoint CrossIcon = 0x2715;
+constexpr CodePoint CodePoint_ArrowDown = 0x25BC;
+constexpr CodePoint CodePoint_ArrowRight = 0x25B6;
+constexpr CodePoint CodePoint_Bullet = 0x2022;
+constexpr CodePoint CodePoint_Cross = 0x2715;
 
 struct DefaultResourcesOptions
 {
@@ -115,10 +115,10 @@ struct DefaultResourcesOptions
     DefaultResourcesOptions() : FontOpts{}
     {
         FontOpts.CharSet.LoadRange(CharSets.ASCII);
-        FontOpts.CharSet.Load(ArrowDownIcon);
-        FontOpts.CharSet.Load(ArrowRightIcon);
-        FontOpts.CharSet.Load(BulletIcon);
-        FontOpts.CharSet.Load(CrossIcon);
+        FontOpts.CharSet.Load(CodePoint_ArrowDown);
+        FontOpts.CharSet.Load(CodePoint_ArrowRight);
+        FontOpts.CharSet.Load(CodePoint_Bullet);
+        FontOpts.CharSet.Load(CodePoint_Cross);
     }
 #endif
     ResourcePool StaticPool2 = NullHandle;
