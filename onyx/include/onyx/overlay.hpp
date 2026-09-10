@@ -1621,7 +1621,7 @@ class Overlay
     {
         const T val = *current;
         BeginScroll(label, m_Style[OverlayStyle_ListBoxMaxHeight],
-                    OverlayScrollFlags(OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title));
+                    OverlayScrollFlag_Tight | OverlayScrollFlag_Borders | OverlayScrollFlag_Title);
 
         const bool unselect = flags & OverlaySelectableFlag_ListBoxUnselect;
         for (u32 i = 0; i < elements.GetSize(); ++i)
@@ -1995,6 +1995,14 @@ class Overlay
     OverlayStyle &GetStyle()
     {
         return m_Style;
+    }
+    f32 GetStyle(const OverlayStyleVariable var)
+    {
+        return m_Style[var];
+    }
+    Color GetColor(const OverlayColor col)
+    {
+        return m_Style[col];
     }
     const OverlayStyle &GetDefaultStyle() const
     {

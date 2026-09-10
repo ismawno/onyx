@@ -4044,7 +4044,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
         col = OverlayColor_SelectablePressed;
 
     const bool spanLabel = flags & OverlaySelectableFlag_SpanLabelWidth;
-    const bool fwidth = flags & OverlaySelectableFlag_FlexWidth;
+    const bool fwidth = isAutoResize() || (flags & OverlaySelectableFlag_FlexWidth);
 
     const LySz xsizing = fwidth ? flex() : grow();
     const LySz2 sizing = {spanLabel ? fit() : xsizing, fit()};
@@ -5976,11 +5976,24 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const 
     const bool tight = flags & OverlayScrollFlag_Tight;
     const bool flexWidth = flags & OverlayScrollFlag_FlexWidth;
 
-    const auto sfun = flexWidth ? flex : grow;
+    const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
 
+    LySz2 outer;
+    LySz2 content;
     const f32 omw = maxSize[0] == TKIT_F32_MAX ? TKIT_F32_MAX : (maxSize[0] + 2.f * padding);
-    const LySz2 outer = {autoResize ? fit() : sfun(0.f, omw), fit()};
-    const LySz2 content = {autoResize ? fit(0.f, maxSize[0]) : sfun(0.f, maxSize[0]), fit(0.f, maxSize[1])};
+    if (autoResize)
+    {
+        outer[0] = flexWidth ? flex() : fit();
+        content[0] = flexWidth ? flex(0.f, maxSize[0]) : fit(0.f, maxSize[0]);
+    }
+    else
+    {
+        outer[0] = flexWidth ? flex(0.f, omw) : grow(0.f, omw);
+        content[0] = flexWidth ? flex(0.f, maxSize[0]) : grow(0.f, maxSize[0]);
+    }
+
+    outer[1] = fit();
+    content[1] = fit(0.f, maxSize[1]);
 
     Layout *ly = m_Active->GetActiveLayout();
     ly->BeginPanel(LyPnPar{.FillColor = borders ? m_Style[OverlayColor_ScrollAreaBorders] : Color_Transparent,
@@ -7566,8 +7579,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         ov->BeginScroll("Title", {xunlim ? TKIT_F32_MAX : dimensions[0], dimensions[1]}, sflags);
 
-        ov->TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
-                    "showcase the feature");
+        // ov->TextRaw("I am a long text that will require you to scroll horizontally to read fully, allowing me to "
+        //             "showcase the feature");
         ov->Button("I am a useless button");
         if (ov->PushTree("Some content", Onyx::OverlayTreeFlag_StartOpen))
         {
