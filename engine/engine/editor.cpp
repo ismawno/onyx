@@ -3,6 +3,7 @@
 #include "onyx/resources.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/dialog.hpp"
 #include "tkit/serialization/yaml/codec.hpp"
 #include "tkit/serialization/yaml/container.hpp"
 #include "tkit/serialization/yaml/tensor.hpp"
@@ -12,6 +13,7 @@
 #include "tkit/serialization/yaml/include/onyx/camera.hpp"
 #include "tkit/serialization/yaml/include/onyx/view.hpp"
 #include "tkit/serialization/yaml/engine/components.hpp"
+#include "tkit/serialization/yaml/engine/engine.hpp"
 
 #define NAME_BUF_SIZE 64
 #define DEFAULT_RESOLUTION u32v2{1920, 1080}
@@ -143,6 +145,7 @@ struct Editor_Data
     Onyx::Window *Window;
     Onyx::Overlay *Overlay;
 
+    TKit::TierString ProjectName;
     fs::path ProjectPath{};
     ProjectSettings Settings{};
 
@@ -153,6 +156,22 @@ struct Editor_Data
     Editor_Scene &GetActiveScene()
     {
         return Scenes[ActiveScene];
+    }
+    fs::path GetProjectScenesPath() const
+    {
+        return ProjectPath / "scenes";
+    }
+    fs::path GetProjectDataPath() const
+    {
+        return ProjectPath / "data";
+    }
+    fs::path GetProjectSettingsPath() const
+    {
+        return GetProjectDataPath() / "settings.yaml";
+    }
+    fs::path GetOverlayLayoutPath() const
+    {
+        return GetProjectDataPath() / "ui-layout.yaml";
     }
 };
 
@@ -630,6 +649,7 @@ TKit::Registry &Scene_GetRegistry(const Scene sc)
     return s_Data->Scenes[sc].Registry;
 }
 
+// lets hold on these
 // template <Dimension D> RenderView Viewport_CreateRenderView(const Viewport vp)
 // {
 // }
@@ -669,7 +689,7 @@ static Onyx::Overlay *editor_CreateOverlay(Onyx::Window *win)
     Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_AutoSerialize});
 
     // TODO(Isma): Change this with a project-specific path!
-    if (!ov->Deserialize("."))
+    if (!ov->Deserialize(s_Data->GetOverlayLayoutPath()))
     {
         const Onyx::LayoutId mainViewportId = 0u;
         const Editor_Ids &idData = s_Data->Labels;
@@ -693,19 +713,307 @@ static Onyx::Overlay *editor_CreateOverlay(Onyx::Window *win)
     return ov;
 }
 
-void Initialize()
+static const char *editor_GetEnv(const char *name)
+{
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4996)
+    return std::getenv(name);
+    TKIT_COMPILER_WARNING_IGNORE_POP()
+}
+
+static fs::path editor_GetHomePath()
+{
+#ifdef TKIT_OS_WINDOWS
+    const char *var = "USERPROFILE";
+#else
+    const char *var = "HOME";
+#endif
+
+    const char *path = editor_GetEnv(var);
+    return path ? path : "/";
+}
+
+// static fs::path editor_GetConfigPath()
+// {
+// #ifdef TKIT_OS_WINDOWS
+//     const char *var = "APPDATA";
+// #elif defined(TKIT_OS_APPLE)
+//     const char *var = "HOME";
+// #else
+//     const char *var = "XDG_CONFIG_HOME";
+// #endif
+//
+//     const char *root = editor_GetEnv(var);
+// #ifdef TKIT_OS_LINUX
+//     if (root)
+//         return fs::path{root} / "onyx";
+//
+//     root = editor_GetEnv("HOME");
+//     return root ? (fs::path{root} / ".config" / "onyx") : fs::path{};
+// #elif defined(TKIT_OS_APPLE)
+//     return root ? (fs::path{root} / "Library" / "Application support" / "onyx") : fs::path{};
+// #else
+//     return root ? (fs::path{root} / "onyx") : fs::path{};
+// #endif
+// }
+
+struct Editor_ProjectDialogInfo
+{
+    const char *ProjectName;
+    fs::path ProjectPath;
+    u32 StartDimension = D2;
+    bool Created;
+    bool StartDefault;
+    bool Canceled;
+};
+
+static Editor_ProjectDialogInfo editor_RunProjectDialog()
+{
+    Onyx::Overlay *ov = Onyx::CreateFloatingOverlay();
+    bool running = true;
+    bool creating = false;
+    u32 defaultScene = 1;
+    const char *dialogError = nullptr;
+
+    Editor_ProjectDialogInfo info;
+    info.Canceled = true;
+    while (Onyx::Running())
+    {
+#ifdef TKIT_ENABLE_ENSURE
+        const char *title = "Welcome to the Onyx editor - " ONYX_VERSION " - [DEBUG]";
+#else
+        const char *title = "Welcome to the Onyx editor - " ONYX_VERSION;
+#endif
+        if (ov->BeginWindow(title, &running, Onyx::OverlayWindowFlag_AutoResize))
+        {
+            if (creating)
+            {
+                static char pname[64] = "onyx-project";
+                static fs::path pdir = editor_GetHomePath();
+                ov->InputText("Project name", pname, 64);
+                ov->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Alignment_Center, Onyx::LayoutSizing::Fit());
+                if (ov->Button("Browse"))
+                {
+                    dialogError = nullptr;
+                    Onyx::ClearDialogError();
+
+                    const auto res = Onyx::OpenFolderDialog();
+                    if (res)
+                        pdir = *res;
+                    else
+                    {
+                        const Onyx::DialogStatus status = res.GetError();
+                        TKIT_ASSERT(status != Onyx::Dialog_Success);
+                        dialogError = status == Onyx::Dialog_Cancel ? "Operation canceled" : Onyx::GetDialogError();
+                    }
+                }
+
+                const fs::path ppath = pdir / pname;
+                ov->Text("Project path: {}", ppath.c_str());
+                ov->PopPanel();
+
+                if (dialogError)
+                {
+                    ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
+                    ov->TextRaw(dialogError);
+                    ov->PopStyleColor();
+                }
+
+                ov->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::LayoutSizing::Fit());
+                ov->RadioButton("Default scene", &defaultScene, 1);
+                ov->RadioButton("Empty", &defaultScene, 0);
+                ov->PopPanel();
+                ov->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::LayoutSizing::Fit());
+                ov->RadioButton("2D", &info.StartDimension, D2);
+                ov->RadioButton("3D", &info.StartDimension, D3);
+                ov->RadioButton("Both", &info.StartDimension, 0);
+                ov->PopPanel();
+
+                ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
+                creating = !ov->Button("Go back", Onyx::OverlayButtonFlag_SpanFullWidth);
+
+                const bool exists = fs::exists(ppath);
+                const auto create = [&] {
+                    info.ProjectName = pname;
+                    info.ProjectPath = ppath;
+                    info.StartDefault = defaultScene;
+                    info.Created = true;
+                    info.Canceled = false;
+                    Onyx::Quit();
+                };
+
+                if (ov->BeginPopup("Warning", Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_PopupModal |
+                                                  Onyx::OverlayWindowFlag_PopupDoNotPlaceAtMouse |
+                                                  Onyx::OverlayWindowFlag_BringToTop |
+                                                  Onyx::OverlayWindowFlag_NoHeaderBar))
+                {
+                    ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
+                    ov->TextRaw("Warning - The specified path already exists");
+                    ov->PopStyleColor();
+
+                    ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
+                    if (ov->Button("Cancel", Onyx::OverlayButtonFlag_SpanFullWidth))
+                        ov->CloseCurrentPopup();
+                    if (ov->Button("Overwrite", Onyx::OverlayButtonFlag_SpanFullWidth))
+                    {
+                        fs::remove_all(ppath);
+                        create();
+                    }
+                    ov->PopPanel();
+
+                    ov->EndPopup();
+                }
+
+                if (ov->Button("Create", Onyx::OverlayButtonFlag_SpanFullWidth))
+                {
+                    if (exists)
+                        ov->OpenPopup("Warning");
+                    else
+                        create();
+                }
+
+                ov->PopPanel();
+            }
+            else
+            {
+                ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
+                creating = ov->Button("Create project", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ov->Button("Open project", Onyx::OverlayButtonFlag_SpanFullWidth);
+                ov->PopPanel();
+            }
+#ifdef TKIT_ENABLE_ENSURE
+            ov->PushPanel(Onyx::Alignment_Center, Onyx::LayoutSizing::Fit());
+            ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
+            ov->TextRaw("Warning - Running in a debug build. Expect reduced performance");
+            ov->PopStyleColor();
+            ov->PopPanel();
+#endif
+            ov->EndWindow();
+        }
+        if (!running)
+            Onyx::Quit();
+        ov->Draw();
+
+        Onyx::Transfer();
+        Onyx::Render();
+    }
+
+    Onyx::DestroyFloatingOverlay(ov);
+    return info;
+}
+
+template <Dimension D> static void editor_SetupDefaultScene(const Scene sc)
+{
+    Editor_Scene &scene = s_Data->Scenes[sc];
+    const Viewport vp = Scene_CreateViewport(sc, DEFAULT_RESOLUTION);
+    Editor_Viewport &viewport = scene.Viewports[vp];
+    scene_CreateEditorCamera<D>(scene);
+
+    const RenderView rv = viewport_CreateRenderView<D>(scene, viewport, 0);
+    const RenderContext rc = Scene_CreateRenderContext<D>(sc);
+
+    const Editor_RenderView<D> &view = viewport.GetViews<D>()[rv];
+    view.Handle->ClearColor = Onyx::Color_Sky;
+    scene.GetContexts<D>()[rc].Handle->AddTarget(view.Handle);
+}
+
+// TODO(Isma): Add a way to edit project settings (window promotions for instance)
+// TODO(Isma): Add a way to open/create new projects from editor (use same popup)
+// TODO(Isma): Disable promotion when parent window is fullscreen
+static void editor_Serialize()
+{
+    const fs::path &ppath = s_Data->ProjectPath;
+    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.c_str());
+
+    TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.c_str());
+
+    const fs::path scenePath = s_Data->GetProjectScenesPath();
+    for (const Scene sc : s_Data->Scenes.GetValidIds())
+        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", s_Data->Scenes[sc].Name).CString());
+
+    s_Data->Overlay->Serialize(s_Data->GetOverlayLayoutPath());
+
+    YamlTree tree{};
+    YamlNode root = tree.GetRoot();
+
+    YamlNode scenes = root["Scenes"];
+    scenes["Indices"] << s_Data->Scenes.GetIndices();
+    scenes["Ids"] << s_Data->Scenes.GetIds();
+    scenes["Active"] << s_Data->ActiveScene;
+
+    root["Settings"] << s_Data->Settings;
+
+    tree.ToFile(s_Data->GetProjectSettingsPath());
+}
+static void editor_Deserialize()
+{
+    const fs::path &ppath = s_Data->ProjectPath;
+    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.c_str());
+
+    TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at '{}'", ppath.c_str());
+
+    const fs::path scenePath = s_Data->GetProjectScenesPath();
+
+    const YamlTree tree = YamlTree::FromFile(s_Data->GetProjectSettingsPath());
+    const ConstYamlNode root = tree.GetRoot();
+
+    const ConstYamlNode scenes = root["Scenes"];
+
+    const TKit::StackArray<u32> indices = scenes["Indices"].Read<TKit::StackArray<u32>>();
+    const TKit::StackArray<RenderContext> ids = scenes["Ids"].Read<TKit::StackArray<RenderContext>>();
+
+    s_Data->Scenes = TKit::TierHive<Editor_Scene>{indices, ids};
+    s_Data->ActiveScene = scenes["Active"].Read<u32>();
+    s_Data->Settings = root["Settings"].Read<ProjectSettings>();
+
+    for (const fs::directory_entry &dir : fs::directory_iterator(scenePath))
+        if (!dir.is_directory())
+            Scene_Deserialize(dir.path());
+}
+
+bool Initialize()
 {
     Onyx::Initialize();
     Onyx::Resources::CreateDefaultResources();
 
     s_Data.Construct();
 
+    const Editor_ProjectDialogInfo info = editor_RunProjectDialog();
+    if (info.Canceled)
+    {
+        Terminate();
+        return false;
+    }
+
+    s_Data->ProjectName = info.ProjectName;
+    s_Data->ProjectPath = info.ProjectPath;
+
     s_Data->Window = editor_CreateWindow();
     s_Data->Overlay = editor_CreateOverlay(s_Data->Window);
 
-    const Scene sc = Scene_Create();
-    s_Data->ActiveScene = sc;
-    Scene_CreateViewport(sc, DEFAULT_RESOLUTION);
+    if (info.Created)
+    {
+        const Scene sc = Scene_Create();
+        Editor_Scene &scene = s_Data->Scenes[sc];
+        scene.Dim = info.StartDimension;
+        s_Data->ActiveScene = sc;
+
+        fs::create_directories(s_Data->GetProjectScenesPath());
+        fs::create_directories(s_Data->GetProjectDataPath());
+
+        if (info.StartDefault)
+        {
+            if (scene.Dim == D3)
+                editor_SetupDefaultScene<D3>(sc);
+            else
+                editor_SetupDefaultScene<D2>(sc);
+        }
+        editor_Serialize();
+    }
+    else
+        editor_Deserialize();
+
+    return true;
 }
 
 static void editorWindow_Draw()
@@ -761,7 +1069,7 @@ static void viewportWindow_Draw()
 
             if (warning)
             {
-                ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Orange);
+                ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
                 ov->TextRaw(Onyx::TextMode_Wrapped, warning);
                 ov->PopStyleColor();
             }
@@ -871,7 +1179,7 @@ static void hierarchyWindow_Draw()
         r.IterateEntitiesByInsertionOrder([&](const Entity e) {
             const NameComponent *nc = scene.Registry.GetComponent<NameComponent>(e);
             TKIT_ASSERT(nc, "[ONYX][EDITOR] All editor entities must have a name, but entity {} does not", e);
-            ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+            ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
 
             ov->PushId(e);
             const bool selected = e == scene.SelectedEntity;
@@ -885,7 +1193,7 @@ static void hierarchyWindow_Draw()
                 scene.SelectedEntity = e;
             ov->PopId();
 
-            ov->PopDirection();
+            ov->PopPanel();
         });
 
         ov->EndWindow();
@@ -1046,7 +1354,7 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         }
         else
         {
-            ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Orange);
+            ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
             ov->TextRaw("No context has been added. Add one from the 'Scene' tab");
             ov->PopStyleColor();
         }
@@ -1161,12 +1469,12 @@ struct Utils_ListBox
 static bool editor_ListBox(const Utils_ListBox &params)
 {
     Onyx::Overlay *ov = s_Data->Overlay;
-    ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+    ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
 
     u32 *selected = params.Selected;
     const TKit::StackArray<TKit::StackString> &labels = *params.Labels;
 
-    ov->PushDirection(Onyx::LayoutDirection_TopToBottom, Onyx::LayoutSizing::Fit());
+    ov->PushPanel(Onyx::LayoutDirection_TopToBottom, Onyx::LayoutSizing::Fit());
     if (params.OnAdd)
     {
         const bool canAdd = params.CanAdd;
@@ -1193,11 +1501,11 @@ static bool editor_ListBox(const Utils_ListBox &params)
             ov->SetItemTooltipRaw(params.CannotRemoveTooltip, Onyx::OverlayFocusFlag_NormalDelay);
     }
 
-    ov->PopDirection();
+    ov->PopPanel();
 
     const bool result =
         ov->ListBox<TKit::StackString>(params.Title, selected, labels, Onyx::OverlaySelectableFlag_ListBoxUnselect);
-    ov->PopDirection();
+    ov->PopPanel();
     return result;
 }
 
@@ -1488,12 +1796,18 @@ static void sceneWindow_Draw()
     if (ov->BeginWindow(idData.Scene))
     {
         Editor_Scene &scene = s_Data->GetActiveScene();
+        if (scene.Viewports.IsEmpty())
+        {
+            ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
+            ov->TextRaw("The current scene has no viewports. Create one below to draw something");
+            ov->PopStyleColor();
+        }
 
-        ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+        ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
         ov->RadioButton("2D", &scene.Dim, D2);
         ov->RadioButton("3D", &scene.Dim, D3);
         ov->RadioButton("Both", &scene.Dim, 0);
-        ov->PopDirection();
+        ov->PopPanel();
 
         sceneWindow_DisplayViewports();
 

@@ -9,7 +9,7 @@ namespace Engine
 {
 namespace fs = std::filesystem;
 
-void Initialize();
+bool Initialize();
 void Terminate();
 void Run();
 
@@ -56,8 +56,13 @@ TKit::Registry &Scene_GetRegistry(Scene sc);
 
 struct ProjectSettings
 {
+    TKIT_YAML_SERIALIZE_DECLARE(ProjectSettings)
     Onyx::OverlayFlags OverlayFlags = Onyx::OverlayFlag_Docking;
     Onyx::PresentMode PresentMode = Onyx::PresentMode_Immediate;
-    TKit::Timespan DeltaTarget{};
+    f32 DeltaTargetMillis = 0.f;
+    TKit::Timespan GetDeltaTarget() const
+    {
+        return TKit::Timespan::FromMilliseconds(DeltaTargetMillis);
+    }
 };
 } // namespace Engine

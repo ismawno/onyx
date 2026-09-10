@@ -3,7 +3,9 @@
 
 int main()
 {
-    Engine::Initialize();
-    Engine::Run();
-    Engine::Terminate();
+    if (Engine::Initialize())
+    {
+        Engine::Run();
+        Engine::Terminate();
+    }
 }

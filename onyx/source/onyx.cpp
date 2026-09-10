@@ -523,10 +523,10 @@ void InitializeApi()
 void TerminateApi()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (WindowData &wdata : s_Data->Windows)
-        cleanupWindowData(wdata);
     for (Overlay *ov : s_Data->Overlays)
         destroyOverlay(ov);
+    for (WindowData &wdata : s_Data->Windows)
+        cleanupWindowData(wdata);
 
     for (RenderTexture *rtex : s_Data->RenderTextures)
         tier->Destroy(rtex);

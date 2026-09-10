@@ -36,7 +36,7 @@ static bool runDemo(const bool floating)
         ui->ShowDemo();
         if (ui->BeginWindow("Overlay demo"))
         {
-            ui->PushDirection(Onyx::LayoutDirection_LeftToRight);
+            ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
             if (ui->Button("Quit"))
                 Onyx::Quit(Onyx::QuitFlag_DestroyWindows | Onyx::QuitFlag_DestroyFloatingOverlays);
             if (ui->Button(floating ? "Restart using a main window" : "Restart using floating mode"))
@@ -44,7 +44,7 @@ static bool runDemo(const bool floating)
                 restart = true;
                 Onyx::Quit(Onyx::QuitFlag_DestroyWindows | Onyx::QuitFlag_DestroyFloatingOverlays);
             }
-            ui->PopDirection();
+            ui->PopPanel();
             ui->EndWindow();
         }
 

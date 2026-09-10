@@ -905,6 +905,8 @@ bool Overlay::Deserialize()
             OverlayWindow *win = dockHost ? getOrCreateDockHost(id, parent) : getOrCreateOverlayWindow(id, parent);
             if (!parent)
                 win->ScreenPos = nwin["Position"].Read<f32v2>();
+
+            win->AvailableConditions &= ~OverlayCondition_OnBirth;
             win->Size = nwin["Size"].Read<f32v2>();
             win->Layer = nwin["Layer"].Read<u64>();
             win->Flags = nwin["Flags"].Read<OverlayWindowFlags>();
@@ -1025,7 +1027,10 @@ f32v2 OverlayWindow::ToWorld(const f32v2 &screen) const
 bool Overlay::BeginWindow(const OverlayLabel label, bool *opened, const OverlayWindowFlags flags)
 {
     if (opened && !(*opened))
+    {
+        m_NextWindow.Flags = 0;
         return false;
+    }
 
     const LayoutId stackedId = PushId(label.Id);
     const bool merge = flags & OverlayWindowFlag_MergeIdWithStack;
@@ -1310,6 +1315,9 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         active->Title = title.Text;
 #endif
 
+    const NextWindowFlags nwFlags = m_NextWindow.Flags;
+    m_NextWindow.Flags = 0;
+
     Layout *ly = active->GetActiveLayout();
     OverlayWindow *parent = active->Parent;
 
@@ -1365,6 +1373,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
     }
 
     const bool activeOwnsLayout = active->OwnsActiveLayout();
+    active->AvailableConditions &= ~OverlayCondition_Appearing;
     if (isDocked)
     {
         // auto resize is not supported with docking or in fullscreen
@@ -1374,7 +1383,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
     if (!activeOwnsLayout)
     {
         active->Flags |= OverlayWindowFlag_NoPromotion | OverlayWindowFlag_NoBringToFocus;
-        active->Flags &= ~OverlayWindowFlag_Modal;
+        active->Flags &= ~OverlayWindowFlag_PopupModal;
     }
     else
     {
@@ -1382,28 +1391,33 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
             active->Flags &= ~OverlayWindowFlag_AutoResize;
         if (m_FrameCount != 0 && !(active->Flags & WindowInternalFlag_ActiveLastFrame) &&
             !(active->Flags & OverlayWindowFlag_NoBringToFocus))
+        {
             active->Flags |= OverlayWindowFlag_BringToTop;
+            active->AvailableConditions |= OverlayCondition_Appearing;
+        }
     }
 
     const bool ownsNative = active->Flags & WindowInternalFlag_OwnsNative;
-    if (activeOwnsLayout && (m_NextWindow.Flags & NextWindowFlag_Position))
-    {
-        if (ownsNative)
-        {
-            active->SetActivePosition(m_NextWindow.ScreenPos);
-            active->Native->Window->SetPosition(i32v2{m_NextWindow.ScreenPos});
-        }
-        else
-            active->ScreenPos = m_NextWindow.ScreenPos;
-    }
 
-    if (m_NextWindow.Flags & NextWindowFlag_Size)
+    if ((nwFlags & NextWindowFlag_Size) && active->HasCondition(m_NextWindow.Condition))
     {
+        active->AvailableConditions &= ~m_NextWindow.Condition;
         active->Size = m_NextWindow.Size;
         if (ownsNative)
             active->SyncNativeSize();
     }
-    m_NextWindow.Flags = 0;
+    if (activeOwnsLayout && (nwFlags & NextWindowFlag_Position) && active->HasCondition(m_NextWindow.Condition))
+    {
+        active->AvailableConditions &= ~m_NextWindow.Condition;
+        const f32v2 pos = m_NextWindow.ScreenPos + m_NextWindow.RelativeOffset * active->Size;
+        if (ownsNative)
+        {
+            active->Native->ScreenPos = pos;
+            active->Native->Window->SetPosition(i32v2{pos});
+        }
+        else
+            active->ScreenPos = pos;
+    }
 
     assignNativeWindowSomehow(active);
 
@@ -1488,7 +1502,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         if (active->Flags & OverlayWindowFlag_BringToTop)
             active->SetLayer(toTop());
 
-        if (active->Flags & OverlayWindowFlag_Modal)
+        if (active->Flags & OverlayWindowFlag_PopupModal)
             m_ModalCollapseDepth = Math::Max(m_ModalCollapseDepth, m_CurrentPopupDepth);
 
         addActiveWindow(active);
@@ -1862,7 +1876,8 @@ u32 Overlay::processWindows()
     for (u32 i = 0; i < m_ActiveWindows.GetSize(); ++i)
     {
         m_Active = m_ActiveWindows[i];
-        if (m_Active->Flags & OverlayWindowFlag_Modal)
+        if ((m_Active->Flags & OverlayWindowFlag_PopupModal) &&
+            !(m_Active->Flags & OverlayWindowFlag_PopupModalNoDimmingOverlay))
             modalWindow = i + 1;
 
         if (m_Active->IsDockHost())
@@ -2132,8 +2147,10 @@ u32 Overlay::processWindows()
         win->HeaderIcon = locallyCollapsed ? CodePoint_ArrowRight : CodePoint_ArrowDown;
 
         // we dont clear _Active flag yet as its needed for multi surface later
+        // REMOVED erasure of WindowInternalFlag_Popup so that we can flag their natives as _Floating windows (see
+        // promoteWindow)
         win->Flags &= ~(WindowInternalFlag_Hovered | WindowInternalFlag_Focused | WindowInternalFlag_IsDockTarget |
-                        WindowInternalFlag_MenuBarOpened | WindowInternalFlag_Popup);
+                        WindowInternalFlag_MenuBarOpened);
         if (!(Flags & OverlayFlag_WindowPromotions))
             win->ClampToNative();
         if (mustClearGrabInfo)
@@ -2556,7 +2573,10 @@ NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const
     ASSERT_WITH_WINDOW(win, win->OwnsActiveLayout(), "[ONYX][OVERLAY] Only layout owning windows can be promoted");
 
     NativeWindow *parent = win->Native;
-    win->Native = createNativeWindow(pos, dims);
+    WindowFlags wflags = 0;
+    if (win->Flags & WindowInternalFlag_Popup)
+        wflags |= WindowFlag_Floating;
+    win->Native = createNativeWindow(pos, dims, wflags);
     win->Native->Parent = parent;
     win->Native->Owner = win;
     // win->Layer = toTop();
@@ -5578,7 +5598,7 @@ void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
 }
 void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const TKit::StringView text)
 {
-    PushDirection(LayoutDirection_LeftToRight);
+    PushPanel(LayoutDirection_LeftToRight);
 
     LyTxPar params = getTextParams();
     params.Mode = mode;
@@ -5592,7 +5612,7 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
         m_LastItem = m_TextId;
         m_TextId = NullLayoutId;
     }
-    PopDirection();
+    PopPanel();
 }
 
 void Overlay::BeginDisabled(const bool enabled)
@@ -5642,6 +5662,7 @@ bool Overlay::BeginPopup(const OverlayLabel label, const OverlayWindowFlags flag
     if (m_CurrentPopupDepth == m_PopupStack.GetSize() || m_PopupStack[m_CurrentPopupDepth] != id)
     {
         m_WidgetStates[id] = 0;
+        m_NextWindow.Flags = 0;
         return false;
     }
 
@@ -5653,13 +5674,13 @@ bool Overlay::BeginPopup(const OverlayLabel label, const OverlayWindowFlags flag
             // we dont handle size because BeginWindow does that for us
             win->Native = m_Active->GetNative();
 
-        const f32v2 &size = win->Size;
-        win->SetActivePosition(
-            win->ToScreen(computeMouseAlignedPosition(win->Native, size, !(flags & OverlayWindowFlag_NoPromotion))));
+        if (!(flags & OverlayWindowFlag_PopupDoNotPlaceAtMouse))
+            win->SetActivePosition(win->ToScreen(
+                computeMouseAlignedPosition(win->Native, win->Size, !(flags & OverlayWindowFlag_NoPromotion))));
     }
     m_WidgetStates[id] = WidgetStateFlag_Opened;
-    return BeginWindow(label,
-                       flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_Popup | OverlayWindowFlag_NoDocking);
+    return BeginWindow(label, flags | OverlayWindowFlag_NoCollapse | WindowInternalFlag_Popup |
+                                  OverlayWindowFlag_NoDocking | OverlayWindowFlag_BringToTop);
 }
 
 void Overlay::EndPopup()
@@ -6706,13 +6727,15 @@ void Overlay::Draw()
             continue;
 
         if (++idx == modalWindow)
-        {
-            ctx->Push();
-            ctx->Scale(nw->GetDimensions());
-            ctx->Alpha(0.2f);
-            ctx->Quad();
-            ctx->Pop();
-        }
+            for (const NativeWindow *native : m_NativeWindows)
+            {
+                RenderContext<D2> *context = native->Context;
+                context->Push();
+                context->Scale(native->GetDimensions());
+                context->Alpha(0.2f);
+                context->Quad();
+                context->Pop();
+            }
         win->Layout->Compile(&depthCounter, &floatDepthCounter);
 
         if (windowPromotions)
@@ -6979,7 +7002,7 @@ static void editDemoWindowFlags(Overlay *ov, OverlayWindowFlags *flags)
     ov->CheckBoxFlags("OverlayWindowFlag_HorizontalScroll", flags, Onyx::OverlayWindowFlag_HorizontalScroll);
     ov->CheckBoxFlags("OverlayWindowFlag_AutoResize", flags, Onyx::OverlayWindowFlag_AutoResize);
     ov->CheckBoxFlags("OverlayWindowFlag_BringToTop", flags, Onyx::OverlayWindowFlag_BringToTop);
-    ov->CheckBoxFlags("OverlayWindowFlag_Modal", flags, Onyx::OverlayWindowFlag_Modal);
+    ov->CheckBoxFlags("OverlayWindowFlag_PopupModal", flags, Onyx::OverlayWindowFlag_PopupModal);
     ov->CheckBoxFlags("OverlayWindowFlag_NoCloseButton", flags, Onyx::OverlayWindowFlag_NoCloseButton);
     ov->CheckBoxFlags("OverlayWindowFlag_MenuBar", flags, Onyx::OverlayWindowFlag_MenuBar);
     ov->CheckBoxFlags("OverlayWindowFlag_MoveWithHeader", flags, Onyx::OverlayWindowFlag_MoveWithHeader);
@@ -7128,19 +7151,19 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->Button("I am a long button", Onyx::OverlayButtonFlag_SpanFullWidth);
 
         ov->PushStyleVar(OverlayStyle_ChildGap, 0.f);
-        ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+        ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
         ov->PopStyleVar();
         ov->TextRaw("A small button can be easily ");
         ov->Button("embedded", Onyx::OverlayButtonFlag_Small);
         ov->TextRaw(" in text");
-        ov->PopDirection();
+        ov->PopPanel();
 
         static u32 radio = 0;
-        ov->PushDirection(Onyx::LayoutDirection_LeftToRight);
+        ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
         ov->RadioButton("I am enabled!", &radio, 0);
         ov->RadioButton("I am not :(", &radio, 1);
 
-        ov->PopDirection();
+        ov->PopPanel();
         ov->PopTree();
     }
 
@@ -7604,7 +7627,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         ov->HorizontalSeparator("Vertical sliders");
 
-        ov->PushDirection(LayoutDirection_LeftToRight);
+        ov->PushPanel(LayoutDirection_LeftToRight);
 
         ov->VerticalSlider("My slider float", fval, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
         ov->VerticalSlider("My other slider float", fval, -10.f, 20.f, "{:.2f}", 1, sflags);
@@ -7612,11 +7635,11 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->VerticalSlider("My slider int", &ival, -3, 28, nullptr, 1, sflags);
         ov->VerticalSlider("My small slider int", &ival, 0, 2, nullptr, 1, sflags);
 
-        ov->PopDirection();
+        ov->PopPanel();
 
         ov->HorizontalSeparator("Vertical drags");
 
-        ov->PushDirection(LayoutDirection_LeftToRight);
+        ov->PushPanel(LayoutDirection_LeftToRight);
 
         ov->VerticalDrag("My drag float", fval, speed, 0.f, 10.f, "Value: {:.1f}", 2, sflags);
         ov->VerticalDrag("My other drag float", fval, speed, -10.f, 20.f, "{:.2f}", 1, sflags);
@@ -7626,7 +7649,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         ov->VerticalDrag("My drag uint", uval2, speed, 1, 87, nullptr, 3, sflags);
 
-        ov->PopDirection();
+        ov->PopPanel();
         ov->PopId();
 
         ov->PopTree();

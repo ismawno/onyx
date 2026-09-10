@@ -622,9 +622,9 @@ void Layout::positionPass(const TKit::StackArray<u16> &breadth)
                 f32 soffset = child.SelfOffset[axis];
                 if (child.SelfOffsetType[axis] != LayoutOffset_Absolute)
                 {
-                    const f32 factor = child.SelfOffsetType[axis] == LayoutOffset_Normalized
-                                           ? offsetNormFactor
-                                           : (offsetNormFactor - csize);
+                    const f32 relFactor = offsetNormFactor - csize;
+                    const f32 factor =
+                        child.SelfOffsetType[axis] == LayoutOffset_Normalized ? offsetNormFactor : relFactor;
                     soffset *= Math::Absolute(factor);
                 }
 

@@ -12,23 +12,23 @@
 #    include <nfd_glfw3.h>
 #endif
 
-#undef Status
+#undef DialogStatus
 #undef Success
 
-namespace Onyx::Dialog
+namespace Onyx
 {
-Status toStatus(const nfdresult_t result)
+DialogStatus toStatus(const nfdresult_t result)
 {
     switch (result)
     {
     case NFD_CANCEL:
-        return Cancel;
+        return Dialog_Cancel;
     case NFD_ERROR:
-        return Error;
+        return Dialog_Error;
     case NFD_OKAY:
-        return Success;
+        return Dialog_Success;
     default:
-        return Error;
+        return Dialog_Error;
     }
 }
 
@@ -44,7 +44,7 @@ struct Guard
     }
 };
 
-Result<Path> OpenFolder(const Options &options)
+DialogResult<fs::path> OpenFolderDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -54,16 +54,16 @@ Result<Path> OpenFolder(const Options &options)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     args.defaultPath = options.DefaultPath;
-    const Status result = toStatus(NFD_PickFolderN_With(&path, &args));
-    if (result == Success)
+    const DialogStatus result = toStatus(NFD_PickFolderN_With(&path, &args));
+    if (result == Dialog_Success)
     {
         const fs::path p = path;
         NFD_FreePathN(path);
         return p;
     }
-    return Result<Path>::Error(result);
+    return DialogResult<fs::path>::Error(result);
 }
-Result<Path> OpenSingle(const Options &options)
+DialogResult<fs::path> OpenSingleDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -83,16 +83,16 @@ Result<Path> OpenSingle(const Options &options)
     }
 
     args.defaultPath = options.DefaultPath;
-    Status result = toStatus(NFD_OpenDialogN_With(&path, &args));
-    if (result == Success)
+    DialogStatus result = toStatus(NFD_OpenDialogN_With(&path, &args));
+    if (result == Dialog_Success)
     {
         const fs::path p = path;
         NFD_FreePathN(path);
-        return Result<Path>::Ok(p);
+        return DialogResult<fs::path>::Ok(p);
     }
-    return Result<Path>::Error(result);
+    return DialogResult<fs::path>::Error(result);
 }
-Result<Paths> OpenMultiple(const Options &options)
+DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &options)
 {
     Guard g{};
     const nfdpathset_t *set;
@@ -111,10 +111,10 @@ Result<Paths> OpenMultiple(const Options &options)
         args.filterCount = filters.GetSize();
     }
 
-    const Status result = toStatus(NFD_OpenDialogMultipleN_With(&set, &args));
-    if (result == Success)
+    const DialogStatus result = toStatus(NFD_OpenDialogMultipleN_With(&set, &args));
+    if (result == Dialog_Success)
     {
-        Paths paths;
+        TKit::TierArray<fs::path> paths;
         nfdpathsetsize_t count;
         toStatus(NFD_PathSet_GetCount(set, &count));
         for (nfdpathsetsize_t i = 0; i < count; ++i)
@@ -125,12 +125,12 @@ Result<Paths> OpenMultiple(const Options &options)
             NFD_PathSet_FreePathN(path);
         }
         NFD_PathSet_Free(set);
-        return Result<Paths>::Ok(paths);
+        return DialogResult<TKit::TierArray<fs::path>>::Ok(paths);
     }
-    return Result<Paths>::Error(result);
+    return DialogResult<TKit::TierArray<fs::path>>::Error(result);
 }
 
-Result<Path> Save(const Options &options)
+DialogResult<fs::path> SaveDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -141,21 +141,21 @@ Result<Path> Save(const Options &options)
 #endif
     args.defaultPath = options.DefaultPath;
     args.defaultName = options.DefaultName;
-    const Status result = toStatus(NFD_SaveDialogN_With(&path, &args));
-    if (result == Success)
+    const DialogStatus result = toStatus(NFD_SaveDialogN_With(&path, &args));
+    if (result == Dialog_Success)
     {
         const fs::path p = path;
         NFD_FreePathN(path);
-        return Result<Path>::Ok(p);
+        return DialogResult<fs::path>::Ok(p);
     }
-    return Result<Path>::Error(result);
+    return DialogResult<fs::path>::Error(result);
 }
-const char *GetError()
+const char *GetDialogError()
 {
     return NFD_GetError();
 }
-void ClearError()
+void ClearDialogError()
 {
     NFD_ClearError();
 }
-} // namespace Onyx::Dialog
+} // namespace Onyx

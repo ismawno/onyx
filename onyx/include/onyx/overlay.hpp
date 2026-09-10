@@ -578,30 +578,41 @@ enum NextWindowFlagBit : NextWindowFlags
     NextWindowFlag_Size = 1U << 1,
 };
 
+using OverlayConditions = u8;
+enum OverlayCondition : OverlayConditions
+{
+    OverlayCondition_Always = 0,
+    OverlayCondition_OncePerRuntime = 1U << 1,
+    OverlayCondition_OnBirth = 1U << 2,
+    OverlayCondition_Appearing = 1U << 3,
+};
+
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 40,
-    OverlayWindowFlag_MergeIdWithStack = 1ULL << 41,
-    OverlayWindowFlag_MousePassThrough = 1ULL << 42,
-    OverlayWindowFlag_ChildGrowWidth = 1ULL << 43,
-    OverlayWindowFlag_ChildGrowHeight = 1ULL << 44,
+    OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 38,
+    OverlayWindowFlag_MergeIdWithStack = 1ULL << 39,
+    OverlayWindowFlag_MousePassThrough = 1ULL << 40,
+    OverlayWindowFlag_ChildGrowWidth = 1ULL << 41,
+    OverlayWindowFlag_ChildGrowHeight = 1ULL << 42,
     OverlayWindowFlag_ChildGrow = OverlayWindowFlag_ChildGrowWidth | OverlayWindowFlag_ChildGrowHeight,
-    OverlayWindowFlag_NoUndocking = 1ULL << 45,
-    OverlayWindowFlag_NoBackground = 1ULL << 46,
-    OverlayWindowFlag_NoBorders = 1ULL << 47,
-    OverlayWindowFlag_NoDocking = 1ULL << 48,
-    OverlayWindowFlag_NoScrollBar = 1ULL << 49,
-    OverlayWindowFlag_NoVerticalScroll = 1ULL << 50,
-    OverlayWindowFlag_HorizontalScroll = 1ULL << 51,
-    OverlayWindowFlag_NoResize = 1ULL << 52,
-    OverlayWindowFlag_NoMove = 1ULL << 53,
-    OverlayWindowFlag_NoCollapse = 1ULL << 54,
-    OverlayWindowFlag_NoHeaderBar = 1ULL << 55,
-    OverlayWindowFlag_NoBringToFocus = 1ULL << 56,
-    OverlayWindowFlag_NoPromotion = 1ULL << 57,
-    OverlayWindowFlag_AutoResize = 1ULL << 58,
-    OverlayWindowFlag_BringToTop = 1ULL << 59,
-    OverlayWindowFlag_Modal = 1ULL << 60,
+    OverlayWindowFlag_NoUndocking = 1ULL << 43,
+    OverlayWindowFlag_NoBackground = 1ULL << 44,
+    OverlayWindowFlag_NoBorders = 1ULL << 45,
+    OverlayWindowFlag_NoDocking = 1ULL << 46,
+    OverlayWindowFlag_NoScrollBar = 1ULL << 47,
+    OverlayWindowFlag_NoVerticalScroll = 1ULL << 48,
+    OverlayWindowFlag_HorizontalScroll = 1ULL << 49,
+    OverlayWindowFlag_NoResize = 1ULL << 50,
+    OverlayWindowFlag_NoMove = 1ULL << 51,
+    OverlayWindowFlag_NoCollapse = 1ULL << 52,
+    OverlayWindowFlag_NoHeaderBar = 1ULL << 53,
+    OverlayWindowFlag_NoBringToFocus = 1ULL << 54,
+    OverlayWindowFlag_NoPromotion = 1ULL << 55,
+    OverlayWindowFlag_AutoResize = 1ULL << 56,
+    OverlayWindowFlag_BringToTop = 1ULL << 57,
+    OverlayWindowFlag_PopupDoNotPlaceAtMouse = 1ULL << 58,
+    OverlayWindowFlag_PopupModalNoDimmingOverlay = 1ULL << 59,
+    OverlayWindowFlag_PopupModal = 1ULL << 60,
     OverlayWindowFlag_NoCloseButton = 1ULL << 61,
     OverlayWindowFlag_MenuBar = 1ULL << 62,
     OverlayWindowFlag_MoveWithHeader = 1ULL << 63,
@@ -628,6 +639,8 @@ struct NextWindowData
 {
     f32v2 ScreenPos;
     f32v2 Size;
+    f32v2 RelativeOffset;
+    OverlayCondition Condition;
     NextWindowFlags Flags = 0;
 };
 
@@ -655,9 +668,6 @@ struct NativeWindow
     f32v2 WorldMouseOnPress{0.f};
     f32v2 WorldMouseDelta{0.f};
 
-    f32v2 ScreenTopLeftBorder;
-    f32v2 ScreenBottomRightBorder;
-
     f32v2 WorldTopLeftBorder;
     f32v2 WorldBottomRightBorder;
 
@@ -678,6 +688,19 @@ struct NativeWindow
     {
         WorldTopLeftBorder = View->ScreenToWorld(f32v2{0.f});
         WorldBottomRightBorder = View->ScreenToWorld(f32v2{1.f});
+    }
+
+    f32v2 GetWorldCenter() const
+    {
+        return 0.5f * (WorldTopLeftBorder + WorldBottomRightBorder);
+    }
+    f32v2 GetScreenCenter() const
+    {
+        return ToScreen(GetWorldCenter());
+    }
+    f32v2 GetLocalScreenCenter() const
+    {
+        return ToLocalScreen(GetWorldCenter());
     }
 
     f32v2 ToScreen(const f32v2 &world) const
@@ -756,6 +779,7 @@ struct OverlayWindow
     DockNode *DockParent = nullptr;
 
     Layout *Layout = nullptr;
+    OverlayWindowFlags Flags = 0;
 
     u32 SubmissionOrder = TKIT_U32_MAX;
     GrabInfo Grab{};
@@ -770,7 +794,7 @@ struct OverlayWindow
     f32 LastHeight = 240.f;
     u32 PopupDepth = 0;
     CodePoint HeaderIcon;
-    OverlayWindowFlags Flags = 0;
+    OverlayConditions AvailableConditions = OverlayCondition_OncePerRuntime | OverlayCondition_OnBirth;
 
     // when windows are parented/docked, the effective native window may not be the one assigned to them. this getter
     // accounts for that. it will be used intermttently and skipped when innecessary (context ensures ->Native is the
@@ -780,6 +804,11 @@ struct OverlayWindow
 
     bool IsHovered() const;
     bool IsFocused() const;
+
+    bool HasCondition(const OverlayCondition cond)
+    {
+        return cond == 0 || (AvailableConditions & cond);
+    }
 
     bool IsRoot() const
     {
@@ -1269,14 +1298,18 @@ class Overlay
     bool BeginMenu(OverlayLabel label);
     void EndMenu();
 
-    void SetNextWindowPosition(const f32v2 &pos)
+    void SetNextWindowPosition(const f32v2 &screenPos, const OverlayCondition cond = OverlayCondition_Always,
+                               const f32v2 &relOffset = f32v2{0.f})
     {
-        m_NextWindow.ScreenPos = pos;
+        m_NextWindow.ScreenPos = screenPos;
+        m_NextWindow.Condition = cond;
+        m_NextWindow.RelativeOffset = relOffset;
         m_NextWindow.Flags |= NextWindowFlag_Position;
     }
-    void SetNextWindowSize(const f32v2 &size)
+    void SetNextWindowSize(const f32v2 &size, const OverlayCondition cond = OverlayCondition_Always)
     {
         m_NextWindow.Size = size;
+        m_NextWindow.Condition = cond;
         m_NextWindow.Flags |= NextWindowFlag_Size;
     }
 
@@ -1896,12 +1929,26 @@ class Overlay
         PopId();
     }
 
-    void PushDirection(const LayoutDirection dir, const LySz2 sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()})
+    void PushPanel(const LayoutDirection dir, const LySz2 sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()})
     {
         BeginPanel(
             {.Direction = dir, .Alignment = TopLeft, .Sizing = sizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
     }
-    void PopDirection()
+    void PushPanel(const LyAlg2 alignment, const LySz2 sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()})
+    {
+        BeginPanel({.Direction = LayoutDirection_TopToBottom,
+                    .Alignment = alignment,
+                    .Sizing = sizing,
+                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    }
+    void PushPanel(const LayoutDirection dir, const LyAlg2 alignment,
+                   const LySz2 sizing = {LayoutSizing::Grow(), LayoutSizing::Fit()})
+    {
+        BeginPanel(
+            {.Direction = dir, .Alignment = alignment, .Sizing = sizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    }
+
+    void PopPanel()
     {
         EndPanel();
     }
@@ -1931,6 +1978,10 @@ class Overlay
     OverlayWindow *GetActiveWindow() const
     {
         return m_Active;
+    }
+    NativeWindow *GetActiveNativeWindow() const
+    {
+        return m_Active->GetNative();
     }
     Layout *GetActiveLayout() const
     {

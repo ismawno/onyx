@@ -10,46 +10,43 @@
 #include "tkit/utils/result.hpp"
 #include <filesystem>
 
-namespace Onyx::Dialog
+namespace Onyx
 {
 namespace fs = std::filesystem;
 
 #ifndef TKIT_OS_WINDOWS
-using Char = char;
+using DialogChar = char;
 #else
-using Char = wchar_t;
+using DialogChar = wchar_t;
 #endif
 
-enum Status : u8
+enum DialogStatus : u8
 {
-    Success = 0,
-    Cancel = 1,
-    Error = 2,
+    Dialog_Success = 0,
+    Dialog_Cancel = 1,
+    Dialog_Error = 2,
 };
 
 struct Filter
 {
-    const Char *Name = nullptr;
-    const Char *Extensions = nullptr;
+    const DialogChar *Name = nullptr;
+    const DialogChar *Extensions = nullptr;
 };
 
 struct Options
 {
     Onyx_WindowHandle *Window = nullptr;
-    const Char *DefaultName = nullptr;
-    const Char *DefaultPath = nullptr;
+    const DialogChar *DefaultName = nullptr;
+    const DialogChar *DefaultPath = nullptr;
     TKit::Span<const Filter> Filters{};
 };
 
-template <typename T> using Result = TKit::Result<T, Status>;
-using Path = fs::path;
-using Paths = TKit::TierArray<Path>;
+template <typename T> using DialogResult = TKit::Result<T, DialogStatus>;
+ONYX_NO_DISCARD DialogResult<fs::path> SaveDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<fs::path> OpenFolderDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<fs::path> OpenSingleDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &options = {});
+const char *GetDialogError();
+void ClearDialogError();
 
-ONYX_NO_DISCARD Result<Path> Save(const Options &options = {});
-ONYX_NO_DISCARD Result<Path> OpenFolder(const Options &options = {});
-ONYX_NO_DISCARD Result<Path> OpenSingle(const Options &options = {});
-ONYX_NO_DISCARD Result<Paths> OpenMultiple(const Options &options = {});
-const char *GetError();
-void ClearError();
-
-} // namespace Onyx::Dialog
+} // namespace Onyx
