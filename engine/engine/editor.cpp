@@ -619,9 +619,9 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
     if (root.HasChild("Entities") && root["Entities"].HasChild("Indices"))
     {
         const ConstYamlNode entities = root["Entities"];
-        const TKit::StackArray<u32> indices = entities["Indices"].Read<TKit::StackArray<u32>>();
-        const TKit::StackArray<RenderContext> ids = entities["Ids"].Read<TKit::StackArray<RenderContext>>();
-        r.EstablishEntityIndicesAndIds(indices, ids);
+        const TKit::StackArray<u32> entIdxs = entities["Indices"].Read<TKit::StackArray<u32>>();
+        const TKit::StackArray<RenderContext> entIds = entities["Ids"].Read<TKit::StackArray<RenderContext>>();
+        r.EstablishEntityIndicesAndIds(entIdxs, entIds);
         for (const ConstYamlNode entity : entities["Entities"])
         {
             const Entity e = r.CreateEntity();
@@ -798,18 +798,19 @@ static void editor_UpdateRecentProjects(const fs::path &path)
 
     YamlNode root = tree.GetRoot();
     YamlNode paths = root["Recent projects"];
+    const TKit::TierString pstr = path.string();
     if (exists)
         for (u32 i = 0; i < paths.GetChildCount(); ++i)
         {
             const ConstYamlNode p = paths[i];
-            if (p.Read<TKit::StackString>() == path.c_str())
+            if (p.Read<TKit::StackString>() == pstr)
             {
                 paths.RemoveByIndex(i);
                 break;
             }
         }
 
-    paths.Prepend(path.c_str());
+    paths.Prepend(pstr);
 
     tree.ToFile(configPath);
 }
@@ -881,7 +882,7 @@ static Editor_ProjectDialogInfo editor_RunProjectDialog()
                     openDialog(newPdir);
 
                 const fs::path ppath = newPdir / newPname;
-                ov->Text("Project path: {}", ppath.c_str());
+                ov->Text("Project path: {}", ppath.string());
                 ov->PopPanel();
 
                 displayDialogError();
@@ -958,7 +959,7 @@ static Editor_ProjectDialogInfo editor_RunProjectDialog()
 
                     if (!dialogError)
                     {
-                        info.ProjectName = ppath.filename().c_str();
+                        info.ProjectName = ppath.filename().string();
                         info.ProjectPath = ppath;
                         info.Canceled = false;
                         info.Created = false;
@@ -985,7 +986,7 @@ static Editor_ProjectDialogInfo editor_RunProjectDialog()
 
                         if (missing)
                             ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
-                        ov->TextRaw(recents[i].filename().c_str());
+                        ov->TextRaw(recents[i].filename().string());
                         if (missing)
                         {
                             ov->SetItemTooltipRaw("This project has been deleted!");
@@ -993,14 +994,12 @@ static Editor_ProjectDialogInfo editor_RunProjectDialog()
                         }
 
                         ov->BeginDisabled();
-                        ov->TextRaw(recents[i].c_str());
+                        ov->TextRaw(recents[i].string());
                         ov->EndDisabled();
 
                         ov->PopPanel();
 
                         ov->EndSelectable();
-
-                        // ov->SetItemTooltipRaw(recents[i].c_str(), Onyx::OverlayFocusFlag_NormalDelay);
                     }
                     ov->EndScroll();
                 }
@@ -1049,9 +1048,9 @@ template <Dimension D> static void editor_SetupDefaultScene(const Scene sc)
 static void editor_Serialize()
 {
     const fs::path &ppath = s_Data->ProjectPath;
-    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.c_str());
+    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.string());
 
-    TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.c_str());
+    TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.string());
 
     const fs::path scenePath = s_Data->GetProjectScenesPath();
     for (const Scene sc : s_Data->Scenes.GetValidIds())
@@ -1074,9 +1073,9 @@ static void editor_Serialize()
 static void editor_Deserialize()
 {
     const fs::path &ppath = s_Data->ProjectPath;
-    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.c_str());
+    TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.string());
 
-    TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at '{}'", ppath.c_str());
+    TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at '{}'", ppath.string());
 
     const fs::path scenePath = s_Data->GetProjectScenesPath();
 
