@@ -810,7 +810,8 @@ static void editor_UpdateRecentProjects(const fs::path &path)
             }
         }
 
-    paths.Prepend(pstr);
+    YamlNode pnode = paths.Prepend(pstr);
+    pnode |= TKit::YamlNodeFlag_ValSingleQuote;
 
     tree.ToFile(configPath);
 }
