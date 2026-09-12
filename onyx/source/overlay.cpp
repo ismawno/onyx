@@ -5641,6 +5641,14 @@ void Overlay::EndDisabled()
 /// POPUPS
 /////////////////////////////////////////////
 
+void Overlay::OpenPopup(const LayoutId id)
+{
+    if ((m_StateFlags & StateFlag_MainMenuBarActive) || (m_Active->Flags & WindowInternalFlag_MenuBarOpened))
+        m_PopupToOpenFromMenuBar = id;
+    else
+        openPopup(id);
+}
+
 void Overlay::CloseCurrentPopup()
 {
     TKIT_ASSERT(m_CurrentPopupDepth != 0,
@@ -6534,7 +6542,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
             TKIT_ASSERT(flags & InteractionFlag_HoverRequestsPopupCollapse,
                         "[ONYX][OVERLAY] Causing hover to open a popup without forcing a collapse on this level "
                         "will cause the popup stack to grow indefinitely");
-            OpenPopup(elm->Id);
+            openPopup(elm->Id);
             outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
         if (flags & InteractionFlag_HoverRequestsPopupCollapse)
@@ -6623,7 +6631,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
         }
         if (flags & InteractionFlag_LeftClickOpensPopup)
         {
-            OpenPopup(elm->Id);
+            openPopup(elm->Id);
             outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
     }
@@ -6633,7 +6641,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
         outFlags |= OverlayInteractionQueryFlag_RightClicked;
         if (flags & InteractionFlag_RightClickOpensPopup)
         {
-            OpenPopup(elm->Id);
+            openPopup(elm->Id);
             outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
     }
@@ -6707,10 +6715,11 @@ void Overlay::Draw()
     for (const NativeWindow *nw : m_NativeWindows)
     {
         nw->Context->Flush();
-        if (modalWindow != 0)
-            nw->View->ClearColor.rgba[3] = 1.f;
-        else
-            nw->View->ClearColor.rgba[3] = 0.f;
+        // removed bc of lack of effect??
+        // if (modalWindow != 0)
+        //     nw->View->ClearColor.rgba[3] = 1.f;
+        // else
+        //     nw->View->ClearColor.rgba[3] = 0.f;
     }
 
     u32 idx = 0;
@@ -6736,9 +6745,6 @@ void Overlay::Draw()
         NativeWindow *nw = win->GetNative();
         RenderContext<D2> *ctx = nw->Context;
         tryAssignDockTarget(win, ctx);
-        if (!win->OwnsActiveLayout())
-            continue;
-
         if (++idx == modalWindow)
             for (const NativeWindow *native : m_NativeWindows)
             {
@@ -6749,6 +6755,10 @@ void Overlay::Draw()
                 context->Quad();
                 context->Pop();
             }
+
+        if (!win->OwnsActiveLayout())
+            continue;
+
         win->Layout->Compile(&depthCounter, &floatDepthCounter);
 
         if (windowPromotions)
@@ -6890,6 +6900,12 @@ void Overlay::Draw()
     applyDockTrees();
     cleanupWindowState();
     resetTooltip();
+
+    if (m_PopupToOpenFromMenuBar != NullLayoutId)
+    {
+        openPopup(m_PopupToOpenFromMenuBar);
+        m_PopupToOpenFromMenuBar = NullLayoutId;
+    }
 }
 
 /////////////////////////////////////////////

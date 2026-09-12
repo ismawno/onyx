@@ -61,6 +61,9 @@ using WidgetStateFlags = u8;
 /// GENERAL
 /////////////////////////////////////////////
 
+template <typename T>
+concept RadioButtonType = TKit::IntegerOrEnum<T> || std::is_same_v<std::remove_cvref_t<T>, bool>;
+
 struct OverlayWindow;
 struct DockNode;
 
@@ -1383,7 +1386,7 @@ class Overlay
     bool Button(OverlayLabel label, OverlayButtonFlags flags = 0);
     bool RadioButton(OverlayLabel label, bool active);
 
-    template <TKit::IntegerOrEnum T, std::convertible_to<T> U>
+    template <RadioButtonType T, std::convertible_to<T> U>
     bool RadioButton(const OverlayLabel label, T *value, const U reference)
     {
         if (RadioButton(label, *value == T(reference)))
@@ -1739,10 +1742,7 @@ class Overlay
     /// POPUPS PUBLIC
     /////////////////////////////////////////////
 
-    void OpenPopup(const LayoutId id)
-    {
-        m_PopupStack.Append(id);
-    }
+    void OpenPopup(LayoutId id);
     void CloseCurrentPopup();
     void CloseChildPopup();
     void CollapsePopups();
@@ -2297,6 +2297,7 @@ class Overlay
     OverlayWindow *m_Active = nullptr;
     OverlayWindow *m_Grabbed = nullptr;
 
+    LayoutId m_PopupToOpenFromMenuBar = NullLayoutId;
     u64 m_LayerCount = 0;
     u32 m_SubmissionOrder = 0;
 
@@ -2757,6 +2758,10 @@ class Overlay
     /// POPUPS PRIVATE
     /////////////////////////////////////////////
 
+    void openPopup(const LayoutId id)
+    {
+        m_PopupStack.Append(id);
+    }
     void closePopup(u32 depth);
     void requestCollapsePopups();
     f32v2 computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size, bool allowPromotions) const;
