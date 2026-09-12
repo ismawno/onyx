@@ -300,7 +300,7 @@ LayoutElement *Layout::ModifyElement(const LayoutId id)
     if (it == m_InsertedElements.end())
         return nullptr;
 
-    return &m_Elements[it->Value];
+    return &m_Elements[it->Value & 0x0000FFFF];
 }
 
 void Layout::fitPass(const TKit::StackArray<u16> &fits, const LayoutAxis axis)
