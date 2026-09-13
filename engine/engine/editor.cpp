@@ -17,6 +17,8 @@
 
 #define NAME_BUF_SIZE 64
 #define DEFAULT_RESOLUTION u32v2{1920, 1080}
+#define MAX_LOG_ENTRIES 64
+#define MAX_LOG_MESSAGE 256
 
 #define NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
 #define DIMENSION_GETTER(varname)                                                                                      \
@@ -30,10 +32,11 @@ namespace Engine
 using YamlTree = TKit::YamlTree;
 using ConstYamlNode = TKit::ConstYamlNode;
 using YamlNode = TKit::YamlNode;
-struct Editor_Ids
+struct Labels_Data
 {
     Onyx::LayoutId MainDockSpace = "__onyx_editor_Main_dockspace";
     Onyx::LayoutId EditorDockSpace = "__onyx_editor_Dockspace";
+    Onyx::LayoutId EditorWindow = "__onyx_editor_Window";
 
     Onyx::OverlayLabel Hierarchy = "Hierarchy";
     Onyx::OverlayLabel Entity = "Entity";
@@ -139,6 +142,49 @@ struct Editor_Scene
     }
 };
 
+struct Console_LogEntry
+{
+    TKit::StaticString<MAX_LOG_MESSAGE> Message;
+    const char *Level;
+    Onyx::Color Color;
+};
+
+struct Console_Data
+{
+    TKit::FixedArray<Console_LogEntry, MAX_LOG_ENTRIES> Entries{};
+    u32 Begin = 0;
+    u32 End = 0;
+    bool Cycling = false;
+
+    void Add(const Console_LogEntry &entry)
+    {
+        Entries[End++] = entry;
+        if (Cycling)
+            ++Begin;
+        if (End == MAX_LOG_ENTRIES)
+        {
+            Cycling = true;
+            End = 0;
+        }
+    }
+
+    void Clear()
+    {
+        Begin = 0;
+        End = 0;
+    }
+
+    template <typename F> void Each(F &&func)
+    {
+        const u32 size1 = Cycling ? MAX_LOG_ENTRIES : End;
+        for (u32 i = Begin; i < size1; ++i)
+            std::forward<F>(func)(Entries[i]);
+        if (Cycling)
+            for (u32 i = 0; i < End; ++i)
+                std::forward<F>(func)(Entries[i]);
+    }
+};
+
 struct Editor_Data
 {
     Onyx::Window *Window = nullptr;
@@ -180,13 +226,9 @@ struct Editor_Data
     }
 };
 
-static TKit::Storage<Editor_Data> s_Data{};
-static TKit::Storage<const Editor_Ids> s_Labels{};
-
-static TKit::StackString editor_CreateDefaultName(const TKit::StringView prefix, const u32 idx)
-{
-    return TKit::StackString::Format("{} {}", prefix, idx);
-}
+static TKit::Storage<const Labels_Data> s_Labels{};
+static TKit::Storage<Console_Data> s_Console{};
+static TKit::Storage<Editor_Data> s_Editor{};
 
 struct Utils_NameArray
 {
@@ -199,7 +241,12 @@ struct Utils_NameArray
     }
 };
 
-template <typename T> static Utils_NameArray editor_CreateNameArray(const TKit::TierHive<T> &elements)
+static TKit::StackString utils_CreateDefaultName(const TKit::StringView prefix, const u32 idx)
+{
+    return TKit::StackString::Format("{} {}", prefix, idx);
+}
+
+template <typename T> static Utils_NameArray utils_CreateNameArray(const TKit::TierHive<T> &elements)
 {
     Utils_NameArray array{};
     array.Names.Reserve(elements.GetSize());
@@ -212,7 +259,7 @@ template <typename T> static Utils_NameArray editor_CreateNameArray(const TKit::
     return array;
 }
 
-template <typename T> static TKit::StackArray<u32> editor_CreateIdArray(const TKit::TierHive<T> &elements)
+template <typename T> static TKit::StackArray<u32> utils_CreateIdArray(const TKit::TierHive<T> &elements)
 {
     TKit::StackArray<u32> ids{};
     ids.Reserve(elements.GetSize());
@@ -222,13 +269,134 @@ template <typename T> static TKit::StackArray<u32> editor_CreateIdArray(const TK
 }
 
 template <typename T>
-static TKit::StackArray<TKit::StackString> editor_CreateNameArray(const TKit::Span<const T> elements)
+static TKit::StackArray<TKit::StackString> utils_CreateNameArray(const TKit::Span<const T> elements)
 {
     TKit::StackArray<TKit::StackString> names{};
     names.Reserve(elements.GetSize());
     for (const T &elm : elements)
         names.Append(elm.Name);
     return names;
+}
+
+static const char *utils_GetEnv(const char *name)
+{
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4996)
+    return std::getenv(name);
+    TKIT_COMPILER_WARNING_IGNORE_POP()
+}
+
+static fs::path utils_GetHomePath()
+{
+#ifdef TKIT_OS_WINDOWS
+    const char *var = "USERPROFILE";
+#else
+    const char *var = "HOME";
+#endif
+
+    const char *path = utils_GetEnv(var);
+    return path ? path : "/";
+}
+
+static fs::path utils_GetConfigPath()
+{
+#ifdef TKIT_OS_WINDOWS
+    const char *var = "APPDATA";
+#elif defined(TKIT_OS_APPLE)
+    const char *var = "HOME";
+#else
+    const char *var = "XDG_CONFIG_HOME";
+#endif
+
+    const char *root = utils_GetEnv(var);
+#ifdef TKIT_OS_LINUX
+    if (root)
+        return fs::path{root} / "onyx" / "config.yaml";
+
+    root = utils_GetEnv("HOME");
+    return root ? (fs::path{root} / ".config" / "onyx" / "config.yaml") : fs::path{};
+#elif defined(TKIT_OS_APPLE)
+    return root ? (fs::path{root} / "Library" / "Application support" / "onyx" / "config.yaml") : fs::path{};
+#else
+    return root ? (fs::path{root} / "onyx" / "config.yaml") : fs::path{};
+#endif
+}
+
+static TKit::StackArray<fs::path> utils_LoadRecentProjects()
+{
+    TKit::StackArray<fs::path> projects{};
+
+    const fs::path configPath = utils_GetConfigPath();
+    if (configPath.empty() || !fs::exists(configPath))
+        return projects;
+
+    const YamlTree tree = YamlTree::FromFile(configPath);
+    const ConstYamlNode root = tree.GetRoot();
+
+    const ConstYamlNode paths = root["Recent projects"];
+    projects.Reserve(paths.GetChildCount());
+    for (const ConstYamlNode path : paths)
+    {
+        const fs::path p = path.Read<TKit::StackString>().CString();
+        if (fs::exists(p))
+            projects.Append(p);
+    }
+
+    return projects;
+}
+
+static void utils_UpdateRecentProjects(const fs::path &path)
+{
+    const fs::path configPath = utils_GetConfigPath();
+    if (configPath.empty())
+        return;
+
+    YamlTree tree{};
+    const bool exists = fs::exists(configPath);
+    if (exists)
+        tree = YamlTree::FromFile(configPath);
+    else
+        fs::create_directories(configPath.parent_path());
+
+    YamlNode root = tree.GetRoot();
+    YamlNode paths = root["Recent projects"];
+    const TKit::TierString pstr = path.string();
+    if (exists)
+        for (u32 i = 0; i < paths.GetChildCount(); ++i)
+        {
+            const ConstYamlNode p = paths[i];
+            if (p.Read<TKit::StackString>() == pstr)
+            {
+                paths.RemoveByIndex(i);
+                break;
+            }
+        }
+
+    YamlNode pnode = paths.Prepend(pstr);
+    pnode |= TKit::YamlNodeFlag_ValSingleQuote;
+
+    tree.ToFile(configPath);
+}
+
+static void console_LogCallback(const TKit::LogInfo &info)
+{
+    if (info.Message.size() > MAX_LOG_MESSAGE)
+        return;
+
+    Console_LogEntry entry;
+    if (std::strcmp(info.Color, TKIT_LOG_COLOR_INFO) == 0)
+        entry.Color = Onyx::Color_Mint;
+    else if (std::strcmp(info.Color, TKIT_LOG_COLOR_WARNING) == 0)
+        entry.Color = Onyx::Color_Honey;
+    else if (std::strcmp(info.Color, TKIT_LOG_COLOR_ERROR) == 0)
+        entry.Color = Onyx::Color_Salmon;
+    else
+        return;
+
+    entry.Message = info.Message;
+    entry.Level = info.Level;
+
+    s_Console->Add(entry);
 }
 
 template <Dimension D>
@@ -241,7 +409,7 @@ static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport
     const RenderView rv = rvs.Insert();
 
     Editor_RenderView<D> &rview = rvs[rv];
-    rview.Name = editor_CreateDefaultName("View", rv);
+    rview.Name = utils_CreateDefaultName("View", rv);
     rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle, Onyx::RenderViewFlag_NormalizedCoordinates);
     rview.EditorCameraIndex = editorCamIdx;
 
@@ -264,16 +432,16 @@ static void viewport_DestroyRenderView(Editor_Scene &scene, Editor_Viewport &vie
 
 Scene Scene_Create()
 {
-    const Scene sc = s_Data->Scenes.Insert();
-    Editor_Scene &scene = s_Data->Scenes[sc];
-    scene.Name = editor_CreateDefaultName("Scene", sc);
+    const Scene sc = s_Editor->Scenes.Insert();
+    Editor_Scene &scene = s_Editor->Scenes[sc];
+    scene.Name = utils_CreateDefaultName("Scene", sc);
     scene.Registry.RegisterComponents(AllComponents{});
     return sc;
 }
 
 static void scene_ClearReferences(const Scene sc)
 {
-    const Editor_Scene &scene = s_Data->Scenes[sc];
+    const Editor_Scene &scene = s_Editor->Scenes[sc];
     const TKit::StackArray<Viewport> vps = scene.Viewports.GetValidIds();
 
     for (const Viewport vp : vps)
@@ -289,17 +457,17 @@ static void scene_ClearReferences(const Scene sc)
 void Scene_Destroy(const Scene sc)
 {
     scene_ClearReferences(sc);
-    s_Data->Scenes.Remove(sc);
+    s_Editor->Scenes.Remove(sc);
 }
 
 Viewport Scene_CreateViewport(const Scene sc, const u32v2 &resolution)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     const Viewport vp = scene.Viewports.Insert();
     Editor_Viewport &viewport = scene.Viewports[vp];
 
     viewport.Target = Onyx::CreateRenderTexture(resolution);
-    viewport.Name = editor_CreateDefaultName("Viewport", vp);
+    viewport.Name = utils_CreateDefaultName("Viewport", vp);
     viewport.Position = 0.f;
     viewport.Size = 1.f;
     viewport.Resolution = resolution;
@@ -310,7 +478,7 @@ Viewport Scene_CreateViewport(const Scene sc, const u32v2 &resolution)
 
 void Scene_DestroyViewport(const Scene sc, const Viewport vp)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     Editor_Viewport &viewport = scene.Viewports[vp];
 
     // we do it "manually" cause we want to remove the refcounts of the cameras
@@ -328,19 +496,19 @@ void Scene_DestroyViewport(const Scene sc, const Viewport vp)
 
 template <Dimension D> RenderContext Scene_CreateRenderContext(const Scene sc)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     TKit::TierHive<Editor_RenderContext<D>> &rcs = scene.GetContexts<D>();
 
     const RenderContext rc = rcs.Insert();
     Editor_RenderContext<D> &rctx = rcs[rc];
-    rctx.Name = editor_CreateDefaultName("Context", rc);
+    rctx.Name = utils_CreateDefaultName("Context", rc);
     rctx.Handle = Onyx::CreateRenderContext<D>();
 
     return rc;
 }
 template <Dimension D> void Scene_DestroyRenderContext(const Scene sc, const RenderContext rc)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     TKit::TierHive<Editor_RenderContext<D>> &rcs = scene.GetContexts<D>();
 
     Editor_RenderContext<D> &rctx = rcs[rc];
@@ -355,7 +523,7 @@ template <Dimension D> void Scene_DestroyRenderContext(const Scene sc, const Ren
 
 void Scene_FlushContexts(const Scene sc)
 {
-    const Editor_Scene &scene = s_Data->Scenes[sc];
+    const Editor_Scene &scene = s_Editor->Scenes[sc];
     for (const Editor_RenderContext<D2> &ctx : scene.Contexts2)
         ctx.Handle->Flush();
     for (const Editor_RenderContext<D3> &ctx : scene.Contexts3)
@@ -448,7 +616,7 @@ static void serialize_RenderContextComponent(const char *name, YamlNode root, co
 
 void Scene_Serialize(const Scene sc, const fs::path &path)
 {
-    const Editor_Scene &scene = s_Data->Scenes[sc];
+    const Editor_Scene &scene = s_Editor->Scenes[sc];
     const TKit::Registry &r = scene.Registry;
 
     TKit::YamlTree tree{};
@@ -595,7 +763,7 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
     const ConstYamlNode root = tree.GetRoot();
 
     scene_ClearReferences(sc);
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     TKit::Registry &r = scene.Registry;
     r.Clear();
 
@@ -658,7 +826,7 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
 
 TKit::Registry &Scene_GetRegistry(const Scene sc)
 {
-    return s_Data->Scenes[sc].Registry;
+    return s_Editor->Scenes[sc].Registry;
 }
 
 // lets hold on these
@@ -673,7 +841,7 @@ template <Dimension D> static Editor_Camera<D> &scene_CreateEditorCamera(Editor_
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
-    return cams.Append(editor_CreateDefaultName("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
+    return cams.Append(utils_CreateDefaultName("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
 }
 
 template <Dimension D> static void scene_DestroyEditorCamera(Editor_Scene &scene, const u32 camIdx)
@@ -701,16 +869,15 @@ static Onyx::Overlay *editor_CreateOverlay(Onyx::Window *win)
     Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_AutoSerialize});
 
     // TODO(Isma): Change this with a project-specific path!
-    if (!ov->Deserialize(s_Data->GetOverlayLayoutPath()))
+    if (!ov->Deserialize(s_Editor->GetOverlayLayoutPath()))
     {
-        const TKit::TierString &pname = s_Data->ProjectName;
         const Onyx::LayoutId mainViewportId = 0u;
-        const Editor_Ids &idData = *s_Labels;
+        const Labels_Data &idData = *s_Labels;
 
-        ov->DeclareWindow(pname);
-        ov->DeclareDockSpace(idData.EditorDockSpace.Id, pname);
+        ov->DeclareWindow(idData.EditorWindow);
+        ov->DeclareDockSpace(idData.EditorDockSpace.Id, idData.EditorWindow);
 
-        const Onyx::OverlayDockNode *mainTree = Onyx::DockTabBar(pname);
+        const Onyx::OverlayDockNode *mainTree = Onyx::DockTabBar(idData.EditorWindow);
         const Onyx::OverlayDockNode *editorTree = Onyx::DockSplit(
             Onyx::LayoutAxis_Vertical, 0.15f,
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f, Onyx::DockTabBar(idData.Hierarchy.Id),
@@ -727,106 +894,6 @@ static Onyx::Overlay *editor_CreateOverlay(Onyx::Window *win)
     return ov;
 }
 
-static const char *editor_GetEnv(const char *name)
-{
-    TKIT_COMPILER_WARNING_IGNORE_PUSH()
-    TKIT_MSVC_WARNING_IGNORE(4996)
-    return std::getenv(name);
-    TKIT_COMPILER_WARNING_IGNORE_POP()
-}
-
-static fs::path editor_GetHomePath()
-{
-#ifdef TKIT_OS_WINDOWS
-    const char *var = "USERPROFILE";
-#else
-    const char *var = "HOME";
-#endif
-
-    const char *path = editor_GetEnv(var);
-    return path ? path : "/";
-}
-
-static fs::path editor_GetConfigPath()
-{
-#ifdef TKIT_OS_WINDOWS
-    const char *var = "APPDATA";
-#elif defined(TKIT_OS_APPLE)
-    const char *var = "HOME";
-#else
-    const char *var = "XDG_CONFIG_HOME";
-#endif
-
-    const char *root = editor_GetEnv(var);
-#ifdef TKIT_OS_LINUX
-    if (root)
-        return fs::path{root} / "onyx" / "config.yaml";
-
-    root = editor_GetEnv("HOME");
-    return root ? (fs::path{root} / ".config" / "onyx" / "config.yaml") : fs::path{};
-#elif defined(TKIT_OS_APPLE)
-    return root ? (fs::path{root} / "Library" / "Application support" / "onyx" / "config.yaml") : fs::path{};
-#else
-    return root ? (fs::path{root} / "onyx" / "config.yaml") : fs::path{};
-#endif
-}
-
-static TKit::StackArray<fs::path> editor_LoadRecentProjects()
-{
-    TKit::StackArray<fs::path> projects{};
-
-    const fs::path configPath = editor_GetConfigPath();
-    if (configPath.empty() || !fs::exists(configPath))
-        return projects;
-
-    const YamlTree tree = YamlTree::FromFile(configPath);
-    const ConstYamlNode root = tree.GetRoot();
-
-    const ConstYamlNode paths = root["Recent projects"];
-    projects.Reserve(paths.GetChildCount());
-    for (const ConstYamlNode path : paths)
-    {
-        const fs::path p = path.Read<TKit::StackString>().CString();
-        if (fs::exists(p))
-            projects.Append(p);
-    }
-
-    return projects;
-}
-
-static void editor_UpdateRecentProjects(const fs::path &path)
-{
-    const fs::path configPath = editor_GetConfigPath();
-    if (configPath.empty())
-        return;
-
-    YamlTree tree{};
-    const bool exists = fs::exists(configPath);
-    if (exists)
-        tree = YamlTree::FromFile(configPath);
-    else
-        fs::create_directories(configPath.parent_path());
-
-    YamlNode root = tree.GetRoot();
-    YamlNode paths = root["Recent projects"];
-    const TKit::TierString pstr = path.string();
-    if (exists)
-        for (u32 i = 0; i < paths.GetChildCount(); ++i)
-        {
-            const ConstYamlNode p = paths[i];
-            if (p.Read<TKit::StackString>() == pstr)
-            {
-                paths.RemoveByIndex(i);
-                break;
-            }
-        }
-
-    YamlNode pnode = paths.Prepend(pstr);
-    pnode |= TKit::YamlNodeFlag_ValSingleQuote;
-
-    tree.ToFile(configPath);
-}
-
 struct Editor_ProjectLauncherResult
 {
     TKit::TierString ProjectName;
@@ -841,9 +908,9 @@ struct Editor_ProjectLauncherDrawInfo
 {
     const char *DialogError = nullptr;
 
-    fs::path NewProjectDir = editor_GetHomePath();
-    fs::path ConfigPath = editor_GetConfigPath() / "config.yaml";
-    TKit::TierArray<fs::path> RecentProjects = editor_LoadRecentProjects();
+    fs::path NewProjectDir = utils_GetHomePath();
+    fs::path ConfigPath = utils_GetConfigPath() / "config.yaml";
+    TKit::TierArray<fs::path> RecentProjects = utils_LoadRecentProjects();
 
     fs::path ProjectToRemove{};
     u32 RecentIndex = TKIT_U32_MAX;
@@ -921,7 +988,7 @@ static bool editor_DrawProjectLauncher(Onyx::Overlay *ov, Editor_ProjectLauncher
             res.StartDimension = info.StartDimension;
             res.Created = true;
             res.Canceled = false;
-            editor_UpdateRecentProjects(ppath);
+            utils_UpdateRecentProjects(ppath);
             goOn = false;
         };
 
@@ -985,7 +1052,7 @@ static bool editor_DrawProjectLauncher(Onyx::Overlay *ov, Editor_ProjectLauncher
                 res.ProjectPath = ppath;
                 res.Canceled = false;
                 res.Created = false;
-                editor_UpdateRecentProjects(ppath);
+                utils_UpdateRecentProjects(ppath);
                 goOn = false;
             }
         }
@@ -1117,7 +1184,7 @@ static Editor_ProjectLauncherResult editor_RunProjectLauncher()
 
 template <Dimension D> static void editor_SetupDefaultScene(const Scene sc)
 {
-    Editor_Scene &scene = s_Data->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     const Viewport vp = Scene_CreateViewport(sc, DEFAULT_RESOLUTION);
     Editor_Viewport &viewport = scene.Viewports[vp];
     scene_CreateEditorCamera<D>(scene);
@@ -1135,46 +1202,47 @@ template <Dimension D> static void editor_SetupDefaultScene(const Scene sc)
 // TODO(Isma): Disable promotion when parent window is fullscreen
 static void editor_Serialize(const fs::path &ppath)
 {
-    s_Data->ProjectPath = ppath;
+    s_Editor->ProjectPath = ppath;
     TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.string());
 
     TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.string());
 
-    const fs::path scenePath = s_Data->GetProjectScenesPath();
-    for (const Scene sc : s_Data->Scenes.GetValidIds())
-        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", s_Data->Scenes[sc].Name).CString());
+    const fs::path scenePath = s_Editor->GetProjectScenesPath();
+    for (const Scene sc : s_Editor->Scenes.GetValidIds())
+        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", s_Editor->Scenes[sc].Name).CString());
 
-    if (s_Data->Overlay)
-        s_Data->Overlay->Serialize(s_Data->GetOverlayLayoutPath());
+    if (s_Editor->Overlay)
+        s_Editor->Overlay->Serialize(s_Editor->GetOverlayLayoutPath());
 
     YamlTree tree{};
     YamlNode root = tree.GetRoot();
 
     YamlNode scenes = root["Scenes"];
-    scenes["Indices"] << s_Data->Scenes.GetIndices();
-    scenes["Ids"] << s_Data->Scenes.GetIds();
-    scenes["Active"] << s_Data->ActiveScene;
+    scenes["Indices"] << s_Editor->Scenes.GetIndices();
+    scenes["Ids"] << s_Editor->Scenes.GetIds();
+    scenes["Active"] << s_Editor->ActiveScene;
 
-    root["Settings"] << s_Data->Settings;
+    root["Settings"] << s_Editor->Settings;
 
-    tree.ToFile(s_Data->GetProjectSettingsPath());
+    tree.ToFile(s_Editor->GetProjectSettingsPath());
 }
 static void editor_Serialize()
 {
-    editor_Serialize(s_Data->ProjectPath);
+    editor_Serialize(s_Editor->ProjectPath);
 }
 static void editor_Deserialize(const fs::path &ppath)
 {
-    s_Data->ProjectName = ppath.filename().string();
-    s_Data->ProjectPath = ppath;
+    s_Editor->ProjectName = ppath.filename().string();
+    s_Editor->ProjectPath = ppath;
     TKIT_ASSERT(fs::exists(ppath), "[ONYX][EDITOR] The path '{}' does not exist", ppath.string());
 
-    s_Data->DestroyAllScenes();
+    s_Editor->DestroyAllScenes();
+    s_Console->Clear();
     TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at '{}'", ppath.string());
 
-    const fs::path scenePath = s_Data->GetProjectScenesPath();
+    const fs::path scenePath = s_Editor->GetProjectScenesPath();
 
-    const YamlTree tree = YamlTree::FromFile(s_Data->GetProjectSettingsPath());
+    const YamlTree tree = YamlTree::FromFile(s_Editor->GetProjectSettingsPath());
     const ConstYamlNode root = tree.GetRoot();
 
     const ConstYamlNode scenes = root["Scenes"];
@@ -1182,9 +1250,9 @@ static void editor_Deserialize(const fs::path &ppath)
     const TKit::StackArray<u32> indices = scenes["Indices"].Read<TKit::StackArray<u32>>();
     const TKit::StackArray<RenderContext> ids = scenes["Ids"].Read<TKit::StackArray<RenderContext>>();
 
-    s_Data->Scenes = TKit::TierHive<Editor_Scene>{indices, ids};
-    s_Data->ActiveScene = scenes["Active"].Read<u32>();
-    s_Data->Settings = root["Settings"].Read<ProjectSettings>();
+    s_Editor->Scenes = TKit::TierHive<Editor_Scene>{indices, ids};
+    s_Editor->ActiveScene = scenes["Active"].Read<u32>();
+    s_Editor->Settings = root["Settings"].Read<ProjectSettings>();
 
     for (const fs::directory_entry &dir : fs::directory_iterator(scenePath))
         if (!dir.is_directory())
@@ -1198,19 +1266,19 @@ static bool editor_SubmitUserLauncherDecision(const Editor_ProjectLauncherResult
 
     if (res.Created)
     {
-        s_Data->ProjectName = res.ProjectName;
-        s_Data->ProjectPath = res.ProjectPath;
+        s_Editor->ProjectName = res.ProjectName;
+        s_Editor->ProjectPath = res.ProjectPath;
 
-        s_Data->DestroyAllScenes();
+        s_Editor->DestroyAllScenes();
 
         const Scene sc = Scene_Create();
-        Editor_Scene &scene = s_Data->Scenes[sc];
+        Editor_Scene &scene = s_Editor->Scenes[sc];
 
         scene.Dim = res.StartDimension;
-        s_Data->ActiveScene = sc;
+        s_Editor->ActiveScene = sc;
 
-        fs::create_directories(s_Data->GetProjectScenesPath());
-        fs::create_directories(s_Data->GetProjectDataPath());
+        fs::create_directories(s_Editor->GetProjectScenesPath());
+        fs::create_directories(s_Editor->GetProjectDataPath());
 
         if (res.DefaultScene)
         {
@@ -1232,7 +1300,8 @@ bool Initialize()
     Onyx::Resources::CreateDefaultResources();
 
     s_Labels.Construct();
-    s_Data.Construct();
+    s_Console.Construct();
+    s_Editor.Construct();
 
     const Editor_ProjectLauncherResult res = editor_RunProjectLauncher();
     if (!editor_SubmitUserLauncherDecision(res))
@@ -1241,37 +1310,39 @@ bool Initialize()
         return false;
     }
 
-    s_Data->Window = editor_CreateWindow();
-    s_Data->Overlay = editor_CreateOverlay(s_Data->Window);
+    s_Editor->Window = editor_CreateWindow();
+    s_Editor->Overlay = editor_CreateOverlay(s_Editor->Window);
+
+    TKit::SetLogCallback(console_LogCallback);
 
     return true;
 }
 
 static void editorWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     static Editor_ProjectLauncherDrawInfo launcherInfo{};
 
     ov->PushStyleVar(Onyx::OverlayStyle_ContentAreaPadding, 0.f);
-    const bool opened = ov->BeginWindow(s_Data->ProjectName, Onyx::OverlayWindowFlag_MenuBar);
+    const bool opened = ov->BeginWindow({idData.EditorWindow, s_Editor->ProjectName}, Onyx::OverlayWindowFlag_MenuBar);
     ov->PopStyleVar();
     ov->SetNextWindowPosition(ov->GetActiveNativeWindow()->GetLocalScreenCenter(), Onyx::OverlayCondition_Appearing,
                               -0.5f);
-    if (ov->BeginPopup("Launcher", Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_PopupModal |
-                                       Onyx::OverlayWindowFlag_PopupDoNotPlaceAtMouse))
-    {
-        Editor_ProjectLauncherResult res;
-        if (!editor_DrawProjectLauncher(ov, launcherInfo, res))
-        {
-            editor_SubmitUserLauncherDecision(res);
-            ov->CloseCurrentPopup();
-        }
-
-        ov->EndPopup();
-    }
     if (opened)
     {
+        if (ov->BeginPopup("Launcher", Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_PopupModal |
+                                           Onyx::OverlayWindowFlag_PopupDoNotPlaceAtMouse))
+        {
+            Editor_ProjectLauncherResult res;
+            if (!editor_DrawProjectLauncher(ov, launcherInfo, res))
+            {
+                editor_SubmitUserLauncherDecision(res);
+                ov->CloseCurrentPopup();
+            }
+
+            ov->EndPopup();
+        }
         ov->DockSpace(idData.EditorDockSpace, Onyx::OverlayDockNodeFlag_CanBeEmpty, Onyx::OverlayWindowFlag_ChildGrow);
         if (ov->BeginMenuBar())
         {
@@ -1303,12 +1374,12 @@ static void editorWindow_Draw()
 }
 static void viewportWindow_Draw()
 {
-    TKit::TierHive<Editor_Viewport> &vps = s_Data->GetActiveScene().Viewports;
+    TKit::TierHive<Editor_Viewport> &vps = s_Editor->GetActiveScene().Viewports;
     if (vps.IsEmpty())
         return;
 
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Scene &scene = s_Data->GetActiveScene();
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Editor_Scene &scene = s_Editor->GetActiveScene();
     const auto drawViewportWindow = [&](const Viewport vp) {
         Editor_Viewport &viewport = vps[vp];
         if (ov->BeginWindow({vp, viewport.Name}, &viewport.Visible, Onyx::OverlayWindowFlag_MenuBar))
@@ -1423,16 +1494,16 @@ static void viewportWindow_Draw()
 }
 static void hierarchyWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     if (ov->BeginWindow(idData.Hierarchy))
     {
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
         TKit::Registry &r = scene.Registry;
         if (ov->Button("Add entity", Onyx::OverlayButtonFlag_SpanFullWidth))
         {
             const Entity e = r.CreateEntity();
-            r.AddComponent<NameComponent>(e, editor_CreateDefaultName("Entity", e));
+            r.AddComponent<NameComponent>(e, utils_CreateDefaultName("Entity", e));
         }
 
         r.IterateEntitiesByInsertionOrder([&](const Entity e) {
@@ -1464,7 +1535,7 @@ static void entityWindow_ChooseComponent(const Entity e, const char *name, TKit:
     if (registry.HasComponent<C>(e))
         return;
 
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     if (ov->Button(name, Onyx::OverlayButtonFlag_SpanFullWidth))
         registry.AddComponent<C>(e, std::forward<Args>(args)...);
 }
@@ -1477,7 +1548,7 @@ static void entityWindow_ChooseComponent(const Entity e, const char *name, TKit:
     if (has2 && has3)
         return;
 
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     ov->BeginPanel(Onyx::LayoutPanelParameters{.Direction = Onyx::LayoutDirection_LeftToRight,
                                                .Alignment = ov->TopLeft,
                                                .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
@@ -1509,14 +1580,14 @@ static void entityWindow_ChooseComponent(const Entity e, const char *name, TKit:
 }
 static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     NameComponent *name = registry.GetComponent<NameComponent>(e);
     if (name)
         ov->InputText("Name", &name->Name, NAME_BUF_SIZE);
 }
 template <Dimension D> static void entityWindow_DisplayComponents(const Entity e, const TKit::Registry &registry)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     TransformComponent<D> *transform = registry.GetComponent<TransformComponent<D>>(e);
     ov->PushId(u32(D));
     if (transform)
@@ -1598,12 +1669,12 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         else
             ov->HorizontalSeparator("Render context 3D");
 
-        const Editor_Scene &scene = s_Data->GetActiveScene();
+        const Editor_Scene &scene = s_Editor->GetActiveScene();
         const TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
 
         if (!ctxs.IsEmpty())
         {
-            const Utils_NameArray labels = editor_CreateNameArray(ctxs);
+            const Utils_NameArray labels = utils_CreateNameArray(ctxs);
             u32 selected = editor_FindContextInsertionIndex(scene, rc->Context);
             ov->DropDown<TKit::StackString>("Context", &selected, labels.Names);
 
@@ -1623,9 +1694,9 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
 
 static void entityWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
-    Editor_Scene &scene = s_Data->GetActiveScene();
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
+    Editor_Scene &scene = s_Editor->GetActiveScene();
 
     const Entity e = scene.SelectedEntity;
     if (e != NullEntity && ov->BeginWindow(idData.Entity))
@@ -1693,8 +1764,8 @@ static void entityWindow_Draw()
 }
 static void assetBrowserWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     if (ov->BeginWindow(idData.AssetBrowser))
     {
         ov->EndWindow();
@@ -1702,10 +1773,29 @@ static void assetBrowserWindow_Draw()
 }
 static void consoleWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     if (ov->BeginWindow(idData.Console))
     {
+        if (ov->Button("Clear"))
+            s_Console->Clear();
+
+        ov->HorizontalLine();
+        s_Console->Each([&](const Console_LogEntry &entry) {
+            // fmt::println("[{:%Y-%m-%d %H:%M:%S}] [{}{}{}] {}", tm, color, level, TKIT_LOG_COLOR_RESET, message);
+            ov->PushStyleVar(Onyx::OverlayStyle_ChildGap, 0.f);
+            ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
+
+            ov->TextRaw("[");
+            ov->PushStyleColor(Onyx::OverlayColor_Text, entry.Color);
+            ov->TextRaw(entry.Level);
+            ov->PopStyleColor();
+            ov->Text("] {}", entry.Message);
+
+            ov->PopPanel();
+            ov->PopStyleVar();
+            ov->HorizontalLine();
+        });
         ov->EndWindow();
     }
 }
@@ -1714,7 +1804,7 @@ struct Utils_ListBox
 {
     TKit::StringView Title;
     u32 *Selected;
-    const TKit::StackArray<TKit::StackString> *Labels;
+    const TKit::StackArray<TKit::StackString> *Labels_Data;
 
     std::function<void()> OnAdd = nullptr;
     std::function<void()> OnRemove = nullptr;
@@ -1727,11 +1817,11 @@ struct Utils_ListBox
 
 static bool editor_ListBox(const Utils_ListBox &params)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
 
     u32 *selected = params.Selected;
-    const TKit::StackArray<TKit::StackString> &labels = *params.Labels;
+    const TKit::StackArray<TKit::StackString> &labels = *params.Labels_Data;
 
     ov->PushPanel(Onyx::LayoutDirection_TopToBottom, Onyx::LayoutSizing::Fit());
     if (params.OnAdd)
@@ -1770,16 +1860,16 @@ static bool editor_ListBox(const Utils_ListBox &params)
 
 template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> &view)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
 
     ov->HorizontalSeparator(view.Name);
     ov->InputText("Name", &view.Name, NAME_BUF_SIZE);
 
     Onyx::RenderView<D> *rv = view.Handle;
-    Editor_Scene &scene = s_Data->GetActiveScene();
+    Editor_Scene &scene = s_Editor->GetActiveScene();
 
     TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
-    const TKit::StackArray<TKit::StackString> camLabels = editor_CreateNameArray<Editor_Camera<D>>(cams);
+    const TKit::StackArray<TKit::StackString> camLabels = utils_CreateNameArray<Editor_Camera<D>>(cams);
 
     u32 selected = TKIT_U32_MAX;
     for (u32 i = 0; i < cams.GetSize(); ++i)
@@ -1856,14 +1946,14 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
 }
 template <Dimension D> static void sceneWindow_DisplayViews(const char *name, Editor_Viewport &viewport)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
     {
         TKit::TierHive<Editor_RenderView<D>> &views = viewport.GetViews<D>();
 
-        const Utils_NameArray labels = editor_CreateNameArray(views);
+        const Utils_NameArray labels = utils_CreateNameArray(views);
 
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
         TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
         if (ov->BeginPopup("Choose camera"))
         {
@@ -1902,7 +1992,7 @@ template <Dimension D> static void sceneWindow_DisplayViews(const char *name, Ed
 
 template <Dimension D> static void sceneWindow_DisplayCamera(Editor_Camera<D> &camera)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     const char *elements = D == D2 ? "Orthographic#Viewport" : "Orthographic#Viewport#Perspective";
 
     ov->HorizontalSeparator(camera.Name);
@@ -1934,13 +2024,13 @@ template <Dimension D> static void sceneWindow_DisplayCamera(Editor_Camera<D> &c
 }
 template <Dimension D> static void sceneWindow_DisplayCameras(const char *name)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
     {
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
 
         TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
-        const TKit::StackArray<TKit::StackString> labels = editor_CreateNameArray<Editor_Camera<D>>(cams);
+        const TKit::StackArray<TKit::StackString> labels = utils_CreateNameArray<Editor_Camera<D>>(cams);
         static u32 selected = TKIT_U32_MAX;
 
         Utils_ListBox lb{"Cameras", &selected, &labels};
@@ -1959,7 +2049,7 @@ template <Dimension D> static void sceneWindow_DisplayCameras(const char *name)
 
 template <Dimension D> static void sceneWindow_DisplayContext(Editor_RenderContext<D> &rctx)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
 
     ov->HorizontalSeparator(rctx.Name);
     ov->InputText("Name", &rctx.Name, NAME_BUF_SIZE);
@@ -1968,12 +2058,12 @@ template <Dimension D> static void sceneWindow_DisplayContext(Editor_RenderConte
     if (ov->PushTree("Targets"))
     {
         Onyx::RenderContext<D> *context = rctx.Handle;
-        const Editor_Scene &scene = s_Data->GetActiveScene();
+        const Editor_Scene &scene = s_Editor->GetActiveScene();
         for (const Editor_Viewport &vp : scene.Viewports)
         {
             ov->HorizontalSeparator(vp.Name);
             const TKit::TierHive<Editor_RenderView<D>> &views = vp.GetViews<D>();
-            const TKit::StackArray<RenderView> ids = editor_CreateIdArray(views);
+            const TKit::StackArray<RenderView> ids = utils_CreateIdArray(views);
             for (const RenderView rv : ids)
             {
                 const Editor_RenderView<D> &rview = views[rv];
@@ -1988,18 +2078,18 @@ template <Dimension D> static void sceneWindow_DisplayContext(Editor_RenderConte
 
 template <Dimension D> static void sceneWindow_DisplayContexts(const char *name)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     if (ov->PushTree(name, Onyx::OverlayTreeFlag_DrawLines))
     {
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
 
         TKit::TierHive<Editor_RenderContext<D>> &ctxs = scene.GetContexts<D>();
-        const Utils_NameArray labels = editor_CreateNameArray(ctxs);
+        const Utils_NameArray labels = utils_CreateNameArray(ctxs);
 
         static u32 selected = TKIT_U32_MAX;
         Utils_ListBox lb{"Contexts", &selected, &labels.Names};
-        lb.OnAdd = [&] { Scene_CreateRenderContext<D>(s_Data->ActiveScene); };
-        lb.OnRemove = [&] { Scene_DestroyRenderContext<D>(s_Data->ActiveScene, labels.Ids[selected]); };
+        lb.OnAdd = [&] { Scene_CreateRenderContext<D>(s_Editor->ActiveScene); };
+        lb.OnRemove = [&] { Scene_DestroyRenderContext<D>(s_Editor->ActiveScene, labels.Ids[selected]); };
 
         editor_ListBox(lb);
 
@@ -2013,13 +2103,13 @@ template <Dimension D> static void sceneWindow_DisplayContexts(const char *name)
 
 static void sceneWindow_DisplayViewport(Editor_Viewport &viewport)
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     ov->HorizontalSeparator(viewport.Name);
     ov->InputText("Name", &viewport.Name, NAME_BUF_SIZE);
     ov->Text("Resolution: {}x{}", viewport.Resolution[0], viewport.Resolution[1]);
     ov->CheckBox("Visible", &viewport.Visible);
 
-    const Editor_Scene &scene = s_Data->GetActiveScene();
+    const Editor_Scene &scene = s_Editor->GetActiveScene();
     if (scene.HasDimension<D2>())
         sceneWindow_DisplayViews<D2>(NAME_BY_DIM("2D", "Views"), viewport);
     if (scene.HasDimension<D3>())
@@ -2028,17 +2118,17 @@ static void sceneWindow_DisplayViewport(Editor_Viewport &viewport)
 
 static void sceneWindow_DisplayViewports()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
+    Onyx::Overlay *ov = s_Editor->Overlay;
     if (ov->PushTree("Viewports", Onyx::OverlayTreeFlag_DrawLines))
     {
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
 
-        const Utils_NameArray labels = editor_CreateNameArray(scene.Viewports);
+        const Utils_NameArray labels = utils_CreateNameArray(scene.Viewports);
         static u32 selected = TKIT_U32_MAX;
 
         Utils_ListBox lb{"Viewports", &selected, &labels.Names};
-        lb.OnAdd = [&] { Scene_CreateViewport(s_Data->ActiveScene, DEFAULT_RESOLUTION); };
-        lb.OnRemove = [&] { Scene_DestroyViewport(s_Data->ActiveScene, labels.Ids[selected]); };
+        lb.OnAdd = [&] { Scene_CreateViewport(s_Editor->ActiveScene, DEFAULT_RESOLUTION); };
+        lb.OnRemove = [&] { Scene_DestroyViewport(s_Editor->ActiveScene, labels.Ids[selected]); };
         editor_ListBox(lb);
 
         const Viewport selectedVp = labels.GetId(selected);
@@ -2050,11 +2140,11 @@ static void sceneWindow_DisplayViewports()
 
 static void sceneWindow_Draw()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     if (ov->BeginWindow(idData.Scene))
     {
-        Editor_Scene &scene = s_Data->GetActiveScene();
+        Editor_Scene &scene = s_Editor->GetActiveScene();
         if (scene.Viewports.IsEmpty())
         {
             ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
@@ -2087,12 +2177,12 @@ static void sceneWindow_Draw()
 template <Dimension D>
 static Onyx::RenderView<D> *editor_GetHoveredView(const Editor_Viewport &viewport, f32v2 *outMpos = nullptr)
 {
-    Onyx::Window *win = s_Data->Window;
+    Onyx::Window *win = s_Editor->Window;
     const Onyx::RenderTexture *rt = viewport.Target;
 
     const auto views = rt->GetSortedViews<D>();
     const f32v2 vpScreenPos =
-        s_Data->Overlay->GetMainNativeWindow()->ToLocalScreen(viewport.Position + f32v2{0.f, viewport.Size[1]});
+        s_Editor->Overlay->GetMainNativeWindow()->ToLocalScreen(viewport.Position + f32v2{0.f, viewport.Size[1]});
 
     const f32v2 ampos = win->GetAbsoluteMousePosition() - vpScreenPos;
     const f32v2 nmpos = ampos / viewport.Size;
@@ -2112,14 +2202,14 @@ static Onyx::RenderView<D> *editor_GetHoveredView(const Editor_Viewport &viewpor
 
 template <Dimension D> static void editor_ApplyCameraMovement()
 {
-    Editor_Scene &scene = s_Data->GetActiveScene();
+    Editor_Scene &scene = s_Editor->GetActiveScene();
     for (const Editor_Viewport &viewport : scene.Viewports)
         if (viewport.Window && viewport.Window->IsHovered())
         {
             Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(viewport);
             if (rv)
             {
-                Onyx::Window *win = s_Data->Window;
+                Onyx::Window *win = s_Editor->Window;
                 const TKit::Timespan dt = Onyx::GetDeltaTime(win);
                 win->ControlCamera(dt, rv->GetCamera());
                 return;
@@ -2129,7 +2219,7 @@ template <Dimension D> static void editor_ApplyCameraMovement()
 
 template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
 {
-    Editor_Scene &scene = s_Data->GetActiveScene();
+    Editor_Scene &scene = s_Editor->GetActiveScene();
     for (const Editor_Viewport &viewport : scene.Viewports)
         if (viewport.Window && viewport.Window->IsHovered())
         {
@@ -2137,7 +2227,7 @@ template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
             Onyx::RenderView<D> *rv = editor_GetHoveredView<D>(viewport, &mpos);
             if (rv)
             {
-                Onyx::Window *win = s_Data->Window;
+                Onyx::Window *win = s_Editor->Window;
                 const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
                 if constexpr (D == D2)
                     rv->ZoomScroll(mpos, factor * scroll);
@@ -2150,8 +2240,8 @@ template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
 
 static void editor_ControlCamera()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    Onyx::Window *win = s_Data->Window;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    Onyx::Window *win = s_Editor->Window;
     if (!ov->WantCaptureKeyboard())
     {
         editor_ApplyCameraMovement<D2>();
@@ -2171,7 +2261,7 @@ static void editor_ControlCamera()
 
 template <Dimension D> static void editor_DrawAxes()
 {
-    Editor_Scene &scene = s_Data->GetActiveScene();
+    Editor_Scene &scene = s_Editor->GetActiveScene();
     for (const Editor_RenderContext<D> &rc : scene.GetContexts<D>())
         if (rc.DrawAxes)
             rc.Handle->Axes();
@@ -2179,8 +2269,8 @@ template <Dimension D> static void editor_DrawAxes()
 
 void Run()
 {
-    Onyx::Overlay *ov = s_Data->Overlay;
-    const Editor_Ids &idData = *s_Labels;
+    Onyx::Overlay *ov = s_Editor->Overlay;
+    const Labels_Data &idData = *s_Labels;
     while (Onyx::Running())
     {
         ov->FullScreenDockSpace(idData.MainDockSpace,
@@ -2198,7 +2288,7 @@ void Run()
 
         editor_ControlCamera();
 
-        const Scene active = s_Data->ActiveScene;
+        const Scene active = s_Editor->ActiveScene;
         Scene_FlushContexts(active);
         editor_DrawAxes<D2>();
         editor_DrawAxes<D3>();
@@ -2214,7 +2304,8 @@ void Run()
 void Terminate()
 {
     // window and overlay are destroyed automatically
-    s_Data.Destruct();
+    s_Editor.Destruct();
+    s_Console.Destruct();
     s_Labels.Destruct();
     Onyx::Terminate();
 }

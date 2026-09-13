@@ -62,7 +62,7 @@ static void createDevice(const InitializationFlags flags)
 
     VkSurfaceKHR surface;
     ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface));
-    VKit::PhysicalDevice::Selector selector(s_Instance.Get());
+    VKit::PhysicalDevice::Selector selector(&s_Instance.Get());
 
     TKIT_COMPILER_WARNING_IGNORE_PUSH()
     TKIT_MSVC_WARNING_IGNORE(4996)
@@ -195,7 +195,7 @@ static void createDevice(const InitializationFlags flags)
     TKIT_ASSERT(s_Physical->EnableFeatures(features),
                 "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
 
-    *s_Device = ONYX_CHECK_VKIT_RESULT(VKit::LogicalDevice::Builder(s_Instance.Get(), s_Physical.Get())
+    *s_Device = ONYX_CHECK_VKIT_RESULT(VKit::LogicalDevice::Builder(&s_Instance.Get(), &s_Physical.Get())
                                            .RequireQueue(VKit::Queue_Graphics)
                                            .RequireQueue(VKit::Queue_Present)
                                            .RequireQueue(VKit::Queue_Transfer)
@@ -586,13 +586,13 @@ void Initialize(const Specs &specs)
     else if (specs.Flags & InitializationFlag_DefaultTaskManagerSingleThread)
     {
         s_DefaultTaskManager.Construct();
-        s_TaskManager = s_DefaultTaskManager.Get();
+        s_TaskManager = &s_DefaultTaskManager.Get();
         PUSH_DELETER(s_DefaultTaskManager.Destruct());
     }
     else
     {
         s_DefaultThreadPool.Construct(TKit::MaxThreads - 1);
-        s_TaskManager = s_DefaultThreadPool.Get();
+        s_TaskManager = &s_DefaultThreadPool.Get();
         PUSH_DELETER(s_DefaultThreadPool.Destruct());
     }
 

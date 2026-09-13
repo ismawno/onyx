@@ -654,7 +654,7 @@ static void validateWindowHierarchy(const TKit::StaticArray32<OverlayWindow *> &
 #endif
 
 // #define ENABLE_LOG_DOCK_TREE
-#ifdef TKIT_ENABLE_DEBUG_LOGS
+#ifdef ENABLE_LOG_DOCK_TREE
 // fyi this was generated
 static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, const OverlayWindow *win, const char *label)
 {
@@ -5013,7 +5013,7 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
                     data->OpenId = tab.Id;
             }
 
-            titleText(ly, tab.Title);
+            titleText(ly, {tab.TitleText, tab.TitleCodePoint});
             EndSelectable();
 
             PushId(tab.Id);
@@ -5115,13 +5115,14 @@ bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled
     if (idx == TKIT_U32_MAX)
     {
         idx = data->Tabs.GetSize();
-        data->Tabs.Append(tabId, window, label.Title, flags);
+        data->Tabs.Append(tabId, window, label.Title.Text, label.Title.CodePoint, flags);
         data->Order.Append(idx);
     }
 
     Tab &tab = data->Tabs[idx];
     tab.Id = tabId;
-    tab.Title = label.Title;
+    tab.TitleText = label.Title.Text;
+    tab.TitleCodePoint = label.Title.CodePoint;
     Layout *ly = m_Active->GetActiveLayout();
 
     const bool mustStartOpen = (flags & OverlayTabFlag_StartOpen) && data->OpenId == NullLayoutId;

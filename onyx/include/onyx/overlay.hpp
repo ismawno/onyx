@@ -71,6 +71,9 @@ struct OverlayTitle
 {
     OverlayTitle() = default;
 
+    OverlayTitle(const TKit::StringView text, const u32 cp) : Text(text), CodePoint(cp)
+    {
+    }
     OverlayTitle(const u32 cp) : CodePoint(cp)
     {
     }
@@ -88,6 +91,10 @@ struct OverlayTitle
     bool IsUnicode() const
     {
         return CodePoint != TKIT_U32_MAX;
+    }
+    bool IsEmpty() const
+    {
+        return !IsUnicode() && Text.IsEmpty();
     }
 
     TKit::StringView Text{};
@@ -443,8 +450,8 @@ struct Tab
     // only used for docking
     OverlayWindow *Window = nullptr;
     //
-    // A BIT TENSE bc title is not owning!
-    OverlayTitle Title{};
+    TKit::TierString TitleText{};
+    u32 TitleCodePoint = TKIT_U32_MAX;
     OverlayTabFlags Flags = 0;
 };
 
@@ -1316,27 +1323,58 @@ class Overlay
         m_NextWindow.Flags |= NextWindowFlag_Size;
     }
 
-    bool MenuItem(const OverlayLabel label, const bool enabled = false)
+    bool MenuItemWithHint(const OverlayLabel label, const OverlayTitle hint, const bool enabled = false)
     {
         PushStyleColor(OverlayColor_SelectableIdle, Color_Transparent);
-        if (Selectable(label, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_FlexWidth))
+        const bool selected =
+            BeginSelectable(label.Id, enabled, OverlaySelectableFlag_CheckBox | OverlaySelectableFlag_FlexWidth);
+        Layout *ly = m_Active->GetActiveLayout();
+        if (hint.IsEmpty())
+            titleText(ly, label.Title);
+        else
         {
-            CollapsePopups();
-            PopStyleColor();
-            return true;
+            ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
+                                   .Alignment = TopLeft,
+                                   .Sizing = {flex(), fit()},
+                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+            titleText(ly, label.Title);
+
+            ly->Panel(LyPnPar{.Sizing = grow()});
+
+            BeginDisabled();
+            titleText(ly, hint);
+            EndDisabled();
+
+            ly->EndPanel();
         }
+
+        EndSelectable();
         PopStyleColor();
-        return false;
+
+        if (selected)
+            CollapsePopups();
+
+        return selected;
     }
-    bool MenuItem(const OverlayLabel label, bool *enabled)
+    bool MenuItem(const OverlayLabel label, const bool enabled = false)
     {
-        if (MenuItem(label, *enabled))
+        return MenuItemWithHint(label, {}, enabled);
+    }
+
+    bool MenuItemWithHint(const OverlayLabel label, const OverlayTitle hint, bool *enabled)
+    {
+        if (MenuItemWithHint(label, hint, *enabled))
         {
             *enabled = !*enabled;
             return true;
         }
         return false;
     }
+    bool MenuItem(const OverlayLabel label, bool *enabled)
+    {
+        return MenuItemWithHint(label, {}, enabled);
+    }
+
     const NativeWindow *GetMainNativeWindow() const
     {
         return (Flags & OverlayFlag_FloatingMode) ? nullptr : m_NativeWindows[0];
