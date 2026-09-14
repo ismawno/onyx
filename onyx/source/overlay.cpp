@@ -1284,7 +1284,9 @@ bool Overlay::BeginMenu(const OverlayLabel label)
 
         // we set an interaction status to the background so that it can register inputs and collapse/persist popups
         queryAndSetInteraction(ly->QueryElement(bid),
-                               InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId, hoverPad);
+                               InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId |
+                                   InteractionFlag_DoNotSetLastItem,
+                               hoverPad);
         return true;
     }
     ly->EndPanel();
@@ -1582,7 +1584,8 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
         if (isRoot)
             queryAndSetInteraction(elm, InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
-                                            InteractionFlag_DoNotSetActiveId | InteractionFlag_DoNotSetDraggedId);
+                                            InteractionFlag_DoNotSetActiveId | InteractionFlag_DoNotSetDraggedId |
+                                            InteractionFlag_DoNotSetLastItem);
 
         if (!active->IsDockHost() && !(active->Flags & OverlayWindowFlag_NoBorders))
             drawWindowBorders(active);
@@ -1635,7 +1638,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
             ly->EndPanel();
         }
 
-        m_LastItem = active->Id;
+        m_LastItem.Id = active->Id;
         if (collapsed)
         {
             ly->EndPanel();
@@ -1841,9 +1844,9 @@ OverlayInteractionQueryFlags Overlay::iconButtonWithInteraction(const LayoutId i
     else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_ButtonHovered;
 
-    m_LastItem = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                            .Alignment = Center,
-                                            .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
+    m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                               .Alignment = Center,
+                                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
 
     ly->Unicode(NullLayoutId, code, getUnicodeParams());
     ly->EndPanel();
@@ -3316,7 +3319,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
             const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(
                 elm,
                 InteractionFlag_ActiveAllowsInteraction | InteractionFlag_PressedAllowsInteraction |
-                    InteractionFlag_HoveredAllowsInteraction,
+                    InteractionFlag_HoveredAllowsInteraction | InteractionFlag_DoNotSetLastItem,
                 m_Style[OverlayStyle_BorderHoverPadding], OverlayFocusFlag_AllowBlockedByWindowGrab);
 
             if (iflags & OverlayInteractionQueryFlag_DragSource)
@@ -3938,11 +3941,11 @@ bool Overlay::Button(const OverlayLabel label, const OverlayButtonFlags flags)
 
     const LySz2 sizing = spanFull ? LySz2{flex(mnSize), fit()} : LySz2{fit(mnSize), fit()};
 
-    m_LastItem = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                            .Alignment = Center,
-                                            .Sizing = sizing,
-                                            .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
-                                            .Padding = padding});
+    m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                               .Alignment = Center,
+                                               .Sizing = sizing,
+                                               .Shape = rect(m_Style[OverlayStyle_ButtonRadius]),
+                                               .Padding = padding});
 
     titleText(ly, label.Title);
     ly->EndPanel();
@@ -3963,7 +3966,7 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
     else if (iflags & OverlayInteractionQueryFlag_Hovered)
         col = OverlayColor_CheckBoxHovered;
 
-    m_LastItem = ly->BeginPanel(
+    m_LastItem.Id = ly->BeginPanel(
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly->BeginPanel(LyPnPar{.FillColor = m_Style[col],
@@ -4001,7 +4004,7 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
     if (iflags & OverlayInteractionQueryFlag_LeftClicked)
         *enable = !*enable;
 
-    m_LastItem = ly->BeginPanel(
+    m_LastItem.Id = ly->BeginPanel(
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = fit(), .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly->BeginPanel(LyPnPar{.FillColor = m_Style[col],
@@ -4049,11 +4052,11 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     const LySz xsizing = fwidth ? flex() : grow();
     const LySz2 sizing = {spanLabel ? fit() : xsizing, fit()};
 
-    m_LastItem = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                            .Direction = LayoutDirection_RightToLeft,
-                                            .Alignment = CenterLeft,
-                                            .Sizing = sizing,
-                                            .Shape = rect(m_Style[OverlayStyle_SelectableRadius])});
+    m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                               .Direction = LayoutDirection_RightToLeft,
+                                               .Alignment = CenterLeft,
+                                               .Sizing = sizing,
+                                               .Shape = rect(m_Style[OverlayStyle_SelectableRadius])});
 
     const f32 padding = m_Style[OverlayStyle_WidgetPadding];
     if (cb)
@@ -4277,9 +4280,8 @@ void Overlay::ColorPreview(const OverlayLabel label, const Color &col, const Ove
     PushId(label.Id);
     const bool alpha = !(flags & OverlayColorFlag_NoAlpha);
 
-    const LayoutId id = drawColorPreview(col, previewSize, alpha);
-    m_LastItem = id;
-
+    m_LastItem = {};
+    m_LastItem.Id = drawColorPreview(col, previewSize, alpha);
     const bool tooltip = !(flags & OverlayColorFlag_NoTooltip);
     if (tooltip && BeginItemTooltip(OverlayFocusFlag_ShortDelay))
     {
@@ -4287,7 +4289,6 @@ void Overlay::ColorPreview(const OverlayLabel label, const Color &col, const Ove
         EndTooltip();
     }
 
-    m_LastItem = id;
     PopId();
 }
 bool Overlay::ColorPicker(const OverlayLabel label, const OverlayColorHandle color, const Color *original,
@@ -4380,7 +4381,7 @@ bool Overlay::ColorEditor(const OverlayLabel label, const OverlayColorHandle col
     }
 
     const f32 lh = getLineHeight() + 2.f * m_Style[OverlayStyle_WidgetPadding];
-    const LayoutId oldItem = m_LastItem;
+    const LastItemData oldItem = m_LastItem;
 
     if (!(flags & OverlayColorFlag_NoPreview))
     {
@@ -4641,12 +4642,12 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     const LayoutElementQueryInfo *hueBarElm = ly->QueryElement(hueBarId);
     const LayoutElementQueryInfo *alphaBarElm = ly->QueryElement(alphaBarId);
 
-    const InteractionFlags pickerFlags =
-        queryAndSetInteraction(pickerElm, InteractionFlag_PressedEvenWhenAwayFromHover);
-    const InteractionFlags hueBarFlags =
-        queryAndSetInteraction(hueBarElm, InteractionFlag_PressedEvenWhenAwayFromHover);
-    const InteractionFlags alphaBarFlags =
-        queryAndSetInteraction(alphaBarElm, InteractionFlag_PressedEvenWhenAwayFromHover);
+    const InteractionFlags pickerFlags = queryAndSetInteraction(
+        pickerElm, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_DoNotSetLastItem);
+    const InteractionFlags hueBarFlags = queryAndSetInteraction(
+        hueBarElm, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_DoNotSetLastItem);
+    const InteractionFlags alphaBarFlags = queryAndSetInteraction(
+        alphaBarElm, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_DoNotSetLastItem);
 
     constexpr f32 barWidth = 32.f;
 
@@ -4877,7 +4878,8 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
 
     if (!permaHide)
     {
-        const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(hideId));
+        const OverlayInteractionQueryFlags iflags =
+            queryAndSetInteraction(ly->QueryElement(hideId), InteractionFlag_DoNotSetLastItem);
         if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SelectableIdle;
         else if (iflags & OverlayInteractionQueryFlag_Hovered)
@@ -5020,8 +5022,8 @@ void Overlay::endTabBar(TabBarData *data, DockNode *node)
             const LayoutId butId = IdFromStack("__onyx_id_Tab_close");
             PopId();
 
-            const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-            const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(elm);
+            const LayoutElementQueryInfo *elm = m_LastItem.Element;
+            const OverlayInteractionQueryFlags iflags = m_LastItem.InteractionFlags;
 
             const bool dragSource = iflags & OverlayInteractionQueryFlag_DragSource;
             const bool canUndock = tab.Window && !(tab.Window->Flags & OverlayWindowFlag_NoUndocking);
@@ -5110,7 +5112,8 @@ bool Overlay::beginTab(TabBarData *data, const OverlayLabel label, bool *enabled
     const LayoutId tabId = forDocking ? label.Id : IdFromStack(label.Id);
 
     u32 idx = data->GetTabById(tabId);
-    m_LastItem = label.Id;
+    m_LastItem = {};
+    m_LastItem.Id = label.Id;
 
     if (idx == TKIT_U32_MAX)
     {
@@ -5188,7 +5191,7 @@ void Overlay::endTab(TabBarData *data)
 void Overlay::beginHorizontalWidget(const LayoutId id, const LySz2 &outerSizing, const LySz2 &innerSizing)
 {
     Layout *ly = m_Active->GetActiveLayout();
-    m_LastItem = ly->BeginPanel(
+    m_LastItem.Id = ly->BeginPanel(
         id, LyPnPar{.Alignment = CenterLeft, .Sizing = outerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     ly->BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = innerSizing, .ChildGap = m_Style[OverlayStyle_ChildGap]});
@@ -5272,10 +5275,10 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         TKit::TierString &str = m_InputWidgetBuffer;
         const bool overrideHighlight = cflags & InputConvertFlag_MustOverrideHighlight;
-        const bool justActive = (iflags & OverlayInteractionQueryFlag_JustActive) || overrideHighlight;
+        const bool activated = (iflags & OverlayInteractionQueryFlag_Activated) || overrideHighlight;
         const bool undoRedo = !(flags & OverlayInputFlag_NoUndoRedo);
 
-        if (justActive)
+        if (activated)
         {
             str.Clear();
             str.Insert(str.end(), buf, buf + bufSize);
@@ -5385,7 +5388,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 m_CursorEnd = charCount;
         }
 
-        if (nw->OverflowReleases == 2 || (justActive && autoSelectAll))
+        if (nw->OverflowReleases == 2 || (activated && autoSelectAll))
         {
             m_CursorStart = 0;
             m_CursorEnd = charCount;
@@ -5588,31 +5591,23 @@ void Overlay::TextRaw(const LayoutTextMode mode, const TKit::StringView text)
     params.Mode = mode;
 
     Layout *ly = m_Active->GetActiveLayout();
-    // a very mid solution to unstable ids when text changes every frame (e.g, printing delta times/performance)
-    // UPDATE: text has no id until explicitly set
-    ly->Text(m_TextId, text, params);
-    if (m_TextId != NullLayoutId)
+    const bool hasId = m_NextItem.Flags & NextItemFlag_HasTextId;
+    const LayoutId id = hasId ? m_NextItem.TextId : LayoutId{NullLayoutId};
+    ly->Text(id, text, params);
+    if (hasId)
     {
-        m_LastItem = m_TextId;
-        m_TextId = NullLayoutId;
+        m_LastItem = {};
+        m_LastItem.Id = id;
     }
+    m_NextItem.Flags = 0;
 }
 void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const TKit::StringView text)
 {
     PushPanel(LayoutDirection_LeftToRight);
 
-    LyTxPar params = getTextParams();
-    params.Mode = mode;
-
     Layout *ly = m_Active->GetActiveLayout();
     ly->Unicode(NullLayoutId, icon, getUnicodeParams());
-
-    ly->Text(m_TextId, text, params);
-    if (m_TextId != NullLayoutId)
-    {
-        m_LastItem = m_TextId;
-        m_TextId = NullLayoutId;
-    }
+    TextRaw(mode, text);
     PopPanel();
 }
 
@@ -5792,7 +5787,8 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
                      .Flags = OverlayScrollFlag_NoBackground});
 
         // we set an interaction status to the dropdown so that it can register inputs and collapse/persist popups
-        queryAndSetInteraction(delm, InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId);
+        queryAndSetInteraction(delm, InteractionFlag_DoNotSetPressedId | InteractionFlag_DoNotSetActiveId |
+                                         InteractionFlag_DoNotSetLastItem);
         return true;
     }
     endHorizontalWidget(label.Title);
@@ -6015,12 +6011,13 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const 
     if (flags & OverlayScrollFlag_Title)
         titleText(ly, label.Title);
 
-    beginScroll({.Id = id,
-                 .OuterSizing = outer,
-                 .ContentSizing = content,
-                 .ContentPadding = tight ? 0.f : padding,
-                 .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
-                 .Flags = flags});
+    m_LastItem = {};
+    m_LastItem.Id = beginScroll({.Id = id,
+                                 .OuterSizing = outer,
+                                 .ContentSizing = content,
+                                 .ContentPadding = tight ? 0.f : padding,
+                                 .ChildGap = tight ? 0.f : m_Style[OverlayStyle_ChildGap],
+                                 .Flags = flags});
 }
 void Overlay::HorizontalSeparator(const TKit::StringView title)
 {
@@ -6050,7 +6047,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     OverlayColor col = framed ? OverlayColor_TreeIdle : OverlayColor_None;
 
-    OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
+    const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ly->QueryElement(id));
     if (iflags & OverlayInteractionQueryFlag_Pressed)
         col = OverlayColor_TreePressed;
     else if (iflags & OverlayInteractionQueryFlag_Hovered)
@@ -6063,12 +6060,12 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
     const bool spanLabel = flags & OverlayTreeFlag_SpanLabelWidth;
     const LySz2 sizing = {spanLabel ? fit() : growOrFlex, fit()};
 
-    m_LastItem = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
-                                            .Alignment = CenterLeft,
-                                            .Sizing = sizing,
-                                            .Shape = rect(m_Style[OverlayStyle_TreeRadius]),
-                                            .Padding = m_Style[OverlayStyle_HeaderPadding],
-                                            .ChildGap = m_Style[OverlayStyle_ChildGap]});
+    m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
+                                               .Alignment = CenterLeft,
+                                               .Sizing = sizing,
+                                               .Shape = rect(m_Style[OverlayStyle_TreeRadius]),
+                                               .Padding = m_Style[OverlayStyle_HeaderPadding],
+                                               .ChildGap = m_Style[OverlayStyle_ChildGap]});
 
     const bool startOpen = flags & OverlayTreeFlag_StartOpen;
     const bool opened = checkWidgetState(id, WidgetStateFlag_Opened, startOpen ? WidgetStateFlag_Opened : 0);
@@ -6149,14 +6146,14 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
     const bool borders = specs.Flags & OverlayScrollFlag_Borders;
     const f32 cpadding = m_Style[OverlayStyle_ContentAreaPadding];
     const bool bckg = !(specs.Flags & OverlayScrollFlag_NoBackground);
-    m_LastItem = ly->BeginPanel(
-        specs.Id, LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
-                          .Direction = LayoutDirection_BottomToTop,
-                          .Alignment = TopLeft,
-                          .Sizing = specs.OuterSizing,
-                          .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
-                          .Padding = borders ? cpadding : 0.f,
-                          .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
+    ly->BeginPanel(specs.Id,
+                   LyPnPar{.FillColor = bckg ? m_Style[OverlayColor_WindowBackgroundExpanded] : Color_Transparent,
+                           .Direction = LayoutDirection_BottomToTop,
+                           .Alignment = TopLeft,
+                           .Sizing = specs.OuterSizing,
+                           .Shape = rect(m_Style[OverlayStyle_ScrollAreaBorderRadius]),
+                           .Padding = borders ? cpadding : 0.f,
+                           .ChildGap = m_Style[OverlayStyle_ScrollBarGap]});
 
     const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
     bool appendStack = false;
@@ -6223,8 +6220,8 @@ bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
         const f32 maxElementTravel = csize - size;
         const f32 barToElement = maxBarTravel > TKIT_F32_EPSILON ? (maxElementTravel / maxBarTravel) : 0.f;
 
-        const OverlayInteractionQueryFlags iflags =
-            queryAndSetInteraction(scrollBar, InteractionFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(
+            scrollBar, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_DoNotSetLastItem);
 
         const bool pressed = iflags & OverlayInteractionQueryFlag_Pressed;
         const bool hovered = iflags & OverlayInteractionQueryFlag_Hovered;
@@ -6290,9 +6287,10 @@ bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
 
 bool Overlay::BeginDragDropSource(const OverlayDragDropFlags flags)
 {
-    Layout *ly = m_Active->GetActiveLayout();
-    const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-    const InteractionFlags iflags = queryAndSetInteraction(elm);
+    const LayoutElementQueryInfo *elm = QueryLastItem();
+    // we need to query and set explicitly bc for the case of sliders for example, whose interaction box is different
+    // from the whole item id, the desired interaction in this case is from the whole item id
+    const InteractionFlags iflags = queryAndSetInteraction(elm, InteractionFlag_DoNotSetLastItem);
 
     if (iflags & OverlayInteractionQueryFlag_DragSource)
     {
@@ -6317,9 +6315,8 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
     if (m_DragDropId == NullLayoutId)
         return false;
 
-    Layout *ly = m_Active->GetActiveLayout();
-    const LayoutElementQueryInfo *elm = ly->QueryElement(m_LastItem);
-    const InteractionFlags iflags = queryAndSetInteraction(elm);
+    const LayoutElementQueryInfo *elm = QueryLastItem();
+    const InteractionFlags iflags = queryAndSetInteraction(elm, InteractionFlag_DoNotSetLastItem);
 
     m_DragDropFlags = flags;
     const bool target = iflags & OverlayInteractionQueryFlag_DragTarget;
@@ -6327,7 +6324,8 @@ bool Overlay::BeginDragDropTarget(const OverlayDragDropFlags flags)
     {
         if (!(flags & OverlayDragDropFlag_TargetNoOutline))
         {
-            LayoutElement *mod = ly->ModifyElement(m_LastItem);
+            Layout *ly = m_Active->GetActiveLayout();
+            LayoutElement *mod = ly->ModifyElement(m_LastItem.Id);
             mod->OutlineColor = m_Style[OverlayColor_DragOutline];
             mod->OutlineWidth = m_Style[OverlayStyle_DragOutlineWidth];
         }
@@ -6380,7 +6378,7 @@ bool Overlay::WantCaptureKeyboard() const
 
 OverlayFocusQueryFlags Overlay::queryFocus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const
 {
-    OverlayFocusQueryFlags flags = 0;
+    OverlayFocusQueryFlags flags = OverlayFocusQueryFlag_Queried;
     const LayoutId id = elm ? elm->Id : LayoutId{NullLayoutId};
 
     const NativeWindow *nw = m_Active->GetNative();
@@ -6434,10 +6432,10 @@ bool Overlay::isElementHovered(const LayoutElementQueryInfo *elm, const OverlayF
             return true;
 
         const f32 delay = shortDelay ? m_Style[OverlayStyle_HoverDelayShort] : m_Style[OverlayStyle_HoverDelayNormal];
-        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastItem;
+        const bool wasCandidate = m_HoveredWidgetCandidate == m_LastItem.Id;
         const bool noShared = flags & OverlayFocusFlag_NoSharedDelay;
 
-        m_HoveredWidgetCandidate = m_LastItem;
+        m_HoveredWidgetCandidate = m_LastItem.Id;
         m_HoveredLayoutCandidate = ly;
 
         if (noShared && !wasCandidate)
@@ -6483,13 +6481,31 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
                                                              const InteractionFlags flags, const f32v2 &padding,
                                                              const OverlayFocusFlags focusFlags)
 {
-    if (!elm)
-    {
-        m_ActivationKey = Key_None;
-        return 0;
-    }
+    OverlayInteractionQueryFlags outFlags = OverlayInteractionQueryFlag_Queried;
+    OverlayFocusQueryFlags fflags = OverlayFocusQueryFlag_Queried;
 
-    OverlayInteractionQueryFlags outFlags = 0;
+    const auto finish = [&] {
+        m_NextItem.Flags &= ~NextItemFlag_HasActivationKey;
+        if (flags & InteractionFlag_DoNotSetLastItem)
+            return outFlags;
+
+        if (flags & InteractionFlag_CombineFlagsOnLastItem)
+        {
+            m_LastItem.InteractionFlags |= outFlags;
+            m_LastItem.FocusFlags |= fflags;
+            m_LastItem.Element = nullptr;
+        }
+        else
+        {
+            m_LastItem.InteractionFlags = outFlags;
+            m_LastItem.FocusFlags = fflags;
+            m_LastItem.Element = elm;
+        }
+        return outFlags;
+    };
+    if (!elm)
+        return finish();
+
     TKIT_ASSERT(m_CurrentPopupDepth <= m_PopupStack.GetSize(),
                 "[ONYX][OVERLAY] Popup depth ({}) must not be greater than popup stack ({})", m_CurrentPopupDepth,
                 m_PopupStack.GetSize());
@@ -6497,16 +6513,20 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     const bool evenWhenAway = flags & InteractionFlag_PressedEvenWhenAwayFromHover;
 
     const NativeWindow *nw = m_Active->GetNative();
-    const OverlayFocusQueryFlags hflags = queryFocus(elm, padding);
+    fflags = queryFocus(elm, padding);
 
-    const bool actBlocked = isElementBlocked(hflags, m_ActivationFlags | standardHoverAllowance());
-    const bool actKeyPressed = !actBlocked && m_ActivationKey != Key_None && nw->EventKeys[m_ActivationKey];
-    const bool actKeyPressing = !actBlocked && m_ActivationKey != Key_None && nw->Window->IsKeyPressed(m_ActivationKey);
+    const bool hasActKey = m_NextItem.Flags & NextItemFlag_HasActivationKey;
+    const bool actBlocked =
+        !hasActKey || isElementBlocked(fflags, m_NextItem.ActivationFlags | standardHoverAllowance());
+    const bool actKeyPressed =
+        !actBlocked && m_NextItem.ActivationKey != Key_None && nw->EventKeys[m_NextItem.ActivationKey];
+    const bool actKeyPressing =
+        !actBlocked && m_NextItem.ActivationKey != Key_None && nw->Window->IsKeyPressed(m_NextItem.ActivationKey);
 
     const bool lmpressed = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMousePressed);
     const bool lmreleased = actKeyPressed || (nw->Flags & NativeWindowFlag_LeftMouseReleased);
 
-    const bool interactionHovered = actKeyPressing || isElementHovered(hflags, focusFlags | standardHoverAllowance());
+    const bool interactionHovered = actKeyPressing || isElementHovered(fflags, focusFlags | standardHoverAllowance());
 
     const bool setHovered = !(flags & InteractionFlag_DoNotSetHoveredId);
     const bool setPressed = !actKeyPressing && !(flags & InteractionFlag_DoNotSetPressedId);
@@ -6535,7 +6555,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
         OverlayFocusFlag_AllowBlockedByPopup | OverlayFocusFlag_AllowBlockedByPopupCollapse |
         OverlayFocusFlag_AllowBlockedByWindow | OverlayFocusFlag_AllowBlockedByWindowGrab;
 
-    const bool popupHovered = actKeyPressing || isElementHovered(hflags, popHoverFlags);
+    const bool popupHovered = actKeyPressing || isElementHovered(fflags, popHoverFlags);
     if (popupHovered && protectPopup)
     {
         if (flags & InteractionFlag_HoverOpensPopup)
@@ -6572,7 +6592,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
         //         m_StateFlags &= ~StateFlag_HoveredAllowsInteraction;
         // }
 
-        return outFlags;
+        return finish();
     }
 
     const bool allowOnEnter = flags & InteractionFlag_AllowPressedOnEnter;
@@ -6597,7 +6617,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
             m_DraggedId = elm->Id;
     }
     const bool dragHovered =
-        isElementHovered(hflags, OverlayFocusFlag_AllowBlockedByPressedItem |
+        isElementHovered(fflags, OverlayFocusFlag_AllowBlockedByPressedItem |
                                      OverlayFocusFlag_AllowBlockedByActiveItem | OverlayFocusFlag_AllowBlockedByDrag);
     if (dragHovered && m_DraggedId != NullLayoutId && m_DraggedId != elm->Id)
     {
@@ -6609,7 +6629,7 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     if (pressed)
     {
         if (m_ActiveId != elm->Id && m_ActiveIdLastFrame != elm->Id)
-            outFlags |= OverlayInteractionQueryFlag_JustActive;
+            outFlags |= OverlayInteractionQueryFlag_Activated;
 
         if (setActive && !(flags & InteractionFlag_SetActiveOnRelease))
             m_ActiveId = elm->Id;
@@ -6688,9 +6708,10 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
                 m_StateFlags &= ~StateFlag_ActiveAllowsInteraction;
         }
     }
+    else if (m_ActiveIdLastFrame == elm->Id)
+        outFlags |= OverlayInteractionQueryFlag_Deactivated;
 
-    m_ActivationKey = Key_None;
-    return outFlags;
+    return finish();
 }
 
 /////////////////////////////////////////////
@@ -7489,8 +7510,97 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
                           Onyx::OverlayInteractionFlag_PressedEvenWhenAwayFromHover);
 
         ov->HorizontalSeparator("The experiment");
-        if (ov->PushTree("I am to be queried"))
-            ov->PopTree();
+        static u32 widget = 0;
+        ov->DropDown("Widget", &widget,
+                     "Button#CheckBox#RadioButton#Tree#Selectable#HorizontalSlider#HorizontalDrag#"
+                     "VerticalSlider#VerticalDrag#ColorEditor#ColorButton#DropDown#InputText#InputNumeric#"
+                     "ProgressBar#Text#ColorPreview#ColorPicker");
+
+        enum : u32
+        {
+            Widget_Button,
+            Widget_CheckBox,
+            Widget_RadioButton,
+            Widget_Tree,
+            Widget_Selectable,
+            Widget_HorizontalSlider,
+            Widget_HorizontalDrag,
+            Widget_VerticalSlider,
+            Widget_VerticalDrag,
+            Widget_ColorEditor,
+            Widget_ColorButton,
+            Widget_DropDown,
+            Widget_InputText,
+            Widget_InputNumeric,
+            Widget_Text,
+            Widget_ColorPreview,
+            Widget_ColorPicker
+        };
+
+        static bool qbool = false;
+        static u32 qradio = 0;
+        static f32 qfloat = 5.f;
+        static i32 qint = 3;
+        static Onyx::Color qcolor = Onyx::Color_Sky;
+        static char qbuf[32] = "Hello";
+        static u32 qdropdown = 0;
+
+        switch (widget)
+        {
+        case Widget_Button:
+            ov->Button("I am to be queried");
+            break;
+        case Widget_CheckBox:
+            ov->CheckBox("I am to be queried", &qbool);
+            break;
+        case Widget_RadioButton:
+            ov->RadioButton("I am to be queried", &qradio, 0);
+            break;
+        case Widget_Tree:
+            if (ov->PushTree("I am to be queried"))
+                ov->PopTree();
+            break;
+        case Widget_Selectable:
+            ov->Selectable("I am to be queried", &qbool);
+            break;
+        case Widget_HorizontalSlider:
+            ov->HorizontalSlider("I am to be queried", &qfloat, 0.f, 10.f);
+            break;
+        case Widget_HorizontalDrag:
+            ov->HorizontalDrag("I am to be queried", &qfloat, 0.1f, 0.f, 10.f);
+            break;
+        case Widget_VerticalSlider:
+            ov->VerticalSlider("I am to be queried", &qfloat, 0.f, 10.f);
+            break;
+        case Widget_VerticalDrag:
+            ov->VerticalDrag("I am to be queried", &qfloat, 0.1f, 0.f, 10.f);
+            break;
+        case Widget_ColorEditor:
+            ov->ColorEditor("I am to be queried", &qcolor);
+            break;
+        case Widget_ColorButton:
+            ov->ColorButton("I am to be queried", &qcolor);
+            break;
+        case Widget_DropDown:
+            ov->DropDown("I am to be queried", &qdropdown, "Option A#Option B#Option C");
+            break;
+        case Widget_InputText:
+            ov->InputText("I am to be queried", qbuf, 32);
+            break;
+        case Widget_InputNumeric:
+            ov->InputNumeric("I am to be queried", &qint);
+            break;
+        case Widget_Text:
+            ov->SetNextTextId(ov->IdFromStack("QueryText"));
+            ov->TextRaw("I am to be queried");
+            break;
+        case Widget_ColorPreview:
+            ov->ColorPreview("I am to be queried", qcolor);
+            break;
+        case Widget_ColorPicker:
+            ov->ColorPicker("I am to be queried", &qcolor);
+            break;
+        }
 
         const bool hovered = ov->IsItemHovered(qflags);
         const bool opened = ov->IsItemOpened();
@@ -7513,6 +7623,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         static TKit::Clock lclickClock{};
         static TKit::Clock rclickClock{};
         static TKit::Clock dclickClock{};
+        static TKit::Clock actClock{};
+        static TKit::Clock deactClock{};
 
         if (iqflags & Onyx::OverlayInteractionQueryFlag_LeftClicked)
             lclickClock.Restart();
@@ -7520,6 +7632,10 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             rclickClock.Restart();
         if (iqflags & Onyx::OverlayInteractionQueryFlag_DoubleClicked)
             dclickClock.Restart();
+        if (iqflags & Onyx::OverlayInteractionQueryFlag_Activated)
+            actClock.Restart();
+        if (iqflags & Onyx::OverlayInteractionQueryFlag_Deactivated)
+            deactClock.Restart();
 
         ov->Text("Hovered: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Hovered));
         ov->Text("Pressed: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Pressed));
@@ -7527,7 +7643,8 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->Text("Right clicked: {:.1f} seconds ago", rclickClock.GetElapsed().AsSeconds());
         ov->Text("Double clicked: {:.1f} seconds ago", dclickClock.GetElapsed().AsSeconds());
         ov->Text("Active: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_Active));
-        ov->Text("Just active: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_JustActive));
+        ov->Text("Activated: {:.1f} seconds ago", actClock.GetElapsed().AsSeconds());
+        ov->Text("Deactivated: {:.1f} seconds ago", deactClock.GetElapsed().AsSeconds());
         ov->Text("Dragged: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_DragSource));
         ov->Text("Drag hovered: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_DragTarget));
         ov->Text("Popup open: {}", bool(iqflags & Onyx::OverlayInteractionQueryFlag_PopupOpen));

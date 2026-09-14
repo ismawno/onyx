@@ -48,6 +48,7 @@ using OverlayWindowFlags = u64;
 using InteractionFlags = OverlayInteractionFlags;
 using InputConvertInfoFlags = u8;
 using NativeWindowFlags = u16;
+using NextItemFlags = u8;
 using NextWindowFlags = u8;
 using ResizeFlags = u8;
 using StateFlags = u32;
@@ -914,16 +915,20 @@ enum OverlayInteractionQueryFlagBit : OverlayInteractionQueryFlags
     OverlayInteractionQueryFlag_RightClicked = 1U << 3,
     OverlayInteractionQueryFlag_DoubleClicked = 1U << 4,
     OverlayInteractionQueryFlag_Active = 1U << 5,
-    OverlayInteractionQueryFlag_JustActive = 1U << 6,
-    OverlayInteractionQueryFlag_PopupOpen = 1U << 7,
-    OverlayInteractionQueryFlag_DragSource = 1U << 8,
-    OverlayInteractionQueryFlag_DragTarget = 1U << 9,
-    OverlayInteractionQueryFlag_DragPayloadDropped = 1U << 10,
+    OverlayInteractionQueryFlag_Activated = 1U << 6,
+    OverlayInteractionQueryFlag_Deactivated = 1U << 7,
+    OverlayInteractionQueryFlag_PopupOpen = 1U << 8,
+    OverlayInteractionQueryFlag_DragSource = 1U << 9,
+    OverlayInteractionQueryFlag_DragTarget = 1U << 10,
+    OverlayInteractionQueryFlag_DragPayloadDropped = 1U << 11,
+    OverlayInteractionQueryFlag_Queried = 1U << 12,
 };
 
 // internal interaction flags -> these configure how querying interaction behave
 enum InteractionFlagBit : InteractionFlags
 {
+    InteractionFlag_CombineFlagsOnLastItem = 1U << 6,
+    InteractionFlag_DoNotSetLastItem = 1U << 7,
     InteractionFlag_PressedEvenWhenAwayFromHover = 1U << 8,
     InteractionFlag_ClickedOnMousePress = 1U << 9,
     InteractionFlag_KeepActiveOnPressed = 1U << 10,
@@ -945,7 +950,7 @@ enum InteractionFlagBit : InteractionFlags
     InteractionFlag_AllowPressedOnEnter = 1U << 26,
     InteractionFlag_ReadOnly = InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
                                InteractionFlag_DoNotSetDraggedId | InteractionFlag_DoNotSetActiveId |
-                               InteractionFlag_DoNotProtectPopup
+                               InteractionFlag_DoNotProtectPopup | InteractionFlag_DoNotSetLastItem
 };
 
 // same as above, but public
@@ -980,6 +985,7 @@ enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
     OverlayFocusQueryFlag_BlockedByPopupCollapse = OverlayFocusFlag_AllowBlockedByPopupCollapse,
     OverlayFocusQueryFlag_BlockedByDisabled = OverlayFocusFlag_AllowBlockedByDisabled,
     OverlayFocusQueryFlag_BlockedByDrag = OverlayFocusFlag_AllowBlockedByDrag,
+    OverlayFocusQueryFlag_Queried = 1U << 14,
     OverlayFocusQueryFlag_Hovered = 1U << 15,
 };
 
@@ -1144,6 +1150,12 @@ enum WidgetStateFlagBit : WidgetStateFlags
     WidgetStateFlag_Hovering = 1U << 1,
 };
 
+enum NextItemFlagBit : NextWindowFlags
+{
+    NextItemFlag_HasTextId = 1 << 0,
+    NextItemFlag_HasActivationKey = 1 << 1,
+};
+
 /////////////////////////////////////////////
 /// END WIDGET FLAGS
 /////////////////////////////////////////////
@@ -1151,6 +1163,22 @@ enum WidgetStateFlagBit : WidgetStateFlags
 /////////////////////////////////////////////
 /// WIDGET STATE
 /////////////////////////////////////////////
+
+struct LastItemData
+{
+    LayoutId Id = NullLayoutId;
+    const LayoutElementQueryInfo *Element = nullptr;
+    OverlayInteractionQueryFlags InteractionFlags = 0;
+    OverlayFocusQueryFlags FocusFlags = 0;
+};
+
+struct NextItemData
+{
+    LayoutId TextId = NullLayoutId;
+    Key ActivationKey = Key_None;
+    OverlayFocusFlags ActivationFlags = 0;
+    NextItemFlags Flags = 0;
+};
 
 struct ScrollBarInfo
 {
@@ -1527,6 +1555,7 @@ class Overlay
                           const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
         TKIT_ASSERT(mn < mx, "[ONYX][OVERLAY] Maximum slider value ({}), must be greater than minimum ({})", mx, mn);
+        m_LastItem = {};
         beginHorizontalWidget(PushId(label.Id));
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
@@ -1582,6 +1611,7 @@ class Overlay
     bool HorizontalDrag(const OverlayLabel label, T *value, const f32 speed = 1.f, const U mn = T(0), const U mx = T(0),
                         const char *format = nullptr, const u32 count = 1, const OverlaySliderFlags flags = 0)
     {
+        m_LastItem = {};
         beginHorizontalWidget(PushId(label.Id));
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
@@ -1611,9 +1641,10 @@ class Overlay
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = PushId(label.Id);
 
-        ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
-                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
+        m_LastItem = {};
+        m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
+                                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
+                                                   .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
         {
@@ -1693,12 +1724,14 @@ class Overlay
 
     void SetNextTextId(const LayoutId id)
     {
-        m_TextId = id;
+        m_NextItem.TextId = id;
+        m_NextItem.Flags |= NextItemFlag_HasTextId;
     }
     void SetNextActivationKey(const Key key, const OverlayFocusFlags flags = 0)
     {
-        m_ActivationKey = key;
-        m_ActivationFlags = flags;
+        m_NextItem.ActivationKey = key;
+        m_NextItem.ActivationFlags = flags;
+        m_NextItem.Flags |= NextItemFlag_HasActivationKey;
     }
 
     void TextRaw(LayoutTextMode mode, TKit::StringView text);
@@ -1749,13 +1782,14 @@ class Overlay
     LayoutId Image(const LayoutId id, const Resource texture, const LySz2 &size, const f32v2 &offset = f32v2{0.f},
                    const f32v2 &scale = f32v2{1.f})
     {
-        m_LastItem = m_Active->GetActiveLayout()->Panel(id, LyPnPar{.FillColor = Color_White,
-                                                                    .Sizing = size,
-                                                                    .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
-                                                                    .Texture = texture,
-                                                                    .TexOffset = offset,
-                                                                    .TexScale = scale});
-        return m_LastItem;
+        m_LastItem = {};
+        m_LastItem.Id = m_Active->GetActiveLayout()->Panel(id, LyPnPar{.FillColor = Color_White,
+                                                                       .Sizing = size,
+                                                                       .Shape = rect(m_Style[OverlayStyle_ImageRadius]),
+                                                                       .Texture = texture,
+                                                                       .TexOffset = offset,
+                                                                       .TexScale = scale});
+        return m_LastItem.Id;
     }
 
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
@@ -1927,8 +1961,9 @@ class Overlay
 
     LayoutId BeginPanel(const LayoutId id, const LyPnPar &params = {})
     {
-        m_LastItem = m_Active->GetActiveLayout()->BeginPanel(id, params);
-        return m_LastItem;
+        m_LastItem = {};
+        m_LastItem.Id = m_Active->GetActiveLayout()->BeginPanel(id, params);
+        return m_LastItem.Id;
     }
     void BeginPanel(const LyPnPar &params = {})
     {
@@ -1941,8 +1976,9 @@ class Overlay
 
     LayoutId Panel(const LayoutId id, const LyPnPar &params = {})
     {
-        m_LastItem = m_Active->GetActiveLayout()->Panel(id, params);
-        return m_LastItem;
+        m_LastItem = {};
+        m_LastItem.Id = m_Active->GetActiveLayout()->Panel(id, params);
+        return m_LastItem.Id;
     }
     void Panel(const LyPnPar &params = {})
     {
@@ -1955,7 +1991,7 @@ class Overlay
     }
     const LayoutElementQueryInfo *QueryLastItem()
     {
-        return m_Active->GetActiveLayout()->QueryElement(m_LastItem);
+        return m_LastItem.Element ? m_LastItem.Element : QueryElement(m_LastItem.Id);
     }
 
     bool PushTree(OverlayLabel label, const OverlayTreeFlags flags = 0);
@@ -2138,19 +2174,23 @@ class Overlay
     }
     OverlayDragDropPayload AcceptDragDropPayload(TKit::StringView identifier);
 
-    OverlayFocusQueryFlags QueryItemFocusStatus(const f32v2 &hoverPadding = f32v2{0.f}) const
+    OverlayFocusQueryFlags QueryItemFocusStatus() const
     {
-        return queryFocus(m_Active->GetActiveLayout()->QueryElement(m_LastItem), hoverPadding);
+        return (m_LastItem.FocusFlags & OverlayFocusQueryFlag_Queried)
+                   ? m_LastItem.FocusFlags
+                   : queryFocus(m_Active->GetActiveLayout()->QueryElement(m_LastItem.Id), f32v2{0.f});
     }
     OverlayInteractionQueryFlags QueryItemInteraction(const OverlayInteractionFlags flags = 0)
     {
         // return queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags |
         // InteractionFlag_ReadOnly);
-        return queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags);
+        return (m_LastItem.InteractionFlags & OverlayInteractionQueryFlag_Queried)
+                   ? m_LastItem.InteractionFlags
+                   : queryAndSetInteraction(m_Active->GetActiveLayout()->QueryElement(m_LastItem.Id), flags);
     }
-    bool IsItemHovered(const OverlayFocusFlags flags = 0, const f32v2 &hoverPadding = f32v2{0.f})
+    bool IsItemHovered(const OverlayFocusFlags flags = 0)
     {
-        return isElementHovered(m_Active->GetActiveLayout()->QueryElement(m_LastItem), flags, hoverPadding);
+        return isElementHovered(QueryItemFocusStatus(), flags);
     }
     bool IsItemPressed(const OverlayInteractionFlags flags = 0)
     {
@@ -2172,9 +2212,9 @@ class Overlay
     {
         return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Active;
     }
-    bool IsItemJustActive(const OverlayInteractionFlags flags = 0)
+    bool IsItemActivated(const OverlayInteractionFlags flags = 0)
     {
-        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_JustActive;
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Activated;
     }
     bool IsItemDragged(const OverlayInteractionFlags flags = 0)
     {
@@ -2190,7 +2230,7 @@ class Overlay
     }
     bool IsItemOpened() const
     {
-        const auto it = m_WidgetStates.Find(m_LastItem);
+        const auto it = m_WidgetStates.Find(m_LastItem.Id);
         return it != m_WidgetStates.end() && (it->Value & WidgetStateFlag_Opened);
     }
     bool WantCaptureMouse() const;
@@ -2434,8 +2474,8 @@ class Overlay
         format = getFormat<T>(format);
 
         OverlayColor col = OverlayColor_SliderIdle;
-        const OverlayInteractionQueryFlags iflags =
-            queryAndSetInteraction(elm, InteractionFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(
+            elm, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_CombineFlagsOnLastItem);
 
         if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SliderPressed;
@@ -2607,15 +2647,15 @@ class Overlay
         format = getFormat<T>(format);
 
         OverlayColor col = OverlayColor_DragIdle;
-        const OverlayInteractionQueryFlags iflags =
-            queryAndSetInteraction(elm, InteractionFlag_PressedEvenWhenAwayFromHover);
+        const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(
+            elm, InteractionFlag_PressedEvenWhenAwayFromHover | InteractionFlag_CombineFlagsOnLastItem);
 
         if (iflags & OverlayInteractionQueryFlag_Pressed)
             col = OverlayColor_SliderPressed;
         else if (iflags & OverlayInteractionQueryFlag_Hovered)
             col = OverlayColor_SliderHovered;
 
-        if (iflags & OverlayInteractionQueryFlag_JustActive)
+        if (iflags & OverlayInteractionQueryFlag_Activated)
             m_DragValue = f64(*value);
 
         if (iflags & OverlayInteractionQueryFlag_Pressed)
@@ -2759,7 +2799,8 @@ class Overlay
     u32 m_CursorStart = 0;
     u32 m_CursorEnd = 0;
 
-    LayoutId m_LastItem = NullLayoutId;
+    LastItemData m_LastItem{};
+    NextItemData m_NextItem{};
 
     f64 m_DragValue = 0.;
 
@@ -2780,13 +2821,6 @@ class Overlay
 
     TKit::TierArray<TextInputStateInfo> m_UndoStack{};
     TKit::TierArray<TextInputStateInfo> m_RedoStack{};
-
-    // NOTE(Isma, 07/07/26): Persistently saving a LayoutId object may be dangerous bc of the debug name stored:
-    // underlying string may become stale. In practice, this is a throwaway id that gets discarded once used, so its not
-    // that persistent. should be fine
-    LayoutId m_TextId = NullLayoutId;
-    Key m_ActivationKey = Key_None;
-    OverlayFocusFlags m_ActivationFlags = 0;
 
     /////////////////////////////////////////////
     /// END WIDGETS PRIVATE
@@ -2822,7 +2856,7 @@ class Overlay
     void resetTooltip();
 
     OverlayWindow *m_Tooltip = nullptr;
-    LayoutId m_LastItemTooltipBackup = NullLayoutId;
+    LastItemData m_LastItemTooltipBackup{};
 
     /////////////////////////////////////////////
     /// END TOOLTIPS PRIVATE
@@ -2873,11 +2907,11 @@ class Overlay
     OverlayFocusQueryFlags queryFocus(const LayoutElementQueryInfo *elm, const f32v2 &padding) const;
     bool isElementBlocked(const OverlayFocusQueryFlags qflags, const OverlayFocusFlags flags = 0) const
     {
-        return ((qflags & ~flags) & ~OverlayFocusQueryFlag_Hovered) != 0;
+        return ((qflags & ~flags) & ~(OverlayFocusQueryFlag_Hovered | OverlayFocusQueryFlag_Queried)) != 0;
     }
     bool isElementHovered(const OverlayFocusQueryFlags qflags, const OverlayFocusFlags flags = 0)
     {
-        return (qflags & ~flags) == OverlayFocusQueryFlag_Hovered;
+        return ((qflags & ~flags) & ~OverlayFocusQueryFlag_Queried) == OverlayFocusQueryFlag_Hovered;
     }
     bool isElementHovered(const LayoutElementQueryInfo *elm, OverlayFocusFlags flags = 0,
                           const f32v2 &padding = f32v2{0.f});
