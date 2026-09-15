@@ -2216,6 +2216,10 @@ class Overlay
     {
         return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Activated;
     }
+    bool IsItemDeactivated(const OverlayInteractionFlags flags = 0)
+    {
+        return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_Deactivated;
+    }
     bool IsItemDragged(const OverlayInteractionFlags flags = 0)
     {
         return QueryItemInteraction(flags) & OverlayInteractionQueryFlag_DragSource;

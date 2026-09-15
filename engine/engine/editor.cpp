@@ -19,6 +19,7 @@
 #define DEFAULT_RESOLUTION u32v2{1920, 1080}
 #define MAX_LOG_ENTRIES 64
 #define MAX_LOG_MESSAGE 256
+#define MAX_UNDO_REDO_STACK 256
 
 #define NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
 #define DIMENSION_GETTER(varname)                                                                                      \
@@ -45,9 +46,127 @@ struct Labels_Data
     Onyx::OverlayLabel Scene = "Scene";
 };
 
+struct UndoRedo_Command
+{
+    virtual ~UndoRedo_Command() = default;
+
+    virtual void Undo() = 0;
+    virtual void Redo() = 0;
+};
+
+struct UndoRedo_LambdaCommand final : UndoRedo_Command
+{
+    TKit::TierFunction<void()> UndoFn;
+    TKit::TierFunction<void()> RedoFn;
+
+    UndoRedo_LambdaCommand() = default;
+    template <typename F1, typename F2>
+    UndoRedo_LambdaCommand(F1 &&f1, F2 &&f2) : UndoFn(std::forward<F1>(f1)), RedoFn(std::forward<F2>(f2))
+    {
+    }
+
+    void Undo() override
+    {
+        UndoFn();
+    }
+    void Redo() override
+    {
+        RedoFn();
+    }
+};
+
+struct UndoRedo_CircularStack
+{
+    static_assert(TKit::IsPowerOfTwo(MAX_UNDO_REDO_STACK),
+                  "[ONYX][EDITOR] Max undo/redo stack capacity must be a power of 2");
+
+    TKit::FixedArray<UndoRedo_Command *, MAX_UNDO_REDO_STACK> Stack{};
+    u32 Cursor = 0;
+    u32 Size = 0;
+
+    UndoRedo_CircularStack()
+    {
+        for (u32 i = 0; i < MAX_UNDO_REDO_STACK; ++i)
+            Stack[i] = nullptr;
+    }
+
+    static u32 NormalizeIndex(const u32 idx)
+    {
+        return idx & (MAX_UNDO_REDO_STACK - 1);
+    }
+
+    void Clear()
+    {
+        TKit::TierAllocator *tier = TKit::GetTier();
+        for (u32 i = 0; i < MAX_UNDO_REDO_STACK; ++i)
+            if (Stack[i])
+            {
+                tier->DestroyWithHeader(Stack[i]);
+                Stack[i] = nullptr;
+            }
+
+        Size = 0;
+        Cursor = 0;
+    }
+
+    void Push(UndoRedo_Command *cmd)
+    {
+        Stack[Cursor] = cmd;
+        Cursor = NormalizeIndex(Cursor + 1);
+        if (Size < MAX_UNDO_REDO_STACK)
+            ++Size;
+    }
+    UndoRedo_Command *Pop()
+    {
+        UndoRedo_Command *cmd = Stack[--Cursor];
+        --Size;
+        Stack[Cursor] = nullptr;
+        return cmd;
+    }
+};
+
+struct UndoRedo_Data
+{
+    UndoRedo_CircularStack UndoStack{};
+    UndoRedo_CircularStack RedoStack{};
+
+    void Clear()
+    {
+        UndoStack.Clear();
+        RedoStack.Clear();
+    }
+
+    void Undo()
+    {
+        if (UndoStack.Size == 0)
+            return;
+        UndoRedo_Command *cmd = UndoStack.Pop();
+        cmd->Undo();
+        RedoStack.Push(cmd);
+    }
+    void Redo()
+    {
+        if (RedoStack.Size == 0)
+            return;
+        UndoRedo_Command *cmd = RedoStack.Pop();
+        cmd->Redo();
+        UndoStack.Push(cmd);
+    }
+
+    template <typename T> std::remove_cvref_t<T> *Do(T &&cmd)
+    {
+        RedoStack.Clear();
+        TKit::TierAllocator *tier = TKit::GetTier();
+        T *ncmd = tier->CreateWithHeader<std::remove_cvref_t<T>>(std::forward<T>(cmd));
+        UndoStack.Push(ncmd);
+        return ncmd;
+    }
+};
+
 template <Dimension D> struct Editor_Camera
 {
     TKIT_YAML_SERIALIZE_DECLARE(Editor_Camera)
+    Scene ParentScene;
     TKit::TierString Name{};
     Onyx::Camera<D> *Handle;
     // lol
@@ -56,6 +175,9 @@ template <Dimension D> struct Editor_Camera
 
 template <Dimension D> struct Editor_RenderView
 {
+    RenderView Id;
+    Viewport ParentViewport;
+
     TKit::TierString Name{};
     Onyx::RenderView<D> *Handle;
     // TODO(Isma): Need to store here as well what entity's camera will take over the view when play is hit
@@ -64,6 +186,8 @@ template <Dimension D> struct Editor_RenderView
 
 template <Dimension D> struct Editor_RenderContext
 {
+    RenderContext Id;
+    Scene ParentScene;
     TKit::TierString Name{};
     Onyx::RenderContext<D> *Handle;
     bool DrawAxes = false;
@@ -71,6 +195,8 @@ template <Dimension D> struct Editor_RenderContext
 
 struct Editor_Viewport
 {
+    Viewport Id;
+    Scene ParentScene;
     TKit::TierString Name{};
     const Onyx::OverlayWindow *Window = nullptr;
     Onyx::RenderTexture *Target = nullptr;
@@ -96,6 +222,7 @@ struct Editor_Viewport
 
 struct Editor_Scene
 {
+    Scene Id;
     TKit::TierString Name{};
     TKit::Registry Registry{};
 
@@ -151,37 +278,35 @@ struct Console_LogEntry
 
 struct Console_Data
 {
+    static_assert(TKit::IsPowerOfTwo(MAX_LOG_ENTRIES), "[ONYX][EDITOR] Max log entries capacity must be a power of 2");
+
     TKit::FixedArray<Console_LogEntry, MAX_LOG_ENTRIES> Entries{};
-    u32 Begin = 0;
-    u32 End = 0;
-    bool Cycling = false;
+    u32 Cursor = 0;
+    u32 Size = 0;
+
+    static u32 NormalizeIndex(const u32 idx)
+    {
+        return idx & (MAX_LOG_ENTRIES - 1);
+    }
 
     void Add(const Console_LogEntry &entry)
     {
-        Entries[End++] = entry;
-        if (Cycling)
-            ++Begin;
-        if (End == MAX_LOG_ENTRIES)
-        {
-            Cycling = true;
-            End = 0;
-        }
+        Entries[Cursor] = entry;
+        Cursor = NormalizeIndex(Cursor + 1);
+        if (Size < MAX_UNDO_REDO_STACK)
+            ++Size;
     }
 
     void Clear()
     {
-        Begin = 0;
-        End = 0;
+        Size = 0;
+        Cursor = 0;
     }
 
     template <typename F> void Each(F &&func)
     {
-        const u32 size1 = Cycling ? MAX_LOG_ENTRIES : End;
-        for (u32 i = Begin; i < size1; ++i)
-            std::forward<F>(func)(Entries[i]);
-        if (Cycling)
-            for (u32 i = 0; i < End; ++i)
-                std::forward<F>(func)(Entries[i]);
+        for (u32 i = 0; i < Size; ++i)
+            std::forward<F>(func)(Entries[NormalizeIndex(Cursor + i)]);
     }
 };
 
@@ -228,6 +353,7 @@ struct Editor_Data
 
 static TKit::Storage<const Labels_Data> s_Labels{};
 static TKit::Storage<Console_Data> s_Console{};
+static TKit::Storage<UndoRedo_Data> s_UndoRedo{};
 static TKit::Storage<Editor_Data> s_Editor{};
 
 struct Utils_NameArray
@@ -399,6 +525,22 @@ static void console_LogCallback(const TKit::LogInfo &info)
     s_Console->Add(entry);
 }
 
+template <typename F1, typename F2> static void undoRedo_LambdaContinuousWidget(Onyx::Overlay *ov, F1 &&undo, F2 &&redo)
+{
+    static UndoRedo_LambdaCommand cmd{};
+    if (ov->IsItemActivated())
+        cmd.UndoFn = std::forward<F1>(undo);
+    if (ov->IsItemDeactivated())
+    {
+        cmd.RedoFn = std::forward<F2>(redo);
+        s_UndoRedo->Do(std::move(cmd));
+    }
+}
+template <typename F> static void undoRedo_LambdaContinuousWidget(Onyx::Overlay *ov, F &&fun)
+{
+    undoRedo_LambdaContinuousWidget(ov, fun, fun);
+}
+
 template <Dimension D>
 static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport &viewport, const u32 editorCamIdx)
 {
@@ -409,6 +551,8 @@ static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport
     const RenderView rv = rvs.Insert();
 
     Editor_RenderView<D> &rview = rvs[rv];
+    rview.Id = rv;
+    rview.ParentViewport = viewport.Id;
     rview.Name = utils_CreateDefaultName("View", rv);
     rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle, Onyx::RenderViewFlag_NormalizedCoordinates);
     rview.EditorCameraIndex = editorCamIdx;
@@ -434,6 +578,7 @@ Scene Scene_Create()
 {
     const Scene sc = s_Editor->Scenes.Insert();
     Editor_Scene &scene = s_Editor->Scenes[sc];
+    scene.Id = sc;
     scene.Name = utils_CreateDefaultName("Scene", sc);
     scene.Registry.RegisterComponents(AllComponents{});
     return sc;
@@ -466,6 +611,8 @@ Viewport Scene_CreateViewport(const Scene sc, const u32v2 &resolution)
     const Viewport vp = scene.Viewports.Insert();
     Editor_Viewport &viewport = scene.Viewports[vp];
 
+    viewport.Id = vp;
+    viewport.Position = sc;
     viewport.Target = Onyx::CreateRenderTexture(resolution);
     viewport.Name = utils_CreateDefaultName("Viewport", vp);
     viewport.Position = 0.f;
@@ -501,6 +648,8 @@ template <Dimension D> RenderContext Scene_CreateRenderContext(const Scene sc)
 
     const RenderContext rc = rcs.Insert();
     Editor_RenderContext<D> &rctx = rcs[rc];
+    rctx.Id = rc;
+    rctx.ParentScene = sc;
     rctx.Name = utils_CreateDefaultName("Context", rc);
     rctx.Handle = Onyx::CreateRenderContext<D>();
 
@@ -539,6 +688,7 @@ template <Dimension D> static void serialize_Cameras(const char *name, YamlNode 
         node["Name"] << cam.Name;
         node["RefCount"] << cam.RefCount;
         node["Camera"] << *cam.Handle;
+        node["Scene"] << cam.ParentScene;
     }
 }
 
@@ -553,6 +703,7 @@ template <Dimension D> static void serialize_Contexts(const char *name, YamlNode
         YamlNode node = contexts["Contexts"].Append();
         node["Name"] << rc.Name;
         node["Draw axes"] << rc.DrawAxes;
+        node["Scene"] << rc.ParentScene;
 
         for (const Viewport vp : scene.Viewports.GetValidIds())
             for (const RenderView rv : scene.Viewports[vp].GetViews<D>().GetValidIds())
@@ -575,6 +726,7 @@ template <Dimension D> static void serialize_Views(const char *name, YamlNode ro
     {
         YamlNode node = views["Views"].Append();
         node["Name"] << rv.Name;
+        node["Viewport"] << rv.ParentViewport;
         node["Viewport data"] << rv.Handle->ViewportData;
         node["Scissor data"] << rv.Handle->ScissorData;
         node["Editor camera"] << rv.EditorCameraIndex;
@@ -677,6 +829,7 @@ template <Dimension D> static void deserialize_Cameras(const char *name, const C
     {
         Editor_Camera<D> &cam = cams.Append();
         cam.Name = node["Name"].Read<TKit::TierString>();
+        cam.ParentScene = node["Scene"].Read<Scene>();
         cam.RefCount = node["RefCount"].Read<u32>();
         cam.Handle = tier->Create<Onyx::Camera<D>>(node["Camera"].Read<Onyx::Camera<D>>());
     }
@@ -696,6 +849,7 @@ template <Dimension D> static void deserialize_Contexts(const char *name, const 
         {
             Editor_RenderContext<D> &ctx = ctxs[ctxs.Insert()];
             ctx.Name = node["Name"].Read<TKit::TierString>();
+            ctx.ParentScene = node["Scene"].Read<Scene>();
             ctx.DrawAxes = node["Draw axes"].Read<bool>();
             ctx.Handle = Onyx::CreateRenderContext<D>();
 
@@ -728,6 +882,7 @@ static void deserialize_Views(const char *name, const ConstYamlNode root, const 
             Editor_RenderView<D> &rview = rviews[rviews.Insert()];
 
             rview.Name = node["Name"].Read<TKit::TierString>();
+            rview.ParentViewport = node["Viewport"].Read<Viewport>();
             rview.EditorCameraIndex = node["Editor camera"].Read<u32>();
             rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[rview.EditorCameraIndex].Handle,
                                                                 node["Flags"].Read<Onyx::RenderViewFlags>());
@@ -841,7 +996,7 @@ template <Dimension D> static Editor_Camera<D> &scene_CreateEditorCamera(Editor_
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     TKit::TierArray<Editor_Camera<D>> &cams = scene.GetCameras<D>();
-    return cams.Append(utils_CreateDefaultName("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
+    return cams.Append(scene.Id, utils_CreateDefaultName("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
 }
 
 template <Dimension D> static void scene_DestroyEditorCamera(Editor_Scene &scene, const u32 camIdx)
@@ -1301,6 +1456,7 @@ bool Initialize()
 
     s_Labels.Construct();
     s_Console.Construct();
+    s_UndoRedo.Construct();
     s_Editor.Construct();
 
     const Editor_ProjectLauncherResult res = editor_RunProjectLauncher();
@@ -1865,6 +2021,38 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     ov->HorizontalSeparator(view.Name);
     ov->InputText("Name", &view.Name, NAME_BUF_SIZE);
 
+    // TODO(Isma): this is weak bc of id recycling. consider implementing a generation for ids. this only prevents
+    // crashing/ub
+    const Scene sc = s_Editor->ActiveScene;
+    const Viewport vp = view.ParentViewport;
+    const RenderView rvId = view.Id;
+
+    const auto undoRedo_CheckViewExists = [=]() -> Editor_RenderView<D> * {
+        if (!s_Editor->Scenes.Contains(sc))
+            return nullptr;
+        Editor_Scene &scene = s_Editor->Scenes[sc];
+
+        if (!scene.Viewports.Contains(vp))
+            return nullptr;
+
+        Editor_Viewport &viewport = scene.Viewports[vp];
+        if (!viewport.GetViews<D>().Contains(rvId))
+            return nullptr;
+
+        Editor_RenderView<D> &rView = viewport.GetViews<D>()[rvId];
+        return &rView;
+    };
+
+    const auto undoRedo_CheckCameraExists = [=](const u32 idx) -> Editor_Camera<D> * {
+        if (!s_Editor->Scenes.Contains(sc))
+            return nullptr;
+
+        Editor_Scene &scene = s_Editor->Scenes[sc];
+        if (idx < scene.GetCameras<D>().GetSize())
+            return &scene.GetCameras<D>()[idx];
+        return nullptr;
+    };
+
     Onyx::RenderView<D> *rv = view.Handle;
     Editor_Scene &scene = s_Editor->GetActiveScene();
 
@@ -1887,12 +2075,31 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
         --cams[prev].RefCount;
         ++cams[selected].RefCount;
         rv->SetCamera(cams[selected].Handle);
+        const auto swapCameras = [=](const u32 toSet, const u32 toRemove) {
+            Editor_RenderView<D> *rView = undoRedo_CheckViewExists();
+            Editor_Camera<D> *ccam = undoRedo_CheckCameraExists(toSet);
+            Editor_Camera<D> *pcam = undoRedo_CheckCameraExists(toRemove);
+            if (rView && ccam && pcam)
+            {
+                ++ccam->RefCount;
+                --pcam->RefCount;
+                rView->Handle->SetCamera(ccam->Handle);
+            }
+        };
+        const auto undo = [=] { swapCameras(prev, selected); };
+        const auto redo = [=] { swapCameras(selected, prev); };
+        s_UndoRedo->Do(UndoRedo_LambdaCommand{undo, redo});
     }
 
     ov->ColorEditor("Background color", &rv->ClearColor);
+    undoRedo_LambdaContinuousWidget(ov, [=, col = rv->ClearColor] {
+        Editor_RenderView<D> *rView = undoRedo_CheckViewExists();
+        if (rView)
+            rView->Handle->ClearColor = col;
+    });
 
-    ov->HorizontalSeparator("Viewport");
     Onyx::RenderViewFlags flags = rv->GetFlags();
+    ov->HorizontalSeparator("Viewport");
 
     const bool nv = flags & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
     const auto getVp = nv ? &Onyx::RenderView<D>::GetNormalizedViewport : &Onyx::RenderView<D>::GetAbsoluteViewport;
@@ -1908,22 +2115,63 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     const f32 sspeed = ns ? nspeed : aspeed;
 
     Onyx::Viewport viewport = (rv->*getVp)();
+    Onyx::Scissor scissor = (rv->*getSc)();
+
+    const auto undoRedo_Viewport = [=] {
+        undoRedo_LambdaContinuousWidget(ov, [=] {
+            Editor_RenderView<D> *rView = undoRedo_CheckViewExists();
+            if (rView)
+                (rView->Handle->*setVp)(viewport);
+        });
+    };
+    const auto undoRedo_Scissor = [=] {
+        undoRedo_LambdaContinuousWidget(ov, [=] {
+            Editor_RenderView<D> *rView = undoRedo_CheckViewExists();
+            if (rView)
+                (rView->Handle->*setSc)(scissor);
+        });
+    };
+
     bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
+    undoRedo_Viewport();
+
     changed |= ov->HorizontalDrag("Extent##Viewport", &viewport.Extent, vspeed);
+    undoRedo_Viewport();
+
     if (changed)
         (rv->*setVp)(viewport);
 
     ov->HorizontalSeparator("Scissor");
-    Onyx::Scissor sc = (rv->*getSc)();
-    changed = ov->HorizontalDrag("Position##Scissor", &sc.Position, sspeed);
-    changed |= ov->HorizontalDrag("Extent##Scissor", &sc.Extent, sspeed);
+
+    changed = ov->HorizontalDrag("Position##Scissor", &scissor.Position, sspeed);
+    undoRedo_Scissor();
+
+    changed |= ov->HorizontalDrag("Extent##Scissor", &scissor.Extent, sspeed);
+    undoRedo_Scissor();
+
     if (changed)
-        (rv->*setSc)(sc);
+        (rv->*setSc)(scissor);
 
-    changed = ov->CheckBoxFlags("Normalized coordinates", &flags, Onyx::RenderViewFlag_NormalizedCoordinates);
-    changed |= ov->CheckBoxFlags("Shadows", &flags, Onyx::RenderViewFlag_Shadows);
+    const auto undoRedo_Flags = [&](const char *name, const Onyx::RenderViewFlags bits) {
+        if (ov->CheckBoxFlags(name, &flags, bits))
+        {
+            const auto swapFlags = [=](const bool undo) {
+                Editor_RenderView<D> *rView = undoRedo_CheckViewExists();
+                if (rView)
+                    rView->Handle->SetFlags(undo == bool(flags & bits) ? (flags & ~bits) : (flags | bits));
+            };
+            const auto undo = [=] { swapFlags(true); };
+            const auto redo = [=] { swapFlags(false); };
+            s_UndoRedo->Do(UndoRedo_LambdaCommand{undo, redo});
+            return true;
+        }
+        return false;
+    };
 
-    if (ov->CheckBoxFlags("Post-process", &flags, Onyx::RenderViewFlag_PostProcess))
+    changed = undoRedo_Flags("Normalized coordinates", Onyx::RenderViewFlag_NormalizedCoordinates);
+    changed |= undoRedo_Flags("Shadows", Onyx::RenderViewFlag_Shadows);
+
+    if (undoRedo_Flags("Post-process", Onyx::RenderViewFlag_PostProcess))
     {
         if (!(flags & Onyx::RenderViewFlag_PostProcess))
             flags &= ~Onyx::RenderViewFlag_Outlines;
@@ -1933,13 +2181,13 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
 
     const bool mustDisable = !(flags & Onyx::RenderViewFlag_PostProcess);
     ov->BeginDisabled(mustDisable);
-    changed |= ov->CheckBoxFlags("Outlines", &flags, Onyx::RenderViewFlag_Outlines);
+    changed |= undoRedo_Flags("Outlines", Onyx::RenderViewFlag_Outlines);
     ov->EndDisabled();
     if (mustDisable)
         ov->SetItemTooltipRaw("Outlines can only be enabled with post-processing", Onyx::OverlayFocusFlag_NormalDelay);
 
-    changed |= ov->CheckBoxFlags("Transparency", &flags, Onyx::RenderViewFlag_Transparency);
-    changed |= ov->CheckBoxFlags("Hidden", &flags, Onyx::RenderViewFlag_Hidden);
+    changed |= undoRedo_Flags("Transparency", Onyx::RenderViewFlag_Transparency);
+    changed |= undoRedo_Flags("Hidden", Onyx::RenderViewFlag_Hidden);
 
     if (changed)
         rv->SetFlags(flags);
@@ -2238,25 +2486,35 @@ template <Dimension D> static void editor_ApplyZoom(const f32 scroll)
         }
 }
 
-static void editor_ControlCamera()
+static void editor_HandleEvents()
 {
     Onyx::Overlay *ov = s_Editor->Overlay;
     Onyx::Window *win = s_Editor->Window;
-    if (!ov->WantCaptureKeyboard())
+    const bool wantKb = ov->WantCaptureKeyboard();
+    // const bool wantMouse = ov->WantCaptureMouse();
+    const bool wantScroll = ov->WantCaptureScroll();
+    if (!wantKb)
     {
         editor_ApplyCameraMovement<D2>();
         editor_ApplyCameraMovement<D3>();
     }
 
-    if (!ov->WantCaptureScroll())
-        for (const Onyx::Event &ev : win->GetNewEvents())
-            if (ev.Type == Onyx::Event_Scrolled)
-            {
-                const f32 scroll = ev.ScrollOffset[1];
-                editor_ApplyZoom<D2>(scroll);
-                editor_ApplyZoom<D3>(scroll);
-                break;
-            }
+    const bool ctrl = win->IsKeyPressed(Onyx::Key_LeftControl);
+    for (const Onyx::Event &ev : win->GetNewEvents())
+        if (!wantKb && ctrl && ev.Type == Onyx::Event_KeyReleased)
+        {
+            if (ev.Key == Onyx::Key_Z)
+                s_UndoRedo->Undo();
+            else if (ev.Key == Onyx::Key_Y)
+                s_UndoRedo->Redo();
+        }
+        else if (!wantScroll && ev.Type == Onyx::Event_Scrolled)
+        {
+            const f32 scroll = ev.ScrollOffset[1];
+            editor_ApplyZoom<D2>(scroll);
+            editor_ApplyZoom<D3>(scroll);
+            break;
+        }
 }
 
 template <Dimension D> static void editor_DrawAxes()
@@ -2286,7 +2544,7 @@ void Run()
         sceneWindow_Draw();
         viewportWindow_Draw();
 
-        editor_ControlCamera();
+        editor_HandleEvents();
 
         const Scene active = s_Editor->ActiveScene;
         Scene_FlushContexts(active);
@@ -2305,6 +2563,7 @@ void Terminate()
 {
     // window and overlay are destroyed automatically
     s_Editor.Destruct();
+    s_UndoRedo.Destruct();
     s_Console.Destruct();
     s_Labels.Destruct();
     Onyx::Terminate();

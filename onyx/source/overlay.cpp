@@ -7539,7 +7539,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
 
         static bool qbool = false;
         static u32 qradio = 0;
-        static f32 qfloat = 5.f;
+        static f32v2 qvec = 5.f;
         static i32 qint = 3;
         static Onyx::Color qcolor = Onyx::Color_Sky;
         static char qbuf[32] = "Hello";
@@ -7564,16 +7564,16 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
             ov->Selectable("I am to be queried", &qbool);
             break;
         case Widget_HorizontalSlider:
-            ov->HorizontalSlider("I am to be queried", &qfloat, 0.f, 10.f);
+            ov->HorizontalSlider("I am to be queried", &qvec, 0.f, 10.f);
             break;
         case Widget_HorizontalDrag:
-            ov->HorizontalDrag("I am to be queried", &qfloat, 0.1f, 0.f, 10.f);
+            ov->HorizontalDrag("I am to be queried", &qvec, 0.1f, 0.f, 10.f);
             break;
         case Widget_VerticalSlider:
-            ov->VerticalSlider("I am to be queried", &qfloat, 0.f, 10.f);
+            ov->VerticalSlider("I am to be queried", &qvec, 0.f, 10.f);
             break;
         case Widget_VerticalDrag:
-            ov->VerticalDrag("I am to be queried", &qfloat, 0.1f, 0.f, 10.f);
+            ov->VerticalDrag("I am to be queried", &qvec, 0.1f, 0.f, 10.f);
             break;
         case Widget_ColorEditor:
             ov->ColorEditor("I am to be queried", &qcolor);
