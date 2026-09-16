@@ -1355,6 +1355,11 @@ template <Dimension D> static void editor_SetupDefaultScene(const Scene sc)
 // TODO(Isma): Add a way to edit project settings (window promotions for instance)
 // TODO(Isma): Add a way to open/create new projects from editor (use same popup)
 // TODO(Isma): Disable promotion when parent window is fullscreen
+// TODO(Isma): Implement undo/redo on all editables
+// TODO(Isma): Implement a custom instance data API and a way to hook shaders into the existing pipeline
+// TODO(Isma): Implement a custom "mini"-graphics API to submit your own pipelines
+// TODO(Isma): Implement a way of selecting entities from the viewport
+// TODO(Isma): Implement guizmos
 static void editor_Serialize(const fs::path &ppath)
 {
     s_Editor->ProjectPath = ppath;
