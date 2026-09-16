@@ -552,7 +552,7 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
     const u32 pid = Handle_GetResourcePoolId(mesh);
     const u32 mid = Handle_GetResourceId(mesh);
 
-    const ParametricShape shape = Resources::ParametricMesh_GetShape<D>(mesh);
+    const ParametricShape shape = Resources::Mesh_GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(
         m_State, transform, Resources::Mesh_GetBounds<D>(mesh), shape, params, ++DepthCounter);

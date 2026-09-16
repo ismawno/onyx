@@ -117,7 +117,7 @@ struct ImageArgs
     const u32 Size = 0;
 };
 
-ONYX_NO_DISCARD static Result<ImageData> load(const ImageArgs &args)
+ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
 {
     ImageData data{};
     i32 w;
@@ -187,17 +187,18 @@ ONYX_NO_DISCARD static Result<ImageData> load(const ImageArgs &args)
     return data;
 }
 
-Result<ImageData> LoadImageDataFromFile(const char *path, const ImageComponentFormat requiredComponents,
-                                        const LoadImageDataFlags flags)
+Result<ImageData> Image_LoadDataFromFile(const char *path, const ImageComponentFormat requiredComponents,
+                                         const LoadImageDataFlags flags)
 {
-    return load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = path});
+    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = path});
 }
-Result<ImageData> LoadImageDataFromMemory(const std::byte *memory, const u32 size,
-                                          const ImageComponentFormat requiredComponents, const LoadImageDataFlags flags)
+Result<ImageData> Image_LoadDataFromMemory(const std::byte *memory, const u32 size,
+                                           const ImageComponentFormat requiredComponents,
+                                           const LoadImageDataFlags flags)
 {
-    return load({.RequiredComponents = requiredComponents, .Flags = flags, .Memory = memory, .Size = size});
+    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Memory = memory, .Size = size});
 }
-void UnloadImageData(const ImageData &data)
+void Image_UnloadData(const ImageData &data)
 {
     TKit::Deallocate(data.Data);
 }

@@ -14,8 +14,8 @@ const char *ToString(RenderPass pass);
 const char *ToString(PipelinePass pass);
 const char *ToString(BlendPass bpass);
 
-Format GetFormat(const u32 components, ImageComponentType type, bool rgb);
-VkFormat AsVulkanFormat(const Format format);
+ImageFormat GetFormat(const u32 components, ImageComponentType type, bool rgb);
+VkFormat AsVulkanFormat(const ImageFormat format);
 
 constexpr VkExtent2D AsVulkanExtent(const u32v2 &extent)
 {

@@ -7,7 +7,7 @@
 
 namespace Onyx
 {
-Format GetFormat(const u32 components, const ImageComponentType type, const bool rgb)
+ImageFormat GetFormat(const u32 components, const ImageComponentType type, const bool rgb)
 {
     switch (type)
     {
@@ -16,212 +16,212 @@ Format GetFormat(const u32 components, const ImageComponentType type, const bool
         switch (components)
         {
         case 1:
-            return rgb ? Format_R8_SRGB : Format_R8_UNORM;
+            return rgb ? ImageFormat_R8_SRGB : ImageFormat_R8_UNORM;
         case 2:
-            return rgb ? Format_R8G8_SRGB : Format_R8G8_UNORM;
+            return rgb ? ImageFormat_R8G8_SRGB : ImageFormat_R8G8_UNORM;
         case 3:
-            return rgb ? Format_R8G8B8_SRGB : Format_R8G8B8_UNORM;
+            return rgb ? ImageFormat_R8G8B8_SRGB : ImageFormat_R8G8B8_UNORM;
         case 4:
-            return rgb ? Format_R8G8B8A8_SRGB : Format_R8G8B8A8_UNORM;
+            return rgb ? ImageFormat_R8G8B8A8_SRGB : ImageFormat_R8G8B8A8_UNORM;
         }
     case ImageComponent_UnsignedShort:
     case ImageComponent_SignedShort:
         switch (components)
         {
         case 1:
-            return Format_R16_UNORM;
+            return ImageFormat_R16_UNORM;
         case 2:
-            return Format_R16G16_UNORM;
+            return ImageFormat_R16G16_UNORM;
         case 3:
-            return Format_R16G16B16_UNORM;
+            return ImageFormat_R16G16B16_UNORM;
         case 4:
-            return Format_R16G16B16A16_UNORM;
+            return ImageFormat_R16G16B16A16_UNORM;
         }
     case ImageComponent_UnsignedInteger:
     case ImageComponent_SignedInteger:
         switch (components)
         {
         case 1:
-            return Format_R32_UINT;
+            return ImageFormat_R32_UINT;
         case 2:
-            return Format_R32G32_UINT;
+            return ImageFormat_R32G32_UINT;
         case 3:
-            return Format_R32G32B32_UINT;
+            return ImageFormat_R32G32B32_UINT;
         case 4:
-            return Format_R32G32B32A32_UINT;
+            return ImageFormat_R32G32B32A32_UINT;
         }
     case ImageComponent_Float:
         switch (components)
         {
         case 1:
-            return Format_R32_SFLOAT;
+            return ImageFormat_R32_SFLOAT;
         case 2:
-            return Format_R32G32_SFLOAT;
+            return ImageFormat_R32G32_SFLOAT;
         case 3:
-            return Format_R32G32B32_SFLOAT;
+            return ImageFormat_R32G32B32_SFLOAT;
         case 4:
-            return Format_R32G32B32A32_SFLOAT;
+            return ImageFormat_R32G32B32A32_SFLOAT;
         }
     default:
-        return Format_Undefined;
+        return ImageFormat_Undefined;
     }
 }
 
-VkFormat AsVulkanFormat(const Format format)
+VkFormat AsVulkanFormat(const ImageFormat format)
 {
     switch (format)
     {
-    case Format_Undefined:
+    case ImageFormat_Undefined:
         return VK_FORMAT_UNDEFINED;
 
-    case Format_R8_UNORM:
+    case ImageFormat_R8_UNORM:
         return VK_FORMAT_R8_UNORM;
-    case Format_R8_SNORM:
+    case ImageFormat_R8_SNORM:
         return VK_FORMAT_R8_SNORM;
-    case Format_R8_UINT:
+    case ImageFormat_R8_UINT:
         return VK_FORMAT_R8_UINT;
-    case Format_R8_SINT:
+    case ImageFormat_R8_SINT:
         return VK_FORMAT_R8_SINT;
-    case Format_R8_SRGB:
+    case ImageFormat_R8_SRGB:
         return VK_FORMAT_R8_SRGB;
 
-    case Format_R8G8_UNORM:
+    case ImageFormat_R8G8_UNORM:
         return VK_FORMAT_R8G8_UNORM;
-    case Format_R8G8_SNORM:
+    case ImageFormat_R8G8_SNORM:
         return VK_FORMAT_R8G8_SNORM;
-    case Format_R8G8_UINT:
+    case ImageFormat_R8G8_UINT:
         return VK_FORMAT_R8G8_UINT;
-    case Format_R8G8_SINT:
+    case ImageFormat_R8G8_SINT:
         return VK_FORMAT_R8G8_SINT;
-    case Format_R8G8_SRGB:
+    case ImageFormat_R8G8_SRGB:
         return VK_FORMAT_R8G8_SRGB;
 
-    case Format_R8G8B8_UNORM:
+    case ImageFormat_R8G8B8_UNORM:
         return VK_FORMAT_R8G8B8_UNORM;
-    case Format_R8G8B8_SNORM:
+    case ImageFormat_R8G8B8_SNORM:
         return VK_FORMAT_R8G8B8_SNORM;
-    case Format_R8G8B8_UINT:
+    case ImageFormat_R8G8B8_UINT:
         return VK_FORMAT_R8G8B8_UINT;
-    case Format_R8G8B8_SINT:
+    case ImageFormat_R8G8B8_SINT:
         return VK_FORMAT_R8G8B8_SINT;
-    case Format_R8G8B8_SRGB:
+    case ImageFormat_R8G8B8_SRGB:
         return VK_FORMAT_R8G8B8_SRGB;
 
-    case Format_R8G8B8A8_UNORM:
+    case ImageFormat_R8G8B8A8_UNORM:
         return VK_FORMAT_R8G8B8A8_UNORM;
-    case Format_R8G8B8A8_SNORM:
+    case ImageFormat_R8G8B8A8_SNORM:
         return VK_FORMAT_R8G8B8A8_SNORM;
-    case Format_R8G8B8A8_UINT:
+    case ImageFormat_R8G8B8A8_UINT:
         return VK_FORMAT_R8G8B8A8_UINT;
-    case Format_R8G8B8A8_SINT:
+    case ImageFormat_R8G8B8A8_SINT:
         return VK_FORMAT_R8G8B8A8_SINT;
-    case Format_R8G8B8A8_SRGB:
+    case ImageFormat_R8G8B8A8_SRGB:
         return VK_FORMAT_R8G8B8A8_SRGB;
 
-    case Format_B8G8R8A8_UNORM:
+    case ImageFormat_B8G8R8A8_UNORM:
         return VK_FORMAT_B8G8R8A8_UNORM;
-    case Format_B8G8R8A8_SNORM:
+    case ImageFormat_B8G8R8A8_SNORM:
         return VK_FORMAT_B8G8R8A8_SNORM;
-    case Format_B8G8R8A8_UINT:
+    case ImageFormat_B8G8R8A8_UINT:
         return VK_FORMAT_B8G8R8A8_UINT;
-    case Format_B8G8R8A8_SINT:
+    case ImageFormat_B8G8R8A8_SINT:
         return VK_FORMAT_B8G8R8A8_SINT;
-    case Format_B8G8R8A8_SRGB:
+    case ImageFormat_B8G8R8A8_SRGB:
         return VK_FORMAT_B8G8R8A8_SRGB;
 
-    case Format_R16_UNORM:
+    case ImageFormat_R16_UNORM:
         return VK_FORMAT_R16_UNORM;
-    case Format_R16_SNORM:
+    case ImageFormat_R16_SNORM:
         return VK_FORMAT_R16_SNORM;
-    case Format_R16_UINT:
+    case ImageFormat_R16_UINT:
         return VK_FORMAT_R16_UINT;
-    case Format_R16_SINT:
+    case ImageFormat_R16_SINT:
         return VK_FORMAT_R16_SINT;
-    case Format_R16_SFLOAT:
+    case ImageFormat_R16_SFLOAT:
         return VK_FORMAT_R16_SFLOAT;
 
-    case Format_R16G16_UNORM:
+    case ImageFormat_R16G16_UNORM:
         return VK_FORMAT_R16G16_UNORM;
-    case Format_R16G16_SNORM:
+    case ImageFormat_R16G16_SNORM:
         return VK_FORMAT_R16G16_SNORM;
-    case Format_R16G16_UINT:
+    case ImageFormat_R16G16_UINT:
         return VK_FORMAT_R16G16_UINT;
-    case Format_R16G16_SINT:
+    case ImageFormat_R16G16_SINT:
         return VK_FORMAT_R16G16_SINT;
-    case Format_R16G16_SFLOAT:
+    case ImageFormat_R16G16_SFLOAT:
         return VK_FORMAT_R16G16_SFLOAT;
 
-    case Format_R16G16B16_UNORM:
+    case ImageFormat_R16G16B16_UNORM:
         return VK_FORMAT_R16G16B16_UNORM;
-    case Format_R16G16B16_SNORM:
+    case ImageFormat_R16G16B16_SNORM:
         return VK_FORMAT_R16G16B16_SNORM;
-    case Format_R16G16B16_UINT:
+    case ImageFormat_R16G16B16_UINT:
         return VK_FORMAT_R16G16B16_UINT;
-    case Format_R16G16B16_SINT:
+    case ImageFormat_R16G16B16_SINT:
         return VK_FORMAT_R16G16B16_SINT;
-    case Format_R16G16B16_SFLOAT:
+    case ImageFormat_R16G16B16_SFLOAT:
         return VK_FORMAT_R16G16B16_SFLOAT;
 
-    case Format_R16G16B16A16_UNORM:
+    case ImageFormat_R16G16B16A16_UNORM:
         return VK_FORMAT_R16G16B16A16_UNORM;
-    case Format_R16G16B16A16_SNORM:
+    case ImageFormat_R16G16B16A16_SNORM:
         return VK_FORMAT_R16G16B16A16_SNORM;
-    case Format_R16G16B16A16_UINT:
+    case ImageFormat_R16G16B16A16_UINT:
         return VK_FORMAT_R16G16B16A16_UINT;
-    case Format_R16G16B16A16_SINT:
+    case ImageFormat_R16G16B16A16_SINT:
         return VK_FORMAT_R16G16B16A16_SINT;
-    case Format_R16G16B16A16_SFLOAT:
+    case ImageFormat_R16G16B16A16_SFLOAT:
         return VK_FORMAT_R16G16B16A16_SFLOAT;
 
-    case Format_R32_UINT:
+    case ImageFormat_R32_UINT:
         return VK_FORMAT_R32_UINT;
-    case Format_R32_SINT:
+    case ImageFormat_R32_SINT:
         return VK_FORMAT_R32_SINT;
-    case Format_R32_SFLOAT:
+    case ImageFormat_R32_SFLOAT:
         return VK_FORMAT_R32_SFLOAT;
 
-    case Format_R32G32_UINT:
+    case ImageFormat_R32G32_UINT:
         return VK_FORMAT_R32G32_UINT;
-    case Format_R32G32_SINT:
+    case ImageFormat_R32G32_SINT:
         return VK_FORMAT_R32G32_SINT;
-    case Format_R32G32_SFLOAT:
+    case ImageFormat_R32G32_SFLOAT:
         return VK_FORMAT_R32G32_SFLOAT;
 
-    case Format_R32G32B32_UINT:
+    case ImageFormat_R32G32B32_UINT:
         return VK_FORMAT_R32G32B32_UINT;
-    case Format_R32G32B32_SINT:
+    case ImageFormat_R32G32B32_SINT:
         return VK_FORMAT_R32G32B32_SINT;
-    case Format_R32G32B32_SFLOAT:
+    case ImageFormat_R32G32B32_SFLOAT:
         return VK_FORMAT_R32G32B32_SFLOAT;
 
-    case Format_R32G32B32A32_UINT:
+    case ImageFormat_R32G32B32A32_UINT:
         return VK_FORMAT_R32G32B32A32_UINT;
-    case Format_R32G32B32A32_SINT:
+    case ImageFormat_R32G32B32A32_SINT:
         return VK_FORMAT_R32G32B32A32_SINT;
-    case Format_R32G32B32A32_SFLOAT:
+    case ImageFormat_R32G32B32A32_SFLOAT:
         return VK_FORMAT_R32G32B32A32_SFLOAT;
 
-    case Format_D16_UNORM:
+    case ImageFormat_D16_UNORM:
         return VK_FORMAT_D16_UNORM;
-    case Format_D32_SFLOAT:
+    case ImageFormat_D32_SFLOAT:
         return VK_FORMAT_D32_SFLOAT;
 
-    case Format_D24_UNORM_S8_UINT:
+    case ImageFormat_D24_UNORM_S8_UINT:
         return VK_FORMAT_D24_UNORM_S8_UINT;
-    case Format_D32_SFLOAT_S8_UINT:
+    case ImageFormat_D32_SFLOAT_S8_UINT:
         return VK_FORMAT_D32_SFLOAT_S8_UINT;
 
-    case Format_BC1_RGBA_UNORM:
+    case ImageFormat_BC1_RGBA_UNORM:
         return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-    case Format_BC1_RGBA_SRGB:
+    case ImageFormat_BC1_RGBA_SRGB:
         return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
-    case Format_BC5_UNORM:
+    case ImageFormat_BC5_UNORM:
         return VK_FORMAT_BC5_UNORM_BLOCK;
-    case Format_BC5_SNORM:
+    case ImageFormat_BC5_SNORM:
         return VK_FORMAT_BC5_SNORM_BLOCK;
-    case Format_BC7_UNORM:
+    case ImageFormat_BC7_UNORM:
         return VK_FORMAT_BC7_UNORM_BLOCK;
-    case Format_BC7_SRGB:
+    case ImageFormat_BC7_SRGB:
         return VK_FORMAT_BC7_SRGB_BLOCK;
 
     default:

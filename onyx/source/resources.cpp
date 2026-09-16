@@ -862,7 +862,7 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
     minfo.Layout.VertexCount = data.Vertices.GetSize();
     minfo.Layout.IndexStart = icount;
     minfo.Layout.IndexCount = data.Indices.GetSize();
-    minfo.Bounds = bounds_Create(CreateBoundsData(data));
+    minfo.Bounds = bounds_Create(Bounds_CreateData(data));
     minfo.Flags = data.Flags;
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
@@ -1181,7 +1181,7 @@ static void mesh_Update(const Resource handle, MeshResourceData<Vertex> &meshes,
                 "must be the "
                 "same. If they are not, you must create a new mesh");
 
-    bounds_Update(minfo.Bounds, CreateBoundsData(data));
+    bounds_Update(minfo.Bounds, Bounds_CreateData(data));
 
     TKit::ForwardCopy(mpool.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
     TKit::ForwardCopy(mpool.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
@@ -1267,6 +1267,25 @@ template <Dimension D> Resource Mesh_GetBounds(const Resource handle)
     }
 }
 
+template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(const Resource handle)
+{
+    return mesh_GetData(handle, getData<D>().StaticMeshes);
+}
+template <Dimension D> ParametricMeshData<D> Mesh_GetDataParametric(const Resource handle)
+{
+    return mesh_GetData(handle, getData<D>().ParametricMeshes);
+}
+template <Dimension D> ParametricShape Mesh_GetParametricShape(const Resource handle)
+{
+    CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Resource_ParametricMesh, D);
+
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
+
+    ParametricMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
+    return mpool.Meshes[mid].Shape;
+}
+
 template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register()
 {
     TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
@@ -1321,25 +1340,6 @@ template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource h
         data.Shape = minfo.Shape;
 
     return data;
-}
-
-template <Dimension D> StaticMeshData<D> StaticMesh_GetData(const Resource handle)
-{
-    return mesh_GetData(handle, getData<D>().StaticMeshes);
-}
-template <Dimension D> ParametricMeshData<D> ParametricMesh_GetData(const Resource handle)
-{
-    return mesh_GetData(handle, getData<D>().ParametricMeshes);
-}
-template <Dimension D> ParametricShape ParametricMesh_GetShape(const Resource handle)
-{
-    CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Resource_ParametricMesh, D);
-
-    const u32 pid = Handle_GetResourcePoolId(handle);
-    const u32 mid = Handle_GetResourceId(handle);
-
-    ParametricMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
-    return mpool.Meshes[mid].Shape;
 }
 
 template <typename T>
@@ -1521,12 +1521,12 @@ const DefaultResources &Default_Create(const DefaultResourcesOptions &opts)
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
     if (def.Font == NullHandle)
     {
-        const auto fres = LoadDefaultFont(opts.FontOpts);
+        const auto fres = Font_LoadDefaultData(opts.FontOpts);
         ONYX_LOG_RESULT_ERROR(fres);
         if (fres)
         {
             def.Font = FontPool_RegisterFont(def.FontPool, *fres);
-            UnloadFontData(*fres);
+            Font_UnloadData(*fres);
         }
     }
 #endif
@@ -1991,14 +1991,14 @@ template void ResourcePool_Destroy<D3>(ResourcePool pool);
 template void ResourcePool_Release<D2>(ResourcePool pool);
 template void ResourcePool_Release<D3>(ResourcePool pool);
 
-template StaticMeshData<D2> StaticMesh_GetData(Resource handle);
-template StaticMeshData<D3> StaticMesh_GetData(Resource handle);
+template StaticMeshData<D2> Mesh_GetDataStatic(Resource handle);
+template StaticMeshData<D3> Mesh_GetDataStatic(Resource handle);
 
-template ParametricMeshData<D2> ParametricMesh_GetData(Resource handle);
-template ParametricMeshData<D3> ParametricMesh_GetData(Resource handle);
+template ParametricMeshData<D2> Mesh_GetDataParametric(Resource handle);
+template ParametricMeshData<D3> Mesh_GetDataParametric(Resource handle);
 
-template ParametricShape ParametricMesh_GetShape<D2>(Resource handle);
-template ParametricShape ParametricMesh_GetShape<D3>(Resource handle);
+template ParametricShape Mesh_GetParametricShape<D2>(Resource handle);
+template ParametricShape Mesh_GetParametricShape<D3>(Resource handle);
 
 template const MaterialData<D2> &Material_GetData(Resource handle);
 template const MaterialData<D3> &Material_GetData(Resource handle);

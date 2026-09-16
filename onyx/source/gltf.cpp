@@ -37,7 +37,7 @@ static ImageComponentType getComponentType(const i32 pixelType)
     }
 }
 
-template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::string &path, const LoadGltfDataFlags flags)
+template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::string &path, const LoadGltfDataFlags flags)
 {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
@@ -321,6 +321,6 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
     return data;
 }
 
-template Result<GltfData<D2>> LoadGltfDataFromFile(const std::string &path, LoadGltfDataFlags flags);
-template Result<GltfData<D3>> LoadGltfDataFromFile(const std::string &path, LoadGltfDataFlags flags);
+template Result<GltfData<D2>> Gltf_LoadDataFromFile(const std::string &path, LoadGltfDataFlags flags);
+template Result<GltfData<D3>> Gltf_LoadDataFromFile(const std::string &path, LoadGltfDataFlags flags);
 } // namespace Onyx

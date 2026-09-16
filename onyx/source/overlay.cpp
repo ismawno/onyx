@@ -6114,7 +6114,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
     if (indent)
     {
         const f32 iconWidth =
-            Math::Max(fs * fdata.GetGlyph(CodePoint_ArrowDown)->Advance, m_Style[OverlayStyle_IconWidth]);
+            Math::Max(fs * fdata.GetGlyphData(CodePoint_ArrowDown)->Advance, m_Style[OverlayStyle_IconWidth]);
         const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
 
         ly->BeginPanel(LyPnPar{

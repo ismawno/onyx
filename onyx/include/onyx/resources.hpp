@@ -114,7 +114,7 @@ struct DefaultResourcesOptions
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
     DefaultResourcesOptions() : FontOpts{}
     {
-        FontOpts.CharSet.LoadRange(CharSets.ASCII);
+        FontOpts.CharSet.LoadBlock(UnicodeBlocks.ASCII);
         FontOpts.CharSet.Load(CodePoint_ArrowDown);
         FontOpts.CharSet.Load(CodePoint_ArrowRight);
         FontOpts.CharSet.Load(CodePoint_Bullet);
@@ -135,25 +135,25 @@ struct DefaultResourcesOptions
     FontLoadOptions FontOpts;
 #endif
 
-    StaticMeshData<D2> TriangleData2 = CreateTriangleMeshData<D2>();
-    StaticMeshData<D3> TriangleData3 = CreateTriangleMeshData<D3>();
+    StaticMeshData<D2> TriangleData2 = Mesh_CreateTriangleData<D2>();
+    StaticMeshData<D3> TriangleData3 = Mesh_CreateTriangleData<D3>();
 
-    StaticMeshData<D2> QuadData2 = CreateQuadMeshData<D2>();
-    StaticMeshData<D3> QuadData3 = CreateQuadMeshData<D3>();
+    StaticMeshData<D2> QuadData2 = Mesh_CreateQuadData<D2>();
+    StaticMeshData<D3> QuadData3 = Mesh_CreateQuadData<D3>();
 
-    StaticMeshData<D3> BoxData = CreateBoxMeshData();
-    StaticMeshData<D3> SphereData = CreateSphereMeshData();
-    StaticMeshData<D3> CylinderData = CreateCylinderMeshData();
+    StaticMeshData<D3> BoxData = Mesh_CreateBoxData();
+    StaticMeshData<D3> SphereData = Mesh_CreateSphereData();
+    StaticMeshData<D3> CylinderData = Mesh_CreateCylinderData();
 
-    ParametricMeshData<D2> StadiumData2 = CreateStadiumMeshData<D2>();
-    ParametricMeshData<D3> StadiumData3 = CreateStadiumMeshData<D3>();
+    ParametricMeshData<D2> StadiumData2 = Mesh_CreateStadiumData<D2>();
+    ParametricMeshData<D3> StadiumData3 = Mesh_CreateStadiumData<D3>();
 
-    ParametricMeshData<D2> RoundedRectData2 = CreateRoundedRectMeshData<D2>();
-    ParametricMeshData<D3> RoundedRectData3 = CreateRoundedRectMeshData<D3>();
+    ParametricMeshData<D2> RoundedRectData2 = Mesh_CreateRoundedRectData<D2>();
+    ParametricMeshData<D3> RoundedRectData3 = Mesh_CreateRoundedRectData<D3>();
 
-    ParametricMeshData<D3> CapsuleData = CreateCapsuleMeshData();
-    ParametricMeshData<D3> RoundedBoxData = CreateRoundedBoxMeshData();
-    ParametricMeshData<D3> TorusData = CreateTorusMeshData();
+    ParametricMeshData<D3> CapsuleData = Mesh_CreateCapsuleData();
+    ParametricMeshData<D3> RoundedBoxData = Mesh_CreateRoundedBoxData();
+    ParametricMeshData<D3> TorusData = Mesh_CreateTorusData();
 };
 } // namespace Onyx
 
@@ -210,14 +210,14 @@ template <Dimension D> void Mesh_Update(Resource mesh, const ParametricMeshData<
 template <Dimension D> MeshDataLayout Mesh_GetLayout(Resource mesh);
 template <Dimension D> Resource Mesh_GetBounds(Resource mesh);
 
+template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(Resource mesh);
+template <Dimension D> ParametricMeshData<D> Mesh_GetDataParametric(Resource mesh);
+template <Dimension D> ParametricShape Mesh_GetParametricShape(Resource mesh);
+
 template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register();
 template <Dimension D> void DynamicMesh_Destroy(Resource mesh);
 template <Dimension D> DynamicMeshData<D> *DynamicMesh_GetData(Resource mesh);
 template <Dimension D> u32 DynamicMesh_GetCount();
-
-template <Dimension D> StaticMeshData<D> StaticMesh_GetData(Resource mesh);
-template <Dimension D> ParametricMeshData<D> ParametricMesh_GetData(Resource mesh);
-template <Dimension D> ParametricShape ParametricMesh_GetShape(Resource mesh);
 
 template <Dimension D> Resource Material_Register(const MaterialData<D> &data = {});
 template <Dimension D> void Material_Update(Resource material, const MaterialData<D> &data);

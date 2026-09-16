@@ -8,7 +8,7 @@
 
 namespace Onyx
 {
-template <typename Vertex> static void tidyMeshData(MeshData<Vertex> &data, const u32 offset = 0)
+template <typename Vertex> static void mesh_TidyData(MeshData<Vertex> &data, const u32 offset = 0)
 {
     TKit::StackArray<u32> counts{};
     counts.Resize(data.Vertices.GetSize(), 0);
@@ -25,7 +25,7 @@ template <typename Vertex> static void tidyMeshData(MeshData<Vertex> &data, cons
         }
 }
 #ifdef TKIT_ENABLE_ENSURE
-template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, const u32 offset = 0)
+template <typename Vertex> static void mesh_ValidateData(MeshData<Vertex> &data, const u32 offset = 0)
 {
     Index mx = 0;
     for (const Index i : data.Indices)
@@ -37,7 +37,7 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
                 "[ONYX][MESH] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
                 "{}, size: {}",
                 mx, data.Vertices.GetSize());
-    tidyMeshData(data, offset);
+    mesh_TidyData(data, offset);
     TKit::StackArray<u32> counts{};
     counts.Resize(data.Vertices.GetSize(), 0);
 
@@ -48,13 +48,13 @@ template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, 
         TKIT_ENSURE(c != 0, "[ONYX][MESH] Found unused vertices in a mesh");
     }
 }
-#    define VALIDATE_MESH_DATA(...) validateMeshData(__VA_ARGS__)
+#    define VALIDATE_MESH_DATA(...) mesh_ValidateData(__VA_ARGS__)
 #else
-#    define VALIDATE_MESH_DATA(...) tidyMeshData(__VA_ARGS__)
+#    define VALIDATE_MESH_DATA(...) mesh_TidyData(__VA_ARGS__)
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
 
-template <Dimension D> Result<StaticMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const u32 maxVertices)
+template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, const u32 maxVertices)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -99,7 +99,8 @@ template <Dimension D> Result<StaticMeshData<D>> LoadStaticMeshDataFromObjFile(c
 }
 #endif
 
-template <Dimension D> StaticMeshData<D> CreateTriangleMeshData(const f32v2 &left, const f32v2 &right, const f32v2 &top)
+template <Dimension D>
+StaticMeshData<D> Mesh_CreateTriangleData(const f32v2 &left, const f32v2 &right, const f32v2 &top)
 {
     StaticMeshData<D> data{};
     const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
@@ -123,7 +124,7 @@ template <Dimension D> StaticMeshData<D> CreateTriangleMeshData(const f32v2 &lef
 }
 
 template <Dimension D>
-StaticMeshData<D> CreateQuadMeshData(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr)
+StaticMeshData<D> Mesh_CreateQuadData(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr)
 {
     StaticMeshData<D> data{};
     const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
@@ -198,12 +199,12 @@ static StaticMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &ve
     VALIDATE_MESH_DATA(data, indexOffset);
     return data;
 }
-template <Dimension D> StaticMeshData<D> CreateRegularPolygonMeshData(const u32 sides)
+template <Dimension D> StaticMeshData<D> Mesh_CreateRegularPolygonData(const u32 sides)
 {
     return createRegularPolygon<D>(sides);
 }
 
-template <Dimension D> StaticMeshData<D> CreatePolygonMeshData(const TKit::Span<const f32v2> vertices)
+template <Dimension D> StaticMeshData<D> Mesh_CreatePolygonData(const TKit::Span<const f32v2> vertices)
 {
     TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] A polygon must have at least 3 vertices");
     StaticMeshData<D> data{};
@@ -307,11 +308,11 @@ static StaticMeshData<D3> createBoxMeshData(const u32 offset = 0, const f32 push
     return data;
 }
 
-StaticMeshData<D3> CreateBoxMeshData()
+StaticMeshData<D3> Mesh_CreateBoxData()
 {
     return createBoxMeshData();
 }
-StaticMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
+StaticMeshData<D3> Mesh_CreateSphereData(u32 rings, const u32 sectors)
 {
     rings += 2;
     StaticMeshData<D3> data{};
@@ -385,7 +386,7 @@ StaticMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
     VALIDATE_MESH_DATA(data);
     return data;
 }
-StaticMeshData<D3> CreateCylinderMeshData(const u32 sides)
+StaticMeshData<D3> Mesh_CreateCylinderData(const u32 sides)
 {
     const StaticMeshData<D3> left = createRegularPolygon<D3, true, true>(
         sides, f32v3{0.f, -0.5f, 0.f}, 0, f32v3{0.f, -1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
@@ -439,7 +440,7 @@ StaticMeshData<D3> CreateCylinderMeshData(const u32 sides)
     return data;
 }
 
-template <Dimension D> ParametricMeshData<D> CreateStadiumMeshData()
+template <Dimension D> ParametricMeshData<D> Mesh_CreateStadiumData()
 {
     ParametricMeshData<D> data{};
     data.Shape = ParametricShape_Stadium;
@@ -483,7 +484,7 @@ template <Dimension D> ParametricMeshData<D> CreateStadiumMeshData()
     return data;
 }
 
-template <Dimension D> ParametricMeshData<D> CreateRoundedRectMeshData()
+template <Dimension D> ParametricMeshData<D> Mesh_CreateRoundedRectData()
 {
     ParametricMeshData<D> data{};
     data.Shape = ParametricShape_RoundedRect;
@@ -560,7 +561,7 @@ template <Dimension D> ParametricMeshData<D> CreateRoundedRectMeshData()
     return data;
 }
 
-ParametricMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
+ParametricMeshData<D3> Mesh_CreateCapsuleData(u32 rings, const u32 sectors)
 {
     rings += 2;
     ParametricMeshData<D3> data{};
@@ -834,7 +835,7 @@ static f32v4 getFaceTangent(const u32 p_axis) noexcept
     }
 }
 
-ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
+ParametricMeshData<D3> Mesh_CreateRoundedBoxData(u32 rings, const u32 sectors)
 {
     rings += 2;
     ParametricMeshData<D3> data{};
@@ -1464,7 +1465,7 @@ ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
     return data;
 }
 
-ParametricMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
+ParametricMeshData<D3> Mesh_CreateTorusData(const u32 rings, const u32 sectors)
 {
     ParametricMeshData<D3> data{};
     data.Flags = MeshDataFlag_BackCulled;
@@ -1531,8 +1532,8 @@ ParametricMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
 }
 
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const DynamicVertex<D>> vertices,
-                                         const TKit::Span<const Index> indices, const MeshDataFlags flags)
+DynamicMeshData<D> DynamicMesh_CreateData(const TKit::Span<const DynamicVertex<D>> vertices,
+                                          const TKit::Span<const Index> indices, const MeshDataFlags flags)
 {
     TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] At least 3 vertices are required to build a dynamic mesh");
     DynamicMeshData<D> data{};
@@ -1577,19 +1578,19 @@ static TKit::StackArray<Index> createIndices(const u32 vcount, const Topology to
 }
 
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const DynamicVertex<D>> vertices, const Topology topology,
-                                         const MeshDataFlags flags)
+DynamicMeshData<D> DynamicMesh_CreateData(const TKit::Span<const DynamicVertex<D>> vertices, const Topology topology,
+                                          const MeshDataFlags flags)
 {
     TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][MESH] At least 3 vertices are required to build a dynamic mesh");
     const u32 vcount = vertices.GetSize();
     const TKit::StackArray<Index> indices = createIndices(vcount, topology);
-    return CreateDynamicMeshData<D>(vertices, indices, flags);
+    return DynamicMesh_CreateData<D>(vertices, indices, flags);
 }
 
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const f32v<D>> vertices,
-                                         const TKit::Span<const Index> indices, const Color &color,
-                                         const MeshDataFlags flags)
+DynamicMeshData<D> DynamicMesh_CreateData(const TKit::Span<const f32v<D>> vertices,
+                                          const TKit::Span<const Index> indices, const Color &color,
+                                          const MeshDataFlags flags)
 {
     TKit::StackArray<DynamicVertex<D>> vs{};
     vs.Reserve(vertices.GetSize());
@@ -1622,61 +1623,61 @@ DynamicMeshData<D> CreateDynamicMeshData(const TKit::Span<const f32v<D>> vertice
         for (DynamicVertex<D3> &vx : vs)
             vx.Normal = Math::Normalize(vx.Normal);
     }
-    return CreateDynamicMeshData<D>(vs, indices, flags);
+    return DynamicMesh_CreateData<D>(vs, indices, flags);
 }
 
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const f32v<D>> vertices, const Topology topology,
-                                         const Color &color, const MeshDataFlags flags)
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const f32v<D>> vertices, const Topology topology,
+                                          const Color &color, const MeshDataFlags flags)
 {
     const u32 vcount = vertices.GetSize();
     const TKit::StackArray<Index> indices = createIndices(vcount, topology);
-    return CreateDynamicMeshData<D>(vertices, indices, color, flags);
+    return DynamicMesh_CreateData<D>(vertices, indices, color, flags);
 }
 
-template DynamicMeshData<D2> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D2>> vertices,
-                                                   TKit::Span<const Index> indices, MeshDataFlags flags);
+template DynamicMeshData<D2> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D2>> vertices,
+                                                    TKit::Span<const Index> indices, MeshDataFlags flags);
 
-template DynamicMeshData<D3> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D3>> vertices,
-                                                   TKit::Span<const Index> indices, MeshDataFlags flags);
+template DynamicMeshData<D3> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D3>> vertices,
+                                                    TKit::Span<const Index> indices, MeshDataFlags flags);
 
-template DynamicMeshData<D2> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D2>> vertices, Topology topology,
-                                                   MeshDataFlags flags);
-template DynamicMeshData<D3> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D3>> vertices, Topology topology,
-                                                   MeshDataFlags flags);
+template DynamicMeshData<D2> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D2>> vertices, Topology topology,
+                                                    MeshDataFlags flags);
+template DynamicMeshData<D3> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D3>> vertices, Topology topology,
+                                                    MeshDataFlags flags);
 
-template DynamicMeshData<D2> CreateDynamicMeshData<D2>(TKit::Span<const f32v<D2>> vertices,
-                                                       TKit::Span<const Index> indices, const Color &color,
-                                                       MeshDataFlags flags);
-template DynamicMeshData<D3> CreateDynamicMeshData<D3>(TKit::Span<const f32v<D3>> vertices,
-                                                       TKit::Span<const Index> indices, const Color &color,
-                                                       MeshDataFlags flags);
+template DynamicMeshData<D2> DynamicMesh_CreateData<D2>(TKit::Span<const f32v<D2>> vertices,
+                                                        TKit::Span<const Index> indices, const Color &color,
+                                                        MeshDataFlags flags);
+template DynamicMeshData<D3> DynamicMesh_CreateData<D3>(TKit::Span<const f32v<D3>> vertices,
+                                                        TKit::Span<const Index> indices, const Color &color,
+                                                        MeshDataFlags flags);
 
-template DynamicMeshData<D2> CreateDynamicMeshData<D2>(TKit::Span<const f32v<D2>> vertices, Topology topology,
-                                                       const Color &color, MeshDataFlags flags);
-template DynamicMeshData<D3> CreateDynamicMeshData<D3>(TKit::Span<const f32v<D3>> vertices, Topology topology,
-                                                       const Color &color, MeshDataFlags flags);
+template DynamicMeshData<D2> DynamicMesh_CreateData<D2>(TKit::Span<const f32v<D2>> vertices, Topology topology,
+                                                        const Color &color, MeshDataFlags flags);
+template DynamicMeshData<D3> DynamicMesh_CreateData<D3>(TKit::Span<const f32v<D3>> vertices, Topology topology,
+                                                        const Color &color, MeshDataFlags flags);
 
-template StaticMeshData<D2> CreateTriangleMeshData<D2>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
-template StaticMeshData<D3> CreateTriangleMeshData<D3>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
+template StaticMeshData<D2> Mesh_CreateTriangleData<D2>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
+template StaticMeshData<D3> Mesh_CreateTriangleData<D3>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
 
-template StaticMeshData<D2> CreateQuadMeshData<D2>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
-template StaticMeshData<D3> CreateQuadMeshData<D3>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+template StaticMeshData<D2> Mesh_CreateQuadData<D2>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+template StaticMeshData<D3> Mesh_CreateQuadData<D3>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
 
-template StaticMeshData<D2> CreateRegularPolygonMeshData<D2>(u32);
-template StaticMeshData<D3> CreateRegularPolygonMeshData<D3>(u32);
+template StaticMeshData<D2> Mesh_CreateRegularPolygonData<D2>(u32);
+template StaticMeshData<D3> Mesh_CreateRegularPolygonData<D3>(u32);
 
-template StaticMeshData<D2> CreatePolygonMeshData<D2>(TKit::Span<const f32v2>);
-template StaticMeshData<D3> CreatePolygonMeshData<D3>(TKit::Span<const f32v2>);
+template StaticMeshData<D2> Mesh_CreatePolygonData<D2>(TKit::Span<const f32v2>);
+template StaticMeshData<D3> Mesh_CreatePolygonData<D3>(TKit::Span<const f32v2>);
 
-template ParametricMeshData<D2> CreateStadiumMeshData<D2>();
-template ParametricMeshData<D3> CreateStadiumMeshData<D3>();
+template ParametricMeshData<D2> Mesh_CreateStadiumData<D2>();
+template ParametricMeshData<D3> Mesh_CreateStadiumData<D3>();
 
-template ParametricMeshData<D2> CreateRoundedRectMeshData<D2>();
-template ParametricMeshData<D3> CreateRoundedRectMeshData<D3>();
+template ParametricMeshData<D2> Mesh_CreateRoundedRectData<D2>();
+template ParametricMeshData<D3> Mesh_CreateRoundedRectData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StaticMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path, u32 maxVertices);
-template Result<StaticMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path, u32 maxVertices);
+template Result<StaticMeshData<D2>> Mesh_LoadDataFromObjFile<D2>(const char *path, u32 maxVertices);
+template Result<StaticMeshData<D3>> Mesh_LoadDataFromObjFile<D3>(const char *path, u32 maxVertices);
 #endif
 } // namespace Onyx

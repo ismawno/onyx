@@ -35,7 +35,7 @@ enum LoadGltfDataFlagBit : LoadGltfDataFlags
     LoadGltfDataFlag_ForceRGBA = 1U << 0,
 };
 template <Dimension D>
-ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfDataFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
+ONYX_NO_DISCARD Result<GltfData<D>> Gltf_LoadDataFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
 #endif
 
 } // namespace Onyx

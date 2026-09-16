@@ -69,48 +69,48 @@ enum Topology : u8
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template <Dimension D>
-ONYX_NO_DISCARD Result<StaticMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, u32 maxVertices = 2048);
+ONYX_NO_DISCARD Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, u32 maxVertices = 2048);
 #endif
 
 // TODO(Isma): Triangle is a bit up-shifted. bring it down
 template <Dimension D>
-StaticMeshData<D> CreateTriangleMeshData(const f32v2 &left = f32v2{-0.433013f, -0.25f},
-                                         const f32v2 &right = f32v2{0.433013f, -0.25f},
-                                         const f32v2 &top = f32v2{0.f, 0.5f});
+StaticMeshData<D> Mesh_CreateTriangleData(const f32v2 &left = f32v2{-0.433013f, -0.25f},
+                                          const f32v2 &right = f32v2{0.433013f, -0.25f},
+                                          const f32v2 &top = f32v2{0.f, 0.5f});
 
 template <Dimension D>
-StaticMeshData<D> CreateQuadMeshData(const f32v2 &bl = f32v2{-0.5f}, const f32v2 &br = f32v2{0.5f, -0.5f},
-                                     const f32v2 &tl = f32v2{-0.5f, 0.5f}, const f32v2 &tr = f32v2{0.5f});
-template <Dimension D> StaticMeshData<D> CreateRegularPolygonMeshData(u32 sides);
-template <Dimension D> StaticMeshData<D> CreatePolygonMeshData(TKit::Span<const f32v2> vertices);
+StaticMeshData<D> Mesh_CreateQuadData(const f32v2 &bl = f32v2{-0.5f}, const f32v2 &br = f32v2{0.5f, -0.5f},
+                                      const f32v2 &tl = f32v2{-0.5f, 0.5f}, const f32v2 &tr = f32v2{0.5f});
+template <Dimension D> StaticMeshData<D> Mesh_CreateRegularPolygonData(u32 sides);
+template <Dimension D> StaticMeshData<D> Mesh_CreatePolygonData(TKit::Span<const f32v2> vertices);
 
 // rings and sectors should be even
 
-StaticMeshData<D3> CreateBoxMeshData();
-StaticMeshData<D3> CreateSphereMeshData(u32 rings = 16, u32 sectors = 32);
-StaticMeshData<D3> CreateCylinderMeshData(u32 sides = 32);
+StaticMeshData<D3> Mesh_CreateBoxData();
+StaticMeshData<D3> Mesh_CreateSphereData(u32 rings = 16, u32 sectors = 32);
+StaticMeshData<D3> Mesh_CreateCylinderData(u32 sides = 32);
 
-template <Dimension D> ParametricMeshData<D> CreateStadiumMeshData();
-template <Dimension D> ParametricMeshData<D> CreateRoundedRectMeshData();
+template <Dimension D> ParametricMeshData<D> Mesh_CreateStadiumData();
+template <Dimension D> ParametricMeshData<D> Mesh_CreateRoundedRectData();
 
-ParametricMeshData<D3> CreateCapsuleMeshData(u32 rings = 16, u32 sectors = 32);
-ParametricMeshData<D3> CreateRoundedBoxMeshData(u32 rings = 16, u32 sectors = 32);
-ParametricMeshData<D3> CreateTorusMeshData(u32 rings = 32, u32 sectors = 32);
+ParametricMeshData<D3> Mesh_CreateCapsuleData(u32 rings = 16, u32 sectors = 32);
+ParametricMeshData<D3> Mesh_CreateRoundedBoxData(u32 rings = 16, u32 sectors = 32);
+ParametricMeshData<D3> Mesh_CreateTorusData(u32 rings = 32, u32 sectors = 32);
 
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D>> vertices, TKit::Span<const Index> indices,
-                                         MeshDataFlags flags = 0);
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D>> vertices, TKit::Span<const Index> indices,
+                                          MeshDataFlags flags = 0);
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const DynamicVertex<D>> vertices,
-                                         Topology topology = Topology_TriangleList, MeshDataFlags flags = 0);
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D>> vertices,
+                                          Topology topology = Topology_TriangleList, MeshDataFlags flags = 0);
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const f32v<D>> vertices, TKit::Span<const Index> indices,
-                                         const Color &color = Color_White, MeshDataFlags flags = 0);
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const f32v<D>> vertices, TKit::Span<const Index> indices,
+                                          const Color &color = Color_White, MeshDataFlags flags = 0);
 template <Dimension D>
-DynamicMeshData<D> CreateDynamicMeshData(TKit::Span<const f32v<D>> vertices, Topology topology = Topology_TriangleList,
-                                         const Color &color = Color_White, MeshDataFlags flags = 0);
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const f32v<D>> vertices, Topology topology = Topology_TriangleList,
+                                          const Color &color = Color_White, MeshDataFlags flags = 0);
 
-template <typename Vertex> BoundsData<Vertex::Dim> CreateBoundsData(const MeshData<Vertex> &data)
+template <typename Vertex> BoundsData<Vertex::Dim> Bounds_CreateData(const MeshData<Vertex> &data)
 {
     constexpr Dimension D = Vertex::Dim;
     BoundsData<D> bounds;
