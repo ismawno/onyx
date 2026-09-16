@@ -2048,7 +2048,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     };
 
     const u32 bcount = Resources::GetDistinctBatchDrawCount<D>();
-    const u32 dynCount = Resources::GetDynamicMeshCount<D>();
+    const u32 dynCount = Resources::DynamicMesh_GetCount<D>();
     const u32 upperCapacity =
         dirtyContexts.GetSize() * bcount * u32(RenderMode_Count) * u32(BlendPass_Count) * u32(Geometry_Count);
 
@@ -2069,7 +2069,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         u64 igen = 0;
         if (geo == Geometry_Dynamic)
         {
-            const DynamicMeshData<D> *data = Resources::GetDynamicMeshData<D>(handle);
+            const DynamicMeshData<D> *data = Resources::DynamicMesh_GetData<D>(handle);
             if (data->Vertices.IsEmpty() || data->Indices.IsEmpty())
                 return;
 
@@ -2198,7 +2198,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             {
                 const TKit::TierArray<Resource> &resources = dynMeshRegistry[bpass][rmode].ResourceIds;
                 for (const u32 rid : resources)
-                    findInstanceRanges(rmode, bpass, geo, CreateResourceHandle(Resource_DynamicMesh, rid),
+                    findInstanceRanges(rmode, bpass, geo, Handle_CreateForResource(Resource_DynamicMesh, rid),
                                        [rmode, bpass, rid](const RenderContext<D> *ctx) -> const auto & {
                                            return ctx->GetInstanceData()->DynamicMeshes[bpass][rmode].Buffers[rid];
                                        });
@@ -2206,7 +2206,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         else
         {
             const ResourceType rtype = getResourceType(Geometry(geo));
-            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+            const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
             for (const u32 pid : poolIds)
             {
                 for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -2214,7 +2214,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                     const TKit::TierArray<Resource> &resources = meshRegistry[bpass][rmode][rtype][pid].ResourceIds;
                     for (const u32 rid : resources)
                         findInstanceRanges(
-                            rmode, bpass, geo, CreateResourceHandle(rtype, rid, pid),
+                            rmode, bpass, geo, Handle_CreateForResource(rtype, rid, pid),
                             [rtype, rmode, bpass, pid, rid](const RenderContext<D> *ctx) -> const auto & {
                                 return ctx->GetInstanceData()->Meshes[bpass][rmode][rtype][pid].Buffers[rid];
                             });
@@ -2461,7 +2461,7 @@ static VKit::DeviceBuffer *findAvailableIndexedDrawBuffer(const u32 drawCount, c
 
 template <Dimension D> static void bindMeshBuffers(const ResourcePool pool, const VkCommandBuffer command)
 {
-    const Resources::MeshBuffers buffers = Resources::GetMeshBuffers<D>(pool);
+    const Resources::MeshBuffers buffers = Resources::ResourcePool_GetMeshBuffers<D>(pool);
 
     buffers.VertexBuffer->BindAsVertexBuffer(command);
     buffers.IndexBuffer->BindAsIndexBuffer<Index>(command);
@@ -2481,7 +2481,7 @@ template <Dimension D>
 static VkDrawIndexedIndirectCommand createMeshCommand(const Resource mesh, const u32 firstInstance,
                                                       const u32 instanceCount)
 {
-    const MeshDataLayout layout = Resources::GetMeshLayout<D>(mesh);
+    const MeshDataLayout layout = Resources::Mesh_GetLayout<D>(mesh);
     VkDrawIndexedIndirectCommand cmd;
     cmd.firstInstance = firstInstance;
     cmd.instanceCount = instanceCount;
@@ -2787,12 +2787,12 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         setupState<D>(cmd, rpass, geo, playout, pipelines[geo]);
 
         const ResourceType rtype = getResourceType(geo);
-        const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+        const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
 
         for (const ResourcePool pid : poolIds)
             if (hasCommands(meshCmds[rtype][pid]))
             {
-                bindMeshBuffers<D>(CreateResourcePoolHandle(rtype, pid), cmd);
+                bindMeshBuffers<D>(Handle_CreateForResourcePool(rtype, pid), cmd);
                 drawCulledMeshes(geo, meshCmds[rtype][pid]);
             }
     };
@@ -2895,7 +2895,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 #endif
                         ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
-                        const u32 pid = GetResourcePoolId(grange.MeshHandle);
+                        const u32 pid = Handle_GetResourcePoolId(grange.MeshHandle);
                         PerCullPerCmd &cmds = rtype == Resource_DynamicMesh ? dynMeshCmds : meshCmds[rtype][pid];
                         const VkDrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
                                                                      ? createDynamicMeshCommand<D>(grange, fi, ic)
@@ -3109,7 +3109,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 #endif
             ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
 
-            const u32 pid = GetResourcePoolId(grange.MeshHandle);
+            const u32 pid = Handle_GetResourcePoolId(grange.MeshHandle);
 
             CullMode cull;
             if constexpr (D == D2)

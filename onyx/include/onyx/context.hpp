@@ -523,11 +523,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
     void Unicode(const CodePoint code)
     {
-        Glyph(Resources::GetGlyph(m_State.Font, code));
+        Glyph(Resources::Font_GetGlyph(m_State.Font, code));
     }
     void Unicode(const CodePoint code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        Glyph(Resources::GetGlyph(m_State.Font, code), transform, mode);
+        Glyph(Resources::Font_GetGlyph(m_State.Font, code), transform, mode);
     }
     void Unicode(const TKit::StringView code)
     {

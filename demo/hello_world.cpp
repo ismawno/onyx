@@ -10,7 +10,7 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
     Onyx::Window *win = Onyx::OpenWindow();
 

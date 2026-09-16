@@ -59,7 +59,7 @@ static bool runDemo(const bool floating)
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
     bool floating = false;
     for (;;)

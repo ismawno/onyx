@@ -141,7 +141,7 @@ void DrawPanels(Onyx::Layout &layout, const PanelInfo &info, const TKit::StackAr
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 

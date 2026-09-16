@@ -160,91 +160,85 @@ struct DefaultResourcesOptions
 namespace Onyx::Resources
 {
 // NOTE(Isma): No way to create/use buffers in onyx yet through this api
-void DestroyBuffer(Resource buffer);
-void ReleaseBuffer(Resource buffer);
 
-Resource CreateSampler(const SamplerData &data = {});
+void Buffer_Destroy(Resource buffer);
+void Buffer_Release(Resource buffer);
 
+Resource Sampler_Create(const SamplerData &data = {});
 // requires a call to Sync() for materials in case any of them referenced the sampler
-void DestroySampler(Resource sampler);
+void Sampler_Destroy(Resource sampler);
 //
-void UpdateSampler(Resource sampler, const SamplerData &data);
-void ReleaseSampler(Resource sampler);
+void Sampler_Update(Resource sampler, const SamplerData &data);
+void Sampler_Release(Resource sampler);
 
-Resource CreateImage(const ImageData &data);
-void DestroyImage(Resource image);
-void UpdateImage(Resource image, const ImageData &data);
-void ReleaseImage(Resource image);
+Resource Image_Create(const ImageData &data);
+void Image_Destroy(Resource image);
+void Image_Release(Resource image);
+void Image_Update(Resource image, const ImageData &data);
 
 // TODO(Isma): Add options for the texture: mips, array layers, etc
 // if view is u32 max, a new view is created from the image
-Resource CreateTexture(Resource image, u32 viewIndex = TKIT_U32_MAX);
+Resource Texture_Create(Resource image, u32 viewIndex = TKIT_U32_MAX);
 
 // requires a call to Sync() for materials in case any of them referenced the texture
-void DestroyTexture(Resource texture);
-void UpdateTexture(Resource texture, Resource image, u32 viewIndex = TKIT_U32_MAX);
-void ReleaseTexture(Resource texture);
+void Texture_Destroy(Resource texture);
+void Texture_Update(Resource texture, Resource image, u32 viewIndex = TKIT_U32_MAX);
+void Texture_Release(Resource texture);
 
-const DefaultResources &GetDefaultResources();
-const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts = {});
+template <Dimension D> const BoundsData<D> &Bounds_GetData(Resource bounds);
 
-template <Dimension D> DynamicMeshInfo<D> RegisterDynamicMesh();
-template <Dimension D> DynamicMeshData<D> *GetDynamicMeshData(Resource mesh);
-template <Dimension D> void DestroyDynamicMesh(Resource mesh);
+template <Dimension D> ResourcePool ResourcePool_Create(ResourceType rtype);
+template <Dimension D> void ResourcePool_Destroy(ResourcePool pool);
+template <Dimension D> void ResourcePool_Release(ResourcePool pool);
+template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const StaticMeshData<D> &data);
+template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
+template <Dimension D> TKit::Span<const u32> ResourcePool_GetIds(ResourceType rtype);
+template <Dimension D> u32 ResourcePool_GetResourceCount(ResourcePool pool);
 
-template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D> &data);
-template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
-template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data = {});
-
+ResourcePool FontPool_Create();
+void FontPool_Destroy(ResourcePool pool);
+void FontPool_Release(ResourcePool pool);
+Resource FontPool_RegisterFont(ResourcePool pool, const FontData &data);
+TKit::Span<const u32> FontPool_GetIds();
+u32 FontPool_GetFontCount(ResourcePool pool);
+u32 FontPool_GetGlyphCount(ResourcePool pool);
 // no way to update fonts bc they are amalgamated withing their pool. would require the new font to be the exact same
 // size as the old one, which is not pragmatic at all
-Resource RegisterFont(ResourcePool pool, const FontData &data);
-template <Dimension D> GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D> &data);
 
-template <Dimension D> void UpdateMesh(Resource mesh, const StaticMeshData<D> &data);
-template <Dimension D> void UpdateMesh(Resource mesh, const ParametricMeshData<D> &data);
-template <Dimension D> void UpdateMaterial(Resource material, const MaterialData<D> &data);
+template <Dimension D> void Mesh_Update(Resource mesh, const StaticMeshData<D> &data);
+template <Dimension D> void Mesh_Update(Resource mesh, const ParametricMeshData<D> &data);
+template <Dimension D> MeshDataLayout Mesh_GetLayout(Resource mesh);
+template <Dimension D> Resource Mesh_GetBounds(Resource mesh);
 
-template <Dimension D> ResourcePool CreateResourcePool(ResourceType rtype);
-ResourcePool CreateFontPool();
+template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register();
+template <Dimension D> void DynamicMesh_Destroy(Resource mesh);
+template <Dimension D> DynamicMeshData<D> *DynamicMesh_GetData(Resource mesh);
+template <Dimension D> u32 DynamicMesh_GetCount();
 
-template <Dimension D> void DestroyResourcePool(ResourcePool pool);
-template <Dimension D> void ReleaseResourcePool(ResourcePool pool);
+template <Dimension D> StaticMeshData<D> StaticMesh_GetData(Resource mesh);
+template <Dimension D> ParametricMeshData<D> ParametricMesh_GetData(Resource mesh);
+template <Dimension D> ParametricShape ParametricMesh_GetShape(Resource mesh);
 
-void DestroyFontPool(ResourcePool pool);
-void ReleaseFontPool(ResourcePool pool);
+template <Dimension D> Resource Material_Register(const MaterialData<D> &data = {});
+template <Dimension D> void Material_Update(Resource material, const MaterialData<D> &data);
+template <Dimension D> void Material_Destroy(Resource material);
+template <Dimension D> const MaterialData<D> &Material_GetData(Resource material);
 
-template <Dimension D> void DestroyMaterial(Resource material);
+template <Dimension D> GltfHandles Gltf_Register(ResourcePool meshPool, GltfData<D> &data);
 
-template <Dimension D> StaticMeshData<D> GetStaticMeshData(Resource mesh);
-template <Dimension D> ParametricMeshData<D> GetParametricMeshData(Resource mesh);
-template <Dimension D> ParametricShape GetParametricShape(Resource mesh);
+const FontData &Font_GetData(Resource font);
+Resource Font_GetAtlas(Resource font);
+Resource Font_GetGlyph(Resource font, CodePoint codePoint);
+MeshDataLayout Font_GetLayout(Resource font);
 
-template <Dimension D> const MaterialData<D> &GetMaterialData(Resource material);
-template <Dimension D> TKit::Span<const u32> GetResourcePoolIds(ResourceType rtype);
+Resource Glyph_GetFont(Resource glyph);
+const GlyphData &Glyph_GetData(Resource glyph);
+MeshDataLayout Glyph_GetLayout(Resource glyph);
 
-TKit::Span<const u32> GetFontPoolIds();
-const FontData &GetFontData(Resource font);
-
-Resource GetFontAtlas(Resource font);
-Resource GetFont(Resource glyph);
-Resource GetGlyph(Resource font, CodePoint codePoint);
-const GlyphData &GetGlyphData(Resource glyph);
+const DefaultResources &Default_Create(const DefaultResourcesOptions &opts = {});
+const DefaultResources &Default_Get();
 
 template <Dimension D> u32 GetDistinctBatchDrawCount();
-
-template <Dimension D> u32 GetResourceCount(ResourcePool pool);
-template <Dimension D> u32 GetDynamicMeshCount();
-
-template <Dimension D> MeshDataLayout GetMeshLayout(Resource mesh);
-template <Dimension D> Resource GetMeshBounds(Resource mesh);
-template <Dimension D> const BoundsData<D> &GetBoundsData(Resource bounds);
-
-u32 GetFontCount(ResourcePool pool);
-u32 GetGlyphCount(ResourcePool pool);
-
-MeshDataLayout GetFontLayout(Resource font);
-MeshDataLayout GetGlyphLayout(Resource glyph);
 
 template <Dimension D> bool IsResourceValid(Resource handle, ResourceType rtype = Resource_None);
 template <Dimension D> bool IsResourcePoolValid(Handle handle, ResourceType rtype = Resource_None);

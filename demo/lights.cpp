@@ -11,12 +11,12 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
-    const Onyx::Resource lit2 = Onyx::Resources::RegisterMaterial<D2>();
-    const Onyx::Resource unlit2 = Onyx::Resources::RegisterMaterial<D2>({.Occluder = true});
+    const Onyx::Resource lit2 = Onyx::Resources::Material_Register<D2>();
+    const Onyx::Resource unlit2 = Onyx::Resources::Material_Register<D2>({.Occluder = true});
 
-    const Onyx::Resource mat3 = Onyx::Resources::RegisterMaterial<D3>();
+    const Onyx::Resource mat3 = Onyx::Resources::Material_Register<D3>();
 
     Onyx::Resources::Sync(Onyx::SyncFlag_Materials);
 

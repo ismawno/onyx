@@ -17,11 +17,11 @@ The use of C++ features is somewhat limited. The STL is rarely used, as Onyx use
 
 ### Initialization
 
-Onyx uses a global initialization and termination model. Before using any part of the API, `Onyx::Initialize()` must be called, and `Onyx::Terminate()` must be called before the program exits. Default resources (built-in meshes, samplers, etc.) are created with `Onyx::Resources::CreateDefaultResources()`, which is a convenient but not at all necessary function. Without it, all resources must be manually created and specified when drawn.
+Onyx uses a global initialization and termination model. Before using any part of the API, `Onyx::Initialize()` must be called, and `Onyx::Terminate()` must be called before the program exits. Default resources (built-in meshes, samplers, etc.) are created with `Onyx::Resources::Default_Create()`, which is a convenient but not at all necessary function. Without it, all resources must be manually created and specified when drawn.
 
 ```cpp
 Onyx::Initialize();
-Onyx::Resources::CreateDefaultResources();
+Onyx::Resources::Default_Create();
 
 // ... your application ...
 
@@ -140,7 +140,7 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
@@ -186,11 +186,11 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
-    const Onyx::Resource lit2 = Onyx::Resources::RegisterMaterial<D2>();
-    const Onyx::Resource unlit2 = Onyx::Resources::RegisterMaterial<D2>({.Occluder = true});
-    const Onyx::Resource mat3 = Onyx::Resources::RegisterMaterial<D3>();
+    const Onyx::Resource lit2 = Onyx::Resources::Material_Register<D2>();
+    const Onyx::Resource unlit2 = Onyx::Resources::Material_Register<D2>({.Occluder = true});
+    const Onyx::Resource mat3 = Onyx::Resources::Material_Register<D3>();
     Onyx::Resources::Sync(Onyx::SyncFlag_Materials);
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
@@ -297,7 +297,7 @@ using namespace TKit::Alias;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::CreateDefaultResources();
+    Onyx::Resources::Default_Create();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
     const Onyx::RenderViewFlags vflags =

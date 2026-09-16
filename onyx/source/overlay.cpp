@@ -745,7 +745,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
-        m_DynamicMeshes[i] = Resources::RegisterDynamicMesh<D2>();
+        m_DynamicMeshes[i] = Resources::DynamicMesh_Register<D2>();
 
     Resources::Sync(SyncFlag_DynamicMeshes);
 }
@@ -769,7 +769,7 @@ Overlay::~Overlay()
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         if (Resources::IsResourceValid<D2>(m_DynamicMeshes[i].Handle, Resource_DynamicMesh))
-            Resources::DestroyDynamicMesh<D2>(m_DynamicMeshes[i].Handle);
+            Resources::DynamicMesh_Destroy<D2>(m_DynamicMeshes[i].Handle);
 }
 
 /////////////////////////////////////////////
@@ -5256,7 +5256,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const LayoutElementQueryInfo *box = ibox;
     const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
-    const FontData &fdata = getFontData();
+    const FontData &fdata = Font_GetData();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     LyTxPar tparams = getTextParams();
@@ -6106,7 +6106,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     const bool indent = !(flags & OverlayTreeFlag_NoIndent);
 
-    const FontData &fdata = getFontData();
+    const FontData &fdata = Font_GetData();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = TopLeft, .Sizing = sizing});
@@ -6938,19 +6938,19 @@ void Overlay::Draw()
 /// HELPERS
 /////////////////////////////////////////////
 
-const FontData &Overlay::getFontData() const
+const FontData &Overlay::Font_GetData() const
 {
     if (!m_NativeWindows.IsEmpty())
     {
         const NativeWindow *nw = m_NativeWindows[0];
         const Resource font = nw->Context->GetState().Font;
-        return Resources::GetFontData(font);
+        return Resources::Font_GetData(font);
     }
-    return Resources::GetFontData(Resources::GetDefaultResources().Font);
+    return Resources::Font_GetData(Resources::Default_Get().Font);
 }
 f32 Overlay::getLineHeight() const
 {
-    return m_Style[OverlayStyle_FontSize] * getFontData().LineHeight;
+    return m_Style[OverlayStyle_FontSize] * Font_GetData().LineHeight;
 }
 
 // used when having menu bars with windows that are not brought to focus. in those cases popups created by such

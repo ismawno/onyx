@@ -23,7 +23,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
     }
 
     resizeInstanceData();
-    m_DefaultResources = Resources::GetDefaultResources();
+    m_DefaultResources = Resources::Default_Get();
 
     m_State.Font = m_DefaultResources.Font;
     m_State.Sampler = m_DefaultResources.Sampler;
@@ -31,7 +31,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
     m_ImmediateDynamicMeshes.Reserve(immediateDynamicMeshCapacity);
 
     for (u32 i = 0; i < immediateDynamicMeshCapacity; ++i)
-        m_ImmediateDynamicMeshes.Append(Resources::RegisterDynamicMesh<D>());
+        m_ImmediateDynamicMeshes.Append(Resources::DynamicMesh_Register<D>());
 
     if (immediateDynamicMeshCapacity != 0)
         Resources::Sync(SyncFlag_DynamicMeshes); // have a close look at this. idk why i feel it may cause issues
@@ -53,7 +53,7 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
         // we perform this chech bc resources might have been destroyed already if this context is being destroyed on
         // teardown
         if (Resources::IsResourceValid(info.Handle))
-            Resources::DestroyDynamicMesh<D>(info.Handle);
+            Resources::DynamicMesh_Destroy<D>(info.Handle);
 
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(m_InstanceData);
@@ -68,7 +68,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
         m_StateStack.GetSize());
 
     m_State = ContextState<D>{};
-    m_DefaultResources = Resources::GetDefaultResources();
+    m_DefaultResources = Resources::Default_Get();
 
     m_State.Font = m_DefaultResources.Font;
     m_State.Sampler = m_DefaultResources.Sampler;
@@ -86,7 +86,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
         for (u32 j = 0; j < Resource_MeshPoolCount; ++j)
         {
             const ResourceType rtype = ResourceType(j);
-            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(rtype);
+            const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
 
             auto &ipools = m_InstanceData->Meshes[bpass][rmode][rtype];
             for (const u32 pid : poolIds)
@@ -122,14 +122,14 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     TKIT_MSVC_WARNING_IGNORE(4127)
     if (material == NullHandle)
     {
-        TKIT_ENSURE(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ENSURE(Handle_IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} is invalid and is not "
                     "an explicit null sampler",
                     sampler);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ENSURE(IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+        TKIT_ENSURE(Handle_IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                     "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null sampler",
@@ -138,7 +138,7 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     else
     {
         TKIT_ENSURE(
-            IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
+            Handle_IsResourceNull(sampler) || Resources::IsResourceValid<D>(sampler, Resource_Sampler),
             "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null sampler",
             sampler, material);
@@ -152,14 +152,14 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     TKIT_MSVC_WARNING_IGNORE(4127)
     if (material == NullHandle)
     {
-        TKIT_ENSURE(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ENSURE(Handle_IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} is invalid and is not "
                     "an explicit null texture",
                     tex);
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
-        TKIT_ENSURE(IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+        TKIT_ENSURE(Handle_IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
                     "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null texture",
@@ -168,7 +168,7 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     else
     {
         TKIT_ENSURE(
-            IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
+            Handle_IsResourceNull(tex) || Resources::IsResourceValid<D>(tex, Resource_Texture),
             "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
             "an explicit null texture",
             tex, material);
@@ -177,12 +177,12 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
 }
 template <Dimension D> void checkMaterial(const Resource material)
 {
-    TKIT_ENSURE(IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
+    TKIT_ENSURE(Handle_IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
                 "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
                 material);
-    if (!IsResourceNull(material))
+    if (!Handle_IsResourceNull(material))
     {
-        const MaterialData<D> &data = Resources::GetMaterialData<D>(material);
+        const MaterialData<D> &data = Resources::Material_GetData<D>(material);
         if constexpr (D == D2)
         {
             checkSampler<D>(data.Sampler, material);
@@ -269,7 +269,7 @@ static void fillInstanceData(InstanceData<D> &instanceData, const ContextState<D
     const bool flat = state.RenderFlags & RenderModeFlag_Flat;
     instanceData.Rect = state.Rect;
     instanceData.MatOrSamplerTex =
-        flat ? Resources::CombineSamplerTexIntoId(state.Sampler, state.Texture) : GetResourceId(state.Material);
+        flat ? Resources::CombineSamplerTexIntoId(state.Sampler, state.Texture) : Handle_GetResourceId(state.Material);
     instanceData.TexOffset = PackHalf2x16(state.TexOffset);
     instanceData.TexScale = PackHalf2x16(state.TexScale);
     instanceData.FillColor = state.FillColor.ToLinear().Pack();
@@ -296,7 +296,7 @@ static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> &sta
     StaticInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state.Alignment);
-    instanceData.BoundsId = GetResourceId(bounds);
+    instanceData.BoundsId = Handle_GetResourceId(bounds);
     return instanceData;
 }
 
@@ -334,7 +334,7 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
     ParametricInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.Alignment = packAlignment<D>(state.Alignment);
-    instanceData.BoundsId = GetResourceId(bounds);
+    instanceData.BoundsId = Handle_GetResourceId(bounds);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
     return instanceData;
@@ -344,7 +344,7 @@ template <Dimension D>
 static void fillGlyphInstanceData(GlyphInstanceData<D> &instanceData, const ContextState<D> &state, const f32 unitRange)
 {
     instanceData.SamplerAtlasId =
-        Resources::CombineSamplerTexIntoId(state.Sampler, Resources::GetFontAtlas(state.Font));
+        Resources::CombineSamplerTexIntoId(state.Sampler, Resources::Font_GetAtlas(state.Font));
     instanceData.UnitRange = unitRange;
 }
 
@@ -408,14 +408,14 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
         const ResourceType rtype = ResourceType(mtype);
 
         const u32 count = group.Buffers.GetSize();
-        const u32 ncount = Resources::GetResourceCount<D>(CreateResourcePoolHandle(rtype, pid));
+        const u32 ncount = Resources::ResourcePool_GetResourceCount<D>(Handle_CreateForResourcePool(rtype, pid));
         resize(rtype, group, count, ncount);
     });
 
     m_InstanceData->DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
         InstanceResourceGroup &group = m_InstanceData->DynamicMeshes[bpass][rmode];
         const u32 count = group.Buffers.GetSize();
-        const u32 ncount = Resources::GetDynamicMeshCount<D>();
+        const u32 ncount = Resources::DynamicMesh_GetCount<D>();
         resize(Resource_DynamicMesh, group, count, ncount);
     });
 }
@@ -515,11 +515,11 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
         return;
     CHECK_HANDLE(mesh, Resource_StaticMesh, D);
 
-    const u32 pid = GetResourcePoolId(mesh);
-    const u32 mid = GetResourceId(mesh);
+    const u32 pid = Handle_GetResourcePoolId(mesh);
+    const u32 mid = Handle_GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
-        createStaticInstanceData(m_State, transform, Resources::GetMeshBounds<D>(mesh), ++DepthCounter);
+        createStaticInstanceData(m_State, transform, Resources::Mesh_GetBounds<D>(mesh), ++DepthCounter);
 
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_StaticMesh][pid];
@@ -534,7 +534,7 @@ template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mes
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(mesh);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(mesh, Resource_DynamicMesh, D);
 
-    const u32 mid = GetResourceId(mesh);
+    const u32 mid = Handle_GetResourceId(mesh);
     const DynamicInstanceData<D> idata = createInstanceData(m_State, transform, ++DepthCounter);
 
     InstanceResourceGroup &group = m_InstanceData->DynamicMeshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
@@ -549,13 +549,13 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
         return;
     CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
 
-    const u32 pid = GetResourcePoolId(mesh);
-    const u32 mid = GetResourceId(mesh);
+    const u32 pid = Handle_GetResourcePoolId(mesh);
+    const u32 mid = Handle_GetResourceId(mesh);
 
-    const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
+    const ParametricShape shape = Resources::ParametricMesh_GetShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(
-        m_State, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++DepthCounter);
+        m_State, transform, Resources::Mesh_GetBounds<D>(mesh), shape, params, ++DepthCounter);
 
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_ParametricMesh][pid];
@@ -596,7 +596,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const Alignment alg1 = m_State.Alignment[1] == Alignment_None ? Alignment_Top : m_State.Alignment[1];
 
     const Resource font = m_State.Font;
-    const FontData &fdata = Resources::GetFontData(font);
+    const FontData &fdata = Resources::Font_GetData(font);
 
     TKit::TierString wrapped;
     if (params.MaxWidth != TKIT_F32_MAX)
@@ -631,7 +631,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
             continue;
         }
 
-        const Resource glyph = Resources::GetGlyph(font, code);
+        const Resource glyph = Resources::Font_GetGlyph(font, code);
         if (glyph == NullHandle)
         {
             TKIT_LOG_ERROR("[ONYX][CONTEXT] The code U+{:04X} ({}) was not found as an available code point", code,
@@ -640,7 +640,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
             continue;
         }
 
-        const GlyphData &gdata = Resources::GetGlyphData(glyph);
+        const GlyphData &gdata = Resources::Glyph_GetData(glyph);
         f32 advance = 0.f;
         if (line.Start < line.End)
             advance = fdata.GetKerning(lastCode, code);
@@ -693,8 +693,8 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
         {
             updateTransform();
             const Resource glyph = chars[i].Glyph;
-            const u32 pid = GetResourcePoolId(glyph);
-            const u32 gid = GetResourceId(glyph);
+            const u32 pid = Handle_GetResourcePoolId(glyph);
+            const u32 gid = Handle_GetResourceId(glyph);
 
             InstanceResourceGroup &group = pools[pid];
 
@@ -711,8 +711,8 @@ void IRenderContext<D>::addGlyphData(const Resource glyph, const f32 unitRange, 
 {
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_State, transform, unitRange, DepthCounter);
 
-    const u32 pid = GetResourcePoolId(glyph);
-    const u32 gid = GetResourceId(glyph);
+    const u32 pid = Handle_GetResourcePoolId(glyph);
+    const u32 gid = Handle_GetResourceId(glyph);
 
     InstanceResourceGroup &group =
         m_InstanceData->Meshes[m_State.Blend][GetRenderMode(m_State.RenderFlags)][Resource_GlyphMesh][pid];
@@ -729,8 +729,8 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_State.Sampler, Resource_Sampler, D);
 
     ++DepthCounter;
-    const Resource font = Resources::GetFont(glyph);
-    const FontData &fdata = Resources::GetFontData(font);
+    const Resource font = Resources::Glyph_GetFont(glyph);
+    const FontData &fdata = Resources::Font_GetData(font);
 
     const Alignment al0 = m_State.Alignment[0];
     const Alignment al1 = m_State.Alignment[1];
@@ -739,7 +739,7 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
         addGlyphData(glyph, fdata.UnitRange, transform);
         return;
     }
-    const GlyphData &gdata = Resources::GetGlyphData(glyph);
+    const GlyphData &gdata = Resources::Glyph_GetData(glyph);
     const f32 dx = gdata.Advance;
     const f32 dy = fdata.Ascender - fdata.Descender;
 

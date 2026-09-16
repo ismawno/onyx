@@ -230,7 +230,7 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
     elm.Shape.Type = LayoutShape_Text;
     elm.TextMode = params.Mode;
 
-    const FontData &fdata = Resources::GetFontData(elm.Font);
+    const FontData &fdata = Resources::Font_GetData(elm.Font);
     const f32 fs = params.FontSize;
 
     elm.FontSize = fs;
@@ -251,9 +251,9 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     elm.Type = LayoutElement_Unicode;
     elm.Shape.Type = LayoutShape_Unicode;
 
-    const FontData &fdata = Resources::GetFontData(elm.Font);
-    const Resource glyph = Resources::GetGlyph(elm.Font, code);
-    const GlyphData &gdata = Resources::GetGlyphData(glyph);
+    const FontData &fdata = Resources::Font_GetData(elm.Font);
+    const Resource glyph = Resources::Font_GetGlyph(elm.Font, code);
+    const GlyphData &gdata = Resources::Glyph_GetData(glyph);
     const f32 fs = params.FontSize;
 
     elm.FontSize = fs;
@@ -495,7 +495,7 @@ void Layout::wrapText(const TKit::StackArray<u16> &textElms)
         TKIT_ASSERT(elm.Type == LayoutElement_Text || elm.Type == LayoutElement_Unicode,
                     "[ONYX][LAYOUT] Only text elements allowed in wrap text");
 
-        const FontData &fdata = Resources::GetFontData(elm.Font);
+        const FontData &fdata = Resources::Font_GetData(elm.Font);
         const f32 fs = elm.FontSize;
         if (elm.TextMode == TextMode_Wrapped)
             elm.Text = fdata.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
@@ -977,7 +977,7 @@ void Layout::Reset()
 
 void Layout::applySpecDefaults()
 {
-    const DefaultResources &def = Resources::GetDefaultResources();
+    const DefaultResources &def = Resources::Default_Get();
     const auto assign = [&](Resource &res, const Resource fallback) {
         if (res == NullHandle)
             res = fallback;

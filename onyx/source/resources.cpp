@@ -329,27 +329,15 @@ void Terminate()
     s_ResourceData3.Destruct();
 }
 
-Resource CreateBuffer(const VKit::DeviceBuffer::Builder &builder)
-{
-    const u32 bid = s_Buffers->Resources.Insert(ONYX_CHECK_VKIT_RESULT(builder.Build()));
-    return CreateResourceHandle(Resource_Buffer, bid);
-}
-// static const VKit::DeviceBuffer &getBuffer(const Resource handle)
-// {
-//     CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
-//
-//     const u32 bid = GetResourceId(handle);
-//     return s_Buffers->Resources[bid];
-// }
-void DestroyBuffer(const Resource handle)
+void Buffer_Destroy(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
 
-    const u32 bid = GetResourceId(handle);
+    const u32 bid = Handle_GetResourceId(handle);
     s_Buffers->Resources[bid].Destroy();
     s_Buffers->Resources.Remove(bid);
 }
-void ReleaseBuffer(const Resource handle)
+void Buffer_Release(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
     s_Buffers->ToDestroy.Append(handle);
@@ -396,7 +384,7 @@ static VkSamplerAddressMode asVulkanAddressMode(const SamplerWrap wrap)
     }
 }
 
-static VKit::Sampler createSampler(const SamplerData &data)
+static VKit::Sampler sampler_Create(const SamplerData &data)
 {
     return ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
                                       .SetMipmapMode(asVulkanMipmapMode(data.Mode))
@@ -408,17 +396,17 @@ static VKit::Sampler createSampler(const SamplerData &data)
                                       .Build());
 }
 
-static VKit::Sampler &getSampler(const Resource handle)
+static VKit::Sampler &sampler_Get(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
-    const u32 sid = GetResourceId(handle);
+    const u32 sid = Handle_GetResourceId(handle);
     return s_Samplers->Resources[sid];
 }
 
-static void bindSampler(const Resource handle)
+static void sampler_Bind(const Resource handle)
 {
-    VKit::Sampler &sampler = getSampler(handle);
+    VKit::Sampler &sampler = sampler_Get(handle);
     if (IsDebugUtilsEnabled())
     {
         ONYX_CHECK_VKIT_RESULT(
@@ -428,7 +416,7 @@ static void bindSampler(const Resource handle)
     const VkDescriptorImageInfo info = VkDescriptorImageInfo{
         .sampler = sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
-    const u32 sid = GetResourceId(handle);
+    const u32 sid = Handle_GetResourceId(handle);
     Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shaded, sid);
     Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Flat, sid);
     Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);
@@ -437,14 +425,7 @@ static void bindSampler(const Resource handle)
     Renderer::BindImage<D3>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);
 }
 
-Resource CreateSampler(const SamplerData &data)
-{
-    const u32 sid = s_Samplers->Resources.Insert(createSampler(data));
-    const Resource handle = CreateResourceHandle(Resource_Sampler, sid);
-    bindSampler(handle);
-    return handle;
-}
-template <Dimension D> static void removeSamplerReferences(const Resource handle)
+template <Dimension D> static void sampler_RemoveReferences(const Resource handle)
 {
     const auto updateRef = [handle](Resource &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
@@ -464,11 +445,19 @@ template <Dimension D> static void removeSamplerReferences(const Resource handle
                 materials.Flags |= updateRef(h);
 }
 
-void UpdateSampler(const Resource handle, const SamplerData &data)
+Resource Sampler_Create(const SamplerData &data)
+{
+    const u32 sid = s_Samplers->Resources.Insert(sampler_Create(data));
+    const Resource handle = Handle_CreateForResource(Resource_Sampler, sid);
+    sampler_Bind(handle);
+    return handle;
+}
+
+void Sampler_Update(const Resource handle, const SamplerData &data)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
-    const u32 sid = GetResourceId(handle);
+    const u32 sid = Handle_GetResourceId(handle);
     s_Samplers->Resources[sid].Destroy();
     s_Samplers->Resources[sid] = ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
                                                             .SetMipmapMode(asVulkanMipmapMode(data.Mode))
@@ -478,37 +467,37 @@ void UpdateSampler(const Resource handle, const SamplerData &data)
                                                             .SetAddressModeV(asVulkanAddressMode(data.WrapV))
                                                             .SetAddressModeW(asVulkanAddressMode(data.WrapW))
                                                             .Build());
-    bindSampler(handle);
+    sampler_Bind(handle);
 }
 
-void DestroySampler(const Resource handle)
+void Sampler_Destroy(const Resource handle)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying sampler with handle {:#010x}", handle);
     CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
-    removeSamplerReferences<D2>(handle);
-    removeSamplerReferences<D3>(handle);
+    sampler_RemoveReferences<D2>(handle);
+    sampler_RemoveReferences<D3>(handle);
 
-    const u32 sid = GetResourceId(handle);
+    const u32 sid = Handle_GetResourceId(handle);
     s_Samplers->Resources[sid].Destroy();
     s_Samplers->Resources.Remove(sid);
 }
 
-void ReleaseSampler(const Resource handle)
+void Sampler_Release(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
     s_Samplers->ToDestroy.Append(handle);
 }
 
-static ImageInfo &getImage(const Resource handle)
+static ImageInfo &image_Get(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
-    const u32 iid = GetResourceId(handle);
+    const u32 iid = Handle_GetResourceId(handle);
     return s_Images->Resources[iid];
 }
 
-static VKit::DeviceImage createImage(const ImageData &data)
+static VKit::DeviceImage image_Create(const ImageData &data)
 {
     const VkFormat fmt = AsVulkanFormat(data.Format);
 
@@ -566,13 +555,13 @@ static VKit::DeviceImage createImage(const ImageData &data)
     return img;
 }
 
-Resource CreateImage(const ImageData &data)
+Resource Image_Create(const ImageData &data)
 {
     const u32 iid = s_Images->Resources.Insert();
     ImageInfo &img = s_Images->Resources[iid];
-    const Resource handle = CreateResourceHandle(Resource_Image, iid);
+    const Resource handle = Handle_CreateForResource(Resource_Image, iid);
 
-    img.Image = createImage(data);
+    img.Image = image_Create(data);
 
     if (IsDebugUtilsEnabled())
     {
@@ -582,39 +571,39 @@ Resource CreateImage(const ImageData &data)
     return handle;
 }
 
-void DestroyImage(const Resource handle)
+void Image_Destroy(const Resource handle)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying image with handle {:#010x}", handle);
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
-    ImageInfo &img = getImage(handle);
+    ImageInfo &img = image_Get(handle);
     for (const Resource tex : img.Textures)
-        DestroyTexture(tex);
+        Texture_Destroy(tex);
 
     img.Image.Destroy();
-    const u32 iid = GetResourceId(handle);
+    const u32 iid = Handle_GetResourceId(handle);
     s_Images->Resources.Remove(iid);
 }
 
-void UpdateImage(const Resource handle, const ImageData &data)
-{
-    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
-
-    ImageInfo &img = getImage(handle);
-    for (const Resource tex : img.Textures)
-        DestroyTexture(tex);
-
-    img.Image.Destroy();
-    img.Image = createImage(data);
-}
-
-void ReleaseImage(const Resource handle)
+void Image_Release(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
     s_Images->ToDestroy.Append(handle);
 }
 
-static void bindTexture(const VkImageView imageView, const u32 tid)
+void Image_Update(const Resource handle, const ImageData &data)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+
+    ImageInfo &img = image_Get(handle);
+    for (const Resource tex : img.Textures)
+        Texture_Destroy(tex);
+
+    img.Image.Destroy();
+    img.Image = image_Create(data);
+}
+
+static void texture_Bind(const VkImageView imageView, const u32 tid)
 {
     VkDescriptorImageInfo info;
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -629,7 +618,7 @@ static void bindTexture(const VkImageView imageView, const u32 tid)
     Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
 }
 
-static Resource createTexture(const VkImageView imageView, const u32 offsetId, const Resource image = NullHandle)
+static Resource texture_Create(const VkImageView imageView, const u32 offsetId, const Resource image = NullHandle)
 {
     const u32 tid = s_Textures->Resources.Insert();
     Texture &tex = s_Textures->Resources[tid];
@@ -637,51 +626,26 @@ static Resource createTexture(const VkImageView imageView, const u32 offsetId, c
     tex.View = imageView;
     tex.OffsetId = offsetId;
 
-    bindTexture(imageView, tid);
+    texture_Bind(imageView, tid);
 
-    const Resource handle = CreateResourceHandle(Resource_Texture, tid);
+    const Resource handle = Handle_CreateForResource(Resource_Texture, tid);
     if (image != NullHandle)
     {
-        ImageInfo &img = getImage(image);
+        ImageInfo &img = image_Get(image);
         img.Textures.Append(handle);
     }
     return handle;
 }
 
-Resource CreateTexture(const Resource handle, const u32 viewIndex)
+Resource Texture_Create(const Resource handle, const u32 viewIndex)
 {
-    VKit::DeviceImage &img = getImage(handle).Image;
+    VKit::DeviceImage &img = image_Get(handle).Image;
     const VkImageView view =
         viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
-    return createTexture(view, s_Textures->DefaultOffsetId, handle);
+    return texture_Create(view, s_Textures->DefaultOffsetId, handle);
 }
 
-Resource CreateMainRenderTexture(const VkImageView view)
-{
-    const u32 ofid = s_Textures->Offsets.Insert(0);
-    return createTexture(view, ofid);
-}
-Resource CreateSecondaryRenderTexture(const VkImageView view)
-{
-    return createTexture(view, s_Textures->DefaultOffsetId);
-}
-void UpdateTextureHandleOffset(const Resource handle, const Resource target)
-{
-    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
-    CHECK_RESOURCE_HANDLE(target, Resource_Texture);
-
-    const u32 tid = GetResourceId(handle);
-    const u32 targid = GetResourceId(target);
-
-    const Texture &tex = s_Textures->Resources[tid];
-    TKIT_ASSERT(
-        tex.OffsetId != s_Textures->DefaultOffsetId,
-        "[ONYX][RESOURCES] Cannot modify the offset that belongs to the default offset id. It must remain at 0");
-
-    s_Textures->Offsets[tex.OffsetId] = i32(targid) - i32(tid);
-}
-
-template <Dimension D> static void removeTextureReferences(const Resource handle)
+template <Dimension D> static void texture_RemoveReferences(const Resource handle)
 {
     const auto updateRef = [handle](Resource &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
@@ -701,14 +665,14 @@ template <Dimension D> static void removeTextureReferences(const Resource handle
                 materials.Flags |= updateRef(h);
 }
 
-static void destroyTexture(const Resource handle)
+static void texture_Destroy(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
 
-    removeTextureReferences<D2>(handle);
-    removeTextureReferences<D3>(handle);
+    texture_RemoveReferences<D2>(handle);
+    texture_RemoveReferences<D3>(handle);
 
-    const u32 tid = GetResourceId(handle);
+    const u32 tid = Handle_GetResourceId(handle);
     const Texture &tex = s_Textures->Resources[tid];
     if (tex.OffsetId != s_Textures->DefaultOffsetId)
         s_Textures->Offsets.Remove(tex.OffsetId);
@@ -717,7 +681,7 @@ static void destroyTexture(const Resource handle)
 }
 
 #ifdef TKIT_ENABLE_ENSURE
-void checkNotTextureAtlas(const Resource handle)
+void texture_CheckNotAtlas(const Resource handle)
 {
     for (const FontPoolData &fpool : s_FontData->Pools)
         for (const FontDataInfo &finfo : fpool.Meshes)
@@ -731,22 +695,22 @@ void checkNotTextureAtlas(const Resource handle)
 }
 #endif
 
-void DestroyTexture(const Resource handle)
+void Texture_Destroy(const Resource handle)
 {
 #ifdef TKIT_ENABLE_ENSURE
-    checkNotTextureAtlas(handle);
+    texture_CheckNotAtlas(handle);
 #endif
-    destroyTexture(handle);
+    texture_Destroy(handle);
 }
-void ReleaseTexture(const Resource handle)
+void Texture_Release(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
     s_Textures->ToDestroy.Append(handle);
 }
 
-static void updateTexture(const Resource handle, const VkImageView view, const Resource image = NullHandle)
+static void texture_Update(const Resource handle, const VkImageView view, const Resource image = NullHandle)
 {
-    const u32 tid = GetResourceId(handle);
+    const u32 tid = Handle_GetResourceId(handle);
     Texture &tex = s_Textures->Resources[tid];
     if (tex.Image != NullHandle)
         for (u32 i = 0; i < s_Images->Resources.GetSize(); ++i)
@@ -763,75 +727,128 @@ static void updateTexture(const Resource handle, const VkImageView view, const R
     tex.Image = image;
     tex.View = view;
 
-    bindTexture(view, tid);
+    texture_Bind(view, tid);
 
     if (image != NullHandle)
     {
-        ImageInfo &img = getImage(image);
+        ImageInfo &img = image_Get(image);
         img.Textures.Append(handle);
     }
 }
 
-void UpdateTexture(const Resource handle, const Resource image, const u32 viewIndex)
+void Texture_Update(const Resource handle, const Resource image, const u32 viewIndex)
 {
 #ifdef TKIT_ENABLE_ENSURE
-    checkNotTextureAtlas(handle);
+    texture_CheckNotAtlas(handle);
 #endif
-    VKit::DeviceImage &img = getImage(handle).Image;
+    VKit::DeviceImage &img = image_Get(handle).Image;
     const VkImageView view =
         viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
-    updateTexture(image, view, handle);
+    texture_Update(image, view, handle);
 }
 
-void UpdateRenderTexture(const Resource handle, const VkImageView view)
+Resource Texture_CreateMainRenderTexture(const VkImageView view)
 {
-    updateTexture(handle, view);
+    const u32 ofid = s_Textures->Offsets.Insert(0);
+    return texture_Create(view, ofid);
 }
-
-template <typename T>
-static Resource createHiveResource(const ResourceType rtype, const T &data, HiveResourceData<T> &hive)
+Resource Texture_CreateSecondaryRenderTexture(const VkImageView view)
 {
-    hive.Flags = StatusFlag_NeedsSync;
-    return CreateResourceHandle(rtype, hive.Elements.Insert(data));
+    return texture_Create(view, s_Textures->DefaultOffsetId);
 }
-
-template <typename T> static void updateHiveResource(const Resource handle, const T &data, HiveResourceData<T> &hive)
+void Texture_UpdateHandleOffset(const Resource handle, const Resource target)
 {
-    const u32 rid = GetResourceId(handle);
-    hive.Elements[rid] = data;
-    hive.Flags = StatusFlag_NeedsSync;
+    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    CHECK_RESOURCE_HANDLE(target, Resource_Texture);
+
+    const u32 tid = Handle_GetResourceId(handle);
+    const u32 targid = Handle_GetResourceId(target);
+
+    const Texture &tex = s_Textures->Resources[tid];
+    TKIT_ASSERT(
+        tex.OffsetId != s_Textures->DefaultOffsetId,
+        "[ONYX][RESOURCES] Cannot modify the offset that belongs to the default offset id. It must remain at 0");
+
+    s_Textures->Offsets[tex.OffsetId] = i32(targid) - i32(tid);
 }
 
-template <typename T> static void destroyHiveResource(const Resource handle, HiveResourceData<T> &hive)
+void Texture_UpdateRenderTexture(const Resource handle, const VkImageView view)
 {
-    const u32 rid = GetResourceId(handle);
-    hive.Elements.Remove(rid);
+    texture_Update(handle, view);
 }
 
-template <Dimension D> static u32 createBounds(const BoundsData<D> &data)
+template <Dimension D> static u32 bounds_Create(const BoundsData<D> &data)
 {
-    return createHiveResource(Resource_Bounds, data, getData<D>().BoundingBoxes);
+    return resource_CreateWithHive(Resource_Bounds, data, getData<D>().BoundingBoxes);
 }
 
-template <Dimension D> static void updateBounds(const Resource handle, const BoundsData<D> &data)
+template <Dimension D> static void bounds_Update(const Resource handle, const BoundsData<D> &data)
 {
     CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Bounds, D);
-    updateHiveResource(handle, data, getData<D>().BoundingBoxes);
+    resource_UpdateWithHive(handle, data, getData<D>().BoundingBoxes);
 }
 
-template <Dimension D> static void destroyBounds(const Resource handle)
+template <Dimension D> static void bounds_Destroy(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Bounds, D);
-    destroyHiveResource(handle, getData<D>().BoundingBoxes);
+    resource_DestroyWithHive(handle, getData<D>().BoundingBoxes);
+}
+
+template <Dimension D> const BoundsData<D> &Bounds_GetData(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE(handle, Resource_Bounds);
+
+    const u32 bid = Handle_GetResourceId(handle);
+    return getData<D>().BoundingBoxes.Elements[bid];
 }
 
 template <typename Vertex>
-static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &meshes, const MeshData<Vertex> &data)
+static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data)
+{
+    VKit::DeviceBuffer vbuffer = Onyx::CreateBuffer<Vertex>(Buffer_DeviceVertex);
+    VKit::DeviceBuffer ibuffer = Onyx::CreateBuffer<Index>(Buffer_DeviceIndex);
+
+    const u32 pid = data.Pools.Insert();
+    MeshPoolData<Vertex> &mpool = data.Pools[pid];
+    mpool.VertexBuffer = vbuffer;
+    mpool.IndexBuffer = ibuffer;
+
+    const ResourcePool pool = Handle_CreateForResourcePool(rtype, pid);
+    if (IsDebugUtilsEnabled())
+    {
+        const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
+        const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}", pool);
+
+        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.CString()));
+        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.CString()));
+    }
+
+    return pool;
+}
+
+template <typename Vertex>
+static void resourcePool_DestroyForMeshes(const ResourcePool pool, MeshResourceData<Vertex> &meshes)
+{
+    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying mesh pool with handle {:#010x}", pool);
+    const u32 pid = Handle_GetResourcePoolId(pool);
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    if constexpr (!std::is_same_v<Vertex, GlyphVertex>)
+        for (const MeshDataInfo<Vertex> &minfo : mpool.Meshes)
+            bounds_Destroy<Vertex::Dim>(minfo.Bounds);
+    mpool.VertexBuffer.Destroy();
+    mpool.IndexBuffer.Destroy();
+
+    meshes.Pools.Remove(pid);
+}
+
+template <typename Vertex>
+static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceData<Vertex> &meshes,
+                                          const MeshData<Vertex> &data)
 {
     constexpr ResourceType rtype = Vertex::Resource;
     CHECK_POOL_HANDLE_WITH_DIM(pool, rtype, Vertex::Dim);
 
-    const u32 pid = GetResourcePoolId(pool);
+    const u32 pid = Handle_GetResourcePoolId(pool);
 
     MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
     mpool.Flags = StatusFlag_NeedsSync;
@@ -845,7 +862,7 @@ static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &me
     minfo.Layout.VertexCount = data.Vertices.GetSize();
     minfo.Layout.IndexStart = icount;
     minfo.Layout.IndexCount = data.Indices.GetSize();
-    minfo.Bounds = createBounds(CreateBoundsData(data));
+    minfo.Bounds = bounds_Create(CreateBoundsData(data));
     minfo.Flags = data.Flags;
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
@@ -855,255 +872,83 @@ static Resource createMesh(const ResourcePool pool, MeshResourceData<Vertex> &me
     auto &indices = mpool.Indices;
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
-    return CreateResourceHandle(rtype, mid, pid);
+    return Handle_CreateForResource(rtype, mid, pid);
 }
 
-template <typename Vertex>
-static void updateMesh(const Resource handle, MeshResourceData<Vertex> &meshes, const MeshData<Vertex> &data)
-{
-    CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Vertex::Resource, Vertex::Dim);
-
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 mid = GetResourceId(handle);
-
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
-    mpool.Flags = StatusFlag_NeedsSync;
-
-    MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
-    const MeshDataLayout &layout = minfo.Layout;
-    TKIT_ASSERT(data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
-                "[ONYX][RESOURCES] When updating a mesh, the vertex and index count of the previous and updated mesh "
-                "must be the "
-                "same. If they are not, you must create a new mesh");
-
-    updateBounds(minfo.Bounds, CreateBoundsData(data));
-
-    TKit::ForwardCopy(mpool.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
-    TKit::ForwardCopy(mpool.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
-
-    if constexpr (Vertex::Geo == Geometry_Parametric)
-        minfo.Shape = data.Shape;
-}
-
-const DefaultResources &GetDefaultResources()
-{
-    return s_DefaultResources;
-}
-
-template <Dimension D>
-static void createDefaultPool(ResourcePool &pool, const ResourcePool fallback, const ResourceType rtype)
-{
-    if (fallback == NullHandle)
-        pool = CreateResourcePool<D>(rtype);
-    else
-        pool = fallback;
-}
-
-const DefaultResources &CreateDefaultResources(const DefaultResourcesOptions &opts)
-{
-    // NOTE(Isma): Resource checks are weak for the moment, meaning that if the user passes a bad resource, it will be
-    // used
-
-    DefaultResources &def = s_DefaultResources;
-    createDefaultPool<D2>(def.StaticPool2, opts.StaticPool2, Resource_StaticMesh);
-    createDefaultPool<D3>(def.StaticPool3, opts.StaticPool3, Resource_StaticMesh);
-
-    createDefaultPool<D2>(def.ParametricPool2, opts.ParametricPool2, Resource_ParametricMesh);
-    createDefaultPool<D3>(def.ParametricPool3, opts.ParametricPool3, Resource_ParametricMesh);
-
-    if (opts.FontPool == NullHandle)
-        def.FontPool = CreateFontPool();
-    else
-        def.FontPool = opts.FontPool;
-
-    def.Font = opts.DefaultFont;
-#ifdef ONYX_INCLUDE_DEFAULT_FONT
-    if (def.Font == NullHandle)
-    {
-        const auto fres = LoadDefaultFont(opts.FontOpts);
-        ONYX_LOG_RESULT_ERROR(fres);
-        if (fres)
-        {
-            def.Font = RegisterFont(def.FontPool, *fres);
-            UnloadFontData(*fres);
-        }
-    }
-#endif
-    def.Sampler = CreateSampler(opts.SamplerData);
-
-    def.Triangle2 = RegisterMesh(def.StaticPool2, opts.TriangleData2);
-    def.Triangle3 = RegisterMesh(def.StaticPool3, opts.TriangleData3);
-
-    def.Quad2 = RegisterMesh(def.StaticPool2, opts.QuadData2);
-    def.Quad3 = RegisterMesh(def.StaticPool3, opts.QuadData3);
-
-    def.Box = RegisterMesh(def.StaticPool3, opts.BoxData);
-    def.Sphere = RegisterMesh(def.StaticPool3, opts.SphereData);
-    def.Cylinder = RegisterMesh(def.StaticPool3, opts.CylinderData);
-
-    def.Stadium2 = RegisterMesh(def.ParametricPool2, opts.StadiumData2);
-    def.Stadium3 = RegisterMesh(def.ParametricPool3, opts.StadiumData3);
-
-    def.RoundedRect2 = RegisterMesh(def.ParametricPool2, opts.RoundedRectData2);
-    def.RoundedRect3 = RegisterMesh(def.ParametricPool3, opts.RoundedRectData3);
-
-    def.Capsule = RegisterMesh(def.ParametricPool3, opts.CapsuleData);
-    def.RoundedBox = RegisterMesh(def.ParametricPool3, opts.RoundedBoxData);
-    def.Torus = RegisterMesh(def.ParametricPool3, opts.TorusData);
-
-    SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
-#ifdef ONYX_INCLUDE_DEFAULT_FONT
-    flags |= SyncFlag_Fonts;
-#endif
-
-    Sync(flags);
-    return def;
-}
-
-template <Dimension D> DynamicMeshInfo<D> RegisterDynamicMesh()
-{
-    TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
-    const u32 mid = meshes.Insert();
-
-    DynamicMeshInfo<D> info;
-    info.Data = &meshes[mid];
-    info.Handle = CreateResourceHandle(Resource_DynamicMesh, mid);
-    return info;
-}
-
-template <Dimension D> DynamicMeshData<D> *GetDynamicMeshData(const Resource handle)
-{
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
-    const u32 mid = GetResourceId(handle);
-    return &getData<D>().DynamicMeshes[mid];
-}
-
-template <Dimension D> void DestroyDynamicMesh(const Resource handle)
-{
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
-    const u32 mid = GetResourceId(handle);
-    getData<D>().DynamicMeshes.Remove(mid);
-}
-
-template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const StaticMeshData<D> &data)
-{
-    return createMesh(pool, getData<D>().StaticMeshes, data);
-}
-template <Dimension D> Resource RegisterMesh(const ResourcePool pool, const ParametricMeshData<D> &data)
-{
-    return createMesh(pool, getData<D>().ParametricMeshes, data);
-}
-
-template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data)
-{
-    return createHiveResource(Resource_Material, data, getData<D>().Materials);
-}
-
-template <Dimension D> void UpdateMaterial(const Resource handle, const MaterialData<D> &data)
-{
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
-    updateHiveResource(handle, data, getData<D>().Materials);
-}
-
-template <Dimension D> void UpdateMesh(const Resource handle, const StaticMeshData<D> &data)
-{
-    return updateMesh(handle, getData<D>().StaticMeshes, data);
-}
-template <Dimension D> void UpdateMesh(const Resource handle, const ParametricMeshData<D> &data)
-{
-    return updateMesh(handle, getData<D>().ParametricMeshes, data);
-}
-
-template <typename Vertex> static ResourcePool createMeshPool(const ResourceType rtype, MeshResourceData<Vertex> &data)
-{
-    VKit::DeviceBuffer vbuffer = Onyx::CreateBuffer<Vertex>(Buffer_DeviceVertex);
-    VKit::DeviceBuffer ibuffer = Onyx::CreateBuffer<Index>(Buffer_DeviceIndex);
-
-    const u32 pid = data.Pools.Insert();
-    MeshPoolData<Vertex> &mpool = data.Pools[pid];
-    mpool.VertexBuffer = vbuffer;
-    mpool.IndexBuffer = ibuffer;
-
-    const ResourcePool pool = CreateResourcePoolHandle(rtype, pid);
-    if (IsDebugUtilsEnabled())
-    {
-        const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
-        const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}", pool);
-
-        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.CString()));
-        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.CString()));
-    }
-
-    return pool;
-}
-
-ResourcePool CreateFontPool()
-{
-    return createMeshPool(Resource_Font, *s_FontData);
-}
-
-template <Dimension D> ResourcePool CreateResourcePool(const ResourceType rtype)
+template <Dimension D> ResourcePool ResourcePool_Create(const ResourceType rtype)
 {
     switch (rtype)
     {
     case Resource_StaticMesh:
-        return createMeshPool(Resource_StaticMesh, getData<D>().StaticMeshes);
+        return resourcePool_CreateForMeshes(Resource_StaticMesh, getData<D>().StaticMeshes);
     case Resource_ParametricMesh:
-        return createMeshPool(Resource_ParametricMesh, getData<D>().ParametricMeshes);
+        return resourcePool_CreateForMeshes(Resource_ParametricMesh, getData<D>().ParametricMeshes);
     case Resource_Font:
     case Resource_GlyphMesh:
-        return CreateFontPool();
+        return FontPool_Create();
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource pool cannot be created for resources of type '{}'", ToString(rtype));
         return NullHandle;
     }
 }
 
-template <typename Vertex> static void destroyMeshPool(const ResourcePool pool, MeshResourceData<Vertex> &meshes)
-{
-    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying mesh pool with handle {:#010x}", pool);
-    const u32 pid = GetResourcePoolId(pool);
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
-    if constexpr (!std::is_same_v<Vertex, GlyphVertex>)
-        for (const MeshDataInfo<Vertex> &minfo : mpool.Meshes)
-            destroyBounds<Vertex::Dim>(minfo.Bounds);
-    mpool.VertexBuffer.Destroy();
-    mpool.IndexBuffer.Destroy();
-
-    meshes.Pools.Remove(pid);
-}
-
-template <Dimension D> void DestroyResourcePool(const ResourcePool pool)
+template <Dimension D> void ResourcePool_Destroy(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    const ResourceType rtype = GetResourceType(pool);
+    const ResourceType rtype = Handle_GetResourceType(pool);
     switch (rtype)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
-        destroyMeshPool(pool, getData<D>().StaticMeshes);
+        resourcePool_DestroyForMeshes(pool, getData<D>().StaticMeshes);
         return;
     case Resource_ParametricMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_ParametricMesh);
-        destroyMeshPool(pool, getData<D>().ParametricMeshes);
+        resourcePool_DestroyForMeshes(pool, getData<D>().ParametricMeshes);
         return;
     case Resource_Font:
     case Resource_GlyphMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-        DestroyFontPool(pool);
+        FontPool_Destroy(pool);
         return;
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(rtype));
     }
 }
 
-template <Dimension D> void ReleaseResourcePool(const ResourcePool pool)
+template <Dimension D> Resource ResourcePool_RegisterMesh(const ResourcePool pool, const StaticMeshData<D> &data)
+{
+    return resourcePool_RegisterMesh(pool, getData<D>().StaticMeshes, data);
+}
+template <Dimension D> Resource ResourcePool_RegisterMesh(const ResourcePool pool, const ParametricMeshData<D> &data)
+{
+    return resourcePool_RegisterMesh(pool, getData<D>().ParametricMeshes, data);
+}
+
+template <Dimension D> TKit::Span<const u32> ResourcePool_GetIds(const ResourceType rtype)
+{
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+        return getData<D>().StaticMeshes.Pools.GetValidIds();
+    case Resource_ParametricMesh:
+        return getData<D>().ParametricMeshes.Pools.GetValidIds();
+    case Resource_Font:
+    case Resource_GlyphMesh:
+        return FontPool_GetIds();
+    default:
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
+        return TKit::Span<const u32>{};
+    }
+}
+
+template <Dimension D> void ResourcePool_Release(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
 
-    const ResourceType rtype = GetResourceType(pool);
+    const ResourceType rtype = Handle_GetResourceType(pool);
     switch (rtype)
     {
     case Resource_StaticMesh:
@@ -1117,37 +962,97 @@ template <Dimension D> void ReleaseResourcePool(const ResourcePool pool)
     case Resource_Font:
     case Resource_GlyphMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-        ReleaseFontPool(pool);
+        FontPool_Release(pool);
         return;
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource pool of type '{}' cannot exist", ToString(rtype));
     }
 }
 
-void ReleaseFontPool(const ResourcePool pool)
+template <Dimension D> u32 ResourcePool_GetResourceCount(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+
+    const ResourceType rtype = Handle_GetResourceType(pool);
+    const u32 pid = Handle_GetResourcePoolId(pool);
+
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
+        return getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
+    case Resource_ParametricMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_ParametricMesh);
+        return getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
+    case Resource_Font:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
+        return FontPool_GetFontCount(pool);
+    case Resource_GlyphMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
+        return FontPool_GetGlyphCount(pool);
+    default:
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
+        return 0;
+    }
+}
+
+template <Dimension D> MeshBuffers ResourcePool_GetMeshBuffers(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+
+    const ResourceType rtype = Handle_GetResourceType(pool);
+
+    const u32 pid = Handle_GetResourcePoolId(pool);
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
+        return {&getData<D>().StaticMeshes.Pools[pid].VertexBuffer, &getData<D>().StaticMeshes.Pools[pid].IndexBuffer};
+    case Resource_ParametricMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_ParametricMesh);
+        return {&getData<D>().ParametricMeshes.Pools[pid].VertexBuffer,
+                &getData<D>().ParametricMeshes.Pools[pid].IndexBuffer};
+    case Resource_Font:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
+        return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
+    case Resource_GlyphMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
+        return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
+    default:
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a vertex buffer", ToString(rtype));
+        return {};
+    }
+}
+
+ResourcePool FontPool_Create()
+{
+    return resourcePool_CreateForMeshes(Resource_Font, *s_FontData);
+}
+void FontPool_Destroy(const ResourcePool pool)
+{
+    CHECK_POOL_HANDLE(pool, Resource_Font);
+
+    const u32 pid = Handle_GetResourcePoolId(pool);
+    for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
+    {
+        Image_Destroy(finfo.AtlasImage);
+        TKit::Deallocate(finfo.Data.AtlasData.Data);
+    }
+    resourcePool_DestroyForMeshes(pool, *s_FontData);
+}
+void FontPool_Release(const ResourcePool pool)
 {
     CHECK_POOL_HANDLE(pool, Resource_Font);
 
     s_FontData->ToDestroy.Append(pool);
 }
-void DestroyFontPool(const ResourcePool pool)
+Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
 {
     CHECK_POOL_HANDLE(pool, Resource_Font);
 
-    const u32 pid = GetResourcePoolId(pool);
-    for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
-    {
-        DestroyImage(finfo.AtlasImage);
-        TKit::Deallocate(finfo.Data.AtlasData.Data);
-    }
-    destroyMeshPool(pool, *s_FontData);
-}
-
-Resource RegisterFont(const ResourcePool pool, const FontData &data)
-{
-    CHECK_POOL_HANDLE(pool, Resource_Font);
-
-    const u32 pid = GetResourcePoolId(pool);
+    const u32 pid = Handle_GetResourcePoolId(pool);
     FontPoolData &fpool = s_FontData->Pools[pid];
 
     const u32 fid = fpool.Meshes.GetSize();
@@ -1161,8 +1066,8 @@ Resource RegisterFont(const ResourcePool pool, const FontData &data)
         "quality, as the unit range factor is computed taking only one dimension into account",
         adata.Width, adata.Height);
 
-    finfo.AtlasImage = CreateImage(adata);
-    finfo.AtlasTexture = CreateTexture(finfo.AtlasImage);
+    finfo.AtlasImage = Image_Create(adata);
+    finfo.AtlasTexture = Texture_Create(finfo.AtlasImage);
 
     const u32 gsize = data.Glyphs.GetSize();
     finfo.Layout.VertexStart = fpool.Vertices.GetSize();
@@ -1202,59 +1107,202 @@ Resource RegisterFont(const ResourcePool pool, const FontData &data)
         addIndex(base + 2);
     }
 
-    return CreateResourceHandle(Resource_Font, fid, pid);
+    return Handle_CreateForResource(Resource_Font, fid, pid);
 }
-
-template <Dimension D> GltfHandles RegisterGltfResources(const ResourcePool meshPool, GltfData<D> &data)
+TKit::Span<const u32> FontPool_GetIds()
 {
-    GltfHandles handles;
-    handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
-    handles.Materials.Reserve(data.Materials.GetSize());
-    handles.Samplers.Reserve(data.Samplers.GetSize());
-    handles.Textures.Reserve(data.Images.GetSize());
+    return s_FontData->Pools.GetValidIds();
+}
+u32 FontPool_GetFontCount(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
 
-    for (const StaticMeshData<D> &smesh : data.StaticMeshes)
-        handles.StaticMeshes.Append(RegisterMesh(meshPool, smesh));
+    const u32 pid = Handle_GetResourcePoolId(pool);
+    return s_FontData->Pools[pid].Meshes.GetSize();
+}
+u32 FontPool_GetGlyphCount(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
 
-    for (const SamplerData &sdata : data.Samplers)
-        handles.Samplers.Append(CreateSampler(sdata));
-
-    for (const ImageData &idata : data.Images)
-    {
-        const Resource img = CreateImage(idata);
-        handles.Textures.Append(CreateTexture(img));
-    }
-
-    for (MaterialData<D> &mdata : data.Materials)
-    {
-        if constexpr (D == D2)
-        {
-            if (mdata.Sampler != TKIT_U32_MAX)
-                mdata.Sampler = handles.Samplers[mdata.Sampler];
-            if (mdata.Texture != TKIT_U32_MAX)
-                mdata.Texture = handles.Textures[mdata.Texture];
-        }
-        else
-        {
-            for (Resource &sampler : mdata.Samplers)
-                if (sampler != TKIT_U32_MAX)
-                    sampler = handles.Samplers[sampler];
-            for (Resource &texture : mdata.Textures)
-                if (texture != TKIT_U32_MAX)
-                    texture = handles.Textures[texture];
-        }
-        handles.Materials.Append(RegisterMaterial(mdata));
-    }
-
-    return handles;
+    const u32 pid = Handle_GetResourcePoolId(pool);
+    return s_FontData->Pools[pid].GlyphIdToFontId.GetSize();
 }
 
-template <typename Vertex> static MeshData<Vertex> getMeshData(const Resource handle, MeshResourceData<Vertex> &meshes)
+MeshBuffers FontPool_GetFontBuffers(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
+
+    const u32 pid = Handle_GetResourcePoolId(pool);
+
+    return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
+}
+
+MeshBuffers FontPool_GetGlyphBuffers(const ResourcePool pool)
+{
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
+
+    const u32 pid = Handle_GetResourcePoolId(pool);
+
+    return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
+}
+
+template <Dimension D>
+static void resourcePool_CreateDefault(ResourcePool &pool, const ResourcePool fallback, const ResourceType rtype)
+{
+    if (fallback == NullHandle)
+        pool = ResourcePool_Create<D>(rtype);
+    else
+        pool = fallback;
+}
+
+template <typename Vertex>
+static void mesh_Update(const Resource handle, MeshResourceData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Vertex::Resource, Vertex::Dim);
 
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 mid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
+
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    mpool.Flags = StatusFlag_NeedsSync;
+
+    MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
+    const MeshDataLayout &layout = minfo.Layout;
+    TKIT_ASSERT(data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
+                "[ONYX][RESOURCES] When updating a mesh, the vertex and index count of the previous and updated mesh "
+                "must be the "
+                "same. If they are not, you must create a new mesh");
+
+    bounds_Update(minfo.Bounds, CreateBoundsData(data));
+
+    TKit::ForwardCopy(mpool.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(mpool.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
+
+    if constexpr (Vertex::Geo == Geometry_Parametric)
+        minfo.Shape = data.Shape;
+}
+
+template <Dimension D> void Mesh_Update(const Resource handle, const StaticMeshData<D> &data)
+{
+    return mesh_Update(handle, getData<D>().StaticMeshes, data);
+}
+template <Dimension D> void Mesh_Update(const Resource handle, const ParametricMeshData<D> &data)
+{
+    return mesh_Update(handle, getData<D>().ParametricMeshes, data);
+}
+
+template <typename Vertex> static MeshDataLayout mesh_GetLayout(const Resource handle, MeshResourceData<Vertex> &meshes)
+{
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
+
+    return meshes.Pools[pid].Meshes[mid].Layout;
+}
+
+template <Dimension D> MeshDataLayout Mesh_GetLayout(const Resource handle)
+{
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
+
+    const ResourceType rtype = Handle_GetResourceType(handle);
+
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
+        return mesh_GetLayout(handle, getData<D>().StaticMeshes);
+    case Resource_ParametricMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_ParametricMesh);
+        return mesh_GetLayout(handle, getData<D>().ParametricMeshes);
+    case Resource_Font:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_Font);
+        return Font_GetLayout(handle);
+    case Resource_GlyphMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_GlyphMesh);
+        return Glyph_GetLayout(handle);
+    default:
+        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a mesh layout", ToString(rtype));
+        return MeshDataLayout{};
+    }
+}
+
+template <typename Vertex> static Resource mesh_GetBounds(const Resource handle, MeshResourceData<Vertex> &meshes)
+{
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
+
+    return meshes.Pools[pid].Meshes[mid].Bounds;
+}
+
+template <Dimension D> Resource Mesh_GetBounds(const Resource handle)
+{
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
+    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
+
+    const ResourceType rtype = Handle_GetResourceType(handle);
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
+        return mesh_GetBounds(handle, getData<D>().StaticMeshes);
+    case Resource_ParametricMesh:
+        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_ParametricMesh);
+        return mesh_GetBounds(handle, getData<D>().ParametricMeshes);
+    default:
+        TKIT_FATAL(
+            "[ONYX][RESOURCES] A resource of type '{}' does not have well defined bounds. To access glyph bounds, "
+            "use Bounds_GetData<D2>() with the appropiate bounds handle",
+            ToString(rtype));
+        return TKIT_U32_MAX;
+    }
+}
+
+template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register()
+{
+    TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
+    const u32 mid = meshes.Insert();
+
+    DynamicMeshInfo<D> info;
+    info.Data = &meshes[mid];
+    info.Handle = Handle_CreateForResource(Resource_DynamicMesh, mid);
+    return info;
+}
+
+template <Dimension D> DynamicMeshData<D> *DynamicMesh_GetData(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
+    const u32 mid = Handle_GetResourceId(handle);
+    return &getData<D>().DynamicMeshes[mid];
+}
+
+template <Dimension D> void DynamicMesh_Destroy(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
+    const u32 mid = Handle_GetResourceId(handle);
+    getData<D>().DynamicMeshes.Remove(mid);
+}
+
+template <Dimension D> u32 DynamicMesh_GetCount()
+{
+    return getData<D>().DynamicMeshes.GetSize();
+}
+
+template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource handle, MeshResourceData<Vertex> &meshes)
+{
+    CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Vertex::Resource, Vertex::Dim);
+
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
 
     MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
 
@@ -1275,69 +1323,141 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Resource ha
     return data;
 }
 
-template <Dimension D> StaticMeshData<D> GetStaticMeshData(const Resource handle)
+template <Dimension D> StaticMeshData<D> StaticMesh_GetData(const Resource handle)
 {
-    return getMeshData(handle, getData<D>().StaticMeshes);
+    return mesh_GetData(handle, getData<D>().StaticMeshes);
 }
-template <Dimension D> ParametricMeshData<D> GetParametricMeshData(const Resource handle)
+template <Dimension D> ParametricMeshData<D> ParametricMesh_GetData(const Resource handle)
 {
-    return getMeshData(handle, getData<D>().ParametricMeshes);
+    return mesh_GetData(handle, getData<D>().ParametricMeshes);
 }
-template <Dimension D> ParametricShape GetParametricShape(const Resource handle)
+template <Dimension D> ParametricShape ParametricMesh_GetShape(const Resource handle)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES_WITH_DIM(handle, Resource_ParametricMesh, D);
 
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 mid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 mid = Handle_GetResourceId(handle);
 
     ParametricMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
     return mpool.Meshes[mid].Shape;
 }
-template <Dimension D> const MaterialData<D> &GetMaterialData(const Resource handle)
+
+template <typename T>
+static Resource resource_CreateWithHive(const ResourceType rtype, const T &data, HiveResourceData<T> &hive)
+{
+    hive.Flags = StatusFlag_NeedsSync;
+    return Handle_CreateForResource(rtype, hive.Elements.Insert(data));
+}
+
+template <typename T>
+static void resource_UpdateWithHive(const Resource handle, const T &data, HiveResourceData<T> &hive)
+{
+    const u32 rid = Handle_GetResourceId(handle);
+    hive.Elements[rid] = data;
+    hive.Flags = StatusFlag_NeedsSync;
+}
+
+template <typename T> static void resource_DestroyWithHive(const Resource handle, HiveResourceData<T> &hive)
+{
+    const u32 rid = Handle_GetResourceId(handle);
+    hive.Elements.Remove(rid);
+}
+
+template <Dimension D> Resource Material_Register(const MaterialData<D> &data)
+{
+    return resource_CreateWithHive(Resource_Material, data, getData<D>().Materials);
+}
+
+template <Dimension D> void Material_Update(const Resource handle, const MaterialData<D> &data)
 {
     CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
-    const u32 mid = GetResourceId(handle);
+    resource_UpdateWithHive(handle, data, getData<D>().Materials);
+}
+
+template <Dimension D> void Material_Destroy(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
+    resource_DestroyWithHive(handle, getData<D>().Materials);
+}
+
+template <Dimension D> const MaterialData<D> &Material_GetData(const Resource handle)
+{
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
+    const u32 mid = Handle_GetResourceId(handle);
     return getData<D>().Materials.Elements[mid];
 }
 
-template <Dimension D> void DestroyMaterial(const Resource handle)
+template <Dimension D> GltfHandles Gltf_Register(const ResourcePool meshPool, GltfData<D> &data)
 {
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
-    destroyHiveResource(handle, getData<D>().Materials);
+    GltfHandles handles;
+    handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
+    handles.Materials.Reserve(data.Materials.GetSize());
+    handles.Samplers.Reserve(data.Samplers.GetSize());
+    handles.Textures.Reserve(data.Images.GetSize());
+
+    for (const StaticMeshData<D> &smesh : data.StaticMeshes)
+        handles.StaticMeshes.Append(ResourcePool_RegisterMesh(meshPool, smesh));
+
+    for (const SamplerData &sdata : data.Samplers)
+        handles.Samplers.Append(Sampler_Create(sdata));
+
+    for (const ImageData &idata : data.Images)
+    {
+        const Resource img = Image_Create(idata);
+        handles.Textures.Append(Texture_Create(img));
+    }
+
+    for (MaterialData<D> &mdata : data.Materials)
+    {
+        if constexpr (D == D2)
+        {
+            if (mdata.Sampler != TKIT_U32_MAX)
+                mdata.Sampler = handles.Samplers[mdata.Sampler];
+            if (mdata.Texture != TKIT_U32_MAX)
+                mdata.Texture = handles.Textures[mdata.Texture];
+        }
+        else
+        {
+            for (Resource &sampler : mdata.Samplers)
+                if (sampler != TKIT_U32_MAX)
+                    sampler = handles.Samplers[sampler];
+            for (Resource &texture : mdata.Textures)
+                if (texture != TKIT_U32_MAX)
+                    texture = handles.Textures[texture];
+        }
+        handles.Materials.Append(Material_Register(mdata));
+    }
+
+    return handles;
 }
 
-const FontData &GetFontData(const Resource handle)
+const FontData &Font_GetData(const Resource handle)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 fid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 fid = Handle_GetResourceId(handle);
 
     return s_FontData->Pools[pid].Meshes[fid].Data;
 }
-Resource GetFontAtlas(const Resource handle)
+Resource Font_GetAtlas(const Resource handle)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 fid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 fid = Handle_GetResourceId(handle);
 
     return s_FontData->Pools[pid].Meshes[fid].AtlasTexture;
 }
-Resource GetFont(const Resource handle)
+MeshDataLayout Font_GetLayout(const Resource handle)
 {
-    CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_GlyphMesh);
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 gid = GetResourceId(handle);
-
-    const FontPoolData &fpool = s_FontData->Pools[pid];
-    const u32 fid = fpool.GlyphIdToFontId[gid];
-    return CreateResourceHandle(Resource_Font, fid, pid);
+    return mesh_GetLayout(handle, *s_FontData);
 }
-Resource GetGlyph(const Resource handle, const CodePoint codePoint)
+
+Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
 
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 fid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 fid = Handle_GetResourceId(handle);
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
     const FontDataInfo &finfo = fpool.Meshes[fid];
@@ -1347,15 +1467,26 @@ Resource GetGlyph(const Resource handle, const CodePoint codePoint)
     if (it == finfo.Data.GlyphMap.end())
         return NullHandle;
 
-    return CreateResourceHandle(Resource_GlyphMesh, gstart + it->Value, pid);
+    return Handle_CreateForResource(Resource_GlyphMesh, gstart + it->Value, pid);
 }
 
-const GlyphData &GetGlyphData(const Resource handle)
+Resource Glyph_GetFont(const Resource handle)
+{
+    CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_GlyphMesh);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 gid = Handle_GetResourceId(handle);
+
+    const FontPoolData &fpool = s_FontData->Pools[pid];
+    const u32 fid = fpool.GlyphIdToFontId[gid];
+    return Handle_CreateForResource(Resource_Font, fid, pid);
+}
+
+const GlyphData &Glyph_GetData(const Resource handle)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_GlyphMesh);
 
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 gid = GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
+    const u32 gid = Handle_GetResourceId(handle);
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
     const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
@@ -1363,115 +1494,78 @@ const GlyphData &GetGlyphData(const Resource handle)
     return finfo.Data.Glyphs[gid - gstart];
 }
 
-template <typename Vertex> static MeshDataLayout getMeshLayout(const Resource handle, MeshResourceData<Vertex> &meshes)
+MeshDataLayout Glyph_GetLayout(const Resource handle)
 {
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 mid = GetResourceId(handle);
-
-    return meshes.Pools[pid].Meshes[mid].Layout;
-}
-
-MeshDataLayout GetFontLayout(const Resource handle)
-{
-    return getMeshLayout(handle, *s_FontData);
-}
-
-MeshDataLayout GetGlyphLayout(const Resource handle)
-{
-    const u32 gid = GetResourceId(handle);
+    const u32 gid = Handle_GetResourceId(handle);
     return MeshDataLayout{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 0, .IndexCount = 6};
 }
 
-template <Dimension D> MeshDataLayout GetMeshLayout(const Resource handle)
+const DefaultResources &Default_Create(const DefaultResourcesOptions &opts)
 {
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
+    // NOTE(Isma): Resource checks are weak for the moment, meaning that if the user passes a bad resource, it will be
+    // used
 
-    const ResourceType rtype = GetResourceType(handle);
+    DefaultResources &def = s_DefaultResources;
+    resourcePool_CreateDefault<D2>(def.StaticPool2, opts.StaticPool2, Resource_StaticMesh);
+    resourcePool_CreateDefault<D3>(def.StaticPool3, opts.StaticPool3, Resource_StaticMesh);
 
-    switch (rtype)
+    resourcePool_CreateDefault<D2>(def.ParametricPool2, opts.ParametricPool2, Resource_ParametricMesh);
+    resourcePool_CreateDefault<D3>(def.ParametricPool3, opts.ParametricPool3, Resource_ParametricMesh);
+
+    if (opts.FontPool == NullHandle)
+        def.FontPool = FontPool_Create();
+    else
+        def.FontPool = opts.FontPool;
+
+    def.Font = opts.DefaultFont;
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    if (def.Font == NullHandle)
     {
-    case Resource_StaticMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
-        return getMeshLayout(handle, getData<D>().StaticMeshes);
-    case Resource_ParametricMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_ParametricMesh);
-        return getMeshLayout(handle, getData<D>().ParametricMeshes);
-    case Resource_Font:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_Font);
-        return GetFontLayout(handle);
-    case Resource_GlyphMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_GlyphMesh);
-        return GetGlyphLayout(handle);
-    default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a mesh layout", ToString(rtype));
-        return MeshDataLayout{};
+        const auto fres = LoadDefaultFont(opts.FontOpts);
+        ONYX_LOG_RESULT_ERROR(fres);
+        if (fres)
+        {
+            def.Font = FontPool_RegisterFont(def.FontPool, *fres);
+            UnloadFontData(*fres);
+        }
     }
-}
+#endif
+    def.Sampler = Sampler_Create(opts.SamplerData);
 
-template <typename Vertex> static Resource getMeshBounds(const Resource handle, MeshResourceData<Vertex> &meshes)
+    def.Triangle2 = ResourcePool_RegisterMesh(def.StaticPool2, opts.TriangleData2);
+    def.Triangle3 = ResourcePool_RegisterMesh(def.StaticPool3, opts.TriangleData3);
+
+    def.Quad2 = ResourcePool_RegisterMesh(def.StaticPool2, opts.QuadData2);
+    def.Quad3 = ResourcePool_RegisterMesh(def.StaticPool3, opts.QuadData3);
+
+    def.Box = ResourcePool_RegisterMesh(def.StaticPool3, opts.BoxData);
+    def.Sphere = ResourcePool_RegisterMesh(def.StaticPool3, opts.SphereData);
+    def.Cylinder = ResourcePool_RegisterMesh(def.StaticPool3, opts.CylinderData);
+
+    def.Stadium2 = ResourcePool_RegisterMesh(def.ParametricPool2, opts.StadiumData2);
+    def.Stadium3 = ResourcePool_RegisterMesh(def.ParametricPool3, opts.StadiumData3);
+
+    def.RoundedRect2 = ResourcePool_RegisterMesh(def.ParametricPool2, opts.RoundedRectData2);
+    def.RoundedRect3 = ResourcePool_RegisterMesh(def.ParametricPool3, opts.RoundedRectData3);
+
+    def.Capsule = ResourcePool_RegisterMesh(def.ParametricPool3, opts.CapsuleData);
+    def.RoundedBox = ResourcePool_RegisterMesh(def.ParametricPool3, opts.RoundedBoxData);
+    def.Torus = ResourcePool_RegisterMesh(def.ParametricPool3, opts.TorusData);
+
+    SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    flags |= SyncFlag_Fonts;
+#endif
+
+    Sync(flags);
+    return def;
+}
+const DefaultResources &Default_Get()
 {
-    const u32 pid = GetResourcePoolId(handle);
-    const u32 mid = GetResourceId(handle);
-
-    return meshes.Pools[pid].Meshes[mid].Bounds;
+    return s_DefaultResources;
 }
 
-template <Dimension D> Resource GetMeshBounds(const Resource handle)
-{
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(handle);
-
-    const ResourceType rtype = GetResourceType(handle);
-    switch (rtype)
-    {
-    case Resource_StaticMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
-        return getMeshBounds(handle, getData<D>().StaticMeshes);
-    case Resource_ParametricMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_ParametricMesh);
-        return getMeshBounds(handle, getData<D>().ParametricMeshes);
-    default:
-        TKIT_FATAL(
-            "[ONYX][RESOURCES] A resource of type '{}' does not have well defined bounds. To access glyph bounds, "
-            "use GetBoundsData<D2>() with the appropiate bounds handle",
-            ToString(rtype));
-        return TKIT_U32_MAX;
-    }
-}
-template <Dimension D> const BoundsData<D> &GetBoundsData(const Resource handle)
-{
-    CHECK_RESOURCE_HANDLE(handle, Resource_Bounds);
-
-    const u32 bid = GetResourceId(handle);
-    return getData<D>().BoundingBoxes[bid].Data;
-}
-
-TKit::Span<const u32> GetFontPoolIds()
-{
-    return s_FontData->Pools.GetValidIds();
-}
-
-template <Dimension D> TKit::Span<const u32> GetResourcePoolIds(const ResourceType rtype)
-{
-    switch (rtype)
-    {
-    case Resource_StaticMesh:
-        return getData<D>().StaticMeshes.Pools.GetValidIds();
-    case Resource_ParametricMesh:
-        return getData<D>().ParametricMeshes.Pools.GetValidIds();
-    case Resource_Font:
-    case Resource_GlyphMesh:
-        return GetFontPoolIds();
-    default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
-        return TKit::Span<const u32>{};
-    }
-}
-
-template <typename Vertex> static u32 getMeshBatchCount(const MeshResourceData<Vertex> &meshes)
+template <typename Vertex> static u32 mesh_GetBatchCount(const MeshResourceData<Vertex> &meshes)
 {
     u32 count = 0;
     for (const MeshPoolData<Vertex> &mpool : meshes.Pools)
@@ -1479,7 +1573,7 @@ template <typename Vertex> static u32 getMeshBatchCount(const MeshResourceData<V
     return count;
 }
 
-static u32 getGlyphBatchCount()
+static u32 glyph_GetBatchCount()
 {
     u32 count = 0;
     for (const FontPoolData &fpool : s_FontData->Pools)
@@ -1491,91 +1585,16 @@ static u32 getGlyphBatchCount()
 template <Dimension D> u32 GetDistinctBatchDrawCount()
 {
     u32 count = 1; // circles
-    count += getMeshBatchCount(getData<D>().StaticMeshes);
-    count += getMeshBatchCount(getData<D>().ParametricMeshes);
-    count += getGlyphBatchCount();
+    count += mesh_GetBatchCount(getData<D>().StaticMeshes);
+    count += mesh_GetBatchCount(getData<D>().ParametricMeshes);
+    count += glyph_GetBatchCount();
     return count;
-}
-
-u32 GetFontCount(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-
-    const u32 pid = GetResourcePoolId(pool);
-    return s_FontData->Pools[pid].Meshes.GetSize();
-}
-
-u32 GetGlyphCount(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
-
-    const u32 pid = GetResourcePoolId(pool);
-    return s_FontData->Pools[pid].GlyphIdToFontId.GetSize();
-}
-
-template <Dimension D> u32 GetResourceCount(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-
-    const ResourceType rtype = GetResourceType(pool);
-    const u32 pid = GetResourcePoolId(pool);
-
-    switch (rtype)
-    {
-    case Resource_StaticMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
-        return getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
-    case Resource_ParametricMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_ParametricMesh);
-        return getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
-    case Resource_Font:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-        return GetFontCount(pool);
-    case Resource_GlyphMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
-        return GetGlyphCount(pool);
-    default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
-        return 0;
-    }
-}
-
-template <Dimension D> u32 GetDynamicMeshCount()
-{
-    return getData<D>().DynamicMeshes.GetSize();
-}
-
-MeshBuffers GetFontBuffers(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-
-    const u32 pid = GetResourcePoolId(pool);
-
-    return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
-}
-
-MeshBuffers GetGlyphBuffers(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
-
-    const u32 pid = GetResourcePoolId(pool);
-
-    return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
 }
 
 u32 CombineSamplerTexIntoId(const Resource shandle, const Resource thandle)
 {
-    const u32 sid = GetResourceId(shandle);
-    const u32 tid = GetResourceId(thandle);
+    const u32 sid = Handle_GetResourceId(shandle);
+    const u32 tid = Handle_GetResourceId(thandle);
 
     // nulls without the _ID are unshifted masks. we leave out oid, which is just zero
     if (sid == NullResource || tid == NullResource)
@@ -1623,58 +1642,29 @@ bool IsBackCulled(const Resource handle)
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
 
-    const ResourceType rtype = GetResourceType(handle);
+    const ResourceType rtype = Handle_GetResourceType(handle);
     if (rtype == Resource_GlyphMesh)
         return false;
 
-    const u32 rid = GetResourceId(handle);
+    const u32 rid = Handle_GetResourceId(handle);
     if (rtype == Resource_DynamicMesh)
         return s_ResourceData3->DynamicMeshes[rid].Flags & MeshDataFlag_BackCulled;
 
-    const u32 pid = GetResourcePoolId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
     if (rtype == Resource_StaticMesh)
         return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
 
     return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
 }
 
-template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)
-{
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
-    ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-
-    const ResourceType rtype = GetResourceType(pool);
-
-    const u32 pid = GetResourcePoolId(pool);
-    switch (rtype)
-    {
-    case Resource_StaticMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_StaticMesh);
-        return {&getData<D>().StaticMeshes.Pools[pid].VertexBuffer, &getData<D>().StaticMeshes.Pools[pid].IndexBuffer};
-    case Resource_ParametricMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_ParametricMesh);
-        return {&getData<D>().ParametricMeshes.Pools[pid].VertexBuffer,
-                &getData<D>().ParametricMeshes.Pools[pid].IndexBuffer};
-    case Resource_Font:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
-        return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
-    case Resource_GlyphMesh:
-        ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
-        return {&s_FontData->Pools[pid].VertexBuffer, &s_FontData->Pools[pid].IndexBuffer};
-    default:
-        TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a vertex buffer", ToString(rtype));
-        return {};
-    }
-}
-
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
 {
-    const u32 itype = GetResourceTypeAsInteger(handle);
+    const u32 itype = Handle_GetResourceTypeAsInteger(handle);
     if (itype >= Resource_Count || (itype != rtype && rtype != Resource_None))
         return false;
 
-    const u32 rid = GetResourceId(handle);
-    const u32 pid = GetResourcePoolId(handle);
+    const u32 rid = Handle_GetResourceId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
     switch (itype)
     {
     case Resource_StaticMesh:
@@ -1684,9 +1674,9 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
         return IsResourcePoolValid<D>(handle, Resource_ParametricMesh) &&
                rid < getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
     case Resource_DynamicMesh:
-        return IsResourcePoolNull(handle) && getData<D>().DynamicMeshes.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && getData<D>().DynamicMeshes.Contains(rid);
     case Resource_Material:
-        return IsResourcePoolNull(handle) && getData<D>().Materials.Elements.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && getData<D>().Materials.Elements.Contains(rid);
     case Resource_Font:
         return IsResourcePoolValid<D>(handle, Resource_Font) && rid < s_FontData->Pools[pid].Meshes.GetSize();
     case Resource_GlyphMesh:
@@ -1694,26 +1684,26 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
                rid < s_FontData->Pools[pid].Vertices.GetSize() / 4 &&
                rid < s_FontData->Pools[pid].Indices.GetSize() / 6;
     case Resource_Sampler:
-        return IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && s_Samplers->Resources.Contains(rid);
     case Resource_Texture:
-        return IsResourcePoolNull(handle) && s_Textures->Resources.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && s_Textures->Resources.Contains(rid);
     case Resource_Bounds:
-        return IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
     case Resource_Buffer:
-        return IsResourcePoolNull(handle) && s_Buffers->Resources.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && s_Buffers->Resources.Contains(rid);
     case Resource_Image:
-        return IsResourcePoolNull(handle) && s_Images->Resources.Contains(rid);
+        return Handle_IsResourcePoolNull(handle) && s_Images->Resources.Contains(rid);
     default:
         return false;
     }
 }
 template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
 {
-    const u32 itype = GetResourceTypeAsInteger(handle);
+    const u32 itype = Handle_GetResourceTypeAsInteger(handle);
     if (itype >= Resource_PoolCount || (itype != rtype && rtype != Resource_None))
         return false;
 
-    const u32 pid = GetResourcePoolId(handle);
+    const u32 pid = Handle_GetResourcePoolId(handle);
     switch (itype)
     {
     case Resource_StaticMesh:
@@ -1762,9 +1752,9 @@ template <typename Vertex> static void uploadMeshes(MeshResourceData<Vertex> &me
 {
     for (const ResourcePool pool : meshes.ToDestroy)
         if constexpr (std::is_same_v<Vertex, GlyphVertex>)
-            DestroyFontPool(pool);
+            FontPool_Destroy(pool);
         else
-            destroyMeshPool(pool, meshes);
+            resourcePool_DestroyForMeshes(pool, meshes);
 
     meshes.ToDestroy.Clear();
 
@@ -1927,21 +1917,21 @@ void Sync(const SyncFlags flags)
     {
         TKIT_LOG_DEBUG_IF(!s_Textures->ToDestroy.IsEmpty(), "[ONYX][RESOURCES] Destroying textures");
         for (const Resource handle : s_Textures->ToDestroy)
-            DestroyTexture(handle);
+            Texture_Destroy(handle);
         s_Textures->ToDestroy.Clear();
     }
     if (flags & SyncFlag_Images)
     {
         TKIT_LOG_DEBUG_IF(!s_Images->ToDestroy.IsEmpty(), "[ONYX][RESOURCES] Destroying images");
         for (const Resource handle : s_Images->ToDestroy)
-            DestroyImage(handle);
+            Image_Destroy(handle);
         s_Images->ToDestroy.Clear();
     }
     if (flags & SyncFlag_Samplers)
     {
         TKIT_LOG_DEBUG_IF(!s_Samplers->ToDestroy.IsEmpty(), "[ONYX][RESOURCES] Destroying samplers");
         for (const Resource handle : s_Samplers->ToDestroy)
-            DestroySampler(handle);
+            Sampler_Destroy(handle);
         s_Samplers->ToDestroy.Clear();
     }
 
@@ -1959,68 +1949,71 @@ void Sync(const SyncFlags flags)
     TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][RESOURCES] Uploaded resources in {:.2f} milliseconds");
 }
 
-template Resource RegisterMaterial(const MaterialData<D2> &data);
-template Resource RegisterMaterial(const MaterialData<D3> &data);
+template Resource Material_Register(const MaterialData<D2> &data);
+template Resource Material_Register(const MaterialData<D3> &data);
 
-template void DestroyMaterial<D2>(Resource handle);
-template void DestroyMaterial<D3>(Resource handle);
+template void Material_Destroy<D2>(Resource handle);
+template void Material_Destroy<D3>(Resource handle);
 
-template void UpdateMaterial(Resource mesh, const MaterialData<D2> &data);
-template void UpdateMaterial(Resource mesh, const MaterialData<D3> &data);
+template void Material_Update(Resource mesh, const MaterialData<D2> &data);
+template void Material_Update(Resource mesh, const MaterialData<D3> &data);
 
-template DynamicMeshInfo<D2> RegisterDynamicMesh();
-template DynamicMeshInfo<D3> RegisterDynamicMesh();
+template DynamicMeshInfo<D2> DynamicMesh_Register();
+template DynamicMeshInfo<D3> DynamicMesh_Register();
 
-template DynamicMeshData<D2> *GetDynamicMeshData(Resource mesh);
-template DynamicMeshData<D3> *GetDynamicMeshData(Resource mesh);
+template DynamicMeshData<D2> *DynamicMesh_GetData(Resource mesh);
+template DynamicMeshData<D3> *DynamicMesh_GetData(Resource mesh);
 
-template u32 GetDynamicMeshCount<D2>();
-template u32 GetDynamicMeshCount<D3>();
+template u32 DynamicMesh_GetCount<D2>();
+template u32 DynamicMesh_GetCount<D3>();
 
-template void DestroyDynamicMesh<D2>(Resource mesh);
-template void DestroyDynamicMesh<D3>(Resource mesh);
+template void DynamicMesh_Destroy<D2>(Resource mesh);
+template void DynamicMesh_Destroy<D3>(Resource mesh);
 
-template Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D2> &data);
-template Resource RegisterMesh(ResourcePool pool, const StaticMeshData<D3> &data);
+template Resource ResourcePool_RegisterMesh(ResourcePool pool, const StaticMeshData<D2> &data);
+template Resource ResourcePool_RegisterMesh(ResourcePool pool, const StaticMeshData<D3> &data);
 
-template void UpdateMesh(Resource handle, const StaticMeshData<D2> &data);
-template void UpdateMesh(Resource handle, const StaticMeshData<D3> &data);
+template void Mesh_Update(Resource handle, const StaticMeshData<D2> &data);
+template void Mesh_Update(Resource handle, const StaticMeshData<D3> &data);
 
-template Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D2> &data);
-template Resource RegisterMesh(ResourcePool pool, const ParametricMeshData<D3> &data);
+template Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricMeshData<D2> &data);
+template Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricMeshData<D3> &data);
 
-template void UpdateMesh(Resource handle, const ParametricMeshData<D2> &data);
-template void UpdateMesh(Resource handle, const ParametricMeshData<D3> &data);
+template void Mesh_Update(Resource handle, const ParametricMeshData<D2> &data);
+template void Mesh_Update(Resource handle, const ParametricMeshData<D3> &data);
 
-template ResourcePool CreateResourcePool<D2>(ResourceType rtype);
-template ResourcePool CreateResourcePool<D3>(ResourceType rtype);
+template ResourcePool ResourcePool_Create<D2>(ResourceType rtype);
+template ResourcePool ResourcePool_Create<D3>(ResourceType rtype);
 
-template void DestroyResourcePool<D2>(ResourcePool pool);
-template void DestroyResourcePool<D3>(ResourcePool pool);
+template void ResourcePool_Destroy<D2>(ResourcePool pool);
+template void ResourcePool_Destroy<D3>(ResourcePool pool);
 
-template StaticMeshData<D2> GetStaticMeshData(Resource handle);
-template StaticMeshData<D3> GetStaticMeshData(Resource handle);
+template void ResourcePool_Release<D2>(ResourcePool pool);
+template void ResourcePool_Release<D3>(ResourcePool pool);
 
-template ParametricMeshData<D2> GetParametricMeshData(Resource handle);
-template ParametricMeshData<D3> GetParametricMeshData(Resource handle);
+template StaticMeshData<D2> StaticMesh_GetData(Resource handle);
+template StaticMeshData<D3> StaticMesh_GetData(Resource handle);
 
-template ParametricShape GetParametricShape<D2>(Resource handle);
-template ParametricShape GetParametricShape<D3>(Resource handle);
+template ParametricMeshData<D2> ParametricMesh_GetData(Resource handle);
+template ParametricMeshData<D3> ParametricMesh_GetData(Resource handle);
 
-template const MaterialData<D2> &GetMaterialData(Resource handle);
-template const MaterialData<D3> &GetMaterialData(Resource handle);
+template ParametricShape ParametricMesh_GetShape<D2>(Resource handle);
+template ParametricShape ParametricMesh_GetShape<D3>(Resource handle);
 
-template GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D2> &resources);
-template GltfHandles RegisterGltfResources(ResourcePool meshPool, GltfData<D3> &resources);
+template const MaterialData<D2> &Material_GetData(Resource handle);
+template const MaterialData<D3> &Material_GetData(Resource handle);
 
-template TKit::Span<const u32> GetResourcePoolIds<D2>(ResourceType rtype);
-template TKit::Span<const u32> GetResourcePoolIds<D3>(ResourceType rtype);
+template GltfHandles Gltf_Register(ResourcePool meshPool, GltfData<D2> &resources);
+template GltfHandles Gltf_Register(ResourcePool meshPool, GltfData<D3> &resources);
 
-template u32 GetResourceCount<D2>(ResourcePool pool);
-template u32 GetResourceCount<D3>(ResourcePool pool);
+template TKit::Span<const u32> ResourcePool_GetIds<D2>(ResourceType rtype);
+template TKit::Span<const u32> ResourcePool_GetIds<D3>(ResourceType rtype);
 
-template MeshBuffers GetMeshBuffers<D2>(ResourcePool pool);
-template MeshBuffers GetMeshBuffers<D3>(ResourcePool pool);
+template u32 ResourcePool_GetResourceCount<D2>(ResourcePool pool);
+template u32 ResourcePool_GetResourceCount<D3>(ResourcePool pool);
+
+template MeshBuffers ResourcePool_GetMeshBuffers<D2>(ResourcePool pool);
+template MeshBuffers ResourcePool_GetMeshBuffers<D3>(ResourcePool pool);
 
 template bool IsResourceValid<D2>(Resource handle, ResourceType rtype);
 template bool IsResourceValid<D3>(Resource handle, ResourceType rtype);
@@ -2031,10 +2024,13 @@ template bool IsResourcePoolValid<D3>(Handle handle, ResourceType rtype);
 template u32 GetDistinctBatchDrawCount<D2>();
 template u32 GetDistinctBatchDrawCount<D3>();
 
-template MeshDataLayout GetMeshLayout<D2>(Resource handle);
-template MeshDataLayout GetMeshLayout<D3>(Resource handle);
+template MeshDataLayout Mesh_GetLayout<D2>(Resource handle);
+template MeshDataLayout Mesh_GetLayout<D3>(Resource handle);
 
-template Resource GetMeshBounds<D2>(Resource mesh);
-template Resource GetMeshBounds<D3>(Resource mesh);
+template Resource Mesh_GetBounds<D2>(Resource mesh);
+template Resource Mesh_GetBounds<D3>(Resource mesh);
+
+template const BoundsData<D2> &Bounds_GetData(Resource bounds);
+template const BoundsData<D3> &Bounds_GetData(Resource bounds);
 
 } // namespace Onyx::Resources

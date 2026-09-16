@@ -48,7 +48,7 @@ RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
     FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
 
     img->Image = createImage(dimensions);
-    img->Texture = Resources::CreateMainRenderTexture(img->Image.GetView());
+    img->Texture = Resources::Texture_CreateMainRenderTexture(img->Image.GetView());
 
     if (IsDebugUtilsEnabled())
         nameImage(img->Image, m_Images.GetSize() - 1);
@@ -62,7 +62,7 @@ RenderTexture::~RenderTexture()
     {
         // may be the case that resources already freed everything on global tear-down
         if (Resources::IsResourceValid(img->Texture))
-            Resources::DestroyTexture(img->Texture);
+            Resources::Texture_Destroy(img->Texture);
         img->Image.Destroy();
     }
 }
@@ -76,7 +76,7 @@ void RenderTexture::Resize(const u32v2 &dims)
     TKit::TierAllocator *tier = TKit::GetTier();
 
     const auto destroyImage = [&](FrontEndImage *img) {
-        Resources::DestroyTexture(img->Texture);
+        Resources::Texture_Destroy(img->Texture);
         img->Image.Destroy();
         tier->Destroy(img);
     };
@@ -128,7 +128,7 @@ void RenderTexture::Resize(const u32v2 &dims)
     if (IsDebugUtilsEnabled())
         nameImage(main->Image, 0);
 
-    Resources::UpdateRenderTexture(main->Texture, main->Image.GetView());
+    Resources::Texture_UpdateRenderTexture(main->Texture, main->Image.GetView());
     m_Dimensions = dims;
     updateRenderViews();
 }
@@ -136,7 +136,7 @@ void RenderTexture::Resize(const u32v2 &dims)
 void RenderTexture::FindAvailableImages()
 {
     m_Readable = m_Writable; // the one we just wrote to (most updated one)
-    Resources::UpdateTextureHandleOffset(m_Handle, m_Images[m_Readable]->Texture);
+    Resources::Texture_UpdateHandleOffset(m_Handle, m_Images[m_Readable]->Texture);
 
     for (u32 i = 0; i < m_Images.GetSize(); ++i)
         if (i != m_Readable && !m_Images[i]->Tracker.InUse())
@@ -154,7 +154,7 @@ void RenderTexture::FindAvailableImages()
     FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
 
     img->Image = createImage(m_Dimensions);
-    img->Texture = Resources::CreateSecondaryRenderTexture(img->Image.GetView());
+    img->Texture = Resources::Texture_CreateSecondaryRenderTexture(img->Image.GetView());
     if (IsDebugUtilsEnabled())
         nameImage(img->Image, m_Writable);
 }
