@@ -159,7 +159,9 @@ struct DefaultResourcesOptions
 
 namespace Onyx::Resources
 {
-// NOTE(Isma): No way to create/use buffers in onyx yet through this api
+// function naming conventions here change a bit to always be preceded by the resource they are affecting. this is done
+// locally here (and in other resource-related headers) because i find it easier in these specific instances to find and
+// organize the functions named this way NOTE(Isma): No way to create/use buffers in onyx yet through this api
 
 void Buffer_Destroy(Resource buffer);
 void Buffer_Release(Resource buffer);

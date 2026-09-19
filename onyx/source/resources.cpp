@@ -189,7 +189,7 @@ template <Dimension D> static ResourceData<D> &getData()
         return *s_ResourceData3;
 }
 
-template <Dimension D> static void updateMaterialsDescriptorSet()
+template <Dimension D> static void materials_UpdateDescriptorSet()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
 
@@ -199,7 +199,7 @@ template <Dimension D> static void updateMaterialsDescriptorSet()
         Renderer::BindBuffer<D>(ONYX_MATERIALS_BINDING_POINT, binfo, RenderPass_Shadow);
 }
 
-template <Dimension D> static void updateBoundsDescriptorSet()
+template <Dimension D> static void bounds_UpdateDescriptorSets()
 {
     BoundsResourceData<D> &bounds = getData<D>().BoundingBoxes;
 
@@ -211,25 +211,25 @@ template <Dimension D> static void updateBoundsDescriptorSet()
 
 // NOTE(Isma): Because we create the underlying buffer to the capacity, in theory no resizes will be triggered for both
 // materials and bounds. however, when adding a new resource, the check is done still because the codepath is the same
-template <typename T> static void initializeHiveResources(const u32 capacity, HiveResourceData<T> &hive)
+template <typename T> static void resource_InitializeWithHive(const u32 capacity, HiveResourceData<T> &hive)
 {
     hive.Elements.Reserve(capacity);
     hive.Buffer = Onyx::CreateBuffer<T>(Buffer_DeviceStorage, capacity);
 }
 
-template <Dimension D> static void initializeMaterials(const u32 capacity)
+template <Dimension D> static void materials_Initialize(const u32 capacity)
 {
-    initializeHiveResources(capacity, getData<D>().Materials);
-    updateMaterialsDescriptorSet<D>();
+    resource_InitializeWithHive(capacity, getData<D>().Materials);
+    materials_UpdateDescriptorSet<D>();
 }
 
-template <Dimension D> static void initializeBounds(const u32 capacity)
+template <Dimension D> static void bounds_Initialize(const u32 capacity)
 {
-    initializeHiveResources(capacity, getData<D>().BoundingBoxes);
-    updateBoundsDescriptorSet<D>();
+    resource_InitializeWithHive(capacity, getData<D>().BoundingBoxes);
+    bounds_UpdateDescriptorSets<D>();
 }
 
-static void updateTextureOffsetsDescriptorSet()
+static void texture_UpdateOffsetDescriptorSet()
 {
     const VkDescriptorBufferInfo info = s_Textures->OffsetBuffer.CreateDescriptorInfo();
     Renderer::BindBuffer<D2>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
@@ -264,20 +264,20 @@ void Initialize(const Specs &specs)
         ONYX_CHECK_VKIT_RESULT(VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), Buffer_DeviceStorage)
                                    .SetSize(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32))
                                    .Build());
-    updateTextureOffsetsDescriptorSet();
+    texture_UpdateOffsetDescriptorSet();
 
     s_Textures->DefaultOffsetId = s_Textures->Offsets.Insert(0);
 
     s_ResourceData2->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
     s_ResourceData3->DynamicMeshes.Reserve(specs.MaxDynamicMeshes);
 
-    initializeMaterials<D2>(specs.MaxMaterials);
-    initializeMaterials<D3>(specs.MaxMaterials);
-    initializeBounds<D2>(specs.MaxBounds);
-    return initializeBounds<D3>(specs.MaxBounds);
+    materials_Initialize<D2>(specs.MaxMaterials);
+    materials_Initialize<D3>(specs.MaxMaterials);
+    bounds_Initialize<D2>(specs.MaxBounds);
+    return bounds_Initialize<D3>(specs.MaxBounds);
 }
 
-template <typename Vertex> static void terminateMeshes(MeshResourceData<Vertex> &meshData)
+template <typename Vertex> static void meshes_Terminate(MeshResourceData<Vertex> &meshData)
 {
     for (MeshPoolData<Vertex> &pool : meshData.Pools)
     {
@@ -285,13 +285,13 @@ template <typename Vertex> static void terminateMeshes(MeshResourceData<Vertex> 
         pool.IndexBuffer.Destroy();
     }
 }
-template <Dimension D> static void terminateMaterials()
+template <Dimension D> static void materials_Terminate()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
     materials.Buffer.Destroy();
 }
 
-template <Dimension D> static void terminateBounds()
+template <Dimension D> static void bounds_Terminate()
 {
     BoundsResourceData<D> &data = getData<D>().BoundingBoxes;
     data.Buffer.Destroy();
@@ -299,18 +299,18 @@ template <Dimension D> static void terminateBounds()
 
 template <Dimension D> static void terminate()
 {
-    terminateMaterials<D>();
+    materials_Terminate<D>();
     ResourceData<D> &data = getData<D>();
-    terminateMeshes(data.ParametricMeshes);
-    terminateMeshes(data.StaticMeshes);
-    terminateBounds<D>();
+    meshes_Terminate(data.ParametricMeshes);
+    meshes_Terminate(data.StaticMeshes);
+    bounds_Terminate<D>();
 }
 
 void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
-    terminateMeshes(*s_FontData);
+    meshes_Terminate(*s_FontData);
 
     for (VKit::DeviceBuffer &buffer : s_Buffers->Resources)
         buffer.Destroy();
@@ -1849,7 +1849,7 @@ template <Dimension D> static void uploadMaterials()
     materials.Flags = 0;
     // NOTE(Isma): A resize here should not trigger
     if (uploadFromHost<MaterialPackedData<D>>(materials.Buffer, sparse))
-        updateMaterialsDescriptorSet<D>();
+        materials_UpdateDescriptorSet<D>();
 }
 
 template <Dimension D> static void uploadBounds()
@@ -1869,7 +1869,7 @@ template <Dimension D> static void uploadBounds()
 
     bounds.Flags = 0;
     if (uploadFromHost<BoundsData<D>>(bounds.Buffer, sparse))
-        updateBoundsDescriptorSet<D>();
+        bounds_UpdateDescriptorSets<D>();
 }
 
 #ifdef TKIT_ENABLE_DEBUG_LOGS
