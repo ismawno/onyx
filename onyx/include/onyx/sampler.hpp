@@ -28,8 +28,8 @@ struct SamplerData
 {
     SamplerMode Mode = SamplerMode_Linear;
 
-    SamplerFilter MinFilter = SamplerFilter_Linear;
     SamplerFilter MagFilter = SamplerFilter_Linear;
+    SamplerFilter MinFilter = SamplerFilter_Linear;
 
     SamplerWrap WrapU = SamplerWrap_Repeat;
     SamplerWrap WrapV = SamplerWrap_Repeat;

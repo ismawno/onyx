@@ -6,7 +6,7 @@
 #include "tkit/utils/debug.hpp"
 
 // TODO(Isma): Hide these checks
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ENSURE
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl)                                                            \
         TKIT_ASSERT(                                                                                                   \
             Onyx::Handle_GetResourceTypeAsInteger(hndl) < Onyx::Resource_Count,                                        \
@@ -85,7 +85,7 @@
 
 namespace Onyx
 {
-using Handle = u32;
+using Handle = u<ONYX_RESOURCE_WIDTH>;
 constexpr Handle NullHandle = TKit::Limits<Handle>::Max();
 
 using Resource = Handle;
@@ -122,47 +122,47 @@ const char *ToString(ResourceType rtype);
 
 // handles are re-used, so at some point generation tracking will be needed
 
-inline u32 Handle_GetResourceTypeAsInteger(const Handle handle)
+constexpr u32 Handle_GetResourceTypeAsInteger(const Handle handle)
 {
     return (handle & ONYX_RESOURCE_TYPE_MASK) >> ONYX_RESOURCE_TYPE_SHIFT;
 }
 
-inline ResourceType Handle_GetResourceType(const Handle handle)
+constexpr ResourceType Handle_GetResourceType(const Handle handle)
 {
     return ResourceType(Handle_GetResourceTypeAsInteger(handle));
 }
 
-inline bool Handle_IsResourceNull(const Resource handle)
+constexpr bool Handle_IsResourceNull(const Resource handle)
 {
     return (handle & ONYX_RESOURCE_ID_MASK) == NullResource;
 }
-inline bool Handle_IsResourcePoolNull(const Handle handle)
+constexpr bool Handle_IsResourcePoolNull(const Handle handle)
 {
     return (handle & ONYX_RESOURCE_POOL_ID_MASK) == NullResourcePool;
 }
 
 // this one is a bit niche
-inline bool Handle_IsResourcePoolIdNull(const u32 poolId)
+constexpr bool Handle_IsResourcePoolIdNull(const u32 poolId)
 {
     return ((poolId << ONYX_RESOURCE_POOL_SHIFT) & ONYX_RESOURCE_POOL_ID_MASK) == NullResourcePool;
 }
 
-inline u32 Handle_GetResourceId(const Resource handle)
+constexpr u32 Handle_GetResourceId(const Resource handle)
 {
     return handle & ONYX_RESOURCE_ID_MASK;
 }
-inline u32 Handle_GetResourcePoolId(const Handle handle)
+constexpr u32 Handle_GetResourcePoolId(const Handle handle)
 {
     return (handle & ONYX_RESOURCE_POOL_ID_MASK) >> ONYX_RESOURCE_POOL_SHIFT;
 }
 
-inline ResourcePool Handle_GetResourcePool(const Resource handle)
+constexpr ResourcePool Handle_GetResourcePool(const Resource handle)
 {
     return (handle & ONYX_RESOURCE_POOL_MASK) | NullResource;
 }
 
-inline Resource Handle_CreateForResource(const ResourceType rtype, const u32 resourceId,
-                                         const u32 poolId = ONYX_MAX_RESOURCE_POOLS)
+constexpr Resource Handle_CreateForResource(const ResourceType rtype, const u32 resourceId,
+                                            const u32 poolId = ONYX_MAX_RESOURCE_POOLS)
 {
     TKIT_ASSERT(rtype < Resource_Count,
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
@@ -180,7 +180,7 @@ inline Resource Handle_CreateForResource(const ResourceType rtype, const u32 res
     return (u32(rtype) << ONYX_RESOURCE_TYPE_SHIFT) | (poolId << ONYX_RESOURCE_POOL_SHIFT) | resourceId;
 }
 
-inline ResourcePool Handle_CreateForResourcePool(const ResourceType rtype, const u32 poolId)
+constexpr ResourcePool Handle_CreateForResourcePool(const ResourceType rtype, const u32 poolId)
 {
     TKIT_ASSERT(rtype < Resource_PoolCount,
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");

@@ -221,7 +221,6 @@ static void createVulkanAllocator()
 static void createInstance(InitializationFlags flags)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan instance");
-    u32 extensionCount;
 
     VKit::Instance::Builder builder{};
 
@@ -278,6 +277,7 @@ static void createInstance(InitializationFlags flags)
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
     }
 
+    u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
     for (u32 i = 0; i < extensionCount; ++i)

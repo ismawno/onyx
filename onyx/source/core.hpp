@@ -27,9 +27,10 @@ template <typename T> auto CheckVKitError(TKit::Result<T, VKit::Error> &&result)
 
         TKIT_PANIC("{}", error.ToString());
     }
+#else
+    TKIT_ASSERT(result, "{}", result.GetError().ToString());
 #endif
 
-    TKIT_ASSERT(result, "{}", result.GetError().ToString());
     if constexpr (!std::same_as<T, void>)
         return *result;
 }

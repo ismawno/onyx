@@ -586,7 +586,7 @@ Result<Compilation> Compiler::Compile(const Specs &specs) const
         if (!module)
             return Result<>::Error(Error_ShaderCompilationFailed,
                                    TKit::TierString::Format("[ONYX][SHADERS] Failed to load shader module '{}': {}",
-                                                        munit.m_Name, getDiagnostics(diagnostics)));
+                                                            munit.m_Name, getDiagnostics(diagnostics)));
 
         components.Append(module);
         TKIT_LOG_WARNING_IF(diagnostics, "[ONYX][SHADERS] Shader module '{}' loaded with the following diagnostics: {}",
@@ -602,7 +602,7 @@ Result<Compilation> Compiler::Compile(const Specs &specs) const
                 return Result<>::Error(
                     Error_ShaderCompilationFailed,
                     TKit::TierString::Format("[ONYX][SHADERS] Failed to check entry point '{}' from module '{}': {}",
-                                         ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
+                                             ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
 
             TKIT_LOG_WARNING_IF(
                 diagnostics,
@@ -620,10 +620,10 @@ Result<Compilation> Compiler::Compile(const Specs &specs) const
         result = session->createCompositeComponentType(rawComponents.GetData(), rawComponents.GetSize(),
                                                        program.writeRef(), diagnostics.writeRef());
         if (SLANG_FAILED(result))
-            return Result<>::Error(
-                Error_ShaderCompilationFailed,
-                TKit::TierString::Format("[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
-                                     munit.m_Name, getDiagnostics(diagnostics)));
+            return Result<>::Error(Error_ShaderCompilationFailed,
+                                   TKit::TierString::Format(
+                                       "[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
+                                       munit.m_Name, getDiagnostics(diagnostics)));
 
         TKIT_LOG_WARNING_IF(
             diagnostics,
@@ -635,8 +635,8 @@ Result<Compilation> Compiler::Compile(const Specs &specs) const
         if (SLANG_FAILED(result))
             return Result<>::Error(
                 Error_ShaderCompilationFailed,
-                TKit::TierString::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}", munit.m_Name,
-                                     getDiagnostics(diagnostics)));
+                TKit::TierString::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}",
+                                         munit.m_Name, getDiagnostics(diagnostics)));
 
         TKIT_LOG_WARNING_IF(diagnostics,
                             "[ONYX][SHADERS] Linked final program for module '{}' with the following diagnostics: {}",

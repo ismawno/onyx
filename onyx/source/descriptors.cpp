@@ -36,8 +36,9 @@ static void createDescriptorData(const Specs &specs)
     constexpr VkShaderStageFlagBits vertex = VK_SHADER_STAGE_VERTEX_BIT;
     constexpr VkShaderStageFlagBits fragment = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    constexpr VkDescriptorBindingFlagBitsEXT pbound = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
-    constexpr VkDescriptorBindingFlagBitsEXT bindUnused = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+    constexpr VkDescriptorBindingFlagsEXT pbound = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+    // disabled for now
+    constexpr VkDescriptorBindingFlagsEXT bindUnused = 0;
 
     constexpr u32 instances = ONYX_INSTANCES_BINDING_POINT;
     constexpr u32 samplers = ONYX_SAMPLERS_BINDING_POINT;
