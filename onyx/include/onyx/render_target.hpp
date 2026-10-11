@@ -25,8 +25,7 @@ struct RenderTargetInfo
     TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> Views3;
 
     // only used in windows
-    Onyx_Semaphore ImageAvailableSemaphore;
-    Onyx_Semaphore RenderFinishedSemaphore;
+    Graph::Swapchain Swapchain;
 };
 
 class RenderTarget

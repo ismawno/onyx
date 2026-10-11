@@ -55,31 +55,21 @@ struct Specs
 };
 } // namespace Descriptors
 
-#ifdef ONYX_ENABLE_SHADER_API
-namespace Shaders
-{
-struct Specs
-{
-    bool EnableGlsl = false;
-};
-} // namespace Shaders
-#endif
-
 namespace Renderer
 {
 template <Dimension D> struct ShadowSpecs;
 template <> struct ShadowSpecs<D2>
 {
-    ImageFormat OcclusionFormat = ImageFormat_R8_UNORM;
-    ImageFormat ShadowFormat =
-        ImageFormat_D16_UNORM; // not usually supported when used as 1D storage. thats why a fallback is provided
-    ImageFormat FallbackShadowFormat = ImageFormat_R16_UNORM;
+    Graph::Format OcclusionFormat = Graph::Format_R8_UNORM;
+    Graph::Format ShadowFormat =
+        Graph::Format_D16_UNORM; // not usually supported when used as 1D storage. thats why a fallback is provided
+    Graph::Format FallbackShadowFormat = Graph::Format_R16_UNORM;
     u32 OcclusionResolution = 1024;
     TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{1024, 1024};
 };
 template <> struct ShadowSpecs<D3>
 {
-    ImageFormat ShadowFormat = ImageFormat_D32_SFLOAT;
+    Graph::Format ShadowFormat = Graph::Format_D32_SFLOAT;
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 

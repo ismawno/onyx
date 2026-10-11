@@ -102,7 +102,6 @@ enum ResourceType : u8
     Resource_DynamicMesh,
     Resource_Font,
     Resource_Material,
-    Resource_Buffer,
     Resource_Bounds,
     Resource_Sampler,
     Resource_Image,

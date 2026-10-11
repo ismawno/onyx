@@ -1,24 +1,13 @@
 #pragma once
 
-#include "onyx/core.hpp"
 #include "pass.hpp"
-#include "vkit/state/descriptor_pool.hpp"
+#include "graph/core.hpp"
 
 namespace Onyx::Descriptors
 {
-void Initialize(const Specs &specs);
+void Initialize();
 void Terminate();
 
-const VKit::DescriptorPool &GetDescriptorPool();
-template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
-const VKit::DescriptorSetLayout &GetDescriptorLayout(StandalonePass pass);
-
-template <Dimension D>
-void BindBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,
-                RenderPass pass, u32 dstElement = 0);
-
-template <Dimension D>
-void BindImage(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorImageInfo> info,
-               RenderPass pass, u32 dstElement = 0);
-
+template <Dimension D> Graph::DescriptorSetLayout GetDescriptorLayout(RenderPass pass);
+Graph::DescriptorSetLayout GetDescriptorLayout(StandalonePass pass);
 } // namespace Onyx::Descriptors

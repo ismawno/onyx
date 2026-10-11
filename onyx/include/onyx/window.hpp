@@ -1,59 +1,72 @@
 #pragma once
 
 #include "onyx/dimension.hpp"
-#include "onyx/input.hpp"
 #include "onyx/core.hpp"
 #include "onyx/render_target.hpp"
+#include "graph/platform.hpp"
+#include "graph/swap_chain.hpp"
 #include "tkit/profiling/clock.hpp"
-
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(SurfaceKHR)
-ONYX_DECLARE_PLATFORM_HANDLES()
-
-namespace VKit
-{
-class Swapchain;
-class DeviceImage;
-class Queue;
-} // namespace VKit
 
 namespace Onyx
 {
+enum EventType : u8
+{
+    Event_KeyPressed,
+    Event_KeyReleased,
+    Event_KeyRepeat,
+    Event_MouseMoved,
+    Event_MousePressed,
+    Event_MouseReleased,
+    Event_MouseEntered,
+    Event_MouseLeft,
+    Event_Scrolled,
+    Event_WindowMoved,
+    Event_WindowResized,
+    Event_WindowFocused,
+    Event_WindowUnfocused,
+    Event_WindowClosed,
+    Event_WindowMinimized,
+    Event_WindowRestored,
+    Event_FramebufferResized,
+    Event_CharInput,
+    Event_SwapchainRecreated,
+    Event_Count,
+};
+struct Event
+{
+    struct MouseState
+    {
+        f32v2 Position{0.f};
+        Graph::Mouse Button;
+    };
+
+    bool Empty = false;
+    EventType Type;
+    Graph::Key Key;
+
+    i32v2 WindowPos{0};
+    u32v2 WindowSize{0};
+
+    MouseState Mouse;
+    CodePoint Character;
+    f32v2 ScrollOffset{0.f};
+
+    operator bool() const
+    {
+        return !Empty;
+    }
+};
+
 class Overlay;
 struct OverlaySpecs;
-enum MouseCursor : u8
-{
-    MouseCursor_Default,
-    MouseCursor_Arrow,
-    MouseCursor_NS,
-    MouseCursor_EW,
-    MouseCursor_NWSE,
-    MouseCursor_NESW,
-    MouseCursor_Hand,
-    MouseCursor_CrossHair,
-    MouseCursor_IBeam,
-    MouseCursor_NotAllowed,
-    MouseCursor_Count,
-};
-
-enum PresentMode : u8
-{
-    PresentMode_Immediate,
-    PresentMode_Mailbox,
-    PresentMode_VSync,
-    PresentMode_Count
-};
-
-const char *ToString(PresentMode mode);
 
 u32 ToFrequency(TKit::Timespan deltaTime);
 TKit::Timespan ToDeltaTime(u32 frameRate);
 
 template <Dimension D> struct Camera;
 
-using Timeout = u64;
-
-constexpr Timeout Block = TKIT_U64_MAX;
-constexpr Timeout Poll = 0;
+constexpr u64 Block = TKIT_U64_MAX;
+constexpr u64 Poll = 0;
 
 using WindowFlags = u16;
 enum WindowFlagBit : WindowFlags
@@ -73,7 +86,7 @@ struct WindowSpecs
     const char *Title = "Onyx window";
     i32v2 Position{TKIT_I32_MAX}; // i32 max means let it be decided automatically
     u32v2 Dimensions{800, 600};
-    PresentMode PresentMode = PresentMode_Immediate;
+    Graph::PresentMode PresentMode = Graph::PresentMode_Immediate;
     WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
                         WindowFlag_InstallCallbacks;
 };
@@ -86,72 +99,138 @@ class Window final : public RenderTarget
     Window(const WindowSpecs &specs);
     ~Window();
 
-    static Window *FromHandle(Onyx_WindowHandle *window);
+    static Window *FromHandle(const Graph::Window win)
+    {
+        return scast<Window *>(Graph::Window_GetUserData(win));
+    }
 
-    void MarkImageSemaphoreInUse(const Execution::Tracker &tracker);
+    bool ShouldClose() const
+    {
+        return Graph::Window_ShouldClose(m_Window);
+    }
+    Graph::Monitor GetMonitor() const
+    {
+        return Graph::Window_GetMonitor(m_Window);
+    }
 
-    void BeginRendering(Onyx_CommandBuffer commandBuffer);
-    void EndRendering(Onyx_CommandBuffer commandBuffer);
+    void Show()
+    {
+        Graph::Window_Show(m_Window);
+    }
+    void Focus()
+    {
+        Graph::Window_Focus(m_Window);
+    }
 
-    bool ShouldClose() const;
+    const char *GetTitle() const
+    {
+        return Graph::Window_GetTitle(m_Window);
+    }
+    i32v2 GetPosition() const
+    {
+        return Graph::Window_GetPosition(m_Window);
+    }
+    u32v2 GetScreenDimensions() const
+    {
+        return Graph::Window_GetScreenDimensions(m_Window);
+    }
+    u32v2 GetPixelDimensions() const
+    {
+        return Graph::Window_GetPixelDimensions(m_Window);
+    }
+    f32 GetAspect() const
+    {
+        return Graph::Window_GetAspect(m_Window);
+    }
+    f32 GetOpacity() const
+    {
+        return Graph::Window_GetOpacity(m_Window);
+    }
 
-    const Onyx_WindowHandle *GetHandle() const
+    void SetTitle(const char *title)
+    {
+        Graph::Window_SetTitle(m_Window, title);
+    }
+    void SetPosition(const i32v2 &pos)
+    {
+        Graph::Window_SetPosition(m_Window, pos);
+    }
+    void SetScreenDimensions(const u32v2 &dim)
+    {
+        Graph::Window_SetScreenDimensions(m_Window, dim);
+    }
+    void SetAspect(const u32 numer, const u32 denom)
+    {
+        Graph::Window_SetAspect(m_Window, numer, denom);
+    }
+    void SetOpacity(const f32 opacity)
+    {
+        Graph::Window_SetOpacity(m_Window, opacity);
+    }
+
+    void SetMouseCursor(const Graph::MouseCursor cursor)
+    {
+        Graph::Window_SetMouseCursor(m_Window, cursor);
+    }
+
+    f32v2 GetAbsoluteMousePosition() const
+    {
+        return Graph::Window_GetCursorPosition(m_Window);
+    }
+    f32v2 GetNormalizedMousePosition() const
+    {
+        return GetAbsoluteMousePosition() / f32v2{GetScreenDimensions()};
+    }
+
+    bool IsKeyPressed(const Graph::Key key) const
+    {
+        return Graph::Window_IsKeyPressed(m_Window, key);
+    }
+    bool IsKeyReleased(const Graph::Key key) const
+    {
+        return Graph::Window_IsKeyReleased(m_Window, key);
+    }
+
+    bool IsMousePressed(const Graph::Mouse button) const
+    {
+        return Graph::Window_IsMousePressed(m_Window, button);
+    }
+    bool IsMouseReleased(const Graph::Mouse button) const
+    {
+        return Graph::Window_IsMouseReleased(m_Window, button);
+    }
+
+    void PushEvent(const Event &event)
+    {
+        m_Events.Append(event);
+    }
+    void FlushEvents()
+    {
+        m_Events.Clear();
+    }
+
+    WindowFlags GetFlags() const;
+    void SetFlags(WindowFlags flags);
+    void AddFlags(WindowFlags flags);
+    void RemoveFlags(WindowFlags flags);
+
+    void BeginRendering(Graph::CommandBuffer cmd);
+    void EndRendering(Graph::CommandBuffer cmd);
+
+    Graph::Window GetHandle() const
     {
         return m_Window;
     }
-    Onyx_WindowHandle *GetHandle()
-    {
-        return m_Window;
-    }
-    Onyx_MonitorHandle *GetMonitor() const;
 
     bool IsFullScreen() const;
     bool IsHovered() const;
 
-    void Show();
-    void Focus();
     void ResetResizeClock()
     {
         m_TimeSinceResize.Restart();
     }
 
-    bool CanQueryOpacity() const;
-
-    const char *GetTitle() const;
-    i32v2 GetPosition() const;
-    u32v2 GetScreenDimensions() const;
-    u32v2 GetPixelDimensions() const;
-    f32 GetAspect() const;
-    f32 GetOpacity() const;
-    WindowFlags GetFlags() const;
-
-    void SetTitle(const char *title);
-    void SetPosition(const i32v2 &pos);
-    void SetScreenDimensions(const u32v2 &dim);
-    void SetAspect(u32 numer, u32 denom);
-    void SetFlags(WindowFlags flags);
-    void AddFlags(WindowFlags flags);
-    void RemoveFlags(WindowFlags flags);
-    void SetOpacity(f32 opacity);
-
-    void SetMouseCursor(MouseCursor cursor);
-
     void InstallCallbacks();
-
-    f32v2 GetNormalizedMousePosition() const;
-    f32v2 GetAbsoluteMousePosition() const;
-
-    bool IsKeyPressed(Key key) const;
-    bool IsKeyReleased(Key key) const;
-    bool IsKeyRepeated(Key key) const;
-
-    bool IsMousePressed(Mouse button) const;
-    bool IsMouseReleased(Mouse button) const;
-
-    Onyx_SurfaceKHR GetSurface() const
-    {
-        return m_Surface;
-    }
 
     /**
      * @brief Update the value of the delta time this window is currently in.
@@ -169,15 +248,10 @@ class Window final : public RenderTarget
         return m_MonitorDeltaTime;
     }
 
-    void FlagShouldClose();
-    void PushEvent(const Event &event);
-
     const TKit::TierArray<Event> &GetNewEvents() const
     {
         return m_Events;
     }
-
-    void FlushEvents();
 
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
@@ -196,8 +270,7 @@ class Window final : public RenderTarget
         RenderTargetInfo info;
         info.Views2 = GetSortedViews<D2>();
         info.Views3 = GetSortedViews<D3>();
-        info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
-        info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
+        info.Swapchain = m_Swapchain;
         return info;
     }
 
@@ -208,7 +281,7 @@ class Window final : public RenderTarget
     template <Dimension D>
     void ControlCamera(TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls = {}) const;
 
-    bool AcquireNextImage(Timeout timeout);
+    bool AcquireNextImage(u64 timeout);
     void Present();
 
     void RequestSwapchainRecreation()
@@ -218,12 +291,12 @@ class Window final : public RenderTarget
 
     u32 GetSwapchainImageCount() const;
 
-    PresentMode GetPresentMode() const
+    Graph::PresentMode GetPresentMode() const
     {
         return m_PresentMode;
     }
 
-    void SetPresentMode(const PresentMode presentMode)
+    void SetPresentMode(const Graph::PresentMode presentMode)
     {
         if (m_PresentMode == presentMode)
             return;
@@ -231,52 +304,33 @@ class Window final : public RenderTarget
         m_PresentMode = presentMode;
     }
 
-    Onyx_Semaphore GetImageAvailableSemaphore() const;
-    Onyx_Semaphore GetRenderFinishedSemaphore() const;
-
   private:
-    u32v2 getExtent() const override;
-    void extractSwapchainImages();
+    u32v2 getExtent() const override
+    {
+        return Graph::Swapchain_GetExtent(m_Swapchain);
+    }
 
-    void createSwapchain(const u32v2 &windowExtent);
-    void createSyncData();
-    void destroySyncData();
-    void drainWork();
+    void createSwapchain();
     void recreateSwapchain();
-    void recreateResources();
     void recreateSurface();
-    bool handlePresentOrAcquireResult(const u32 result);
-    void nameSurface();
-    void nameSwapchain();
-    void nameSyncData();
-    void nameSwapchainImages();
+    bool handlePresentOrAcquireResult(Graph::SwapchainStatus status);
 
-    u32v2 getNewExtent();
+    void waitForValidExtent() const;
 
-    Onyx_WindowHandle *m_Window;
-
-    TKit::FixedArray<Onyx_CursorHandle *, MouseCursor_Count> m_Cursors{};
-
+    Graph::Window m_Window;
     TKit::TierArray<Event> m_Events;
-    Onyx_SurfaceKHR m_Surface;
 
     TKit::Timespan m_MonitorDeltaTime{};
     TKit::Clock m_TimeSinceResize{};
 
-    VKit::Swapchain *m_Swapchain = nullptr;
-    TKit::TierArray<VKit::DeviceImage *> m_Presentation{};
-    TKit::TierArray<WindowSyncData *> m_SyncData{};
+    Graph::Swapchain m_Swapchain = Graph::NullHandle;
     // NOTE(Isma, 03/07/26): Overlays create their own views so as of right now they are bound by that limit. overlays
     // could share the same view if allocated the same window, so the limit is not very accurate
     TKit::StaticArray<Overlay *, ONYX_MAX_VIEWS> m_Overlays{};
 
-    VKit::Queue *m_Present;
-
-    u32 m_ImageIndex;
-    u32 m_SyncIndex = 0;
     mutable f32v2 m_PrevMousePos{0.f};
 
-    PresentMode m_PresentMode;
+    Graph::PresentMode m_PresentMode;
     bool m_MustRecreateSwapchain = false;
 };
 } // namespace Onyx

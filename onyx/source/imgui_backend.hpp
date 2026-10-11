@@ -25,13 +25,13 @@ void Create(Window *window);
 
 void NewFrame();
 
-void RenderData(ImDrawData *data, VkCommandBuffer commandBuffer);
+void RenderData(ImDrawData *data, Graph::CommandBuffer cmd);
 void UpdatePlatformWindows();
 
 u32 GetPlatformWindowCount();
 
-bool AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout);
-RenderSubmitInfo RenderPlatformWindow(u32 windowIndex, VKit::Queue *graphics, VkCommandBuffer cmd);
+bool AcquirePlatformWindowImage(u32 windowIndex, u64 timeout);
+RenderSubmitInfo RenderPlatformWindow(u32 windowIndex, Graph::CommandBuffer cmd);
 void PresentPlatformWindow(u32 windowIndex);
 
 void Destroy();

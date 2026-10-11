@@ -1,42 +1,20 @@
 #include "pch.hpp"
-#include "onyx/specs.hpp"
 #include "platform.hpp"
-#include "glfw.hpp"
-#include "vkit/vulkan/loader.hpp"
 #include "tkit/container/static_array.hpp"
 
 namespace Onyx::Platform
 {
 static TKit::Storage<TKit::StaticArray<Window *, ONYX_MAX_VIEWS>> s_Windows{};
 
-#ifdef TKIT_ENABLE_ERROR_LOGS
-static void glfwErrorCallback(const i32 errorCode, const char *description)
-{
-    TKIT_LOG_ERROR("[ONYX][GLFW] An error ocurred with code {} and the following description: {}", errorCode,
-                   description);
-}
-#endif
-
-void Initialize(const Specs &specs)
+void Initialize()
 {
     TKIT_LOG_INFO("[ONYX][PLATFORM] Initializing");
     s_Windows.Construct();
-#ifdef TKIT_ENABLE_ERROR_LOGS
-    glfwSetErrorCallback(glfwErrorCallback);
-#endif
-    glfwInitHint(GLFW_PLATFORM, specs.Platform);
-#if ONYX_GLFW_VERSION_COMBINED >= 3400
-    glfwInitVulkanLoader(VKit::Vulkan::vkGetInstanceProcAddr);
-#endif
-    TKIT_ENSURE_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX][PLATFORM] GLFW failed to initialize");
-
-    TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX][PLATFORM] Vulkan is not supported, according to GLFW");
 }
 
 void Terminate()
 {
     DestroyWindows();
-    glfwTerminate();
     s_Windows.Destruct();
 }
 
@@ -72,39 +50,6 @@ void DestroyWindows()
     for (const Window *window : *s_Windows)
         tier->Destroy(window);
     s_Windows->Clear();
-}
-
-void SetClipboard(const char *data)
-{
-    glfwSetClipboardString(nullptr, data);
-}
-
-const char *GetClipboard()
-{
-    return glfwGetClipboardString(nullptr);
-}
-
-void PollEvents()
-{
-    glfwPollEvents();
-}
-
-Onyx_MonitorHandle *GetMonitor(Onyx_WindowHandle *win)
-{
-    return glfwGetWindowMonitor(win);
-}
-Onyx_MonitorHandle *GetMainMonitor()
-{
-    return glfwGetPrimaryMonitor();
-}
-VideoMode GetVideoMode(Onyx_MonitorHandle *monitor)
-{
-    VideoMode mode;
-    const GLFWvidmode *vmode = glfwGetVideoMode(monitor);
-    mode.Dimensions = {vmode->width, vmode->height};
-    mode.RgbBits = {vmode->redBits, vmode->greenBits, vmode->blueBits};
-    mode.RefreshRate = u32(vmode->refreshRate);
-    return mode;
 }
 
 } // namespace Onyx::Platform

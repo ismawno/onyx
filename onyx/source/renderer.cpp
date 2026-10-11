@@ -2,7 +2,6 @@
 #include "onyx/specs.hpp"
 #include "onyx/context.hpp"
 #include "onyx/overlay.hpp"
-#include "core.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
 #include "resources.hpp"
@@ -11,10 +10,6 @@
 #include "pipelines.hpp"
 #include "descriptors.hpp"
 #include "execution.hpp"
-#include "vkit/resource/device_buffer.hpp"
-#include "vkit/resource/device_image.hpp"
-#include "vkit/resource/sampler.hpp"
-#include "vkit/state/compute_pipeline.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
 
@@ -36,8 +31,8 @@ struct Range
 };
 struct ContextInstanceRange
 {
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
     ViewMask ViewMask = 0;
     u64 Generation = 0;
     u32 ContextIndex = TKIT_U32_MAX;
@@ -45,10 +40,10 @@ struct ContextInstanceRange
 
 struct TransferRange
 {
-    Execution::Tracker Tracker{};
+    Graph::Tracker Tracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
 };
 
 // note that graphics ranges, even tho purely gpu resources (not accessed/written by cpu directly) still have gpu usage
@@ -59,11 +54,11 @@ struct TransferRange
 // pretty much costs nothing, ive decided to keep them at least for now
 struct GraphicsRange
 {
-    Execution::Tracker TransferTracker{};
-    Execution::Tracker GraphicsTracker{};
+    Graph::Tracker TransferTracker{};
+    Graph::Tracker GraphicsTracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
 
     // the generation is used to identify ranges. in the case of light, which range is the current one in use for
     // lights. in the case of vertex/index, to map graphics instance ranges with vertex/index graphics ranges
@@ -85,7 +80,7 @@ struct GraphicsRange
 
 template <typename T> struct Pool
 {
-    VKit::DeviceBuffer Buffer{};
+    Graph::Buffer Buffer = Graph::NullHandle;
     TKit::TierArray<T> Ranges{};
 };
 
@@ -104,11 +99,11 @@ struct Arena
 using TransferInstanceRange = TransferRange;
 struct GraphicsInstanceRange
 {
-    Execution::Tracker TransferTracker{};
-    Execution::Tracker GraphicsTracker{};
+    Graph::Tracker TransferTracker{};
+    Graph::Tracker GraphicsTracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
     ViewMask ViewMask = 0;
 
     Resource MeshHandle = NullHandle;
@@ -180,7 +175,7 @@ struct GeometryData
     TKit::FixedArray<InstanceArena, Geometry_Count> Arenas{};
     Arena VertexArena{};
     Arena IndexArena{};
-    ten<VKit::GraphicsPipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
+    ten<Graph::Pipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
 };
 
 template <typename LightParams> struct ContextLights
@@ -224,8 +219,8 @@ template <Dimension D> struct LightData
 
 struct TextureMap
 {
-    Execution::Tracker Tracker{};
-    VKit::DeviceImage Image{};
+    Graph::Image Image = Graph::NullHandle;
+    Graph::Tracker Tracker{};
 };
 
 using TextureMapArray = TKit::StaticArray<TextureMap, ONYX_MAX_TEXTURE_MAPS>;
@@ -240,11 +235,13 @@ template <> struct ShadowData<D2>
     TextureMapArray OcclusionMaps{};
     u32 OcclusionResolution = 0;
 
-    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
-    VKit::ComputePipeline RayMarchPipeline{};
-    VkDescriptorSet RayMarchSet = VK_NULL_HANDLE;
-    VkFormat OcclusionFormat = VK_FORMAT_UNDEFINED;
-    VkFormat ShadowFormat = VK_FORMAT_UNDEFINED;
+    ten<Graph::Pipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
+    // compute pipeline!
+    Graph::Pipeline RayMarchPipeline{};
+    //
+    Graph::DescriptorSet RayMarchSet = Graph::NullHandle;
+    Graph::Format OcclusionFormat = Graph::Format_Undefined;
+    Graph::Format ShadowFormat = Graph::Format_Undefined;
     ViewMask DirtyShadowViews = 0;
     bool UsesFallback = false;
 };
@@ -256,8 +253,8 @@ template <> struct ShadowData<D3>
     TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{};
 
-    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{};
-    VkFormat ShadowFormat = VK_FORMAT_UNDEFINED;
+    ten<Graph::Pipeline, Geometry_Count> Pipelines{};
+    Graph::Format ShadowFormat = Graph::Format_Undefined;
     ViewMask DirtyShadowViews = 0;
 };
 
@@ -276,7 +273,7 @@ template <Dimension D> struct RendererData
 {
     TKit::TierArray<ContextInfo<D>> Contexts{};
     TKit::TierArray<VkBufferMemoryBarrier2KHR> AcquireBarriers{};
-    ten<VkDescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
+    ten<Graph::DescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
 
     GeometryData Geometry{};
     LightData<D> Lights{};
@@ -324,8 +321,8 @@ template <Dimension D> struct RendererData
 
 struct DrawBuffer
 {
-    Execution::Tracker Tracker{};
-    VKit::DeviceBuffer Buffer{};
+    Graph::Pipeline Buffer = Graph::NullHandle;
+    Graph::Tracker Tracker{};
 };
 
 static TKit::Storage<TKit::TierArray<DrawBuffer>> s_DrawBuffers{};
@@ -333,13 +330,13 @@ static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
-static VKit::GraphicsPipeline s_BlendPipeline{};
-static VKit::GraphicsPipeline s_PostProcessPipeline{};
-static VKit::GraphicsPipeline s_CompositorPipeline{};
+static Graph::Pipeline s_BlendPipeline = Graph::NullHandle;
+static Graph::Pipeline s_PostProcessPipeline = Graph::NullHandle;
+static Graph::Pipeline s_CompositorPipeline = Graph::NullHandle;
 
-static VKit::Sampler s_LinearSampler{};
-static VKit::Sampler s_CompareSampler{};
-static VKit::Sampler s_NearSampler{};
+static Graph::Sampler s_LinearSampler = Graph::NullHandle;
+static Graph::Sampler s_CompareSampler = Graph::NullHandle;
+static Graph::Sampler s_NearSampler = Graph::NullHandle;
 
 static u64 s_SyncPointCount = 0;
 
@@ -946,7 +943,7 @@ template <typename Range> static void validateRanges(const char *name, const Poo
 {
     const auto &ranges = pool.Ranges;
     const VKit::DeviceBuffer::Info &info = pool.Buffer.GetInfo();
-    VkDeviceSize size = 0;
+    usz size = 0;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         const Range &range = ranges[i];
@@ -975,7 +972,7 @@ static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
 {
     const auto &granges = gpool.Ranges;
     const VKit::DeviceBuffer::Info &ginfo = gpool.Buffer.GetInfo();
-    VkDeviceSize gsize = 0;
+    usz gsize = 0;
     for (u32 i = 0; i < granges.GetSize(); ++i)
     {
         const GraphicsInstanceRange &grange = granges[i];
@@ -994,7 +991,7 @@ static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
                         pgrange.Offset + pgrange.Size, grange.Offset);
         }
         const auto &cranges = grange.ContextRanges;
-        VkDeviceSize csize = 0;
+        usz csize = 0;
         ViewMask vmask = 0;
         for (u32 j = 0; j < cranges.GetSize(); ++j)
         {
@@ -1087,7 +1084,7 @@ template <Dimension D> static void validateRanges()
 #endif
 
 template <Dimension D, typename Range>
-static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffer &nbuffer, VKit::DeviceBuffer &buffer,
+static Range *handlePoolResize(const usz requiredMem, VKit::DeviceBuffer &nbuffer, VKit::DeviceBuffer &buffer,
                                TKit::TierArray<Range> &ranges, const bool copyOldContents = false,
                                VKit::Queue *transfer = nullptr)
 {
@@ -1129,7 +1126,7 @@ static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffe
         ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
     }
 
-    const VkDeviceSize size = buffer.GetInfo().Size;
+    const usz size = buffer.GetInfo().Size;
     const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
 
     if (copyOldContents)
@@ -1152,8 +1149,8 @@ static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffe
     smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
-    const VkDeviceSize nsize = nbuffer.GetInfo().Size;
-    const VkDeviceSize offset = size + requiredMem;
+    const usz nsize = nbuffer.GetInfo().Size;
+    const usz offset = size + requiredMem;
     if (nsize == offset)
         return &ranges[ranges.GetSize() - 1];
 
@@ -1167,7 +1164,7 @@ static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffe
 }
 
 template <typename Range>
-static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const VkDeviceSize requiredMem)
+static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const usz requiredMem)
 {
     Range &range = ranges[index];
     if (range.Size == requiredMem)
@@ -1191,9 +1188,9 @@ static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const 
     return &ranges[index];
 }
 
-static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &buffer, const VkDeviceSize requiredMem)
+static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &buffer, const usz requiredMem)
 {
-    const VkDeviceSize size = buffer.GetInfo().Size;
+    const usz size = buffer.GetInfo().Size;
     const u32 icount = 2 * u32(Math::Max(requiredMem, size) / instanceSize);
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find an available range with {:L} bytes of memory. A new buffer "
@@ -1203,7 +1200,7 @@ static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &b
 }
 
 template <Dimension D, typename Range, typename Pool, typename F>
-static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
+static Range *findTransferRange(Pool &pool, const usz requiredMem, const F createBuffer,
                                 const bool copyOldContents = false)
 {
     auto &ranges = pool.Ranges;
@@ -1219,7 +1216,7 @@ static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, cons
 
 template <Dimension D>
 static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, TransferInstancePool &pool,
-                                                        const VkDeviceSize requiredMem)
+                                                        const usz requiredMem)
 {
     return findTransferRange<D, TransferInstanceRange>(
         pool, requiredMem,
@@ -1231,8 +1228,7 @@ static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, Tran
 }
 
 template <Dimension D>
-static TransferLightRange *findTransferLightRange(const LightType light, TransferLightPool &pool,
-                                                  const VkDeviceSize requiredMem)
+static TransferLightRange *findTransferLightRange(const LightType light, TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferLightRange>(pool, requiredMem, [&] {
         return createTransferLightBuffer<D>(light,
@@ -1240,8 +1236,7 @@ static TransferLightRange *findTransferLightRange(const LightType light, Transfe
     });
 }
 
-template <Dimension D>
-static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
+template <Dimension D> static TransferRange *findTransferVertexRange(TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
@@ -1251,8 +1246,7 @@ static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkD
         },
         true);
 }
-template <Dimension D>
-static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
+template <Dimension D> static TransferRange *findTransferIndexRange(TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
@@ -1261,8 +1255,8 @@ static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDe
 }
 
 template <Dimension D, typename Range, typename Pool, typename F1, typename F2>
-static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F1 createBuffer,
-                                const F2 canRangeSplit, bool *resized = nullptr, const bool copyOldContents = false,
+static Range *findGraphicsRange(Pool &pool, const usz requiredMem, const F1 createBuffer, const F2 canRangeSplit,
+                                bool *resized = nullptr, const bool copyOldContents = false,
                                 VKit::Queue *transfer = nullptr)
 {
     auto &ranges = pool.Ranges;
@@ -1290,9 +1284,8 @@ static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, cons
     return handlePoolResize<D>(requiredMem, nbuffer, buffer, ranges, copyOldContents, transfer);
 }
 template <Dimension D, typename Range, typename Pool, typename F>
-static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
-                                bool *resized = nullptr, const bool copyOldContents = false,
-                                VKit::Queue *transfer = nullptr)
+static Range *findGraphicsRange(Pool &pool, const usz requiredMem, const F createBuffer, bool *resized = nullptr,
+                                const bool copyOldContents = false, VKit::Queue *transfer = nullptr)
 {
     return findGraphicsRange<D, Range>(
         pool, requiredMem, createBuffer, [](const auto &) { return true; }, resized, copyOldContents, transfer);
@@ -1300,7 +1293,7 @@ static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, cons
 
 template <Dimension D>
 static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, GraphicsInstancePool &pool,
-                                                        const VkDeviceSize requiredMem, VKit::Queue *transfer)
+                                                        const usz requiredMem, VKit::Queue *transfer)
 {
     RendererData<D> &rdata = getRendererData<D>();
     bool resized = false;
@@ -1318,8 +1311,7 @@ static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, Grap
 }
 
 template <Dimension D>
-static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLightPool &pool,
-                                             const VkDeviceSize requiredMem)
+static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLightPool &pool, const usz requiredMem)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindGraphicsLightRange");
     bool resized = false;
@@ -1336,7 +1328,7 @@ static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLigh
 }
 
 template <Dimension D>
-GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
+GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const usz requiredMem, VKit::Queue *transfer)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
@@ -1347,7 +1339,7 @@ GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize re
         nullptr, true, transfer);
 }
 template <Dimension D>
-GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
+GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const usz requiredMem, VKit::Queue *transfer)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
@@ -1355,8 +1347,8 @@ GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const VkDeviceSize req
         nullptr, true, transfer);
 }
 
-static VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
-                                                      const VkDeviceSize size)
+static VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocalBuffer, const usz offset,
+                                                      const usz size)
 {
     const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
     const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
@@ -1377,8 +1369,8 @@ static VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocal
 
     return barrier;
 }
-static VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
-                                                      const VkDeviceSize size)
+static VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer deviceLocalBuffer, const usz offset,
+                                                      const usz size)
 {
     const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
     const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
@@ -1954,7 +1946,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         GraphicsLightPool &gpool = arena.Graphics;
 
         using LightData = typename LightParams::InstanceData;
-        const VkDeviceSize requiredMem = sizeof(LightData) * clights.Lights.GetSize();
+        const usz requiredMem = sizeof(LightData) * clights.Lights.GetSize();
 
         const TKit::StackArray<ViewMask> &vmasks = lightViews[ltype];
         for (u32 i = 0; i < clights.Lights.GetSize(); ++i)
@@ -2017,8 +2009,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     struct RangePair
     {
         VKit::DeviceBuffer *GraphicsBuffer;
-        VkDeviceSize GraphicsOffset;
-        VkDeviceSize RequiredMemory;
+        usz GraphicsOffset;
+        usz RequiredMemory;
     };
 
     // the actual copy commands for each data type (instance, vertex and index). can belong to any buffer (in the case
@@ -2090,8 +2082,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             const TransferRange *vtrng = processTransferArena(varena.Transfer, data->Vertices, true);
             const TransferRange *itrng = processTransferArena(iarena.Transfer, data->Indices, false);
 
-            const auto processGraphicsArena = [&](GraphicsPool &pool, const VkDeviceSize reqMem,
-                                                  const TransferRange *trng, const bool vertices) {
+            const auto processGraphicsArena = [&](GraphicsPool &pool, const usz reqMem, const TransferRange *trng,
+                                                  const bool vertices) {
                 GraphicsRange *grng = vertices ? findGraphicsVertexRange<D>(pool, reqMem, transfer)
                                                : findGraphicsIndexRange<D>(pool, reqMem, transfer);
                 grng->TransferTracker.MarkInUse(transfer, transferFlightValue);
@@ -2117,7 +2109,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
 
         contextRanges.Clear();
-        VkDeviceSize requiredMem = 0;
+        usz requiredMem = 0;
         ViewMask viewMask = 0;
         for (const u32 idx : dirtyContexts)
         {
@@ -2634,8 +2626,8 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
         TKIT_ASSERT(geo != Geometry_Circle || grange.MeshHandle == NullHandle,
                     "[ONYX][RENDERER] Circle geometry is required to have a null mesh handle");
 
-        VkDeviceSize offset = grange.Offset;
-        VkDeviceSize size = 0;
+        usz offset = grange.Offset;
+        usz size = 0;
 
         bool found = false;
         for (const ContextInstanceRange &crange : grange.ContextRanges)
@@ -3560,7 +3552,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
             ngrange.RenderFlags = grange.RenderFlags;
             ngrange.MeshHandle = grange.MeshHandle;
 
-            // VkDeviceSize leftover = grange.Size;
+            // usz leftover = grange.Size;
             for (const ContextInstanceRange &crange : grange.ContextRanges)
             {
                 // leftover -= crange.Size;
@@ -3671,7 +3663,7 @@ template <typename... Args> static TKit::StackString fmt(fmt::format_string<Args
 {
     return TKit::StackString::Format(str, std::forward<Args>(args)...);
 }
-static TKit::StackString fmts(const VkDeviceSize bytes)
+static TKit::StackString fmts(const usz bytes)
 {
     if (bytes > 1_gib)
         return fmt("{:.2f} gib", f32(bytes) / f32(1_gib));
@@ -3681,7 +3673,7 @@ static TKit::StackString fmts(const VkDeviceSize bytes)
         return fmt("{:.2f} kib", f32(bytes) / f32(1_kib));
     return fmt("{:L} b", bytes);
 }
-static TKit::StackString fmtb(const VkDeviceSize bytes)
+static TKit::StackString fmtb(const usz bytes)
 {
     return fmt("{:L} b", bytes);
 }
@@ -3766,7 +3758,7 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
                                                Color::FromHexadecimal(0x3B82F6B3), Color::FromHexadecimal(0xF59E0BB3),
                                                Color::FromHexadecimal(0xF97316B3)};
 
-    const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
+    const usz maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
     if (maxSize == 0)
         return;
 
@@ -3811,9 +3803,8 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
         ov->EndPanel(); // row
     };
 
-    const auto drawBlock = [&](const VkDeviceSize offset, const VkDeviceSize size, const u32 colorIdx,
-                               const char *tooltipLabel, const Resource meshHandle = NullHandle,
-                               const RenderMode rmode = RenderMode_None) {
+    const auto drawBlock = [&](const usz offset, const usz size, const u32 colorIdx, const char *tooltipLabel,
+                               const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
         const f32 gap = 0.003f;
         const f32 normOffset = f32(offset) * invMax + 0.5f * gap;
         const f32 normSize = Math::Max(f32(size) * invMax - gap, 0.001f);
@@ -3961,302 +3952,6 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     }
     ov->PopId();
 }
-
-// imgui code i used to visualize with that im still unsure to delete
-// #ifdef ONYX_ENABLE_IMGUI
-// template <Dimension D, typename Range>
-// static void displayRanges(const char *name, const Pool<Range> &pool, const u64 generation = 0)
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     // NOTE(Isma): Using stack strings as return values may be a bit dangerous. RVO may save us here, but its an
-//     // unreliable solution
-//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         if (bytes > 1_gib)
-//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-//         if (bytes > 1_mib)
-//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-//         if (bytes > 1_kib)
-//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
-//     {
-//         ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).CString());
-//         for (const Range &range : pool.Ranges)
-//             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
-//                 ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE",
-//                 fmts(range.Size).CString(),
-//                             fmtb(range.Offset).CString(), fmtb(range.Offset + range.Size).CString());
-//             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
-//             {
-//                 if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
-//                                     range.InUse()
-//                                         ? "IN-USE"
-//                                         : (rdata.AreAllContextRangesDirty(range)
-//                                                ? "FREE"
-//                                                : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-//                                     fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-//                                     fmtb(range.Offset + range.Size).CString()))
-//                 {
-//                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
-//                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
-//                     if (range.MeshHandle != NullHandle)
-//                         ImGui::Text("Mesh handle: %u", range.MeshHandle);
-//
-//                     if (range.RenderFlags != 0)
-//                         ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
-//                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
-//                     ImGui::Text("View mask: %s", vmask.CString());
-//                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
-//                     {
-//                         for (const ContextInstanceRange &crange : range.ContextRanges)
-//                             if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
-//                                                 rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
-//                                                 fmts(crange.Size).CString(), fmtb(crange.Offset).CString(),
-//                                                 fmtb(crange.Offset + crange.Size).CString()))
-//                             {
-//                                 if (crange.ContextIndex != TKIT_U32_MAX)
-//                                 {
-//                                     ImGui::Text("Context index: %u", crange.ContextIndex);
-// #    ifndef TKIT_OS_LINUX
-//                                     ImGui::Text("Context generation: %llu", crange.Generation);
-// #    else
-//                                     ImGui::Text("Context generation: %lu", crange.Generation);
-// #    endif
-//                                 }
-//                                 else
-//                                     ImGui::Text("Context index: None");
-//
-//                                 const TKit::StackString cvmask = TKit::StackString::Format("{:032b}",
-//                                 crange.ViewMask); ImGui::Text("View mask: %s", cvmask.CString()); ImGui::TreePop();
-//                                 ImGui::Spacing();
-//                             }
-//                         ImGui::TreePop();
-//                         ImGui::Spacing();
-//                     }
-//                     ImGui::TreePop();
-//                     ImGui::Spacing();
-//                 }
-//             }
-//             else
-//                 ImGui::Text("%s (%s): %s - %s",
-//                             range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
-//                             fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-//                             fmtb(range.Offset + range.Size).CString());
-//         ImGui::TreePop();
-//         ImGui::Spacing();
-//     }
-// }
-//
-// #    ifdef ONYX_ENABLE_IMPLOT
-// template <Dimension D, typename TRange, typename GRange>
-// static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         if (bytes > 1_gib)
-//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-//         if (bytes > 1_mib)
-//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-//         if (bytes > 1_kib)
-//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//     const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
-//     constexpr u32 top = 2 + std::is_same_v<GRange, GraphicsInstanceRange>;
-//     ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, top, ImGuiCond_Always);
-//
-//     if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
-//     {
-//         constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
-//         const TKit::FixedArray<u32, 5> colors = {
-//             Color::FromHexadecimal(0x6B7280B3).Pack(), Color::FromHexadecimal(0x22C55EB3).Pack(),
-//             Color::FromHexadecimal(0x3B82F6B3).Pack(), Color::FromHexadecimal(0xF59E0BB3).Pack(),
-//             Color::FromHexadecimal(0xF97316B3).Pack()};
-//
-//         ImPlot::SetupAxes("Offset", nullptr, 0, ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Lock);
-//         ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, f64(top), ImGuiCond_Always);
-//         ImDrawList *dl = ImPlot::GetPlotDrawList();
-//
-//         const f32 height = 1.f;
-//         const f32 separation = 0.1f;
-//         const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32
-//         idx,
-//                                   const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
-//             const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
-//             const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
-//
-//             dl->AddRectFilled(mnpix, mxpix, colors[idx]);
-//             dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
-//
-//             const char *lbl = status[idx];
-//             if (ImPlot::IsPlotHovered())
-//             {
-//                 const ImPlotPoint mouse = ImPlot::GetPlotMousePos();
-//                 if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
-//                 {
-//                     ImGui::BeginTooltip();
-//                     ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).CString(), fmts(size).CString());
-//                     if (rmode != RenderMode_None)
-//                     {
-//                         ImGui::SameLine();
-//                         ImGui::Text("- Mesh handle: %s - Render mode: %s",
-//                                     TKit::StackString::Format("{:#010x}", meshHandle).CString(), ToString(rmode));
-//                     }
-//                     ImGui::EndTooltip();
-//                 }
-//             }
-//         };
-//
-//         const auto drawLabel = [&dl](const char *name, const u32 bindex) {
-//             const ImVec2 labelPos = ImPlot::PlotToPixels(0, (bindex + 0.5));
-//             dl->AddText(ImVec2(labelPos.x + 4, labelPos.y - ImGui::GetTextLineHeight() * 0.5f),
-//                         IM_COL32(255, 255, 255, 255), name);
-//         };
-//
-//         for (const TRange &trange : tpool.Ranges)
-//             drawPlot(top - 1, trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0);
-//
-//         for (const GRange &range : gpool.Ranges)
-//             if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-//             {
-//                 const u32 idx =
-//                     range.InUse()
-//                         ? 1
-//                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 :
-//                         4));
-//                 drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle,
-//                          range.RenderFlags != 0 ? GetRenderMode(range.RenderFlags) : RenderMode_None);
-//                 for (const ContextInstanceRange &crange : range.ContextRanges)
-//                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 :
-//                     3);
-//             }
-//             else
-//             {
-//                 const u32 idx = range.InUse() ? 1 : (range.Generation == generation ? 2 : 0);
-//                 drawPlot(0, range.Offset, range.Size, idx);
-//             }
-//
-//         drawLabel("Transfer", top - 1);
-//         drawLabel("Graphics", top - 2);
-//         if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-//             drawLabel("Context", 0);
-//
-//         if (ImPlot::IsPlotHovered())
-//         {
-//             const ImVec2 plotPos = ImPlot::GetPlotPos();
-//             const ImVec2 plotSize = ImPlot::GetPlotSize();
-//
-//             constexpr f32 legendPadding = 8.f;
-//             constexpr f32 swatchSize = 12.f;
-//             constexpr f32 swatchSpacing = 4.f;
-//
-//             f32 totalWidth = legendPadding;
-//             const u32 stsize = status.GetSize() - 2 * std::is_same_v<GRange, GraphicsRange>;
-//             for (u32 j = 0; j < stsize; ++j)
-//                 totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[j]).x + legendPadding;
-//
-//             const f32 legendHeight = swatchSize + legendPadding * 2.f;
-//
-//             const ImVec2 legendMin = ImVec2(plotPos.x + (plotSize.x - totalWidth) * 0.5f,
-//                                             plotPos.y + plotSize.y - legendHeight - legendPadding);
-//             const ImVec2 legendMax = ImVec2(legendMin.x + totalWidth, legendMin.y + legendHeight);
-//
-//             dl->AddRectFilled(legendMin, legendMax, IM_COL32(30, 30, 30, 200));
-//             dl->AddRect(legendMin, legendMax, IM_COL32(255, 255, 255, 80));
-//
-//             f32 cursorX = legendMin.x + legendPadding;
-//             const f32 itemY = legendMin.y + legendPadding;
-//
-//             for (u32 j = 0; j < stsize; ++j)
-//             {
-//                 const ImVec2 swatchMin = ImVec2(cursorX, itemY);
-//                 const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
-//                 dl->AddRectFilled(swatchMin, swatchMax, colors[j]);
-//                 dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
-//                 cursorX += swatchSize + swatchSpacing;
-//
-//                 dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
-//                             IM_COL32(255, 255, 255, 255), status[j]);
-//                 cursorX += ImGui::CalcTextSize(status[j]).x + legendPadding;
-//             }
-//         }
-//         ImPlot::EndPlot();
-//     }
-// }
-// #    endif
-//
-// template <Dimension D> void DisplayMemoryLayout()
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     const LightData<D> &ldata = rdata.Lights;
-//     ImGui::PushID(&rdata);
-//     if (ImGui::Button("Coalesce##Button"))
-//         coalesce<D>(512);
-//
-//     for (u32 i = 0; i < Geometry_Count; ++i)
-//     {
-//         const Geometry geo = Geometry(i);
-//         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
-//         if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
-//         {
-//             displayRanges<D>("Transfer", arena.Transfer);
-//             displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//             plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//             ImGui::TreePop();
-//             ImGui::Spacing();
-//         }
-//     }
-//     for (u32 i = 0; i < LightTypeCount<D>; ++i)
-//     {
-//         const LightType light = LightType(i);
-//         const LightArena &arena = ldata.Arenas[light];
-//         if (ImGui::TreeNode(&arena, "%s", ToString(light)))
-//         {
-//             displayRanges<D>("Transfer", arena.Transfer);
-//             displayRanges<D>("Graphics", arena.Graphics, arena.ActiveGeneration);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//             plotRanges<D>(arena.Transfer, arena.Graphics, arena.ActiveGeneration);
-// #    endif
-//             ImGui::TreePop();
-//             ImGui::Spacing();
-//         }
-//     }
-//     if (ImGui::TreeNode("Vertex buffer"))
-//     {
-//         const Arena &arena = rdata.Geometry.VertexArena;
-//         displayRanges<D>("Transfer", arena.Transfer);
-//         displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//         plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//     }
-//     if (ImGui::TreeNode("Index buffer"))
-//     {
-//         const Arena &arena = rdata.Geometry.IndexArena;
-//         displayRanges<D>("Transfer", arena.Transfer);
-//         displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//         plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//     }
-//     ImGui::PopID();
-// }
-//
-// template void DisplayMemoryLayout<D2>();
-// template void DisplayMemoryLayout<D3>();
-// #endif
 
 template void DisplayMemoryLayout<D2>(Overlay *ov);
 template void DisplayMemoryLayout<D3>(Overlay *ov);

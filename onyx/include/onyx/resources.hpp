@@ -2,11 +2,11 @@
 
 #include "onyx/handle.hpp"
 #include "onyx/image.hpp"
-#include "onyx/sampler.hpp"
 #include "onyx/mesh.hpp"
 #include "onyx/gltf.hpp"
 #include "onyx/font.hpp"
 #include "onyx/material.hpp"
+#include "graph/core.hpp"
 
 namespace Onyx
 {
@@ -163,8 +163,9 @@ namespace Onyx::Resources
 // locally here (and in other resource-related headers) because i find it easier in these specific instances to find and
 // organize the functions named this way NOTE(Isma): No way to create/use buffers in onyx yet through this api
 
-void Buffer_Destroy(Resource buffer);
-void Buffer_Release(Resource buffer);
+// the main difference from onyx and graph handles is that graph handles are just loose resources not bound to anything
+// upon creation. onyx resource handles however are already bound and ready to use directly, by attaching the
+// texture/sampler handle to a material or a context directly
 
 Resource Sampler_Create(const SamplerData &data = {});
 // requires a call to Sync() for materials in case any of them referenced the sampler

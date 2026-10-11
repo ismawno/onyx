@@ -17,7 +17,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDyna
     m_InstanceData = tier->Create<ContextInstanceData>();
     for (InstanceDataBuffer &buffer : m_InstanceData->Circles)
     {
-        buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        buffer.Data = Buffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
         buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
         buffer.InstanceSize = sizeof(CircleInstanceData<D>);
     }
@@ -396,7 +396,7 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
         {
             InstanceDataBuffer &buffer = group.Buffers.Append();
             const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
-            buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
+            buffer.Data = Buffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
             buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
             buffer.InstanceSize = isize;
             buffer.Instances = 0;

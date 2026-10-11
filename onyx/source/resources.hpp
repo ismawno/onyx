@@ -1,8 +1,6 @@
 #pragma once
 
 #include "onyx/resources.hpp"
-#include "vkit/resource/device_buffer.hpp"
-#include "vkit/resource/device_image.hpp"
 
 namespace Onyx::Resources
 {
@@ -11,8 +9,8 @@ void Terminate();
 
 struct MeshBuffers
 {
-    const VKit::DeviceBuffer *VertexBuffer = nullptr;
-    const VKit::DeviceBuffer *IndexBuffer = nullptr;
+    Graph::Buffer VertexBuffer = Graph::NullHandle;
+    Graph::Buffer IndexBuffer = Graph::NullHandle;
 };
 
 template <Dimension D> MeshBuffers ResourcePool_GetMeshBuffers(ResourcePool pool);
@@ -22,11 +20,11 @@ MeshBuffers FontPool_GetGlyphBuffers(ResourcePool pool);
 bool IsBackCulled(Resource handle);
 
 u32 CombineSamplerTexIntoId(Resource sampler, Resource texture);
-void UpdateTextureIdOffsetBuffer(VkCommandBuffer cmd);
+void UpdateTextureIdOffsetBuffer(Graph::CommandBuffer cmd);
 
-Resource Texture_CreateMainRenderTexture(VkImageView view);
-Resource Texture_CreateSecondaryRenderTexture(VkImageView view);
+Resource Texture_CreateMainRenderTexture(Graph::ImageView view);
+Resource Texture_CreateSecondaryRenderTexture(Graph::ImageView view);
 
 void Texture_UpdateHandleOffset(Resource texture, Resource target);
-void Texture_UpdateRenderTexture(Resource texture, VkImageView view);
+void Texture_UpdateRenderTexture(Resource texture, Graph::ImageView view);
 } // namespace Onyx::Resources

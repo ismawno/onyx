@@ -62,6 +62,11 @@
         "VULKIT_ENABLE_RENDER_PASS": "OFF",
         "VULKIT_ENABLE_SWAP_CHAIN": "ON",
 
+        "GRAPHITE_GRAPHICS_BACKEND": "vulkan",
+        "GRAPHITE_PLATFORM_BACKEND": "glfw",
+        "GRAPHITE_SHADER_COMPILATION_BACKEND": "none",
+        "GRAPHITE_SHADER_REFLECTION_BACKEND": "none",
+
         "ONYX_BUILD_DEMOS": "ON",
         "ONYX_BUILD_ENGINE": "ON",
         "ONYX_ENABLE_IMGUI": "ON",
@@ -72,8 +77,7 @@
         "ONYX_ENABLE_GLTF_LOAD": "ON",
         "ONYX_ENABLE_FONT_LOAD": "ON",
         "ONYX_INCLUDE_DEFAULT_FONT": "ON",
-        "ONYX_ENABLE_SHADER_API": "OFF",
-        "ONYX_COMPILE_SHADERS_ON_EXEC": "OFF"
+        "ONYX_COMPILE_SHADERS_AT_RUNTIME": "OFF"
       }
     },
     {

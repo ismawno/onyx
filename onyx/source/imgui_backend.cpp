@@ -3,7 +3,6 @@
 #include "platform.hpp"
 #include "glfw.hpp"
 #include "descriptors.hpp"
-#include "renderer.hpp"
 #include "buffer.hpp"
 #include "vkit/resource/sampler.hpp"
 #include "vkit/resource/device_image.hpp"
@@ -18,12 +17,12 @@
 
 #if !defined(ONYX_IMGUI_DISABLE_X11) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) ||     \
                                          defined(__NetBSD__) || defined(__DragonFly__))
-#    define ONYX_GLFW_X11
+#    define ONYX_IMGUI_X11
 #endif
 
 #if !defined(ONYX_IMGUI_DISABLE_WAYLAND) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
                                              defined(__NetBSD__) || defined(__DragonFly__))
-#    define ONYX_GLFW_WAYLAND
+#    define ONYX_IMGUI_WAYLAND
 #endif
 
 namespace ImGui
@@ -35,8 +34,8 @@ namespace Onyx::ImGuiBackend
 {
 struct Platform_GlobalData
 {
-    TKit::FixedArray<GLFWcursor *, ImGuiMouseCursor_COUNT> MouseCursors;
-#ifdef ONYX_GLFW_WAYLAND
+    TKit::FixedArray<Graph::MouseCursor, ImGuiMouseCursor_COUNT> MouseCursors;
+#ifdef ONYX_IMGUI_WAYLAND
     bool IsWayland;
 #endif
 };
@@ -46,10 +45,10 @@ struct Platform_ContextData
 {
     ImGuiContext *Context;
     Window *Window;
-    GLFWcursor *LastMouseCursor;
+    Graph::MouseCursor LastMouseCursor;
 
-    GLFWwindow *MouseWindow;
-    TKit::FixedArray<GLFWwindow *, GLFW_KEY_LAST> KeyOwnerWindows;
+    Graph::Window MouseWindow;
+    TKit::FixedArray<Graph::Window, Graph::Key_Count> KeyOwnerWindows;
 
     f64 Time = 0.f;
 
@@ -74,7 +73,7 @@ struct Platform_ViewportData
     u32 IgnoreWindowSizeEventFrame = 0;
 };
 
-#ifdef ONYX_GLFW_WAYLAND
+#ifdef ONYX_IMGUI_WAYLAND
 static bool platform_IsWayland()
 {
 #    ifdef ONYX_GLFW_GETPLATFORM
@@ -597,7 +596,7 @@ static void platform_InstallCallbacks(Platform_ContextData *pdata, GLFWwindow *w
 
 f32 platform_GetContentScaleForMonitor(GLFWmonitor *monitor)
 {
-#ifdef ONYX_GLFW_WAYLAND
+#ifdef ONYX_IMGUI_WAYLAND
     if (s_PlatformData.IsWayland)
         return 1.f;
 #endif
@@ -670,7 +669,7 @@ static void platform_GetWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2
 
     f32 fbscx = (w > 0) ? (f32)wdisp / (f32)w : 1.f;
     f32 fbscy = (h > 0) ? (f32)hdisp / (f32)h : 1.f;
-#ifdef ONYX_GLFW_WAYLAND
+#ifdef ONYX_IMGUI_WAYLAND
     if (!s_PlatformData.IsWayland)
     {
         fbscx = 1.f;
@@ -1792,7 +1791,7 @@ void Initialize()
     TKIT_UNUSED(glfwGetError(nullptr));
 #endif
 
-#ifdef ONYX_GLFW_WAYLAND
+#ifdef ONYX_IMGUI_WAYLAND
     s_PlatformData.IsWayland = platform_IsWayland();
 #endif
     s_RendererData.Construct();
