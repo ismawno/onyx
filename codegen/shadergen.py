@@ -108,6 +108,8 @@ def process_shader(name: str, entry: str, output: str | None = None, /) -> None:
                 "-matrix-layout-row-major",
                 # we need -emit-spirv-via-glsl bc slangc emits Int8 capability even tho we dont use it. because of that, we then need to suppress a warning that slangc emits because it needs to add a bunch of other capabilities
                 "-emit-spirv-via-glsl",
+                # to avoid format mismatches in shadow and occlusion textures between c++ code and shader code
+                "-default-image-format-unknown",
                 "-Wno-41012",
                 "-target",
                 "spirv",
