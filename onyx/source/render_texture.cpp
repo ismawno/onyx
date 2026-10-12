@@ -1,69 +1,56 @@
 #include "pch.hpp"
 #include "onyx/render_texture.hpp"
-#include "core.hpp"
-#include "execution.hpp"
 #include "resources.hpp"
-#include "attachment.hpp"
-#include "platform.hpp"
+#include "core.hpp"
 #include "tkit/profiling/macros.hpp"
 
 namespace Onyx
 {
-struct FrontEndImage
+static Graph::Image createImage(const u32v2 &dimensions)
 {
-    VKit::DeviceImage Image;
-    Execution::Tracker Tracker{};
-    Resource Texture;
-};
 
-static VKit::DeviceImage createImage(const u32v2 &dimensions)
-{
-    const auto &device = GetDevice();
-    const VmaAllocator alloc = GetVulkanAllocator();
+    const Graph::Format format = GetAttachmentFormat(Attachment_Intermediate);
+    const TKit::FixedArray<Graph::Format, 2> formats{format, SurfaceFormat};
+    const TKit::FixedArray<Graph::ImageViewSpecs, 2> views{{.Format = format}, {.Format = SurfaceFormat}};
 
-    const VkFormat format = GetAttachmentFormat(Attachment_Intermediate);
-    const VkFormat sformat = Platform::GetSurfaceFormat().format;
-    const TKit::FixedArray<VkFormat, 2> formats{format, sformat};
+    Graph::ImageSpecs specs{};
+    specs.Formats = formats;
+    specs.ImageViews = views;
 
-    return ONYX_CHECK_VKIT_RESULT(
-        VKit::DeviceImage::Builder(device, alloc, VkExtent2D{.width = dimensions[0], .height = dimensions[1]}, formats,
-                                   VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled |
-                                       VKit::DeviceImageFlag_Source | VKit::DeviceImageFlag_Destination)
-            .AddImageView(format)
-            .AddImageView(sformat)
-            .Build());
+    return Graph::Image_Create(dimensions, specs,
+                               Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | Graph::ImageFlag_Source |
+                                   Graph::ImageFlag_Destination);
 }
 
-static void nameImage(VKit::DeviceImage &img, const u32 idx)
+static void nameImage(const Graph::Image img, const u32 idx)
 {
     const TKit::StackString nimg = TKit::Format("onyx-render-texture-image-{}", idx);
     const TKit::StackString nview = TKit::Format("onyx-render-texture-image-view-{}", idx);
-    ONYX_CHECK_VKIT_RESULT(img.SetName(nimg.CString()));
-    ONYX_CHECK_VKIT_RESULT(img.SetViewNames(nview.CString()));
+    Graph::Image_SetName(img, nimg.CString());
+    Graph::Image_SetViewNames(img, nview.CString());
 }
 
 RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
 {
-    TKit::TierAllocator *tier = TKit::GetTier();
-    FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
+    FrontEndImage &img = m_Images.Append();
 
-    img->Image = createImage(dimensions);
-    img->Texture = Resources::Texture_CreateMainRenderTexture(img->Image.GetView());
+    img.Image = createImage(dimensions);
+    img.Texture = Texture_CreateMainRenderTexture(Graph::Image_GetView(img.Image, 0));
 
-    if (IsDebugUtilsEnabled())
-        nameImage(img->Image, m_Images.GetSize() - 1);
+    if (Graph::IsValidationEnabled())
+        nameImage(img.Image, m_Images.GetSize() - 1);
 
-    m_Handle = img->Texture;
+    m_Handle = img.Texture;
 }
 RenderTexture::~RenderTexture()
 {
     drainWork();
-    for (FrontEndImage *img : m_Images)
+    for (FrontEndImage &img : m_Images)
     {
         // may be the case that resources already freed everything on global tear-down
-        if (Resources::IsResourceValid(img->Texture))
-            Resources::Texture_Destroy(img->Texture);
-        img->Image.Destroy();
+        if (IsResourceValid(img.Texture))
+            Texture_Destroy(img.Texture);
+        Image_Destroy(img.Image);
     }
 }
 
@@ -71,17 +58,15 @@ void RenderTexture::Resize(const u32v2 &dims)
 {
     drainWork();
 
-    FrontEndImage *main = m_Images.GetFront();
-    FrontEndImage *mostUpToDate = m_Images[m_Writable];
-    TKit::TierAllocator *tier = TKit::GetTier();
+    FrontEndImage &main = m_Images.GetFront();
+    const FrontEndImage mostUpToDate = m_Images[m_Writable];
 
-    const auto destroyImage = [&](FrontEndImage *img) {
-        Resources::Texture_Destroy(img->Texture);
-        img->Image.Destroy();
-        tier->Destroy(img);
+    const auto destroyImage = [&](const FrontEndImage &img) {
+        Texture_Destroy(img.Texture);
+        Image_Destroy(img.Image);
     };
     for (u32 i = 1; i < m_Images.GetSize(); ++i)
-        if (m_Images[i] != mostUpToDate)
+        if (i != m_Writable)
             destroyImage(m_Images[i]);
 
     m_Images.Resize(1);
@@ -89,46 +74,44 @@ void RenderTexture::Resize(const u32v2 &dims)
     m_Writable = 0;
     m_Readable = 0;
 
-    VKit::DeviceImage newImage = createImage(dims);
+    const Graph::Image newImage = createImage(dims);
 
-    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
-    const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
-    const VkCommandBuffer cmd = ONYX_CHECK_VKIT_RESULT(pool.BeginSingleTimeCommands());
+    Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
+        TKit::FixedArray<Graph::ImageMemoryBarrierInfo, 2> infos{};
 
-    mostUpToDate->Image.TransitionLayout2(
-        cmd, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        {.DstAccess = VK_ACCESS_2_TRANSFER_READ_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+        infos[0].Image = mostUpToDate.Image;
+        infos[0].NewLayout = Graph::ImageLayout_TransferSrc;
+        infos[0].DstAccess = Graph::AccessFlag_TransferRead;
+        infos[0].DstStages = Graph::PipelineStageFlag_Transfer;
 
-    newImage.TransitionLayout2(
-        cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+        infos[1].Image = newImage;
+        infos[1].NewLayout = Graph::ImageLayout_TransferDst;
+        infos[1].DstAccess = Graph::AccessFlag_TransferWrite;
+        infos[1].DstStages = Graph::PipelineStageFlag_Transfer;
 
-    VkImageBlit region{};
-    region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    region.srcOffsets[1] = {i32(m_Dimensions[0]), i32(m_Dimensions[1]), 1};
-    region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    region.dstOffsets[1] = {i32(dims[0]), i32(dims[1]), 1};
+        Graph::Command_ImageBarrier(cmd, infos);
 
-    const auto table = GetDeviceTable();
-    table->CmdBlitImage(cmd, mostUpToDate->Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, newImage,
-                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+        Graph::Command_BlitImage(cmd, mostUpToDate.Image, newImage);
 
-    newImage.TransitionLayout2(
-        cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+        Graph::ImageMemoryBarrierInfo binfo{};
+        binfo.Image = newImage;
+        binfo.NewLayout = Graph::ImageLayout_ShaderReadOnly;
+        binfo.SrcAccess = Graph::AccessFlag_TransferWrite;
+        binfo.SrcStages = Graph::PipelineStageFlag_Transfer;
 
-    ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
+        Graph::Command_ImageBarrier(cmd, binfo);
+    });
 
-    if (main != mostUpToDate)
+    if (m_Writable != 0)
         destroyImage(mostUpToDate);
 
-    main->Image.Destroy();
-    main->Image = newImage;
+    Image_Destroy(main.Image);
+    main.Image = newImage;
 
-    if (IsDebugUtilsEnabled())
-        nameImage(main->Image, 0);
+    if (Graph::IsValidationEnabled())
+        nameImage(newImage, 0);
 
-    Resources::Texture_UpdateRenderTexture(main->Texture, main->Image.GetView());
+    Texture_UpdateRenderTexture(main.Texture, Graph::Image_GetView(main.Image, 0));
     m_Dimensions = dims;
     updateRenderViews();
 }
@@ -136,10 +119,10 @@ void RenderTexture::Resize(const u32v2 &dims)
 void RenderTexture::FindAvailableImages()
 {
     m_Readable = m_Writable; // the one we just wrote to (most updated one)
-    Resources::Texture_UpdateHandleOffset(m_Handle, m_Images[m_Readable]->Texture);
+    Texture_UpdateHandleOffset(m_Handle, m_Images[m_Readable].Texture);
 
     for (u32 i = 0; i < m_Images.GetSize(); ++i)
-        if (i != m_Readable && !m_Images[i]->Tracker.InUse())
+        if (i != m_Readable && !m_Images[i].Tracker.InUse())
         {
             m_Writable = i;
             return;
@@ -150,74 +133,67 @@ void RenderTexture::FindAvailableImages()
                    "this particular render texture",
                    m_Writable + 1);
 
-    TKit::TierAllocator *tier = TKit::GetTier();
-    FrontEndImage *img = m_Images.Append(tier->Create<FrontEndImage>());
+    FrontEndImage &img = m_Images.Append();
 
-    img->Image = createImage(m_Dimensions);
-    img->Texture = Resources::Texture_CreateSecondaryRenderTexture(img->Image.GetView());
-    if (IsDebugUtilsEnabled())
-        nameImage(img->Image, m_Writable);
+    img.Image = createImage(m_Dimensions);
+    img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
+    if (Graph::IsValidationEnabled())
+        nameImage(img.Image, m_Writable);
 }
 
-void RenderTexture::BeginRendering(const VkCommandBuffer cmd)
+void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderTexture::BeginRendering");
     TKIT_ASSERT(m_Writable != m_Readable,
                 "[ONYX][RENDER-TEXTURE] Cannot have the same image as a readable and writable texture!");
 
-    FrontEndImage *read = m_Images[m_Readable];
-    FrontEndImage *write = m_Images[m_Writable];
+    const FrontEndImage &read = m_Images[m_Readable];
+    const FrontEndImage &write = m_Images[m_Writable];
 
-    read->Image.TransitionLayout(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                 {
-                                     .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                     .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+    Graph::ImageMemoryBarrierInfo barriers[2]{};
 
-                                     .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                     .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                 });
+    barriers[0].Image = read.Image;
+    barriers[0].NewLayout = Graph::ImageLayout_ShaderReadOnly;
+    barriers[0].SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    barriers[0].SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    barriers[0].DstStages = Graph::PipelineStageFlag_FragmentShader;
+    barriers[0].DstAccess = Graph::AccessFlag_ShaderRead;
 
-    write->Image.TransitionLayout(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                  {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+    barriers[1].Image = write.Image;
+    barriers[1].NewLayout = Graph::ImageLayout_ColorAttachment;
+    barriers[1].SrcStages = Graph::PipelineStageFlag_FragmentShader;
+    barriers[1].DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    barriers[1].DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
 
-                                   .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                   .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    Graph::Command_ImageBarrier(cmd, barriers);
 
-    VkRenderingAttachmentInfoKHR target{};
-    target.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    target.imageView = write->Image.GetView(1);
-    target.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    target.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    target.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    target.clearValue.color = {{ClearColor.rgba[0], ClearColor.rgba[1], ClearColor.rgba[2], ClearColor.rgba[3]}};
+    Graph::AttachmentInfo target{};
+    target.View = Graph::Image_GetView(write.Image, 1);
+    target.Layout = Graph::ImageLayout_ColorAttachment;
+    target.LoadOp = Graph::LoadOp_Clear;
+    target.StoreOp = Graph::StoreOp_Store;
+    target.ClearValue.Color = ClearColor.rgba;
 
-    const VkExtent2D extent = {m_Dimensions[0], m_Dimensions[1]};
-    VkRenderingInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderInfo.renderArea = {{0, 0}, extent};
-    renderInfo.layerCount = 1;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachments = &target;
-
-    const auto table = GetDeviceTable();
-    table->CmdBeginRenderingKHR(cmd, &renderInfo);
+    Graph::RenderPassInfo info{};
+    info.RenderArea = {{0, 0}, m_Dimensions};
+    info.ColorAttachments = target;
+    Graph::Command_BeginRenderPass(cmd, info);
 }
-void RenderTexture::EndRendering(const VkCommandBuffer cmd)
+void RenderTexture::EndRendering(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderTexture::EndRendering");
 
     // no sync. it is synced in begin, when this becomes a readable texture
-    const auto table = GetDeviceTable();
-    table->CmdEndRenderingKHR(cmd);
+    Graph::Command_EndRenderPass(cmd);
 }
 
-void RenderTexture::MarkWriteImageInUse(const Execution::Tracker &tracker)
+void RenderTexture::MarkWriteImageInUse(const Graph::Tracker &tracker)
 {
-    m_Images[m_Writable]->Tracker = tracker;
+    m_Images[m_Writable].Tracker = tracker;
 }
-void RenderTexture::MarkReadImageInUse(const Execution::Tracker &tracker)
+void RenderTexture::MarkReadImageInUse(const Graph::Tracker &tracker)
 {
-    m_Images[m_Readable]->Tracker = tracker;
+    m_Images[m_Readable].Tracker = tracker;
 }
 
 void RenderTexture::drainWork() const
@@ -229,32 +205,8 @@ void RenderTexture::drainWork() const
     // NOTE(Isma, 09/07/26): Turns out i think i know what it is. i was not assigning a tracker to readable images, so
     // gpu would read them while resizing. this is fixed now, but if errors still happen, revert do device wait idle
     //
-    TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(m_Images.GetSize());
-
-    TKit::StackArray<u64> values{};
-    values.Reserve(m_Images.GetSize());
-
-    for (const FrontEndImage *img : m_Images)
-        if (img->Tracker.InFlight())
-        {
-            semaphores.Append(img->Tracker.Queue->GetTimelineSempahore());
-            values.Append(img->Tracker.InFlightValue);
-        }
-
-    if (!semaphores.IsEmpty())
-    {
-        const auto table = GetDeviceTable();
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = semaphores.GetSize();
-        waitInfo.pSemaphores = semaphores.GetData();
-        waitInfo.pValues = values.GetData();
-
-        const auto &device = GetDevice();
-        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
-    }
-    // DeviceWaitIdle();
+    for (const FrontEndImage &img : m_Images)
+        Graph::Queue_WaitForTracker(img.Tracker);
+    // Graph::DeviceWaitIdle();
 }
-
 } // namespace Onyx

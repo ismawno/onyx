@@ -5,19 +5,15 @@ set(SOURCES
     source/onyx.cpp
     source/pch.cpp
     source/core.cpp
-    source/platform.cpp
     source/context.cpp
     source/render_target.cpp
     source/render_texture.cpp
     source/renderer.cpp
     source/view.cpp
-    source/execution.cpp
     source/resources.cpp
     source/font.cpp
     source/image.cpp
     source/mesh.cpp
-    source/pipelines.cpp
-    source/descriptors.cpp
     source/color.cpp
     source/transform.cpp
     source/layout.cpp
@@ -34,21 +30,18 @@ endif()
 if(ONYX_ENABLE_GLTF_LOAD)
   list(APPEND SOURCES source/gltf.cpp)
 endif()
-if(ONYX_ENABLE_SHADER_API)
-  list(APPEND SOURCES source/shaders.cpp)
-endif()
 
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.11.x\")
 
 include(FetchContent)
 FetchContent_Declare(
-  vulkit
-  GIT_REPOSITORY https://github.com/ismawno/vulkit.git
+  graphite
+  GIT_REPOSITORY https://github.com/ismawno/graphite.git
   GIT_TAG main
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
-FetchContent_MakeAvailable(vulkit)
+FetchContent_MakeAvailable(graphite)
 
 if(UNIX AND NOT APPLE)
   find_package(Fontconfig QUIET)
@@ -72,38 +65,6 @@ if(UNIX AND NOT APPLE)
     endif()
   endif()
 endif()
-
-find_package(glfw3 QUIET)
-
-if(NOT TARGET glfw)
-  message(STATUS "ONYX - GLFW not found. Fetching source...")
-  FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG 3.4
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS TRUE)
-
-  set(GLFW_BUILD_DOCS
-      OFF
-      CACHE BOOL "" FORCE)
-  set(GLFW_BUILD_EXAMPLES
-      OFF
-      CACHE BOOL "" FORCE)
-  set(GLFW_BUILD_TESTS
-      OFF
-      CACHE BOOL "" FORCE)
-  set(GLFW_INSTALL
-      OFF
-      CACHE BOOL "" FORCE)
-
-  FetchContent_MakeAvailable(glfw)
-  tkit_configure_compile_link_options(glfw NO_EXCEPTIONS NO_RTTI)
-
-else()
-  message(STATUS "ONYX - GLFW found")
-endif()
-target_link_libraries(onyx PRIVATE glfw)
 
 if(ONYX_ENABLE_OBJ_LOAD)
   FetchContent_Declare(
@@ -292,82 +253,10 @@ tkit_register_for_yaml_serialization(
 tkit_register_for_reflection(onyx SOURCES include/onyx/transform.hpp
                              include/onyx/camera.hpp include/onyx/view.hpp)
 
-if(ONYX_ENABLE_SHADER_API)
-  if(DEFINED ENV{VCPKG_ROOT})
-    include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
-  endif()
-  find_package(slang QUIET)
-  find_path(SLANG_INCLUDE_DIR slang.h)
-  find_library(SLANG_LIB slang)
-  if(slang_FOUND)
-    message(STATUS "ONYX - Slang found")
-    target_link_libraries(onyx PRIVATE slang::slang)
-  elseif(SLANG_INCLUDE_DIR AND SLANG_LIB)
-    message(STATUS "ONYX - Slang library found")
-    target_include_directories(onyx PRIVATE ${SLANG_INCLUDE_DIR})
-    target_link_libraries(onyx PRIVATE ${SLANG_LIB})
-  else()
-    message(STATUS "ONYX - Slang not found... fetching source")
-
-    FetchContent_Declare(
-      slang
-      GIT_REPOSITORY https://github.com/shader-slang/slang.git
-      GIT_TAG v2026.3.1
-      GIT_SHALLOW TRUE
-      GIT_SUBMODULES_RECURSE TRUE
-      GIT_PROGRESS TRUE)
-
-    set(SLANG_ENABLE_DXIL
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_GFX
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SLANG_GLSLANG
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SLANGC
-        ON
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SLANGD
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SLANGI
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_TESTS
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_CUDA
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_EXAMPLES
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_RELEASE_DEBUG_INFO
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SPLIT_DEBUG_INFO
-        OFF
-        CACHE BOOL "")
-    set(SLANG_ENABLE_SLANG_RHI
-        OFF
-        CACHE BOOL "")
-    set(SLANG_LIB_TYPE
-        "STATIC"
-        CACHE STRING "")
-
-    FetchContent_MakeAvailable(slang)
-    tkit_configure_compile_link_options(slang NO_EXCEPTIONS NO_RTTI)
-
-    target_link_libraries(onyx PRIVATE slang)
-  endif()
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_SHADER_API)
-  if(ONYX_COMPILE_SHADERS_ON_EXEC)
-    target_compile_definitions(
-      onyx PUBLIC ONYX_COMPILE_SHADERS_ON_EXEC
-                  ONYX_SHADERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-  endif()
+if(ONYX_COMPILE_SHADERS_AT_RUNTIME)
+  target_compile_definitions(
+    onyx PUBLIC ONYX_COMPILE_SHADERS_AT_RUNTIME
+                ONYX_SHADERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
 endif()
 
 # IMGUI ###
@@ -442,10 +331,7 @@ if(ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
 endif()
 
-target_link_libraries(
-  onyx
-  PUBLIC toolkit
-  PRIVATE vulkit)
+target_link_libraries(onyx PUBLIC toolkit graphite)
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_precompile_headers(onyx PRIVATE

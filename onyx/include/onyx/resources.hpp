@@ -2,11 +2,11 @@
 
 #include "onyx/handle.hpp"
 #include "onyx/image.hpp"
-#include "onyx/sampler.hpp"
 #include "onyx/mesh.hpp"
 #include "onyx/gltf.hpp"
 #include "onyx/font.hpp"
 #include "onyx/material.hpp"
+#include "graph/core.hpp"
 
 namespace Onyx
 {
@@ -157,14 +157,15 @@ struct DefaultResourcesOptions
 };
 } // namespace Onyx
 
-namespace Onyx::Resources
+namespace Onyx
 {
 // function naming conventions here change a bit to always be preceded by the resource they are affecting. this is done
 // locally here (and in other resource-related headers) because i find it easier in these specific instances to find and
 // organize the functions named this way NOTE(Isma): No way to create/use buffers in onyx yet through this api
 
-void Buffer_Destroy(Resource buffer);
-void Buffer_Release(Resource buffer);
+// the main difference from onyx and graph handles is that graph handles are just loose resources not bound to anything
+// upon creation. onyx resource handles however are already bound and ready to use directly, by attaching the
+// texture/sampler handle to a material or a context directly
 
 Resource Sampler_Create(const SamplerData &data = {});
 // requires a call to Sync() for materials in case any of them referenced the sampler
@@ -212,9 +213,9 @@ template <Dimension D> void Mesh_Update(Resource mesh, const ParametricMeshData<
 template <Dimension D> MeshDataLayout Mesh_GetLayout(Resource mesh);
 template <Dimension D> Resource Mesh_GetBounds(Resource mesh);
 
-template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(Resource mesh);
-template <Dimension D> ParametricMeshData<D> Mesh_GetDataParametric(Resource mesh);
-template <Dimension D> ParametricShape Mesh_GetParametricShape(Resource mesh);
+template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(Resource statMesh);
+template <Dimension D> ParametricMeshData<D> Mesh_GetDataParametric(Resource paramMesh);
+template <Dimension D> ParametricShape Mesh_GetParametricShape(Resource paramMesh);
 
 template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register();
 template <Dimension D> void DynamicMesh_Destroy(Resource mesh);
@@ -237,10 +238,8 @@ Resource Glyph_GetFont(Resource glyph);
 const GlyphData &Glyph_GetData(Resource glyph);
 MeshDataLayout Glyph_GetLayout(Resource glyph);
 
-const DefaultResources &Default_Create(const DefaultResourcesOptions &opts = {});
-const DefaultResources &Default_Get();
-
-template <Dimension D> u32 GetDistinctBatchDrawCount();
+const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts = {});
+const DefaultResources &Resources_GetDefault();
 
 template <Dimension D> bool IsResourceValid(Resource handle, ResourceType rtype = Resource_None);
 template <Dimension D> bool IsResourcePoolValid(Handle handle, ResourceType rtype = Resource_None);
@@ -248,6 +247,6 @@ template <Dimension D> bool IsResourcePoolValid(Handle handle, ResourceType rtyp
 bool IsResourceValid(Resource handle, ResourceType rtype = Resource_None);
 bool IsResourcePoolValid(ResourcePool handle, ResourceType rtype = Resource_None);
 
-void Sync(SyncFlags flags);
+void Resources_Sync(SyncFlags flags);
 
-} // namespace Onyx::Resources
+} // namespace Onyx

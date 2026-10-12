@@ -1,62 +1,48 @@
 #include "pch.hpp"
 #include "onyx/view.hpp"
 #include "onyx/definitions.hpp"
-#include "renderer.hpp"
-#include "conversion.hpp"
-#include "platform.hpp"
-#include "descriptors.hpp"
 #include "core.hpp"
-#include "attachment.hpp"
-#include "vkit/resource/device_image.hpp"
-#include "vkit/state/descriptor_set.hpp"
+#include "renderer.hpp"
+#include "graph/descriptor.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
-static VKit::DeviceImage createAttachment(const VkExtent2D &ext, const AttachmentType atype)
+static Graph::Image createAttachment(const u32v2 &ext, const AttachmentType atype)
 {
-    const auto &device = GetDevice();
-    const VmaAllocator alloc = GetVulkanAllocator();
-    const VkFormat format = GetAttachmentFormat(atype);
+    const Graph::Format format = GetAttachmentFormat(atype);
+
+    Graph::ImageSpecs specs{};
+    specs.Formats = format;
+
     if (atype == Attachment_DepthStencil)
     {
-        VkImageSubresourceRange stencilRange{};
-        stencilRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
-        stencilRange.levelCount = 1;
-        stencilRange.layerCount = 1;
-        return ONYX_CHECK_VKIT_RESULT(VKit::DeviceImage::Builder(device, alloc, ext, format,
-                                                                 VKit::DeviceImageFlag_DepthAttachment |
-                                                                     VKit::DeviceImageFlag_StencilAttachment |
-                                                                     VKit::DeviceImageFlag_Sampled)
-                                          .AddImageView()
-                                          .AddImageView(stencilRange)
-                                          .Build());
+        const Graph::Image img = Graph::Image_Create(ext, specs,
+                                                     Graph::ImageFlag_DepthAttachment |
+                                                         Graph::ImageFlag_StencilAttachment | Graph::ImageFlag_Sampled);
+        Graph::Image_AddView(img);
+        Graph::Image_AddView(img, {.Range = {.Aspect = Graph::ImageAspectFlag_Stencil}});
+        return img;
     }
-    else if (atype == Attachment_Final)
+
+    if (atype == Attachment_Final)
     {
-        const VkFormat sformat = Platform::GetSurfaceFormat().format;
-        const TKit::FixedArray<VkFormat, 2> ppFormats{format, sformat};
-        return ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, alloc, ext, ppFormats,
-                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                .AddImageView(format)
-                .AddImageView(sformat)
-                .Build());
+        const Graph::Format ppFormats[] = {format, SurfaceFormat};
+        specs.Formats = ppFormats;
+
+        const Graph::Image img =
+            Graph::Image_Create(ext, specs, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled);
+        Graph::Image_AddView(img, {.Format = format});
+        Graph::Image_AddView(img, {.Format = SurfaceFormat});
+        return img;
     }
 
-    return ONYX_CHECK_VKIT_RESULT(
-        VKit::DeviceImage::Builder(device, alloc, ext, format,
-                                   VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-            .AddImageView()
-            .Build());
+    const Graph::Image img =
+        Graph::Image_Create(ext, specs, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled);
+    Graph::Image_AddView(img);
+    return img;
 }
-
-struct Framebuffer
-{
-    Execution::Tracker Tracker{};
-    TKit::FixedArray<VKit::DeviceImage, Attachment_Count> Attachments{};
-};
 
 // NOTE(Isma): Consider having 2D and 3D view sets
 static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
@@ -90,19 +76,15 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 {
     m_ViewBit = allocateViewBit();
 
-    const VKit::DescriptorPool &pool = Descriptors::GetDescriptorPool();
-    m_BlendSet = ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Blend)));
-    m_PostProcessSet =
-        ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)));
-    m_CompositorSet =
-        ONYX_CHECK_VKIT_RESULT(pool.Allocate(Descriptors::GetDescriptorLayout(StandalonePass_Compositor)));
-    if (IsDebugUtilsEnabled())
+    m_BlendSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Blend));
+    m_PostProcessSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_PostProcess));
+    m_CompositorSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Compositor));
+
+    if (Graph::IsValidationEnabled())
     {
-        const auto &device = GetDevice();
-        ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_PostProcessSet, VK_OBJECT_TYPE_DESCRIPTOR_SET, "onyx-post-process-set-window"));
-        ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET, "onyx-compositor-set-window"));
+        Graph::DescriptorSet_SetName(m_BlendSet, "onyx-blend-set-window");
+        Graph::DescriptorSet_SetName(m_PostProcessSet, "onyx-post-process-set-window");
+        Graph::DescriptorSet_SetName(m_CompositorSet, "onyx-compositor-set-window");
     }
 
     SetNormalizedViewport(Viewport{});
@@ -112,23 +94,22 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 template <Dimension D> RenderView<D>::~RenderView()
 {
     drainWork();
-    const VKit::DescriptorPool &pool = Descriptors::GetDescriptorPool();
 
-    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_BlendSet));
-    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_PostProcessSet));
-    ONYX_CHECK_VKIT_RESULT(pool.Deallocate(m_CompositorSet));
+    Graph::DescriptorSet_Destroy(m_BlendSet);
+    Graph::DescriptorSet_Destroy(m_PostProcessSet);
+    Graph::DescriptorSet_Destroy(m_CompositorSet);
 
     destroyFramebuffers();
 
     // TODO(Isma): Remove this!! This is responsibility of onyx.hpp, should not be in destructor
-    Renderer::RemoveTarget(m_ViewBit);
+    Renderer_RemoveTarget(m_ViewBit);
     deallocateViewBit(m_ViewBit);
 }
 
 template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
 {
     for (u32 i = 0; i < m_Framebuffers.GetSize(); ++i)
-        if (!m_Framebuffers[i]->Tracker.InUse())
+        if (!m_Framebuffers[i].Tracker.InUse())
         {
             m_AttachmentIndex = i;
             return;
@@ -139,72 +120,64 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
                    "this particular view",
                    m_AttachmentIndex + 1);
 
-    TKit::TierAllocator *tier = TKit::GetTier();
-    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
+    const u32v2 extent = GetRenderExtent();
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
     TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
 
-    Framebuffer *fb = m_Framebuffers.Append(tier->Create<Framebuffer>());
+    Framebuffer &fb = m_Framebuffers.Append();
     for (u32 att = 0; att < Attachment_Count; ++att)
-        fb->Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : VKit::DeviceImage{};
+        fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : Graph::NullHandle;
 
-    VKit::DescriptorSet::Writer blend{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Blend)};
-    VKit::DescriptorSet::Writer pp{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_PostProcess)};
-    VKit::DescriptorSet::Writer compositor{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_Compositor)};
+    const Graph::Sampler near = Renderer_GetNearSampler();
+    constexpr Graph::ImageLayout layout = Graph::ImageLayout_ShaderReadOnly;
 
-    TKit::StaticArray<VkDescriptorImageInfo, 6> infos{};
     if (transparency)
     {
-        VkDescriptorImageInfo &transparent = infos.Append();
-        transparent.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        transparent.imageView = fb->Attachments[Attachment_Transparent].GetView();
-        transparent.sampler = Renderer::GetNearSampler();
+        const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[Attachment_Transparent]), layout, near);
+        const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[Attachment_Revealage]), layout, near);
 
-        VkDescriptorImageInfo &revealage = infos.Append();
-        revealage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        revealage.imageView = fb->Attachments[Attachment_Revealage].GetView();
-        revealage.sampler = Renderer::GetNearSampler();
-
-        blend.WriteImage(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent, m_AttachmentIndex);
-        blend.WriteImage(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage, m_AttachmentIndex);
+        Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
+                                         m_AttachmentIndex);
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage,
+                                         m_AttachmentIndex);
+        Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
     }
 
     if (pprocess)
     {
-        VkDescriptorImageInfo &color = infos.Append();
-        color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        color.imageView = fb->Attachments[Attachment_Intermediate].GetView();
-        color.sampler = Renderer::GetNearSampler();
+        const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[Attachment_Intermediate]), layout, near);
+        const Graph::DescriptorImageInfo outline =
+            Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Outline]), layout, near);
+        // view 1 is the stencil-only view, created in createAttachment()
+        const Graph::DescriptorImageInfo stencil = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[Attachment_DepthStencil], 1), layout);
 
-        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, m_AttachmentIndex);
-        VkDescriptorImageInfo &outline = infos.Append();
-        outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        outline.imageView = fb->Attachments[Attachment_Outline].GetView();
-        outline.sampler = Renderer::GetNearSampler();
-
-        VkDescriptorImageInfo &stencil = infos.Append();
-        stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        stencil.imageView = fb->Attachments[Attachment_DepthStencil].GetViews().GetBack();
-        stencil.sampler = VK_NULL_HANDLE;
-
-        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, m_AttachmentIndex);
-        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, m_AttachmentIndex);
+        Graph::DescriptorSet_BeginRecordWrite(m_PostProcessSet);
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color,
+                                         m_AttachmentIndex);
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline,
+                                         m_AttachmentIndex);
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil,
+                                         m_AttachmentIndex);
+        Graph::DescriptorSet_EndRecordWrite(m_PostProcessSet);
     }
 
-    VkDescriptorImageInfo &comp = infos.Append();
-    comp.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    comp.imageView = fb->Attachments[Attachment_Final].GetView(1);
-    comp.sampler = Renderer::GetNearSampler();
+    // view 1 is the surface format view, created in createAttachment()
+    const Graph::DescriptorImageInfo comp =
+        Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Final], 1), layout, near);
 
-    compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp, m_AttachmentIndex);
-    if (transparency)
-        blend.Overwrite(m_BlendSet);
-    if (pprocess)
-        pp.Overwrite(m_PostProcessSet);
-    compositor.Overwrite(m_CompositorSet);
-    if (IsDebugUtilsEnabled())
+    Graph::DescriptorSet_BeginRecordWrite(m_CompositorSet);
+    Graph::DescriptorSet_RecordWrite(m_CompositorSet, ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp,
+                                     m_AttachmentIndex);
+    Graph::DescriptorSet_EndRecordWrite(m_CompositorSet);
+
+    if (Graph::IsValidationEnabled())
     {
         TKit::FixedArray<TKit::StackString, Attachment_Count> names{};
         names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", m_AttachmentIndex);
@@ -214,49 +187,26 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
         names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", m_AttachmentIndex);
         names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", m_AttachmentIndex);
         for (u32 j = 0; j < Attachment_Count; ++j)
-            if (fb->Attachments[j])
+            if (fb.Attachments[j] != Graph::NullHandle)
             {
-                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetName(names[j].CString()));
-                ONYX_CHECK_VKIT_RESULT(fb->Attachments[j].SetViewNames(names[j].CString()));
+                Graph::Image_SetName(fb.Attachments[j], names[j].CString());
+                Graph::Image_SetViewNames(fb.Attachments[j], names[j].CString());
             }
     }
 }
 
 template <Dimension D> void RenderView<D>::drainWork() const
 {
-    TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(m_Framebuffers.GetSize());
-    TKit::StackArray<u64> values{};
-    values.Reserve(m_Framebuffers.GetSize());
-    for (const Framebuffer *fb : m_Framebuffers)
-        if (fb->Tracker.InFlight())
-        {
-            semaphores.Append(fb->Tracker.Queue->GetTimelineSempahore());
-            values.Append(fb->Tracker.InFlightValue);
-        }
-    if (!semaphores.IsEmpty())
-    {
-        const auto table = GetDeviceTable();
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = semaphores.GetSize();
-        waitInfo.pSemaphores = semaphores.GetData();
-        waitInfo.pValues = values.GetData();
-
-        const auto &device = GetDevice();
-        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
-    }
+    for (const Framebuffer &fb : m_Framebuffers)
+        Graph::Queue_WaitForTracker(fb.Tracker);
 }
 
 template <Dimension D> void RenderView<D>::destroyFramebuffers()
 {
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (Framebuffer *fb : m_Framebuffers)
-    {
-        for (VKit::DeviceImage &att : fb->Attachments)
-            att.Destroy();
-        tier->Destroy(fb);
-    }
+    for (const Framebuffer &fb : m_Framebuffers)
+        for (const Graph::Image img : fb.Attachments)
+            if (img != Graph::NullHandle)
+                Graph::Image_Destroy(img);
     m_Framebuffers.Clear();
 }
 
@@ -292,15 +242,6 @@ template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &vie
     }
 }
 
-template <Dimension D> static VkRect2D getScissor(const RenderView<D> *view, const u32v2 &ext)
-{
-    const f32v2 fext = f32v2{ext};
-    Scissor sc = view->GetNormalizedScissor();
-    sc.Position *= fext;
-    sc.Extent *= fext;
-    return AsVulkanScissor(sc);
-}
-
 template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &worldPos) const
 {
     if constexpr (D == D2)
@@ -318,46 +259,72 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
     }
 }
 
-template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker)
+template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker)
 {
-    m_Framebuffers[m_AttachmentIndex]->Tracker = tracker;
+    m_Framebuffers[m_AttachmentIndex].Tracker = tracker;
 }
 
-static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkRenderingAttachmentInfoKHR> &colors,
-                           const VkRenderingAttachmentInfoKHR &depth, const u32v2 &ext, Scissor normScissor)
+static Graph::ImageMemoryBarrierInfo toColorAttachment(const Graph::Image image)
 {
-    const VkRenderingAttachmentInfoKHR stencil = depth;
-    const VkExtent2D vkExtent = AsVulkanExtent(ext);
+    Graph::ImageMemoryBarrierInfo b{};
+    b.Image = image;
+    b.NewLayout = Graph::ImageLayout_ColorAttachment;
+    b.SrcStages = Graph::PipelineStageFlag_FragmentShader;
+    b.DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    b.DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    return b;
+}
+static Graph::ImageMemoryBarrierInfo colorToShaderRead(const Graph::Image image)
+{
+    Graph::ImageMemoryBarrierInfo b{};
+    b.Image = image;
+    b.NewLayout = Graph::ImageLayout_ShaderReadOnly;
+    b.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    b.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    b.DstStages = Graph::PipelineStageFlag_FragmentShader;
+    b.DstAccess = Graph::AccessFlag_ShaderRead;
+    return b;
+}
+static Graph::ImageMemoryBarrierInfo depthToShaderRead(const Graph::Image image)
+{
+    Graph::ImageMemoryBarrierInfo b{};
+    b.Image = image;
+    b.NewLayout = Graph::ImageLayout_ShaderReadOnly;
+    b.SrcStages = Graph::PipelineStageFlag_LateFragmentTests;
+    b.SrcAccess = Graph::AccessFlag_DepthStencilAttachmentWrite;
+    b.DstStages = Graph::PipelineStageFlag_FragmentShader;
+    b.DstAccess = Graph::AccessFlag_ShaderRead;
+    return b;
+}
 
-    VkRenderingInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderInfo.renderArea = {{0, 0}, vkExtent};
-    renderInfo.layerCount = 1;
-    renderInfo.colorAttachmentCount = colors.GetSize();
-    renderInfo.pColorAttachments = colors.GetData();
-    if (depth.imageView)
-    {
-        renderInfo.pDepthAttachment = &depth;
-        renderInfo.pStencilAttachment = &stencil;
-    }
+static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Graph::LoadOp load,
+                                             const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f})
+{
+    Graph::AttachmentInfo att{};
+    att.View = Graph::Image_GetView(image);
+    att.Layout = Graph::ImageLayout_ColorAttachment;
+    att.LoadOp = load;
+    att.StoreOp = store;
+    att.ClearValue.Color = clear;
+    return att;
+}
 
-    VkViewport viewport;
-    viewport.x = 0.f;
-    viewport.y = 0.f;
-    viewport.width = f32(vkExtent.width);
-    viewport.height = f32(vkExtent.height);
-    viewport.minDepth = 0.f;
-    viewport.maxDepth = 1.f;
+static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
+                           const Graph::AttachmentInfo *depth, const u32v2 &ext, Scissor normScissor)
+{
+    Graph::RenderPassInfo info{};
+    info.RenderArea = {{0, 0}, ext};
+    info.ColorAttachments = colors;
+    info.DepthAttachment = depth;
+    info.StencilAttachment = depth;
 
     const f32v2 fext = f32v2{ext};
     normScissor.Position *= fext;
     normScissor.Extent *= fext;
-    const VkRect2D scissor = AsVulkanScissor(normScissor);
 
-    const auto table = GetDeviceTable();
-    table->CmdSetViewport(cmd, 0, 1, &viewport);
-    table->CmdSetScissor(cmd, 0, 1, &scissor);
-    table->CmdBeginRenderingKHR(cmd, &renderInfo);
+    Graph::Command_SetViewport(cmd, f32v2{0.f}, fext);
+    Graph::Command_SetScissor(cmd, i32v2{normScissor.Position}, u32v2{normScissor.Extent});
+    Graph::Command_BeginRenderPass(cmd, info);
 }
 
 // a bit of a pass overview
@@ -378,306 +345,178 @@ static void beginRendering(const VkCommandBuffer cmd, const TKit::Span<const VkR
 // used for the final image is unorm. this is because the surface format is unorm (this is required for good imgui
 // support)
 
-template <Dimension D> void RenderView<D>::BeginOpaquePass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
 
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
-    TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
-
-    VKit::DeviceImage &colorImg =
-        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
-    VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
-    VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
-
-    VkRenderingAttachmentInfoKHR &color = atts[0];
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    color.imageView = colorImg.GetView();
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    const Color ccolor = ClearColor.ToLinear();
-    color.clearValue.color = {{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]}};
-
-    colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                               {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
-
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
 
-    VkRenderingAttachmentInfoKHR &outline = atts[1];
-    outline.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    outline.imageView = outlImg.GetView();
-    outline.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    outline.loadOp = hasOutlines ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    outline.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
+    const Graph::Image colorImg =
+        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
+    const Graph::Image outlImg = fb.Attachments[Attachment_Outline];
+    const Graph::Image depthImg = fb.Attachments[Attachment_DepthStencil];
 
-    outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                              {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                               .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                               .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    const bool keepDepth = transparent || hasOutlines;
 
-    VkRenderingAttachmentInfoKHR depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = depthImg.GetView();
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth.storeOp = (transparent || hasOutlines) ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth.clearValue.depthStencil = {1.f, 0};
+    Graph::ImageMemoryBarrierInfo barriers[3] = {toColorAttachment(colorImg), toColorAttachment(outlImg), {}};
+    barriers[2].Image = depthImg;
+    barriers[2].NewLayout = Graph::ImageLayout_DepthStencilAttachment;
+    barriers[2].SrcStages = hasPostProcess ? Graph::PipelineStageFlag_FragmentShader : 0;
+    barriers[2].DstStages = Graph::PipelineStageFlag_EarlyFragmentTests;
+    barriers[2].DstAccess = Graph::AccessFlag_DepthStencilAttachmentWrite;
+    Graph::Command_ImageBarrier(cmd, barriers);
 
-    depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                               {.DstAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                .SrcStage = (transparent || hasOutlines) ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR
-                                                                         : VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
-                                .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
+    const Color ccolor = ClearColor.ToLinear();
+    TKit::FixedArray<Graph::AttachmentInfo, 2> atts{};
+    atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store,
+                              f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
+    atts[1] = colorAttachment(outlImg, hasOutlines ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare,
+                              hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+
+    Graph::AttachmentInfo depth{};
+    depth.View = Graph::Image_GetView(depthImg);
+    depth.Layout = Graph::ImageLayout_DepthStencilAttachment;
+    depth.LoadOp = Graph::LoadOp_Clear;
+    depth.StoreOp = keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
     const u32v2 ext = GetRenderExtent();
-    beginRendering(cmd, atts, depth, ext, GetNormalizedScissor());
+    beginRendering(cmd, atts, &depth, ext, GetNormalizedScissor());
 }
 
-template <Dimension D> void RenderView<D>::EndOpaquePass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndOpaquePass");
-    const auto table = GetDeviceTable();
 
-    table->CmdEndRenderingKHR(cmd);
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
+    Graph::Command_EndRenderPass(cmd);
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     if (!transparent)
     {
         const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
-        VKit::DeviceImage &colorImg =
-            hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
-        VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
-        VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
+        const Graph::Image colorImg =
+            hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
-        colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   {
-                                       .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-
-                                       .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                   });
+        TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 3> barriers{};
+        barriers.Append(colorToShaderRead(colorImg));
         if (hasPostProcess)
         {
-            outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                      {
-                                          .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                          .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-
-                                          .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                      });
-            depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                       {
-                                           .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                           .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-
-                                           .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
-                                           .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                       });
+            barriers.Append(colorToShaderRead(fb.Attachments[Attachment_Outline]));
+            barriers.Append(depthToShaderRead(fb.Attachments[Attachment_DepthStencil]));
         }
+        Graph::Command_ImageBarrier(cmd, barriers);
     }
 }
 
-template <Dimension D> void RenderView<D>::BeginTransparentPass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginTransparentPass");
 
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
-    TKit::FixedArray<VkRenderingAttachmentInfoKHR, 3> atts{};
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
-    VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
-    VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
-    VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
+    const Graph::Image trImg = fb.Attachments[Attachment_Transparent];
+    const Graph::Image revImg = fb.Attachments[Attachment_Revealage];
+    const Graph::Image outlImg = fb.Attachments[Attachment_Outline];
+    const Graph::Image depthImg = fb.Attachments[Attachment_DepthStencil];
 
-    VkRenderingAttachmentInfoKHR &color = atts[0];
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    color.imageView = trImg.GetView();
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
-
-    trImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                            {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                             .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                             .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    const Graph::ImageMemoryBarrierInfo barriers[2] = {toColorAttachment(trImg), toColorAttachment(revImg)};
+    Graph::Command_ImageBarrier(cmd, barriers);
 
     const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
 
-    VkRenderingAttachmentInfoKHR &outline = atts[1];
-    outline.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    outline.imageView = outlImg.GetView();
-    outline.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    outline.loadOp = hasOutlines ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    outline.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    outline.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
+    TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
+    atts[0] = colorAttachment(trImg, Graph::LoadOp_Clear, Graph::StoreOp_Store);
+    atts[1] = colorAttachment(outlImg, hasOutlines ? Graph::LoadOp_Load : Graph::LoadOp_DontCare,
+                              hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, f32v4{1.f, 0.f, 0.f, 0.f});
 
-    VkRenderingAttachmentInfoKHR &revealage = atts[2];
-    revealage.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    revealage.imageView = revImg.GetView();
-    revealage.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    revealage.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    revealage.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    revealage.clearValue.color = {{1.f, 0.f, 0.f, 0.f}};
-
-    revImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                             {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                              .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                              .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
-
-    VkRenderingAttachmentInfoKHR depth{};
-    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = depthImg.GetView();
-    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    depth.storeOp = hasOutlines ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth.clearValue.depthStencil = {1.f, 0};
+    Graph::AttachmentInfo depth{};
+    depth.View = Graph::Image_GetView(depthImg);
+    depth.Layout = Graph::ImageLayout_DepthStencilAttachment;
+    depth.LoadOp = Graph::LoadOp_Load;
+    depth.StoreOp = hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
     const u32v2 ext = GetRenderExtent();
-    beginRendering(cmd, atts, depth, ext, GetNormalizedScissor());
+    beginRendering(cmd, atts, &depth, ext, GetNormalizedScissor());
 }
 
-template <Dimension D> void RenderView<D>::EndTransparentPass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndTransparentPass");
-    const auto table = GetDeviceTable();
 
-    table->CmdEndRenderingKHR(cmd);
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
+    Graph::Command_EndRenderPass(cmd);
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    VKit::DeviceImage &trImg = fb->Attachments[Attachment_Transparent];
-    VKit::DeviceImage &revImg = fb->Attachments[Attachment_Revealage];
-    trImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                            {
-                                .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                            });
-
-    revImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                             {
-                                 .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                 .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                 .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                 .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                             });
+    const Graph::ImageMemoryBarrierInfo barriers[2] = {colorToShaderRead(fb.Attachments[Attachment_Transparent]),
+                                                       colorToShaderRead(fb.Attachments[Attachment_Revealage])};
+    Graph::Command_ImageBarrier(cmd, barriers);
 }
 
-template <Dimension D> void RenderView<D>::BeginBlendPass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginBlendPass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginBlendPass");
 
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+    const Graph::Image colorImg =
+        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
-    VKit::DeviceImage &colorImg =
-        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
-
-    VkRenderingAttachmentInfoKHR color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    color.imageView = colorImg.GetView();
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_Load, Graph::StoreOp_Store);
     const u32v2 ext = GetRenderExtent();
 
-    beginRendering(cmd, color, {}, ext, GetNormalizedScissor());
+    beginRendering(cmd, color, nullptr, ext, GetNormalizedScissor());
 }
-template <Dimension D> void RenderView<D>::EndBlendPass(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndBlendPass");
-    const auto table = GetDeviceTable();
 
-    table->CmdEndRenderingKHR(cmd);
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
+    Graph::Command_EndRenderPass(cmd);
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+    const Graph::Image colorImg =
+        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
-    VKit::DeviceImage &colorImg =
-        hasPostProcess ? fb->Attachments[Attachment_Intermediate] : fb->Attachments[Attachment_Final];
-
-    colorImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                               {
-                                   .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                   .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                   .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                   .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                               });
-
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 3> barriers{};
+    barriers.Append(colorToShaderRead(colorImg));
     if (hasPostProcess)
     {
-        VKit::DeviceImage &outlImg = fb->Attachments[Attachment_Outline];
-        VKit::DeviceImage &depthImg = fb->Attachments[Attachment_DepthStencil];
-        outlImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                  {
-                                      .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                      .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                      .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                      .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                  });
-        depthImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   {
-                                       .SrcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
-                                       .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                       .SrcStage = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR,
-                                       .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                   });
+        barriers.Append(colorToShaderRead(fb.Attachments[Attachment_Outline]));
+        barriers.Append(depthToShaderRead(fb.Attachments[Attachment_DepthStencil]));
     }
+    Graph::Command_ImageBarrier(cmd, barriers);
 }
 
-template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginPostProcess(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::BeginPostProcess");
 
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
+    const Graph::Image finalImg = fb.Attachments[Attachment_Final];
 
-    VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
+    const Graph::ImageMemoryBarrierInfo barrier = toColorAttachment(finalImg);
+    Graph::Command_ImageBarrier(cmd, barrier);
 
-    VkRenderingAttachmentInfoKHR color{};
-    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    color.imageView = finalImg.GetView();
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    finalImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                               {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    const Graph::AttachmentInfo color = colorAttachment(finalImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
 
     const u32v2 ext = GetRenderExtent();
-    beginRendering(cmd, color, {}, ext, GetNormalizedScissor());
+    beginRendering(cmd, color, nullptr, ext, GetNormalizedScissor());
 }
 
-template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndPostProcess(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndPostProcess");
-    const auto table = GetDeviceTable();
-    Framebuffer *fb = m_Framebuffers[m_AttachmentIndex];
 
-    VKit::DeviceImage &finalImg = fb->Attachments[Attachment_Final];
+    Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    table->CmdEndRenderingKHR(cmd);
-    finalImg.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                               {
-                                   .SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                   .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                   .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                   .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                               });
+    Graph::Command_EndRenderPass(cmd);
+    const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[Attachment_Final]);
+    Graph::Command_ImageBarrier(cmd, barrier);
 }
 
 template <Dimension D> bool RenderView<D>::IsWithinViewport(const f32v2 &screenPos) const

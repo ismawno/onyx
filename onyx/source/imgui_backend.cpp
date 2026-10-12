@@ -1,29 +1,25 @@
 #include "pch.hpp"
 #include "imgui_backend.hpp"
-#include "platform.hpp"
-#include "glfw.hpp"
-#include "descriptors.hpp"
-#include "renderer.hpp"
 #include "buffer.hpp"
-#include "vkit/resource/sampler.hpp"
-#include "vkit/resource/device_image.hpp"
-#include "vkit/state/descriptor_set_layout.hpp"
-#include "vkit/state/pipeline_layout.hpp"
-#include "vkit/state/graphics_pipeline.hpp"
-#include "vkit/state/shader.hpp"
+#include "core.hpp"
+#include "graph/execution.hpp"
+#include "graph/descriptor.hpp"
+#include "graph/pipeline.hpp"
+#include "graph/shader.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/clock.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/utils/debug.hpp"
 #include <imgui_internal.h>
 
 #if !defined(ONYX_IMGUI_DISABLE_X11) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) ||     \
                                          defined(__NetBSD__) || defined(__DragonFly__))
-#    define ONYX_GLFW_X11
+#    define ONYX_IMGUI_X11
 #endif
 
 #if !defined(ONYX_IMGUI_DISABLE_WAYLAND) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) || \
                                              defined(__NetBSD__) || defined(__DragonFly__))
-#    define ONYX_GLFW_WAYLAND
+#    define ONYX_IMGUI_WAYLAND
 #endif
 
 namespace ImGui
@@ -31,12 +27,12 @@ namespace ImGui
 extern ImGuiIO &GetIO(ImGuiContext *);
 } // namespace ImGui
 
-namespace Onyx::ImGuiBackend
+namespace Onyx
 {
 struct Platform_GlobalData
 {
-    TKit::FixedArray<GLFWcursor *, ImGuiMouseCursor_COUNT> MouseCursors;
-#ifdef ONYX_GLFW_WAYLAND
+    TKit::FixedArray<Graph::MouseCursor, ImGuiMouseCursor_COUNT> MouseCursors;
+#ifdef ONYX_IMGUI_WAYLAND
     bool IsWayland;
 #endif
 };
@@ -46,25 +42,25 @@ struct Platform_ContextData
 {
     ImGuiContext *Context;
     Window *Window;
-    GLFWcursor *LastMouseCursor;
 
-    GLFWwindow *MouseWindow;
-    TKit::FixedArray<GLFWwindow *, GLFW_KEY_LAST> KeyOwnerWindows;
+    Graph::Window MouseWindow = Graph::NullHandle;
+    TKit::FixedArray<Graph::Window, Graph::Key_Count> KeyOwnerWindows;
 
+    TKit::Clock Clock{};
     f64 Time = 0.f;
 
-    bool MouseIgnoreButtonUpWaitForFocusLoss;
-    bool MouseIgnoreButtonUp;
+    bool MouseIgnoreButtonUpWaitForFocusLoss = false;
+    bool MouseIgnoreButtonUp = false;
 
-    f32v2 LastValidMousePos;
+    f32v2 LastValidMousePos{0.f};
 
-    GLFWwindowfocusfun UserCbkWindowFocus;
-    GLFWcursorposfun UserCbkCursorPos;
-    GLFWcursorenterfun UserCbkCursorEnter;
-    GLFWmousebuttonfun UserCbkMousebutton;
-    GLFWscrollfun UserCbkScroll;
-    GLFWkeyfun UserCbkKey;
-    GLFWcharfun UserCbkChar;
+    Graph::WindowFocusCallback UserCbkWindowFocus;
+    Graph::CursorPosCallback UserCbkCursorPos;
+    Graph::CursorEnterCallback UserCbkCursorEnter;
+    Graph::MouseButtonCallback UserCbkMousebutton;
+    Graph::ScrollCallback UserCbkScroll;
+    Graph::KeyCallback UserCbkKey;
+    Graph::CharCallback UserCbkChar;
 };
 
 struct Platform_ViewportData
@@ -72,280 +68,263 @@ struct Platform_ViewportData
     Window *Window = nullptr;
     u32 IgnoreWindowPosEventFrame = 0;
     u32 IgnoreWindowSizeEventFrame = 0;
+    Graph::MouseCursor LastMouseCursor = Graph::MouseCursor_Count; // Count means the OS cursor is hidden
 };
 
-#ifdef ONYX_GLFW_WAYLAND
-static bool platform_IsWayland()
+ImGuiKey platform_KeyToImGuiKey(const Graph::Key key)
 {
-#    ifdef ONYX_GLFW_GETPLATFORM
-    return glfwGetPlatform() == GLFW_PLATFORM_WAYLAND;
-#    else
-    const char *version = glfwGetVersionString();
-    if (!strstr(version, "Wayland")) // e.g. Ubuntu 22.04 ships with GLFW 3.3.6 compiled without Wayland
-        return false;
-    // #        ifdef GLFW_EXPOSE_NATIVE_X11
-    //     if (glfwGetX11Display())
-    //         return false;
-    // #        endif
-    return true;
-#    endif
-}
-#endif
-
-ImGuiKey platform_KeyToImGuiKey(const i32 keycode)
-{
-    switch (keycode)
+    switch (key)
     {
-    case GLFW_KEY_TAB:
+    case Graph::Key_Tab:
         return ImGuiKey_Tab;
-    case GLFW_KEY_LEFT:
+    case Graph::Key_Left:
         return ImGuiKey_LeftArrow;
-    case GLFW_KEY_RIGHT:
+    case Graph::Key_Right:
         return ImGuiKey_RightArrow;
-    case GLFW_KEY_UP:
+    case Graph::Key_Up:
         return ImGuiKey_UpArrow;
-    case GLFW_KEY_DOWN:
+    case Graph::Key_Down:
         return ImGuiKey_DownArrow;
-    case GLFW_KEY_PAGE_UP:
+    case Graph::Key_PageUp:
         return ImGuiKey_PageUp;
-    case GLFW_KEY_PAGE_DOWN:
+    case Graph::Key_PageDown:
         return ImGuiKey_PageDown;
-    case GLFW_KEY_HOME:
+    case Graph::Key_Home:
         return ImGuiKey_Home;
-    case GLFW_KEY_END:
+    case Graph::Key_End:
         return ImGuiKey_End;
-    case GLFW_KEY_INSERT:
+    case Graph::Key_Insert:
         return ImGuiKey_Insert;
-    case GLFW_KEY_DELETE:
+    case Graph::Key_Delete:
         return ImGuiKey_Delete;
-    case GLFW_KEY_BACKSPACE:
+    case Graph::Key_Backspace:
         return ImGuiKey_Backspace;
-    case GLFW_KEY_SPACE:
+    case Graph::Key_Space:
         return ImGuiKey_Space;
-    case GLFW_KEY_ENTER:
+    case Graph::Key_Enter:
         return ImGuiKey_Enter;
-    case GLFW_KEY_ESCAPE:
+    case Graph::Key_Escape:
         return ImGuiKey_Escape;
-    case GLFW_KEY_APOSTROPHE:
+    case Graph::Key_Apostrophe:
         return ImGuiKey_Apostrophe;
-    case GLFW_KEY_COMMA:
+    case Graph::Key_Comma:
         return ImGuiKey_Comma;
-    case GLFW_KEY_MINUS:
+    case Graph::Key_Minus:
         return ImGuiKey_Minus;
-    case GLFW_KEY_PERIOD:
+    case Graph::Key_Period:
         return ImGuiKey_Period;
-    case GLFW_KEY_SLASH:
+    case Graph::Key_Slash:
         return ImGuiKey_Slash;
-    case GLFW_KEY_SEMICOLON:
+    case Graph::Key_Semicolon:
         return ImGuiKey_Semicolon;
-    case GLFW_KEY_EQUAL:
+    case Graph::Key_Equal:
         return ImGuiKey_Equal;
-    case GLFW_KEY_LEFT_BRACKET:
+    case Graph::Key_LeftBracket:
         return ImGuiKey_LeftBracket;
-    case GLFW_KEY_BACKSLASH:
+    case Graph::Key_Backslash:
         return ImGuiKey_Backslash;
-    case GLFW_KEY_WORLD_1:
-    case GLFW_KEY_WORLD_2:
+    case Graph::Key_World_1:
+    case Graph::Key_World_2:
         return ImGuiKey_Oem102;
-    case GLFW_KEY_RIGHT_BRACKET:
+    case Graph::Key_RightBracket:
         return ImGuiKey_RightBracket;
-    case GLFW_KEY_GRAVE_ACCENT:
+    case Graph::Key_GraveAccent:
         return ImGuiKey_GraveAccent;
-    case GLFW_KEY_CAPS_LOCK:
+    case Graph::Key_CapsLock:
         return ImGuiKey_CapsLock;
-    case GLFW_KEY_SCROLL_LOCK:
+    case Graph::Key_ScrollLock:
         return ImGuiKey_ScrollLock;
-    case GLFW_KEY_NUM_LOCK:
+    case Graph::Key_NumLock:
         return ImGuiKey_NumLock;
-    case GLFW_KEY_PRINT_SCREEN:
+    case Graph::Key_PrintScreen:
         return ImGuiKey_PrintScreen;
-    case GLFW_KEY_PAUSE:
+    case Graph::Key_Pause:
         return ImGuiKey_Pause;
-    case GLFW_KEY_KP_0:
+    case Graph::Key_KP_0:
         return ImGuiKey_Keypad0;
-    case GLFW_KEY_KP_1:
+    case Graph::Key_KP_1:
         return ImGuiKey_Keypad1;
-    case GLFW_KEY_KP_2:
+    case Graph::Key_KP_2:
         return ImGuiKey_Keypad2;
-    case GLFW_KEY_KP_3:
+    case Graph::Key_KP_3:
         return ImGuiKey_Keypad3;
-    case GLFW_KEY_KP_4:
+    case Graph::Key_KP_4:
         return ImGuiKey_Keypad4;
-    case GLFW_KEY_KP_5:
+    case Graph::Key_KP_5:
         return ImGuiKey_Keypad5;
-    case GLFW_KEY_KP_6:
+    case Graph::Key_KP_6:
         return ImGuiKey_Keypad6;
-    case GLFW_KEY_KP_7:
+    case Graph::Key_KP_7:
         return ImGuiKey_Keypad7;
-    case GLFW_KEY_KP_8:
+    case Graph::Key_KP_8:
         return ImGuiKey_Keypad8;
-    case GLFW_KEY_KP_9:
+    case Graph::Key_KP_9:
         return ImGuiKey_Keypad9;
-    case GLFW_KEY_KP_DECIMAL:
+    case Graph::Key_KPDecimal:
         return ImGuiKey_KeypadDecimal;
-    case GLFW_KEY_KP_DIVIDE:
+    case Graph::Key_KPDivide:
         return ImGuiKey_KeypadDivide;
-    case GLFW_KEY_KP_MULTIPLY:
+    case Graph::Key_KPMultiply:
         return ImGuiKey_KeypadMultiply;
-    case GLFW_KEY_KP_SUBTRACT:
+    case Graph::Key_KPSubtract:
         return ImGuiKey_KeypadSubtract;
-    case GLFW_KEY_KP_ADD:
+    case Graph::Key_KPAdd:
         return ImGuiKey_KeypadAdd;
-    case GLFW_KEY_KP_ENTER:
+    case Graph::Key_KPEnter:
         return ImGuiKey_KeypadEnter;
-    case GLFW_KEY_KP_EQUAL:
+    case Graph::Key_KPEqual:
         return ImGuiKey_KeypadEqual;
-    case GLFW_KEY_LEFT_SHIFT:
+    case Graph::Key_LeftShift:
         return ImGuiKey_LeftShift;
-    case GLFW_KEY_LEFT_CONTROL:
+    case Graph::Key_LeftControl:
         return ImGuiKey_LeftCtrl;
-    case GLFW_KEY_LEFT_ALT:
+    case Graph::Key_LeftAlt:
         return ImGuiKey_LeftAlt;
-    case GLFW_KEY_LEFT_SUPER:
+    case Graph::Key_LeftSuper:
         return ImGuiKey_LeftSuper;
-    case GLFW_KEY_RIGHT_SHIFT:
+    case Graph::Key_RightShift:
         return ImGuiKey_RightShift;
-    case GLFW_KEY_RIGHT_CONTROL:
+    case Graph::Key_RightControl:
         return ImGuiKey_RightCtrl;
-    case GLFW_KEY_RIGHT_ALT:
+    case Graph::Key_RightAlt:
         return ImGuiKey_RightAlt;
-    case GLFW_KEY_RIGHT_SUPER:
+    case Graph::Key_RightSuper:
         return ImGuiKey_RightSuper;
-    case GLFW_KEY_MENU:
+    case Graph::Key_Menu:
         return ImGuiKey_Menu;
-    case GLFW_KEY_0:
+    case Graph::Key_N0:
         return ImGuiKey_0;
-    case GLFW_KEY_1:
+    case Graph::Key_N1:
         return ImGuiKey_1;
-    case GLFW_KEY_2:
+    case Graph::Key_N2:
         return ImGuiKey_2;
-    case GLFW_KEY_3:
+    case Graph::Key_N3:
         return ImGuiKey_3;
-    case GLFW_KEY_4:
+    case Graph::Key_N4:
         return ImGuiKey_4;
-    case GLFW_KEY_5:
+    case Graph::Key_N5:
         return ImGuiKey_5;
-    case GLFW_KEY_6:
+    case Graph::Key_N6:
         return ImGuiKey_6;
-    case GLFW_KEY_7:
+    case Graph::Key_N7:
         return ImGuiKey_7;
-    case GLFW_KEY_8:
+    case Graph::Key_N8:
         return ImGuiKey_8;
-    case GLFW_KEY_9:
+    case Graph::Key_N9:
         return ImGuiKey_9;
-    case GLFW_KEY_A:
+    case Graph::Key_A:
         return ImGuiKey_A;
-    case GLFW_KEY_B:
+    case Graph::Key_B:
         return ImGuiKey_B;
-    case GLFW_KEY_C:
+    case Graph::Key_C:
         return ImGuiKey_C;
-    case GLFW_KEY_D:
+    case Graph::Key_D:
         return ImGuiKey_D;
-    case GLFW_KEY_E:
+    case Graph::Key_E:
         return ImGuiKey_E;
-    case GLFW_KEY_F:
+    case Graph::Key_F:
         return ImGuiKey_F;
-    case GLFW_KEY_G:
+    case Graph::Key_G:
         return ImGuiKey_G;
-    case GLFW_KEY_H:
+    case Graph::Key_H:
         return ImGuiKey_H;
-    case GLFW_KEY_I:
+    case Graph::Key_I:
         return ImGuiKey_I;
-    case GLFW_KEY_J:
+    case Graph::Key_J:
         return ImGuiKey_J;
-    case GLFW_KEY_K:
+    case Graph::Key_K:
         return ImGuiKey_K;
-    case GLFW_KEY_L:
+    case Graph::Key_L:
         return ImGuiKey_L;
-    case GLFW_KEY_M:
+    case Graph::Key_M:
         return ImGuiKey_M;
-    case GLFW_KEY_N:
+    case Graph::Key_N:
         return ImGuiKey_N;
-    case GLFW_KEY_O:
+    case Graph::Key_O:
         return ImGuiKey_O;
-    case GLFW_KEY_P:
+    case Graph::Key_P:
         return ImGuiKey_P;
-    case GLFW_KEY_Q:
+    case Graph::Key_Q:
         return ImGuiKey_Q;
-    case GLFW_KEY_R:
+    case Graph::Key_R:
         return ImGuiKey_R;
-    case GLFW_KEY_S:
+    case Graph::Key_S:
         return ImGuiKey_S;
-    case GLFW_KEY_T:
+    case Graph::Key_T:
         return ImGuiKey_T;
-    case GLFW_KEY_U:
+    case Graph::Key_U:
         return ImGuiKey_U;
-    case GLFW_KEY_V:
+    case Graph::Key_V:
         return ImGuiKey_V;
-    case GLFW_KEY_W:
+    case Graph::Key_W:
         return ImGuiKey_W;
-    case GLFW_KEY_X:
+    case Graph::Key_X:
         return ImGuiKey_X;
-    case GLFW_KEY_Y:
+    case Graph::Key_Y:
         return ImGuiKey_Y;
-    case GLFW_KEY_Z:
+    case Graph::Key_Z:
         return ImGuiKey_Z;
-    case GLFW_KEY_F1:
+    case Graph::Key_F1:
         return ImGuiKey_F1;
-    case GLFW_KEY_F2:
+    case Graph::Key_F2:
         return ImGuiKey_F2;
-    case GLFW_KEY_F3:
+    case Graph::Key_F3:
         return ImGuiKey_F3;
-    case GLFW_KEY_F4:
+    case Graph::Key_F4:
         return ImGuiKey_F4;
-    case GLFW_KEY_F5:
+    case Graph::Key_F5:
         return ImGuiKey_F5;
-    case GLFW_KEY_F6:
+    case Graph::Key_F6:
         return ImGuiKey_F6;
-    case GLFW_KEY_F7:
+    case Graph::Key_F7:
         return ImGuiKey_F7;
-    case GLFW_KEY_F8:
+    case Graph::Key_F8:
         return ImGuiKey_F8;
-    case GLFW_KEY_F9:
+    case Graph::Key_F9:
         return ImGuiKey_F9;
-    case GLFW_KEY_F10:
+    case Graph::Key_F10:
         return ImGuiKey_F10;
-    case GLFW_KEY_F11:
+    case Graph::Key_F11:
         return ImGuiKey_F11;
-    case GLFW_KEY_F12:
+    case Graph::Key_F12:
         return ImGuiKey_F12;
-    case GLFW_KEY_F13:
+    case Graph::Key_F13:
         return ImGuiKey_F13;
-    case GLFW_KEY_F14:
+    case Graph::Key_F14:
         return ImGuiKey_F14;
-    case GLFW_KEY_F15:
+    case Graph::Key_F15:
         return ImGuiKey_F15;
-    case GLFW_KEY_F16:
+    case Graph::Key_F16:
         return ImGuiKey_F16;
-    case GLFW_KEY_F17:
+    case Graph::Key_F17:
         return ImGuiKey_F17;
-    case GLFW_KEY_F18:
+    case Graph::Key_F18:
         return ImGuiKey_F18;
-    case GLFW_KEY_F19:
+    case Graph::Key_F19:
         return ImGuiKey_F19;
-    case GLFW_KEY_F20:
+    case Graph::Key_F20:
         return ImGuiKey_F20;
-    case GLFW_KEY_F21:
+    case Graph::Key_F21:
         return ImGuiKey_F21;
-    case GLFW_KEY_F22:
+    case Graph::Key_F22:
         return ImGuiKey_F22;
-    case GLFW_KEY_F23:
+    case Graph::Key_F23:
         return ImGuiKey_F23;
-    case GLFW_KEY_F24:
+    case Graph::Key_F24:
         return ImGuiKey_F24;
-    default:
+    default: // Key_F25 has no ImGui counterpart
         return ImGuiKey_None;
     }
 }
 
 struct WindowDataPair
 {
-    GLFWwindow *Window;
+    Graph::Window Window;
     Platform_ContextData *Data;
 };
 static TKit::TierArray<WindowDataPair> s_PlatformMap{};
 
-static Platform_ContextData *platform_MapGet(GLFWwindow *window)
+static Platform_ContextData *platform_MapGet(const Graph::Window window)
 {
     for (const WindowDataPair &dp : s_PlatformMap)
         if (dp.Window == window)
@@ -354,12 +333,12 @@ static Platform_ContextData *platform_MapGet(GLFWwindow *window)
     return nullptr;
 }
 
-static void platform_MapAdd(GLFWwindow *window, Platform_ContextData *pdata)
+static void platform_MapAdd(const Graph::Window window, Platform_ContextData *pdata)
 {
     s_PlatformMap.Append(window, pdata);
 }
 
-static void platform_MapRemove(GLFWwindow *window)
+static void platform_MapRemove(const Graph::Window window)
 {
     for (u32 i = 0; i < s_PlatformMap.GetSize(); ++i)
     {
@@ -373,9 +352,9 @@ static void platform_MapRemove(GLFWwindow *window)
     TKIT_FATAL("[ONYX][IMGUI] Platform data not found for window");
 }
 
-static Platform_ContextData *platform_GetContextData(GLFWwindow *window = nullptr)
+static Platform_ContextData *platform_GetContextData(const Graph::Window window = Graph::NullHandle)
 {
-    if (window)
+    if (window != Graph::NullHandle)
         return platform_MapGet(window);
 
     return ImGui::GetCurrentContext() ? scast<Platform_ContextData *>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
@@ -386,7 +365,7 @@ static Platform_ViewportData *platform_GetViewportData(const ImGuiViewport *view
     return scast<Platform_ViewportData *>(viewport->PlatformUserData);
 }
 
-static void platform_WindowFocusCallback(GLFWwindow *window, const i32 focused)
+static void platform_WindowFocusCallback(const Graph::Window window, const bool focused)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkWindowFocus && window == pdata->Window->GetHandle())
@@ -394,14 +373,14 @@ static void platform_WindowFocusCallback(GLFWwindow *window, const i32 focused)
 
     // Workaround for Linux: when losing focus with MouseIgnoreButtonUpWaitForFocusLoss set, we will temporarily ignore
     // subsequent Mouse Up events
-    pdata->MouseIgnoreButtonUp = (pdata->MouseIgnoreButtonUpWaitForFocusLoss && focused == 0);
+    pdata->MouseIgnoreButtonUp = (pdata->MouseIgnoreButtonUpWaitForFocusLoss && !focused);
     pdata->MouseIgnoreButtonUpWaitForFocusLoss = false;
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
-    io.AddFocusEvent(focused != 0);
+    io.AddFocusEvent(focused);
 }
 
-static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
+static void platform_CursorPosCallback(const Graph::Window window, f64 x, f64 y)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkCursorPos && window == pdata->Window->GetHandle())
@@ -410,11 +389,9 @@ static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-        i32 winx;
-        i32 winy;
-        glfwGetWindowPos(window, &winx, &winy);
-        x += f64(winx);
-        y += f64(winy);
+        const i32v2 wpos = Graph::Window_GetPosition(window);
+        x += f64(wpos[0]);
+        y += f64(wpos[1]);
     }
 
     io.AddMousePosEvent(f32(x), f32(y));
@@ -423,7 +400,7 @@ static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
 
 // Workaround: X11 seems to send spurious Leave/Enter events which would make us lose our position,
 // so we back it up and restore on Leave/Enter (see https://github.com/ocornut/imgui/issues/4984)
-static void platform_CursorEnterCallback(GLFWwindow *window, const i32 entered)
+static void platform_CursorEnterCallback(const Graph::Window window, const bool entered)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkCursorEnter && window == pdata->Window->GetHandle())
@@ -438,39 +415,41 @@ static void platform_CursorEnterCallback(GLFWwindow *window, const i32 entered)
     else if (!entered && pdata->MouseWindow == window)
     {
         pdata->LastValidMousePos = f32v2{io.MousePos.x, io.MousePos.y};
-        pdata->MouseWindow = nullptr;
+        pdata->MouseWindow = Graph::NullHandle;
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
     }
 }
 
-static void platform_UpdateKeyModifiers(ImGuiIO &io, GLFWwindow *window)
+static void platform_UpdateKeyModifiers(ImGuiIO &io, const Graph::Window window)
 {
-    io.AddKeyEvent(ImGuiMod_Ctrl, (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
-                                      (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
-    io.AddKeyEvent(ImGuiMod_Shift, (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ||
-                                       (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS));
-    io.AddKeyEvent(ImGuiMod_Alt, (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) ||
-                                     (glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS));
-    io.AddKeyEvent(ImGuiMod_Super, (glfwGetKey(window, GLFW_KEY_LEFT_SUPER) == GLFW_PRESS) ||
-                                       (glfwGetKey(window, GLFW_KEY_RIGHT_SUPER) == GLFW_PRESS));
+    io.AddKeyEvent(ImGuiMod_Ctrl, Graph::Window_IsKeyPressed(window, Graph::Key_LeftControl) ||
+                                      Graph::Window_IsKeyPressed(window, Graph::Key_RightControl));
+    io.AddKeyEvent(ImGuiMod_Shift, Graph::Window_IsKeyPressed(window, Graph::Key_LeftShift) ||
+                                       Graph::Window_IsKeyPressed(window, Graph::Key_RightShift));
+    io.AddKeyEvent(ImGuiMod_Alt, Graph::Window_IsKeyPressed(window, Graph::Key_LeftAlt) ||
+                                     Graph::Window_IsKeyPressed(window, Graph::Key_RightAlt));
+    io.AddKeyEvent(ImGuiMod_Super, Graph::Window_IsKeyPressed(window, Graph::Key_LeftSuper) ||
+                                       Graph::Window_IsKeyPressed(window, Graph::Key_RightSuper));
 }
-static void platform_MouseButtonCallback(GLFWwindow *window, i32 button, i32 action, i32 mods)
+static void platform_MouseButtonCallback(const Graph::Window window, const Graph::Mouse button,
+                                         const Graph::InputAction action, const Graph::KeyModFlags mods)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkMousebutton && window == pdata->Window->GetHandle())
         pdata->UserCbkMousebutton(window, button, action, mods);
 
     // Workaround for Linux: ignore mouse up events which are following an focus loss following a viewport creation
-    if (pdata->MouseIgnoreButtonUp && action == GLFW_RELEASE)
+    if (pdata->MouseIgnoreButtonUp && action == Graph::InputAction_Release)
         return;
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
     platform_UpdateKeyModifiers(io, window);
-    if (button >= 0 && button < ImGuiMouseButton_COUNT)
-        io.AddMouseButtonEvent(button, action == GLFW_PRESS);
+    // Mouse_Button1 -> Mouse_Button5 line up with ImGui's left, right, middle, back and forward buttons
+    if (i32(button) < ImGuiMouseButton_COUNT)
+        io.AddMouseButtonEvent(i32(button), action == Graph::InputAction_Press);
 }
 
-static void platform_ScrollCallback(GLFWwindow *window, const f64 xoffset, const f64 yoffset)
+static void platform_ScrollCallback(const Graph::Window window, const f64 xoffset, const f64 yoffset)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkScroll && window == pdata->Window->GetHandle())
@@ -480,7 +459,7 @@ static void platform_ScrollCallback(GLFWwindow *window, const f64 xoffset, const
     io.AddMouseWheelEvent(f32(xoffset), f32(yoffset));
 }
 
-static i32 platform_TranslateUntranslatedKey(i32 key, const i32 scancode)
+static Graph::Key platform_TranslateUntranslatedKey(Graph::Key key, const i32 scancode)
 {
     // GLFW 3.1+ attempts to "untranslate" keys, which goes the opposite of what every other framework does, making
     // using lettered shortcuts difficult. (It had reasons to do so: namely GLFW is/was more likely to be used for
@@ -488,56 +467,53 @@ static i32 platform_TranslateUntranslatedKey(i32 key, const i32 scancode)
     // See https://github.com/glfw/glfw/issues/1502 for details.
     // Adding a workaround to undo this (so our keys are translated->untranslated->translated, likely a lossy process).
     // This won't cover edge cases but this is at least going to cover common cases.
-    if (key >= GLFW_KEY_KP_0 && key <= GLFW_KEY_KP_EQUAL)
+    if (key >= Graph::Key_KP_0 && key <= Graph::Key_KPEqual)
         return key;
 
-    const GLFWerrorfun perror = glfwSetErrorCallback(nullptr);
-    const char *keyName = glfwGetKeyName(key, scancode);
-    glfwSetErrorCallback(perror);
-#ifdef ONYX_GLFW_GETERROR
-    TKIT_UNUSED(glfwGetError(nullptr));
-#endif
+    const char *keyName = Graph::Key_GetName(key, scancode);
     if (keyName && keyName[0] != 0 && keyName[1] == 0)
     {
         const char charNames[] = "`-=[]\\,;\'./";
-        const i32 charKeys[] = {GLFW_KEY_GRAVE_ACCENT,  GLFW_KEY_MINUS,     GLFW_KEY_EQUAL, GLFW_KEY_LEFT_BRACKET,
-                                GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_BACKSLASH, GLFW_KEY_COMMA, GLFW_KEY_SEMICOLON,
-                                GLFW_KEY_APOSTROPHE,    GLFW_KEY_PERIOD,    GLFW_KEY_SLASH, 0};
+        const Graph::Key charKeys[] = {Graph::Key_GraveAccent, Graph::Key_Minus,        Graph::Key_Equal,
+                                       Graph::Key_LeftBracket, Graph::Key_RightBracket, Graph::Key_Backslash,
+                                       Graph::Key_Comma,       Graph::Key_Semicolon,    Graph::Key_Apostrophe,
+                                       Graph::Key_Period,      Graph::Key_Slash,        Graph::Key_None};
 
         if (keyName[0] >= '0' && keyName[0] <= '9')
-            key = GLFW_KEY_0 + (keyName[0] - '0');
+            key = Graph::Key(Graph::Key_N0 + (keyName[0] - '0'));
         else if (keyName[0] >= 'A' && keyName[0] <= 'Z')
-            key = GLFW_KEY_A + (keyName[0] - 'A');
+            key = Graph::Key(Graph::Key_A + (keyName[0] - 'A'));
         else if (keyName[0] >= 'a' && keyName[0] <= 'z')
-            key = GLFW_KEY_A + (keyName[0] - 'a');
+            key = Graph::Key(Graph::Key_A + (keyName[0] - 'a'));
         else if (const char *p = strchr(charNames, keyName[0]))
             key = charKeys[p - charNames];
     }
     return key;
 }
 
-static void platform_KeyCallback(GLFWwindow *window, i32 keycode, const i32 scancode, const i32 action, const i32 mods)
+static void platform_KeyCallback(const Graph::Window window, Graph::Key key, const i32 scancode,
+                                 const Graph::InputAction action, const Graph::KeyModFlags mods)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkKey && window == pdata->Window->GetHandle())
-        pdata->UserCbkKey(window, keycode, scancode, action, mods);
+        pdata->UserCbkKey(window, key, scancode, action, mods);
 
-    if (action != GLFW_PRESS && action != GLFW_RELEASE)
+    if (action != Graph::InputAction_Press && action != Graph::InputAction_Release)
         return;
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
     platform_UpdateKeyModifiers(io, window);
 
-    if (keycode >= 0 && keycode < GLFW_KEY_LAST)
-        pdata->KeyOwnerWindows[keycode] = (action == GLFW_PRESS) ? window : nullptr;
+    if (key < Graph::Key_Count)
+        pdata->KeyOwnerWindows[key] = (action == Graph::InputAction_Press) ? window : Graph::NullHandle;
 
-    keycode = platform_TranslateUntranslatedKey(keycode, scancode);
-    const ImGuiKey imkey = platform_KeyToImGuiKey(keycode);
-    io.AddKeyEvent(imkey, (action == GLFW_PRESS));
-    io.SetKeyEventNativeData(imkey, keycode, scancode); // To support legacy indexing (<1.87 user code)
+    key = platform_TranslateUntranslatedKey(key, scancode);
+    const ImGuiKey imkey = platform_KeyToImGuiKey(key);
+    io.AddKeyEvent(imkey, (action == Graph::InputAction_Press));
+    io.SetKeyEventNativeData(imkey, i32(key), scancode); // To support legacy indexing (<1.87 user code)
 }
 
-static void platform_CharCallback(GLFWwindow *window, const CodePoint code)
+static void platform_CharCallback(const Graph::Window window, const u32 code)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkChar && window == pdata->Window->GetHandle())
@@ -547,19 +523,19 @@ static void platform_CharCallback(GLFWwindow *window, const CodePoint code)
     io.AddInputCharacter(code);
 }
 
-static ImGuiViewport *platform_FindViewportByPlatformHandle(GLFWwindow *window)
+static ImGuiViewport *platform_FindViewportByPlatformHandle(const Graph::Window window)
 {
     if (!ImGui::GetCurrentContext())
         return nullptr;
     return ImGui::FindViewportByPlatformHandle(Window::FromHandle(window));
 }
 
-static void platform_WindowCloseCallback(GLFWwindow *window)
+static void platform_WindowCloseCallback(const Graph::Window window)
 {
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
         viewport->PlatformRequestClose = true;
 }
-static void platform_WindowPosCallback(GLFWwindow *window, const i32, const i32)
+static void platform_WindowPosCallback(const Graph::Window window, const i32, const i32)
 {
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
     {
@@ -571,7 +547,7 @@ static void platform_WindowPosCallback(GLFWwindow *window, const i32, const i32)
             viewport->PlatformRequestMove = true;
     }
 }
-static void platform_WindowSizeCallback(GLFWwindow *window, const i32, const i32)
+static void platform_WindowSizeCallback(const Graph::Window window, const u32, const u32)
 {
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
     {
@@ -579,34 +555,30 @@ static void platform_WindowSizeCallback(GLFWwindow *window, const i32, const i32
         TKIT_ASSERT(vdata, "[ONYX][IMGUI] Platform viewport data is null. Consider checking instead of asserting");
 
         const u32 frameCount = u32(ImGui::GetFrameCount());
-        if (frameCount > vdata->IgnoreWindowPosEventFrame + 1)
+        if (frameCount > vdata->IgnoreWindowSizeEventFrame + 1)
             viewport->PlatformRequestResize = true;
     }
 }
 
-static void platform_InstallCallbacks(Platform_ContextData *pdata, GLFWwindow *window)
+static void platform_InstallCallbacks(Platform_ContextData *pdata, const Graph::Window window)
 {
-    pdata->UserCbkWindowFocus = glfwSetWindowFocusCallback(window, platform_WindowFocusCallback);
-    pdata->UserCbkCursorEnter = glfwSetCursorEnterCallback(window, platform_CursorEnterCallback);
-    pdata->UserCbkCursorPos = glfwSetCursorPosCallback(window, platform_CursorPosCallback);
-    pdata->UserCbkMousebutton = glfwSetMouseButtonCallback(window, platform_MouseButtonCallback);
-    pdata->UserCbkScroll = glfwSetScrollCallback(window, platform_ScrollCallback);
-    pdata->UserCbkKey = glfwSetKeyCallback(window, platform_KeyCallback);
-    pdata->UserCbkChar = glfwSetCharCallback(window, platform_CharCallback);
+    pdata->UserCbkWindowFocus = Graph::Window_Callback_Focus(window, platform_WindowFocusCallback);
+    pdata->UserCbkCursorEnter = Graph::Window_Callback_CursorEnter(window, platform_CursorEnterCallback);
+    pdata->UserCbkCursorPos = Graph::Window_Callback_CursorPos(window, platform_CursorPosCallback);
+    pdata->UserCbkMousebutton = Graph::Window_Callback_MouseButton(window, platform_MouseButtonCallback);
+    pdata->UserCbkScroll = Graph::Window_Callback_Scroll(window, platform_ScrollCallback);
+    pdata->UserCbkKey = Graph::Window_Callback_Key(window, platform_KeyCallback);
+    pdata->UserCbkChar = Graph::Window_Callback_Char(window, platform_CharCallback);
 }
 
-f32 platform_GetContentScaleForMonitor(GLFWmonitor *monitor)
+f32 platform_GetContentScaleForMonitor(const Graph::Monitor monitor)
 {
-#ifdef ONYX_GLFW_WAYLAND
+#ifdef ONYX_IMGUI_WAYLAND
     if (s_PlatformData.IsWayland)
         return 1.f;
 #endif
-#if defined(ONYX_GLFW_PER_MONITOR_DPI) && !(defined(TKIT_OS_APPLE) || defined(TKIT_OS_ANDROID))
-    f32 xscale;
-    f32 yscale;
-
-    glfwGetMonitorContentScale(monitor, &xscale, &yscale);
-    return xscale;
+#if !(defined(TKIT_OS_APPLE) || defined(TKIT_OS_ANDROID))
+    return Graph::Monitor_GetContentScale(monitor)[0];
 #else
     TKIT_UNUSED(monitor);
     return 1.f;
@@ -617,38 +589,33 @@ static void platform_UpdateMonitors()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
 
-    i32 mcount = 0;
-    GLFWmonitor **monitors = glfwGetMonitors(&mcount);
+    const u32 mcount = Graph::Monitor_GetCount();
 
     bool updated_monitors = false;
-    for (i32 n = 0; n < mcount; n++)
+    for (u32 n = 0; n < mcount; n++)
     {
+        const Graph::Monitor mon = Graph::Monitor_Get(n);
+
         ImGuiPlatformMonitor monitor;
-        i32 x, y;
-        glfwGetMonitorPos(monitors[n], &x, &y);
-        const GLFWvidmode *vmode = glfwGetVideoMode(monitors[n]);
-        if (!vmode)
-            continue;
-        if (vmode->width <= 0 || vmode->height <= 0)
+        const i32v2 pos = Graph::Monitor_GetPosition(mon);
+        const Graph::VideoMode vmode = Graph::Monitor_GetVideoMode(mon);
+        if (vmode.Dimensions[0] == 0 || vmode.Dimensions[1] == 0)
             continue;
 
-        monitor.MainPos = monitor.WorkPos = ImVec2((f32)x, (f32)y);
-        monitor.MainSize = monitor.WorkSize = ImVec2((f32)vmode->width, (f32)vmode->height);
-#ifdef ONYX_GLFW_MONITOR_WORK_AREA
-        i32 w, h;
-        glfwGetMonitorWorkarea(monitors[n], &x, &y, &w, &h);
-        if (w > 0 && h > 0)
+        monitor.MainPos = monitor.WorkPos = ImVec2(f32(pos[0]), f32(pos[1]));
+        monitor.MainSize = monitor.WorkSize = ImVec2(f32(vmode.Dimensions[0]), f32(vmode.Dimensions[1]));
+
+        const Graph::MonitorArea work = Graph::Monitor_GetWorkArea(mon);
+        if (work.Dimensions[0] > 0 && work.Dimensions[1] > 0)
         {
-            monitor.WorkPos = ImVec2((f32)x, (f32)y);
-            monitor.WorkSize = ImVec2((f32)w, (f32)h);
+            monitor.WorkPos = ImVec2(f32(work.Position[0]), f32(work.Position[1]));
+            monitor.WorkSize = ImVec2(f32(work.Dimensions[0]), f32(work.Dimensions[1]));
         }
-#endif
-        const f32 scale = platform_GetContentScaleForMonitor(monitors[n]);
+        const f32 scale = platform_GetContentScaleForMonitor(mon);
         if (Math::ApproachesZero(scale))
             continue;
         monitor.DpiScale = scale;
-        monitor.PlatformHandle = scast<void *>(monitors[n]); // [...] GLFW doc states: "guaranteed to be valid
-                                                             // only until the monitor configuration changes"
+        monitor.PlatformHandle = rcast<void *>(usz(mon)); // Monitor handles are plain integers
 
         if (!updated_monitors)
             pio.Monitors.resize(0);
@@ -657,20 +624,14 @@ static void platform_UpdateMonitors()
     }
 }
 
-static void platform_GetWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2 *size, ImVec2 *fbscale)
+static void platform_GetWindowSizeAndFramebufferScale(const Graph::Window window, ImVec2 *size, ImVec2 *fbscale)
 {
-    i32 w;
-    i32 h;
+    const u32v2 wdim = Graph::Window_GetScreenDimensions(window);
+    const u32v2 fdim = Graph::Window_GetPixelDimensions(window);
 
-    i32 wdisp;
-    i32 hdisp;
-
-    glfwGetWindowSize(window, &w, &h);
-    glfwGetFramebufferSize(window, &wdisp, &hdisp);
-
-    f32 fbscx = (w > 0) ? (f32)wdisp / (f32)w : 1.f;
-    f32 fbscy = (h > 0) ? (f32)hdisp / (f32)h : 1.f;
-#ifdef ONYX_GLFW_WAYLAND
+    f32 fbscx = (wdim[0] > 0) ? f32(fdim[0]) / f32(wdim[0]) : 1.f;
+    f32 fbscy = (wdim[1] > 0) ? f32(fdim[1]) / f32(wdim[1]) : 1.f;
+#ifdef ONYX_IMGUI_WAYLAND
     if (!s_PlatformData.IsWayland)
     {
         fbscx = 1.f;
@@ -678,7 +639,7 @@ static void platform_GetWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2
     }
 #endif
     if (size)
-        *size = ImVec2((f32)w, (f32)h);
+        *size = ImVec2(f32(wdim[0]), f32(wdim[1]));
     if (fbscale)
         *fbscale = ImVec2(fbscx, fbscy);
 }
@@ -713,29 +674,29 @@ static void platform_CreateWindow(ImGuiViewport *viewport)
         specs.Flags |= WindowFlag_Floating;
 
     specs.PresentMode = pdata->Window->GetPresentMode();
-    specs.Position = i32v2{viewport->Size.x, viewport->Size.y};
+    specs.Dimensions = u32v2{viewport->Size.x, viewport->Size.y};
 
-    Platform_ViewportData *vdata = platform_CreateViewportData(Platform::CreateWindow(specs));
+    Platform_ViewportData *vdata = platform_CreateViewportData(CreateWindow(specs));
     TKIT_LOG_DEBUG("[ONYX][IMGUI] Creating platform window '{}'", vdata->Window->GetTitle());
 
     viewport->PlatformUserData = vdata;
     viewport->PlatformHandle = vdata->Window;
 
-    GLFWwindow *handle = vdata->Window->GetHandle();
+    const Graph::Window handle = vdata->Window->GetHandle();
     platform_MapAdd(handle, pdata);
 
     vdata->Window->SetPosition(u32v2{viewport->Pos.x, viewport->Pos.y});
 
-    glfwSetWindowFocusCallback(handle, platform_WindowFocusCallback);
-    glfwSetCursorEnterCallback(handle, platform_CursorEnterCallback);
-    glfwSetCursorPosCallback(handle, platform_CursorPosCallback);
-    glfwSetMouseButtonCallback(handle, platform_MouseButtonCallback);
-    glfwSetScrollCallback(handle, platform_ScrollCallback);
-    glfwSetKeyCallback(handle, platform_KeyCallback);
-    glfwSetCharCallback(handle, platform_CharCallback);
-    glfwSetWindowCloseCallback(handle, platform_WindowCloseCallback);
-    glfwSetWindowPosCallback(handle, platform_WindowPosCallback);
-    glfwSetWindowSizeCallback(handle, platform_WindowSizeCallback);
+    Graph::Window_Callback_Focus(handle, platform_WindowFocusCallback);
+    Graph::Window_Callback_CursorEnter(handle, platform_CursorEnterCallback);
+    Graph::Window_Callback_CursorPos(handle, platform_CursorPosCallback);
+    Graph::Window_Callback_MouseButton(handle, platform_MouseButtonCallback);
+    Graph::Window_Callback_Scroll(handle, platform_ScrollCallback);
+    Graph::Window_Callback_Key(handle, platform_KeyCallback);
+    Graph::Window_Callback_Char(handle, platform_CharCallback);
+    Graph::Window_Callback_Close(handle, platform_WindowCloseCallback);
+    Graph::Window_Callback_Position(handle, platform_WindowPosCallback);
+    Graph::Window_Callback_Size(handle, platform_WindowSizeCallback);
 }
 
 static void platform_DestroyWindow(ImGuiViewport *viewport)
@@ -748,14 +709,14 @@ static void platform_DestroyWindow(ImGuiViewport *viewport)
     {
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Destroying platform window '{}'", vdata->Window->GetTitle());
 
-        GLFWwindow *handle = vdata->Window->GetHandle();
+        const Graph::Window handle = vdata->Window->GetHandle();
         for (u32 i = 0; i < pdata->KeyOwnerWindows.GetSize(); ++i)
             if (pdata->KeyOwnerWindows[i] == handle)
-                platform_KeyCallback(handle, i, 0, GLFW_RELEASE, 0);
+                platform_KeyCallback(handle, Graph::Key(i), 0, Graph::InputAction_Release, 0);
 
         platform_MapRemove(handle);
 
-        Platform::DestroyWindow(vdata->Window);
+        DestroyWindow(vdata->Window);
         platform_DestroyViewportData(vdata);
     }
 
@@ -785,7 +746,7 @@ static u32v2 platform_GetWindowSize(const ImGuiViewport *viewport)
 static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &pos)
 {
     Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    vdata->IgnoreWindowPosEventFrame = u32(ImGui::GetFrameCount());
+    vdata->IgnoreWindowSizeEventFrame = u32(ImGui::GetFrameCount());
     vdata->Window->SetScreenDimensions(pos);
 }
 
@@ -818,22 +779,20 @@ static void platform_SetWindowFocus(const ImGuiViewport *viewport)
 static bool platform_GetWindowFocus(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return glfwGetWindowAttrib(vdata->Window->GetHandle(), GLFW_FOCUSED) != 0;
+    return (vdata->Window->GetFlags() & WindowFlag_Focused) != 0;
 }
 
 static bool platform_GetWindowIconified(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return glfwGetWindowAttrib(vdata->Window->GetHandle(), GLFW_ICONIFIED) != 0;
+    return (vdata->Window->GetFlags() & WindowFlag_Iconified) != 0;
 }
 
-#ifdef ONYX_GLFW_WINDOW_OPACITY
 static void platform_SetWindowOpacity(const ImGuiViewport *viewport, const f32 opacity)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    glfwSetWindowOpacity(vdata->Window->GetHandle(), opacity);
+    vdata->Window->SetOpacity(opacity);
 }
-#endif
 
 static void platform_InitMultiViewportSupport()
 {
@@ -860,9 +819,7 @@ static void platform_InitMultiViewportSupport()
     pio.Platform_GetWindowFocus = [](ImGuiViewport *v) { return platform_GetWindowFocus(v); };
     pio.Platform_GetWindowMinimized = [](ImGuiViewport *v) { return platform_GetWindowIconified(v); };
     pio.Platform_SetWindowTitle = [](ImGuiViewport *v, const char *title) { platform_SetWindowTitle(v, title); };
-#ifdef ONYX_GLFW_WINDOW_OPACITY
     pio.Platform_SetWindowAlpha = [](ImGuiViewport *v, const f32 opacity) { platform_SetWindowOpacity(v, opacity); };
-#endif
 
     ImGuiViewport *mviewport = ImGui::GetMainViewport();
     const Platform_ContextData *pdata = platform_GetContextData();
@@ -899,6 +856,8 @@ static void platform_Init(Window *window)
 
     pdata->Context = ImGui::GetCurrentContext();
     pdata->Window = window;
+    for (Graph::Window &owner : pdata->KeyOwnerWindows)
+        owner = Graph::NullHandle;
 
     platform_MapAdd(window->GetHandle(), pdata);
 
@@ -907,22 +866,12 @@ static void platform_Init(Window *window)
     io.BackendFlags |=
         ImGuiBackendFlags_HasMouseCursors | ImGuiBackendFlags_HasSetMousePos | ImGuiBackendFlags_PlatformHasViewports;
 
-#if defined(ONYX_GLFW_MOUSE_PASSTHROUGH) || defined(ONYX_GLFW_WINDOW_HOVERED)
-    io.BackendFlags |= ImGuiBackendFlags_HasMouseHoveredViewport;
-#endif
+    // NOTE: ImGuiBackendFlags_HasMouseHoveredViewport is not set, as Graph does not expose GLFW_HOVERED nor
+    // GLFW_MOUSE_PASSTHROUGH. ImGui falls back to its own heuristic to find the viewport under the mouse
 
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-#if ONYX_GLFW_VERSION_COMBINED >= 3300
-    pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) { glfwSetClipboardString(nullptr, text); };
-    pio.Platform_GetClipboardTextFn = [](ImGuiContext *) { return glfwGetClipboardString(nullptr); };
-#else
-    pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) {
-        glfwSetClipboardString(platform_GetContextData()->Window->GetHandle(), text);
-    };
-    pio.Platform_GetClipboardTextFn = [](ImGuiContext *) {
-        return glfwGetClipboardString(platform_GetContextData()->Window->GetHandle());
-    };
-#endif
+    pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) { Graph::SetClipboard(text); };
+    pio.Platform_GetClipboardTextFn = [](ImGuiContext *) { return Graph::GetClipboard(); };
 
     platform_InstallCallbacks(pdata, window->GetHandle());
     platform_UpdateMonitors();
@@ -937,15 +886,14 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
 
-    ImGuiID mouseViewportId = 0;
     const ImVec2 prevmpos = io.MousePos;
     const u32 size = u32(pio.Viewports.Size);
     for (u32 n = 0; n < size; n++)
     {
         ImGuiViewport *viewport = pio.Viewports[n];
-        GLFWwindow *window = scast<Window *>(viewport->PlatformHandle)->GetHandle();
+        Window *window = scast<Window *>(viewport->PlatformHandle);
 
-        const bool windowFocused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
+        const bool windowFocused = (window->GetFlags() & WindowFlag_Focused) != 0;
         if (windowFocused)
         {
             // (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when
@@ -953,82 +901,55 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
             // positions are same as OS positions.
 
             if (io.WantSetMousePos)
-                glfwSetCursorPos(window, (f64)(prevmpos.x - viewport->Pos.x), (f64)(prevmpos.y - viewport->Pos.y));
+                Graph::Window_SetCursorPosition(window->GetHandle(),
+                                                f32v2{prevmpos.x - viewport->Pos.x, prevmpos.y - viewport->Pos.y});
 
-            // (Optional) Fallback to provide mouse position when focused (ImGui_ImplGlfw_CursorPosCallback already
+            // (Optional) Fallback to provide mouse position when focused (platform_CursorPosCallback already
             // provides this when hovered or captured)
-            if (!pdata->MouseWindow)
+            if (pdata->MouseWindow == Graph::NullHandle)
             {
-                f64 mx;
-                f64 my;
-                glfwGetCursorPos(window, &mx, &my);
+                f32v2 mpos = window->GetAbsoluteMousePosition();
                 if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
                 {
                     // Single viewport mode: mouse position in client window coordinates (io.MousePos is (0,0) when the
                     // mouse is on the upper-left corner of the app window) Multi-viewport mode: mouse position in OS
                     // absolute coordinates (io.MousePos is (0,0) when the mouse is on the upper-left of the primary
                     // monitor)
-                    i32 winx;
-                    i32 winy;
-                    glfwGetWindowPos(window, &winx, &winy);
-                    mx += winx;
-                    my += winy;
+                    const i32v2 wpos = window->GetPosition();
+                    mpos[0] += f32(wpos[0]);
+                    mpos[1] += f32(wpos[1]);
                 }
-                pdata->LastValidMousePos = f32v2((f32)mx, (f32)my);
-                io.AddMousePosEvent((f32)mx, (f32)my);
+                pdata->LastValidMousePos = mpos;
+                io.AddMousePosEvent(mpos[0], mpos[1]);
             }
         }
 
         // (Optional) When using multiple viewports: call io.AddMouseViewportEvent() with the viewport the OS mouse
         // cursor is hovering. If ImGuiBackendFlags_HasMouseHoveredViewport is not set by the backend, Dear imGui will
-        // ignore this field and infer the information using its flawed heuristic.
-        // - [X] GLFW >= 3.3 backend ON WINDOWS ONLY does correctly ignore viewports with the _NoInputs flag (since we
-        // implement hit via our WndProc hook)
-        //       On other platforms we rely on the library fallbacking to its own search when reporting a viewport with
-        //       _NoInputs flag.
-        // - [!] GLFW <= 3.2 backend CANNOT correctly ignore viewports with the _NoInputs flag, and CANNOT reported
-        // Hovered Viewport because of mouse capture.
-        //       Some backend are not able to handle that correctly. If a backend report an hovered viewport that has
-        //       the _NoInputs flag (e.g. when dragging a window for docking, the viewport has the _NoInputs flag in
-        //       order to allow us to find the viewport under), then Dear ImGui is forced to ignore the value reported
-        //       by the backend, and use its flawed heuristic to guess the viewport behind.
-        // - [X] GLFW backend correctly reports this regardless of another viewport behind focused and dragged from (we
-        // need this to find a useful drag and drop target).
-        // FIXME: This is currently only correct on Win32. See what we do below with the WM_NCHITTEST, missing an
-        // equivalent for other systems. See https://github.com/glfw/glfw/issues/1236 if you want to help in making this
-        // a GLFW feature.
-#ifdef ONYX_GLFW_MOUSE_PASSTHROUGH
-        const bool winNoInput = (viewport->Flags & ImGuiViewportFlags_NoInputs) != 0;
-        glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, winNoInput);
-#endif
-#if defined(ONYX_GLFW_MOUSE_PASSTHROUGH) || defined(ONYX_GLFW_WINDOW_HOVERED)
-        if (glfwGetWindowAttrib(window, GLFW_HOVERED))
-            mouseViewportId = viewport->ID;
-#endif
+        // ignore this field and infer the information using its flawed heuristic. Graph does not expose
+        // GLFW_HOVERED nor GLFW_MOUSE_PASSTHROUGH, so the flag is not set and this is left to ImGui
     }
-
-    if (io.BackendFlags & ImGuiBackendFlags_HasMouseHoveredViewport)
-        io.AddMouseViewportEvent(mouseViewportId);
 }
 
 static void platform_UpdateMouseCursor(Platform_ContextData *pdata, ImGuiIO &io)
 {
     if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) ||
-        glfwGetInputMode(pdata->Window->GetHandle(), GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
+        Graph::Window_GetCursorMode(pdata->Window->GetHandle()) == Graph::CursorMode_Disabled)
         return;
 
     const ImGuiMouseCursor imcursor = ImGui::GetMouseCursor();
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     for (i32 n = 0; n < pio.Viewports.Size; n++)
     {
-        GLFWwindow *window = scast<Window *>(pio.Viewports[n]->PlatformHandle)->GetHandle();
+        const Graph::Window window = scast<Window *>(pio.Viewports[n]->PlatformHandle)->GetHandle();
+        Platform_ViewportData *vdata = platform_GetViewportData(pio.Viewports[n]);
         if (imcursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
         {
-            if (pdata->LastMouseCursor != nullptr)
+            if (vdata->LastMouseCursor != Graph::MouseCursor_Count)
             {
                 // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-                pdata->LastMouseCursor = nullptr;
+                Graph::Window_SetCursorMode(window, Graph::CursorMode_Hidden);
+                vdata->LastMouseCursor = Graph::MouseCursor_Count;
             }
         }
         else
@@ -1036,15 +957,13 @@ static void platform_UpdateMouseCursor(Platform_ContextData *pdata, ImGuiIO &io)
             // Show OS mouse cursor
             // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works
             // here.
-            GLFWcursor *cursor = s_PlatformData.MouseCursors[imcursor]
-                                     ? s_PlatformData.MouseCursors[imcursor]
-                                     : s_PlatformData.MouseCursors[ImGuiMouseCursor_Arrow];
-            if (pdata->LastMouseCursor != cursor)
+            const Graph::MouseCursor cursor = s_PlatformData.MouseCursors[imcursor];
+            if (vdata->LastMouseCursor != cursor)
             {
-                glfwSetCursor(window, cursor);
-                pdata->LastMouseCursor = cursor;
+                Graph::Window_SetMouseCursor(window, cursor);
+                vdata->LastMouseCursor = cursor;
             }
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            Graph::Window_SetCursorMode(window, Graph::CursorMode_Normal);
         }
     }
 }
@@ -1058,7 +977,7 @@ static void platform_NewFrame()
     platform_GetWindowSizeAndFramebufferScale(pdata->Window->GetHandle(), &io.DisplaySize, &io.DisplayFramebufferScale);
     platform_UpdateMonitors();
 
-    f64 time = glfwGetTime();
+    f64 time = pdata->Clock.GetElapsed().As<TKit::Timespan::Seconds, f64>();
     if (time < pdata->Time)
         time = pdata->Time + 1.f / 60.f;
 
@@ -1075,14 +994,14 @@ static void platform_NewFrame()
 
 static void platform_RestoreCallbacks(const Platform_ContextData *pdata)
 {
-    GLFWwindow *window = pdata->Window->GetHandle();
-    glfwSetWindowFocusCallback(window, pdata->UserCbkWindowFocus);
-    glfwSetCursorEnterCallback(window, pdata->UserCbkCursorEnter);
-    glfwSetCursorPosCallback(window, pdata->UserCbkCursorPos);
-    glfwSetMouseButtonCallback(window, pdata->UserCbkMousebutton);
-    glfwSetScrollCallback(window, pdata->UserCbkScroll);
-    glfwSetKeyCallback(window, pdata->UserCbkKey);
-    glfwSetCharCallback(window, pdata->UserCbkChar);
+    const Graph::Window window = pdata->Window->GetHandle();
+    Graph::Window_Callback_Focus(window, pdata->UserCbkWindowFocus);
+    Graph::Window_Callback_CursorEnter(window, pdata->UserCbkCursorEnter);
+    Graph::Window_Callback_CursorPos(window, pdata->UserCbkCursorPos);
+    Graph::Window_Callback_MouseButton(window, pdata->UserCbkMousebutton);
+    Graph::Window_Callback_Scroll(window, pdata->UserCbkScroll);
+    Graph::Window_Callback_Key(window, pdata->UserCbkKey);
+    Graph::Window_Callback_Char(window, pdata->UserCbkChar);
 }
 
 static void platform_Shutdown()
@@ -1175,20 +1094,20 @@ static constexpr u32 s_FragmentShader[] = {
 
 struct Renderer_GlobalData
 {
-    VKit::Sampler Sampler;
-    VKit::DescriptorSetLayout DescriptorSetLayout{};
-    VKit::PipelineLayout PipelineLayout{};
-    VKit::GraphicsPipeline Pipeline{};
+    Graph::Sampler Sampler = Graph::NullHandle;
+    Graph::DescriptorSetLayout DescriptorSetLayout = Graph::NullHandle;
+    Graph::PipelineLayout PipelineLayout = Graph::NullHandle;
+    Graph::Pipeline Pipeline = Graph::NullHandle;
 
-    VKit::Shader VertexShader{};
-    VKit::Shader FragmentShader{};
+    Graph::Shader VertexShader = Graph::NullHandle;
+    Graph::Shader FragmentShader = Graph::NullHandle;
 };
 static TKit::Storage<Renderer_GlobalData> s_RendererData{};
 
 struct Renderer_Buffers
 {
-    VKit::DeviceBuffer VertexBuffer{};
-    VKit::DeviceBuffer IndexBuffer{};
+    Graph::Buffer VertexBuffer = Graph::NullHandle;
+    Graph::Buffer IndexBuffer = Graph::NullHandle;
 };
 
 struct Renderer_ViewportData
@@ -1200,8 +1119,8 @@ struct Renderer_ViewportData
 
 struct Renderer_Texture
 {
-    VKit::DeviceImage Image{};
-    VkDescriptorSet Set;
+    Graph::Image Image = Graph::NullHandle;
+    Graph::DescriptorSet Set = Graph::NullHandle;
 };
 
 static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
@@ -1214,15 +1133,15 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();
-        buffers.VertexBuffer = Onyx::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
-        buffers.IndexBuffer = Onyx::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
+        buffers.VertexBuffer = Graph::Buffer_Create<ImDrawVert>(ONYX_BUFFER_INITIAL_CAPACITY, Buffer_HostVertex);
+        buffers.IndexBuffer = Graph::Buffer_Create<ImDrawIdx>(ONYX_BUFFER_INITIAL_CAPACITY, Buffer_HostIndex);
 
-        if (IsDebugUtilsEnabled())
+        if (Graph::IsValidationEnabled())
         {
             const TKit::StackString vbuffer = TKit::StackString::Format("onyx-imgui-vbuffer-image-index-{}", i);
             const TKit::StackString ibuffer = TKit::StackString::Format("onyx-imgui-ibuffer-image-index-{}", i);
-            ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.SetName(vbuffer.CString()));
-            ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.SetName(ibuffer.CString()));
+            Graph::Buffer_SetName(buffers.VertexBuffer, vbuffer.CString());
+            Graph::Buffer_SetName(buffers.IndexBuffer, ibuffer.CString());
         }
     }
     return vdata;
@@ -1231,11 +1150,11 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
 static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    DeviceWaitIdle();
+    Graph::DeviceWaitIdle();
     for (Renderer_Buffers &buffers : data->Buffers)
     {
-        buffers.VertexBuffer.Destroy();
-        buffers.IndexBuffer.Destroy();
+        Graph::Buffer_Destroy(buffers.VertexBuffer);
+        Graph::Buffer_Destroy(buffers.IndexBuffer);
     }
     tier->Destroy(data);
 }
@@ -1251,60 +1170,53 @@ static Renderer_Texture *renderer_GetTexture(const ImTextureData *tex)
 
 static void renderer_CreateShaders()
 {
-    TKIT_ASSERT(!s_RendererData->VertexShader, "[ONYX][IMGUI] Vertex shader is already initialized");
-    TKIT_ASSERT(!s_RendererData->FragmentShader, "[ONYX][IMGUI] Fragment shader is already initialized");
+    TKIT_ASSERT(s_RendererData->VertexShader == Graph::NullHandle,
+                "[ONYX][IMGUI] Vertex shader is already initialized");
+    TKIT_ASSERT(s_RendererData->FragmentShader == Graph::NullHandle,
+                "[ONYX][IMGUI] Fragment shader is already initialized");
 
-    const auto &device = GetDevice();
-
-    s_RendererData->VertexShader =
-        ONYX_CHECK_VKIT_RESULT(VKit::Shader::Create(device, s_VertexShader, sizeof(s_VertexShader)));
-    s_RendererData->FragmentShader =
-        ONYX_CHECK_VKIT_RESULT(VKit::Shader::Create(device, s_FragmentShader, sizeof(s_FragmentShader)));
+    s_RendererData->VertexShader = Graph::Shader_Create(s_VertexShader, sizeof(s_VertexShader));
+    s_RendererData->FragmentShader = Graph::Shader_Create(s_FragmentShader, sizeof(s_FragmentShader));
 }
 
-static VKit::GraphicsPipeline renderer_CreatePipeline()
+static Graph::Pipeline renderer_CreatePipeline()
 {
-    const VkFormat cformat = Platform::GetSurfaceFormat().format;
-    VkPipelineRenderingCreateInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachmentFormats = &cformat;
-    renderInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-    renderInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    const Graph::ShaderStageInfo stages[] = {
+        {.Shader = s_RendererData->VertexShader, .Stage = Graph::ShaderStageFlag_Vertex},
+        {.Shader = s_RendererData->FragmentShader, .Stage = Graph::ShaderStageFlag_Fragment}};
 
-    return ONYX_CHECK_VKIT_RESULT(
-        VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, renderInfo)
-            .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
-            .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .AddBindingDescription<ImDrawVert>()
-            .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
-            .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
-            .AddAttributeDescription(0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
-            .BeginColorAttachment()
-            .EnableBlending()
-            .EndColorAttachment()
-            .SetViewportCount(1)
-            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-            .Bake()
-            .Build());
+    const Graph::VertexBinding binding{.Stride = sizeof(ImDrawVert)};
+
+    // Locations are assigned in order: 0 -> position, 1 -> uv, 2 -> color
+    const Graph::VertexAttribute attributes[] = {
+        {.Offset = offsetof(ImDrawVert, pos), .Format = Graph::Format_R32G32_SFLOAT},
+        {.Offset = offsetof(ImDrawVert, uv), .Format = Graph::Format_R32G32_SFLOAT},
+        {.Offset = offsetof(ImDrawVert, col), .Format = Graph::Format_R8G8B8A8_UNORM}};
+
+    // The default blend factors are the ones ImGui expects
+    const Graph::ColorAttachment attachment{.BlendEnabled = true};
+    const Graph::Format cformat = SurfaceFormat;
+
+    Graph::GraphicsPipelineSpecs specs{};
+    specs.ShaderStages = stages;
+    specs.VertexBindings = binding;
+    specs.VertexAttributes = attributes;
+    specs.ColorAttachments = attachment;
+    specs.ColorAttachmentFormats = cformat;
+    specs.DepthStencil.DepthTestEnabled = false;
+    specs.DepthStencil.DepthWriteEnabled = false;
+    specs.DynamicState = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
+
+    return Graph::Pipeline_CreateGraphics(s_RendererData->PipelineLayout, specs);
 }
 
-static VkDescriptorSet renderer_AddTexture(const VKit::DeviceImage &image)
+static Graph::DescriptorSet renderer_AddTexture(const Graph::Image image)
 {
-    const auto &device = GetDevice();
-    const VkDescriptorSet set =
-        ONYX_CHECK_VKIT_RESULT(Descriptors::GetDescriptorPool().Allocate(s_RendererData->DescriptorSetLayout));
+    const Graph::DescriptorSet set = Graph::DescriptorSet_Create(s_RendererData->DescriptorSetLayout);
 
-    VKit::DescriptorSet::Writer writer{device, &s_RendererData->DescriptorSetLayout};
-
-    VkDescriptorImageInfo info{};
-    info.sampler = s_RendererData->Sampler;
-    info.imageView = image.GetViews()[0];
-    info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    writer.WriteImage(0, info);
-
-    writer.Overwrite(set);
+    const Graph::DescriptorImageInfo info = Graph::DescriptorImageInfo::Create(
+        Graph::Image_GetView(image), Graph::ImageLayout_ShaderReadOnly, s_RendererData->Sampler);
+    Graph::DescriptorSet_Write(set, 0, info);
     return set;
 }
 
@@ -1312,12 +1224,12 @@ static void renderer_DestroyTexture(ImTextureData *tex)
 {
     Renderer_Texture *bckTex = renderer_GetTexture(tex);
     TKIT_ASSERT(bckTex, "[ONYX][IMGUI] Texture has no backend counterpart");
-    TKIT_ASSERT(bckTex->Set == rcast<VkDescriptorSet>(tex->TexID),
+    TKIT_ASSERT(bckTex->Set == scast<Graph::DescriptorSet>(tex->TexID),
                 "[ONYX][IMGUI] Backend texture descriptor set mismatch");
 
-    // TKIT_RETURN_IF_FAILED(Descriptors::GetDescriptorPool().Deallocate(set));
+    Graph::DescriptorSet_Destroy(bckTex->Set);
+    Graph::Image_Destroy(bckTex->Image);
 
-    bckTex->Image.Destroy();
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(bckTex);
 
@@ -1328,8 +1240,6 @@ static void renderer_DestroyTexture(ImTextureData *tex)
 
 static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
 {
-    const auto &device = GetDevice();
-    const VmaAllocator allocator = GetVulkanAllocator();
     if (tex->Status == ImTextureStatus_WantCreate)
     {
         // Create and upload new texture to graphics system
@@ -1340,26 +1250,27 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
         TKit::TierAllocator *tier = TKit::GetTier();
         Renderer_Texture *bckTex = tier->Create<Renderer_Texture>();
 
-        const VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-        bckTex->Image = ONYX_CHECK_VKIT_RESULT(
-            VKit::DeviceImage::Builder(device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, format,
-                                       VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination |
-                                           VKit::DeviceImageFlag_Color)
-                .AddImageView()
-                .Build());
+        const Graph::Format format = Graph::Format_R8G8B8A8_UNORM;
+        const Graph::ImageViewSpecs view{};
+
+        Graph::ImageSpecs specs{};
+        specs.ImageViews = view;
+        specs.Formats = format;
+        bckTex->Image =
+            Graph::Image_Create(u32v2{u32(tex->Width), u32(tex->Height)}, specs,
+                                Graph::ImageFlag_Sampled | Graph::ImageFlag_Destination | Graph::ImageFlag_Color);
 
         bckTex->Set = renderer_AddTexture(bckTex->Image);
 
         // Store identifiers
-        tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
-        if (IsDebugUtilsEnabled())
+        tex->SetTexID(ImTextureID(bckTex->Set));
+        if (Graph::IsValidationEnabled())
         {
             const TKit::StackString tname = TKit::StackString::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const TKit::StackString sname =
                 TKit::StackString::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
-            ONYX_CHECK_VKIT_RESULT(bckTex->Image.SetName(tname.CString()));
-            ONYX_CHECK_VKIT_RESULT(
-                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.CString()));
+            Graph::Image_SetName(bckTex->Image, tname.CString());
+            Graph::DescriptorSet_SetName(bckTex->Set, sname.CString());
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
@@ -1369,8 +1280,8 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
     {
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Updating texture with id '{:#x}'", tex->GetTexID());
         Renderer_Texture *bckTex = renderer_GetTexture(tex);
-        TKIT_ASSERT(bckTex->Image.GetBytesPerPixel() == VkDeviceSize(tex->BytesPerPixel),
-                    "[ONYX][IMGUI] Bytes per pixel mismatch between VKit::DeviceImage and ImGui texture");
+        TKIT_ASSERT(Graph::Format_GetBytesPerPixel(Graph::Format_R8G8B8A8_UNORM) == usz(tex->BytesPerPixel),
+                    "[ONYX][IMGUI] Bytes per pixel mismatch between Graph::Format and ImGui texture");
 
         // Update full texture or selected blocks. We only ever write to textures regions which have never been used
         // before! This backend choose to use tex->UpdateRect but you can use tex->Updates[] to upload individual
@@ -1382,75 +1293,52 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
         const u32 wupload = wantCreate ? tex->Width : tex->UpdateRect.w;
         const u32 hupload = wantCreate ? tex->Height : tex->UpdateRect.h;
 
-        const VkDeviceSize wsize = wupload * tex->BytesPerPixel;
-        const VkDeviceSize size = hupload * wsize;
+        const usz wsize = wupload * tex->BytesPerPixel;
+        const usz size = hupload * wsize;
 
-        VKit::DeviceBuffer uploadBuffer =
-            Onyx::CreateBuffer(DeviceBufferFlag_Staging | DeviceBufferFlag_HostMapped, size);
-        if (IsDebugUtilsEnabled())
-        {
-            ONYX_CHECK_VKIT_RESULT(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
-        }
+        const Graph::Buffer uploadBuffer =
+            Graph::Buffer_Create(size, Graph::BufferFlag_Staging | Graph::BufferFlag_HostMapped);
+        if (Graph::IsValidationEnabled())
+            Graph::Buffer_SetName(uploadBuffer, "onyx-imgui-upload-buffer");
 
-        std::byte *mem = scast<std::byte *>(uploadBuffer.GetData());
+        std::byte *mem = scast<std::byte *>(Graph::Buffer_GetData(uploadBuffer));
         for (u32 y = 0; y < hupload; ++y)
             TKit::ForwardCopy(mem + wsize * y, tex->GetPixelsAt(i32(xupload), i32(yupload + y)), wsize);
 
-        ONYX_CHECK_VKIT_RESULT(uploadBuffer.Flush());
+        Graph::Buffer_Flush(uploadBuffer);
 
-        VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
-        const VkCommandBuffer cmd = ONYX_CHECK_VKIT_RESULT(pool.BeginSingleTimeCommands());
+        Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
+            const Graph::BufferMemoryBarrierInfo uploadBarrier{.Offset = 0,
+                                                               .Size = size,
+                                                               .Buffer = uploadBuffer,
+                                                               .SrcStages = Graph::PipelineStageFlag_Host,
+                                                               .SrcAccess = Graph::AccessFlag_HostWrite,
+                                                               .DstStages = Graph::PipelineStageFlag_Transfer,
+                                                               .DstAccess = Graph::AccessFlag_TransferRead};
 
-        VkBufferMemoryBarrier2KHR uploadBarrier{};
-        uploadBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
-        uploadBarrier.srcAccessMask = VK_ACCESS_2_HOST_WRITE_BIT_KHR;
-        uploadBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
-        uploadBarrier.srcStageMask = VK_PIPELINE_STAGE_2_HOST_BIT_KHR;
-        uploadBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-        uploadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        uploadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        uploadBarrier.buffer = uploadBuffer;
-        uploadBarrier.offset = 0;
-        uploadBarrier.size = size;
+            const Graph::ImageMemoryBarrierInfo imgBarrier{.Image = bckTex->Image,
+                                                           .NewLayout = Graph::ImageLayout_TransferDst,
+                                                           .SrcStages = Graph::PipelineStageFlag_FragmentShader,
+                                                           .DstStages = Graph::PipelineStageFlag_Transfer,
+                                                           .DstAccess = Graph::AccessFlag_TransferWrite};
 
-        const VkImageMemoryBarrier2KHR imgBarrier = bckTex->Image.CreateTransitionLayoutBarrier2(
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-                                                   .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                                   .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+            Graph::Command_PipelineBarrier(cmd, {.BufferBarriers = uploadBarrier, .ImageBarriers = imgBarrier});
 
-        VkDependencyInfoKHR dep{};
-        dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
-        dep.bufferMemoryBarrierCount = 1;
-        dep.pBufferMemoryBarriers = &uploadBarrier;
-        dep.imageMemoryBarrierCount = 1;
-        dep.pImageMemoryBarriers = &imgBarrier;
+            const Graph::BufferImageCopy copy{.Layers = {.LayerCount = 1},
+                                              .ImageOffset = {xupload, yupload, 0},
+                                              .ImageExtent = {wupload, hupload, 1}};
+            Graph::Command_CopyBufferToImage(cmd, uploadBuffer, bckTex->Image, copy);
 
-        const auto table = GetDeviceTable();
-        table->CmdPipelineBarrier2KHR(cmd, &dep);
-        bckTex->Image.SetLayout(imgBarrier.newLayout);
+            const Graph::ImageMemoryBarrierInfo readBarrier{.Image = bckTex->Image,
+                                                            .NewLayout = Graph::ImageLayout_ShaderReadOnly,
+                                                            .SrcStages = Graph::PipelineStageFlag_Transfer,
+                                                            .SrcAccess = Graph::AccessFlag_TransferWrite,
+                                                            .DstStages = Graph::PipelineStageFlag_FragmentShader,
+                                                            .DstAccess = Graph::AccessFlag_ShaderRead};
+            Graph::Command_ImageBarrier(cmd, readBarrier);
+        });
 
-        VkBufferImageCopy2KHR copy{};
-        copy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2_KHR;
-        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copy.imageSubresource.layerCount = 1;
-        copy.imageExtent.width = wupload;
-        copy.imageExtent.height = hupload;
-        copy.imageExtent.depth = 1;
-        copy.imageOffset.x = xupload;
-        copy.imageOffset.y = yupload;
-
-        bckTex->Image.CopyFromBuffer2(cmd, uploadBuffer, copy);
-
-        bckTex->Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                        {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
-                                         .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                         .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
-                                         .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
-
-        const VKit::Queue *queue = Execution::GetQueue(VKit::Queue_Graphics);
-        ONYX_CHECK_VKIT_RESULT(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
-
-        uploadBuffer.Destroy();
+        Graph::Buffer_Destroy(uploadBuffer);
 
         tex->SetStatus(ImTextureStatus_OK);
     }
@@ -1459,7 +1347,7 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
         renderer_DestroyTexture(tex);
 }
 
-static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
+static void renderer_Render(const ImDrawData *ddata, const Graph::CommandBuffer cmd)
 {
     const f32v2 fb =
         f32v2{ddata->DisplaySize.x * ddata->FramebufferScale.x, ddata->DisplaySize.y * ddata->FramebufferScale.y};
@@ -1478,7 +1366,7 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
             if (tex->Status != ImTextureStatus_OK)
                 renderer_UpdateTexture(tex, vdata->Buffers.GetSize());
 
-    s_RendererData->Pipeline.Bind(cmd);
+    Graph::Command_BindPipeline(cmd, s_RendererData->Pipeline);
 
     vdata->Index = (vdata->Index + 1) % vdata->Buffers.GetSize();
 
@@ -1488,40 +1376,35 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
         const u32 vcount = u32(ddata->TotalVtxCount);
         const u32 icount = u32(ddata->TotalIdxCount);
 
-        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount);
-        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount);
+        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount, Buffer_HostVertex);
+        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount, Buffer_HostIndex);
 
-        VkDeviceSize voffset = 0;
-        VkDeviceSize ioffset = 0;
+        usz voffset = 0;
+        usz ioffset = 0;
         for (const ImDrawList *dlist : ddata->CmdLists)
         {
-            const VkDeviceSize lvsize = dlist->VtxBuffer.Size * sizeof(ImDrawVert);
-            const VkDeviceSize lisize = dlist->IdxBuffer.Size * sizeof(ImDrawIdx);
+            const usz lvsize = dlist->VtxBuffer.Size * sizeof(ImDrawVert);
+            const usz lisize = dlist->IdxBuffer.Size * sizeof(ImDrawIdx);
 
-            buffers.VertexBuffer.Write(dlist->VtxBuffer.Data, {.srcOffset = 0, .dstOffset = voffset, .size = lvsize});
-            buffers.IndexBuffer.Write(dlist->IdxBuffer.Data, {.srcOffset = 0, .dstOffset = ioffset, .size = lisize});
+            Graph::Buffer_Write(buffers.VertexBuffer, dlist->VtxBuffer.Data,
+                                {.Size = lvsize, .SrcOffset = 0, .DstOffset = voffset});
+            Graph::Buffer_Write(buffers.IndexBuffer, dlist->IdxBuffer.Data,
+                                {.Size = lisize, .SrcOffset = 0, .DstOffset = ioffset});
 
             voffset += lvsize;
             ioffset += lisize;
         }
 
-        ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.Flush());
-        ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.Flush());
+        Graph::Buffer_Flush(buffers.VertexBuffer);
+        Graph::Buffer_Flush(buffers.IndexBuffer);
 
-        buffers.VertexBuffer.BindAsVertexBuffer(cmd);
-        buffers.IndexBuffer.BindAsIndexBuffer<ImDrawIdx>(cmd);
+        Graph::Command_BindVertexBuffers(cmd, buffers.VertexBuffer);
+        Graph::Command_BindIndexBuffer(cmd, buffers.IndexBuffer,
+                                       sizeof(ImDrawIdx) == 2 ? Graph::IndexType_Unsigned16
+                                                              : Graph::IndexType_Unsigned32);
     }
 
-    const auto table = GetDeviceTable();
-    VkViewport viewport;
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = fb[0];
-    viewport.height = fb[1];
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    table->CmdSetViewport(cmd, 0, 1, &viewport);
+    Graph::Command_SetViewport(cmd, f32v2{0.f}, fb);
 
     struct PushConstant
     {
@@ -1533,13 +1416,12 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
     pc.sc = f32v2{2.f / ddata->DisplaySize.x, 2.f / ddata->DisplaySize.y};
     pc.t = f32v2{-1.f - ddata->DisplayPos.x * pc.sc[0], -1.f - ddata->DisplayPos.y * pc.sc[1]};
 
-    table->CmdPushConstants(cmd, s_RendererData->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant),
-                            &pc);
+    Graph::Command_PushConstants(cmd, s_RendererData->PipelineLayout, Graph::ShaderStageFlag_Vertex, &pc);
 
     const f32v2 clipOff = {ddata->DisplayPos.x, ddata->DisplayPos.y};
     const f32v2 clipScale = {ddata->FramebufferScale.x, ddata->FramebufferScale.y};
 
-    VkDescriptorSet lastSet = VK_NULL_HANDLE;
+    Graph::DescriptorSet lastSet = Graph::NullHandle;
 
     u32 voffset = 0;
     u32 ioffset = 0;
@@ -1557,66 +1439,56 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
             if (clipMax[0] <= clipMin[0] || clipMax[1] <= clipMin[1])
                 continue;
 
-            VkRect2D scissor;
-            scissor.offset.x = i32(clipMin[0]);
-            scissor.offset.y = i32(clipMin[1]);
-            scissor.extent.width = u32(clipMax[0] - clipMin[0]);
-            scissor.extent.height = u32(clipMax[1] - clipMin[1]);
-            table->CmdSetScissor(cmd, 0, 1, &scissor);
+            Graph::Command_SetScissor(cmd, i32v2{i32(clipMin[0]), i32(clipMin[1])},
+                                      u32v2{u32(clipMax[0] - clipMin[0]), u32(clipMax[1] - clipMin[1])});
 
-            const VkDescriptorSet set = reinterpret_cast<VkDescriptorSet>(icmd.GetTexID());
+            const Graph::DescriptorSet set = scast<Graph::DescriptorSet>(icmd.GetTexID());
             if (set != lastSet)
-                table->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_RendererData->PipelineLayout, 0, 1,
-                                             &set, 0, nullptr);
+                Graph::Command_BindDescriptorSets(cmd, s_RendererData->PipelineLayout, Graph::BindPoint_Graphics, set);
             lastSet = set;
 
-            table->CmdDrawIndexed(cmd, icmd.ElemCount, 1, icmd.IdxOffset + ioffset, icmd.VtxOffset + voffset, 1);
+            // NOTE: Graph::Command_DrawIndexed takes firstInstance before vertexOffset (the reverse of Vulkan)
+            Graph::Command_DrawIndexed(cmd, icmd.ElemCount, 1, icmd.IdxOffset + ioffset, 0, icmd.VtxOffset + voffset);
         }
         voffset += u32(dlist->VtxBuffer.Size);
         ioffset += u32(dlist->IdxBuffer.Size);
     }
 
-    VkRect2D scissor;
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = u32(fb[0]);
-    scissor.extent.height = u32(fb[1]);
-    table->CmdSetScissor(cmd, 0, 1, &scissor);
+    Graph::Command_SetScissor(cmd, i32v2{0}, u32v2{u32(fb[0]), u32(fb[1])});
 }
 
 static void renderer_CreateDeviceObjects()
 {
-    const auto &device = GetDevice();
     // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or
     // 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
 
-    s_RendererData->Sampler =
-        ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(device).SetLodRange(-1000.f, 1000.f).Build());
+    Graph::SamplerSpecs sspecs{};
+    sspecs.Wraps = Graph::Wrap_Repeat;
+    sspecs.LodRange = f32v2{-1000.f, 1000.f};
+    s_RendererData->Sampler = Graph::Sampler_Create(sspecs);
 
-    s_RendererData->DescriptorSetLayout = ONYX_CHECK_VKIT_RESULT(
-        VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .Build());
+    const Graph::DescriptorBinding dbinding =
+        Graph::DescriptorBinding::Create(0, Graph::Descriptor_CombinedImageSampler, Graph::ShaderStageFlag_Fragment);
+    s_RendererData->DescriptorSetLayout = Graph::DescriptorSetLayout_Create(dbinding);
 
-    s_RendererData->PipelineLayout =
-        ONYX_CHECK_VKIT_RESULT(VKit::PipelineLayout::Builder(device)
-                                   .AddDescriptorSetLayout(s_RendererData->DescriptorSetLayout)
-                                   .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(f32))
-                                   .Build());
+    const Graph::PushConstantRange range =
+        Graph::PushConstantRange::Create(Graph::ShaderStageFlag_Vertex, 4 * sizeof(f32));
+    s_RendererData->PipelineLayout = Graph::PipelineLayout_Create(
+        {.DescriptorSetLayouts = s_RendererData->DescriptorSetLayout, .PushRanges = range});
 
     {
         renderer_CreateShaders();
         s_RendererData->Pipeline = renderer_CreatePipeline();
     }
 
-    if (IsDebugUtilsEnabled())
+    if (Graph::IsValidationEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->PipelineLayout.SetName("onyx-imgui-pipeline-layout"));
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->VertexShader.SetName("onyx-imgui-vertex-shader"));
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->FragmentShader.SetName("onyx-imgui-fragment-shader"));
-        ONYX_CHECK_VKIT_RESULT(s_RendererData->Pipeline.SetName("onyx-imgui-pipeline"));
+        Graph::Sampler_SetName(s_RendererData->Sampler, "onyx-imgui-sampler");
+        Graph::DescriptorSetLayout_SetName(s_RendererData->DescriptorSetLayout, "onyx-imgui-descriptor-set-layout");
+        Graph::PipelineLayout_SetName(s_RendererData->PipelineLayout, "onyx-imgui-pipeline-layout");
+        Graph::Shader_SetName(s_RendererData->VertexShader, "onyx-imgui-vertex-shader");
+        Graph::Shader_SetName(s_RendererData->FragmentShader, "onyx-imgui-fragment-shader");
+        Graph::Pipeline_SetName(s_RendererData->Pipeline, "onyx-imgui-pipeline");
     }
 }
 
@@ -1638,57 +1510,30 @@ static void renderer_DestroyWindow(ImGuiViewport *viewport)
     viewport->RendererUserData = nullptr;
 }
 
-static bool renderer_AcquireImage(const ImGuiViewport *viewport, const Timeout timeout)
+static bool renderer_AcquireImage(const ImGuiViewport *viewport, const u64 timeout)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Platform viewport data is null");
     return vdata->Window->AcquireNextImage(timeout);
 }
 
-static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKit::Queue *graphics, VkCommandBuffer cmd)
+static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, const Graph::CommandBuffer cmd)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Renderer viewport data is null");
 
     Window *window = vdata->Window;
-    const u64 graphicsFlight = graphics->NextTimelineValue();
+    const u64 graphicsFlight = Graph::Queue_ReserveTimelineValue(Graph::Queue_Graphics);
 
-    Execution::Tracker tracker;
-    tracker.Queue = graphics;
-    tracker.InFlightValue = graphicsFlight;
-
-    window->MarkImageSemaphoreInUse(tracker);
     window->BeginRendering(cmd);
     renderer_Render(viewport->DrawData, cmd);
     window->EndRendering(cmd);
 
+    // Graph takes care of the image available/render finished semaphores when the swap chain is passed on submission
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = cmd;
+    submitInfo.Swapchain = window->GetSwapchain();
     submitInfo.InFlightValue = graphicsFlight;
-
-    VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores.Append();
-    gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    gtimSemInfo.pNext = nullptr;
-    gtimSemInfo.value = graphicsFlight;
-    gtimSemInfo.deviceIndex = 0;
-    gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
-    gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-
-    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores.Append();
-    rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    rendFinInfo.pNext = nullptr;
-    rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
-    rendFinInfo.value = 0;
-    rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-    rendFinInfo.deviceIndex = 0;
-
-    VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
-    imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    imgInfo.pNext = nullptr;
-    imgInfo.semaphore = window->GetImageAvailableSemaphore();
-    imgInfo.deviceIndex = 0;
-    imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-
     return submitInfo;
 }
 
@@ -1759,71 +1604,67 @@ static void renderer_Shutdown()
     pio.ClearRendererHandlers();
 }
 
-void Create(Window *window)
+void ImGuiBackend_Create(Window *window)
 {
     platform_Init(window);
     return renderer_Init(window);
 }
 
-void Destroy()
+void ImGuiBackend_DestroyCurrent()
 {
-    DeviceWaitIdle();
+    Graph::DeviceWaitIdle();
     renderer_Shutdown();
     platform_Shutdown();
     ImGui::DestroyPlatformWindows();
 }
 
-void Initialize()
+void ImGuiBackend_Initialize()
 {
-    const GLFWerrorfun perror = glfwSetErrorCallback(nullptr);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeEW] = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_Hand] = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
-#ifdef ONYX_GLFW_NEW_CURSORS
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
-    s_PlatformData.MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
-#endif
-    glfwSetErrorCallback(perror);
-#ifdef ONYX_GLFW_GETERROR
-    TKIT_UNUSED(glfwGetError(nullptr));
-#endif
+    TKit::FixedArray<Graph::MouseCursor, ImGuiMouseCursor_COUNT> &cursors = s_PlatformData.MouseCursors;
+    // ImGui cursors Graph has no equivalent for fall back to the arrow
+    for (Graph::MouseCursor &cursor : cursors)
+        cursor = Graph::MouseCursor_Arrow;
 
-#ifdef ONYX_GLFW_WAYLAND
-    s_PlatformData.IsWayland = platform_IsWayland();
+    cursors[ImGuiMouseCursor_Arrow] = Graph::MouseCursor_Arrow;
+    cursors[ImGuiMouseCursor_TextInput] = Graph::MouseCursor_IBeam;
+    cursors[ImGuiMouseCursor_ResizeNS] = Graph::MouseCursor_NS;
+    cursors[ImGuiMouseCursor_ResizeEW] = Graph::MouseCursor_EW;
+    cursors[ImGuiMouseCursor_Hand] = Graph::MouseCursor_Hand;
+    cursors[ImGuiMouseCursor_ResizeAll] = Graph::MouseCursor_ResizeAll;
+    cursors[ImGuiMouseCursor_ResizeNESW] = Graph::MouseCursor_NESW;
+    cursors[ImGuiMouseCursor_ResizeNWSE] = Graph::MouseCursor_NWSE;
+    cursors[ImGuiMouseCursor_NotAllowed] = Graph::MouseCursor_NotAllowed;
+
+#ifdef ONYX_IMGUI_WAYLAND
+    s_PlatformData.IsWayland = Graph::GetPlatformBackendInfo().Platform == Graph::Platform_Wayland;
 #endif
     s_RendererData.Construct();
     return renderer_CreateDeviceObjects();
 }
-void Terminate()
+void ImGuiBackend_Terminate()
 {
-    s_RendererData->Pipeline.Destroy();
-    s_RendererData->Sampler.Destroy();
-    s_RendererData->PipelineLayout.Destroy();
-    s_RendererData->DescriptorSetLayout.Destroy();
-    s_RendererData->FragmentShader.Destroy();
-    s_RendererData->VertexShader.Destroy();
+    Graph::Pipeline_Destroy(s_RendererData->Pipeline);
+    Graph::Sampler_Destroy(s_RendererData->Sampler);
+    Graph::PipelineLayout_Destroy(s_RendererData->PipelineLayout);
+    Graph::DescriptorSetLayout_Destroy(s_RendererData->DescriptorSetLayout);
+    Graph::Shader_Destroy(s_RendererData->FragmentShader);
+    Graph::Shader_Destroy(s_RendererData->VertexShader);
     s_RendererData.Destruct();
-    for (ImGuiMouseCursor cursor = 0; cursor < ImGuiMouseCursor_COUNT; cursor++)
-        glfwDestroyCursor(s_PlatformData.MouseCursors[cursor]);
 }
 
-void NewFrame()
+void ImGuiBackend_NewFrame()
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::NewFrame");
     platform_NewFrame();
     ImGui::NewFrame();
 }
 
-void RenderData(ImDrawData *data, const VkCommandBuffer commandBuffer)
+void ImGuiBackend_RenderData(ImDrawData *data, const Graph::CommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderData");
     return renderer_Render(data, commandBuffer);
 }
-void UpdatePlatformWindows()
+void ImGuiBackend_UpdatePlatformWindows()
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::UpdateWindows");
     ImGuiContext *ctx = GImGui;
@@ -1921,13 +1762,13 @@ void UpdatePlatformWindows()
     }
 }
 
-u32 GetPlatformWindowCount()
+u32 ImGuiBackend_GetPlatformWindowCount()
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     return u32(pio.Viewports.Size - 1);
 }
 
-bool AcquirePlatformWindowImage(const u32 windowIndex, const Timeout timeout)
+bool ImGuiBackend_AcquirePlatformWindowImage(const u32 windowIndex, const u64 timeout)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];
@@ -1936,18 +1777,18 @@ bool AcquirePlatformWindowImage(const u32 windowIndex, const Timeout timeout)
     return renderer_AcquireImage(viewport, timeout);
 }
 
-RenderSubmitInfo RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics, const VkCommandBuffer cmd)
+RenderSubmitInfo ImGuiBackend_RenderPlatformWindow(const u32 windowIndex, const Graph::CommandBuffer cmd)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];
-    return renderer_RenderWindow(viewport, graphics, cmd);
+    return renderer_RenderWindow(viewport, cmd);
 }
 
-void PresentPlatformWindow(const u32 windowIndex)
+void ImGuiBackend_PresentPlatformWindow(const u32 windowIndex)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];
     return renderer_PresentWindow(viewport);
 }
 
-} // namespace Onyx::ImGuiBackend
+} // namespace Onyx

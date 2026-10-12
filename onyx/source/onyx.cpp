@@ -1,9 +1,9 @@
 #include "pch.hpp"
 #include "onyx/onyx.hpp"
 #include "onyx/overlay.hpp"
-#include "platform.hpp"
 #include "renderer.hpp"
 #include "resources.hpp"
+#include "core.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "imgui_backend.hpp"
 #    include <imgui.h>
@@ -84,7 +84,7 @@ static void initializeImGui(WindowData &wdata, const ImGuiConfigFlags flags)
     ImPlot::SetCurrentContext(wdata.ImpContext);
 #    endif
 
-    ImGuiBackend::Create(wdata.Window);
+    ImGuiBackend_Create(wdata.Window);
     ImGui::GetIO().ConfigFlags = flags;
 }
 static void shutdownImGui(WindowData &wdata)
@@ -99,7 +99,7 @@ static void shutdownImGui(WindowData &wdata)
     ImPlot::SetCurrentContext(wdata.ImpContext);
 #    endif
 
-    ImGuiBackend::Destroy();
+    ImGuiBackend_DestroyCurrent();
 
     ImGui::DestroyContext(wdata.ImContext);
     wdata.ImContext = nullptr;
@@ -149,7 +149,7 @@ static void cleanupWindowData(WindowData &wdata)
     if (wdata.ImContext)
         shutdownImGui(wdata);
 #endif
-    Platform::DestroyWindow(wdata.Window);
+    DestroyWindow(wdata.Window);
 }
 
 static void closeWindow(const u32 idx)
@@ -161,14 +161,14 @@ static void closeWindow(const u32 idx)
 Window *OpenWindow(const OpenWindowSpecs &specs)
 {
     WindowData &wdata = s_Data->Windows.Append();
-    wdata.Window = Platform::CreateWindow(specs.Window);
+    wdata.Window = CreateWindow(specs.Window);
 #ifdef ONYX_ENABLE_IMGUI
     if (specs.Flags & OpenWindowFlag_EnableImGui)
         initializeImGui(wdata, specs.ImGuiConfigFlags);
 #endif
 
     wdata.Flags = specs.Flags;
-    if (specs.Window.PresentMode == PresentMode_Immediate && !(specs.Flags & OpenWindowFlag_NoDefaultDeltaTime))
+    if (specs.Window.PresentMode == Graph::PresentMode_Immediate && !(specs.Flags & OpenWindowFlag_NoDefaultDeltaTime))
         wdata.DeltaTarget = wdata.Window->GetMonitorDeltaTime();
     else
         wdata.DeltaTarget = specs.TargetDeltaTime;
@@ -198,7 +198,7 @@ bool CanRenderImGui(Window *window)
     ImPlot::SetCurrentContext(wdata.ImpContext);
 #    endif
 
-    ImGuiBackend::NewFrame();
+    ImGuiBackend_NewFrame();
     wdata.ImGuiRendered = true;
     return true;
 }
@@ -246,11 +246,11 @@ void DestroyFloatingOverlay(const Overlay *ov)
 
 template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediateDynamicMeshCapacity)
 {
-    return Renderer::CreateContext<D>(immediateDynamicMeshCapacity);
+    return Renderer_CreateContext<D>(immediateDynamicMeshCapacity);
 }
 template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx)
 {
-    Renderer::DestroyContext<D>(ctx);
+    Renderer_DestroyContext<D>(ctx);
 }
 
 RenderTexture *CreateRenderTexture(const u32v2 &dimensions)
@@ -280,7 +280,7 @@ void DestroyRenderTexture(const RenderTexture *rtex)
 bool Running()
 {
     // a bit weird to have it here, but it works
-    Platform::PollEvents();
+    Graph::PollEvents();
     //
     if (s_Data->Quit & QuitFlag_Quit)
     {
@@ -308,22 +308,20 @@ void Quit(const QuitFlags flags)
 void Transfer(const TransferInfo &info)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Transfer");
-    Execution::UpdateCompletedQueueTimelines();
+    Graph::UpdateCompletedTimelineValuesForAllQueues();
 
     static u64 transferCount = 0;
     if (info.CoalescePeriod != 0 && (transferCount++ % info.CoalescePeriod) == 0)
-        Renderer::Coalesce();
+        Renderer_Coalesce();
 
-    VKit::Queue *tqueue = Execution::GetQueue(VKit::Queue_Transfer);
-    CommandPool *tpool = Execution::FindAvailableCommandPool(VKit::Queue_Transfer);
+    const Graph::CommandPool tpool = FindAvailableCommandPool(Graph::Queue_Transfer);
+    const Graph::CommandBuffer cmd = Graph::CommandPool_NextCommandBuffer(tpool);
 
-    const VkCommandBuffer cmd = Execution::Allocate(tpool);
-
-    Execution::BeginCommandBuffer(cmd);
-    const TransferSubmitInfo tinfo = Renderer::Transfer(tqueue, cmd);
-    Execution::EndCommandBuffer(cmd);
+    Graph::CommandBuffer_Begin(cmd);
+    const TransferSubmitInfo tinfo = Renderer_Transfer(cmd);
+    Graph::CommandBuffer_End(cmd);
     if (tinfo)
-        Renderer::SubmitTransfer(tqueue, tpool, tinfo);
+        Renderer_SubmitTransfer(tpool, tinfo);
 }
 void Render(const RenderInfo &info)
 {
@@ -334,7 +332,7 @@ void Render(const RenderInfo &info)
     //                 "[ONYX] Cannot specify imgui in render flags. That specific flag will be handled internally");
     // #endif
 
-    Execution::UpdateCompletedQueueTimelines();
+    Graph::UpdateCompletedTimelineValuesForAllQueues();
 
     struct AcquiredWindow
     {
@@ -352,7 +350,7 @@ void Render(const RenderInfo &info)
     {
         Window *win = wdata.Window;
         for (const Event &event : win->GetNewEvents())
-            if (win->GetPresentMode() == PresentMode_VSync &&
+            if (win->GetPresentMode() == Graph::PresentMode_VSync &&
                 (event.Type == Event_SwapchainRecreated || event.Type == Event_WindowMoved))
                 wdata.DeltaTarget = win->GetMonitorDeltaTime();
 
@@ -372,26 +370,25 @@ void Render(const RenderInfo &info)
         for (RenderTexture *rtex : s_Data->RenderTextures)
             rtex->FindAvailableImages();
 
-        VKit::Queue *gqueue = Execution::GetQueue(VKit::Queue_Graphics);
-        CommandPool *gpool = Execution::FindAvailableCommandPool(VKit::Queue_Graphics);
+        const Graph::CommandPool gpool = FindAvailableCommandPool(Graph::Queue_Graphics);
 
         TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
-        Renderer::PrepareRender();
+        Renderer_PrepareRender();
 
         bool once = true;
         for (RenderTexture *rtex : s_Data->RenderTextures)
         {
-            const VkCommandBuffer cmd = Execution::Allocate(gpool);
+            const Graph::CommandBuffer cmd = Graph::CommandPool_NextCommandBuffer(gpool);
 
-            Execution::BeginCommandBuffer(cmd);
+            Graph::CommandBuffer_Begin(cmd);
             if (once)
             {
-                Resources::UpdateTextureIdOffsetBuffer(cmd);
-                Renderer::ApplyAcquireBarriers(cmd);
+                Resources_UpdateTextureIdOffsetBuffer(cmd);
+                Renderer_ApplyAcquireBarriers(cmd);
                 once = false;
             }
-            const RenderSubmitInfo rinfo = Renderer::Render(gqueue, cmd, rtex);
-            Execution::EndCommandBuffer(cmd);
+            const RenderSubmitInfo rinfo = Renderer_Render(cmd, rtex);
+            Graph::CommandBuffer_End(cmd);
             rinfos.Append(rinfo);
         }
 
@@ -401,17 +398,17 @@ void Render(const RenderInfo &info)
         const auto multiViewports = [] { return ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable; };
 #endif
 
-        u32 maxFlight = 0;
+        u64 maxFlight = 0;
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowData *wdata = acwin.Window;
-            const VkCommandBuffer cmd = Execution::Allocate(gpool);
+            const Graph::CommandBuffer cmd = Graph::CommandPool_NextCommandBuffer(gpool);
 
-            Execution::BeginCommandBuffer(cmd);
+            Graph::CommandBuffer_Begin(cmd);
             if (once)
             {
-                Resources::UpdateTextureIdOffsetBuffer(cmd);
-                Renderer::ApplyAcquireBarriers(cmd);
+                Resources_UpdateTextureIdOffsetBuffer(cmd);
+                Renderer_ApplyAcquireBarriers(cmd);
                 once = false;
             }
 
@@ -430,17 +427,18 @@ void Render(const RenderInfo &info)
                 }
             }
 #endif
-            const RenderSubmitInfo rinfo = Renderer::Render(gqueue, cmd, wdata->Window, flags);
-            maxFlight = rinfo.InFlightValue;
-            Execution::EndCommandBuffer(cmd);
+            const RenderSubmitInfo rinfo = Renderer_Render(cmd, wdata->Window, flags);
+            if (rinfo.InFlightValue > maxFlight)
+                maxFlight = rinfo.InFlightValue;
+            Graph::CommandBuffer_End(cmd);
             rinfos.Append(rinfo);
 
 #ifdef ONYX_ENABLE_IMGUI
             if (wdata->ImContext && multiViewports())
             {
                 acwin.PlatformWindowStart = platformWindowStart;
-                for (u32 i = 0; i < ImGuiBackend::GetPlatformWindowCount(); ++i)
-                    if (ImGuiBackend::AcquirePlatformWindowImage(i, info.AcquireImageTimeout))
+                for (u32 i = 0; i < ImGuiBackend_GetPlatformWindowCount(); ++i)
+                    if (ImGuiBackend_AcquirePlatformWindowImage(i, info.AcquireImageTimeout))
                     {
                         platformWindowIndices.Append(i);
                         ++platformWindowStart;
@@ -450,20 +448,20 @@ void Render(const RenderInfo &info)
                 for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
                 {
                     const u32 windowIndex = platformWindowIndices[i];
-                    const VkCommandBuffer plcmd = Execution::Allocate(gpool);
+                    const Graph::CommandBuffer plcmd = Graph::CommandPool_NextCommandBuffer(gpool);
 
-                    Execution::BeginCommandBuffer(plcmd);
-                    rinfos.Append(ImGuiBackend::RenderPlatformWindow(windowIndex, gqueue, plcmd));
-                    Execution::EndCommandBuffer(plcmd);
+                    Graph::CommandBuffer_Begin(plcmd);
+                    rinfos.Append(ImGuiBackend_RenderPlatformWindow(windowIndex, plcmd));
+                    Graph::CommandBuffer_End(plcmd);
                 }
             }
 #endif
         }
         if (maxFlight != 0)
             for (RenderTexture *rtex : s_Data->RenderTextures)
-                rtex->MarkReadImageInUse({.Queue = gqueue, .InFlightValue = maxFlight});
+                rtex->MarkReadImageInUse({.InFlightValue = maxFlight, .Queue = Graph::Queue_Graphics});
 
-        Renderer::SubmitRender(gqueue, gpool, rinfos);
+        Renderer_SubmitRender(gpool, rinfos);
 
         for (const AcquiredWindow &acwin : acqWindows)
         {
@@ -480,7 +478,7 @@ void Render(const RenderInfo &info)
                     for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
                     {
                         const u32 windowIndex = platformWindowIndices[i];
-                        ImGuiBackend::PresentPlatformWindow(windowIndex);
+                        ImGuiBackend_PresentPlatformWindow(windowIndex);
                     }
             }
 #endif
@@ -516,11 +514,11 @@ void Render(const RenderInfo &info)
     TKIT_PROFILE_MARK_FRAME();
 }
 
-void InitializeApi()
+void Frontend_Initialize()
 {
     s_Data.Construct();
 }
-void TerminateApi()
+void Frontend_Terminate()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     for (Overlay *ov : s_Data->Overlays)

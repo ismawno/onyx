@@ -1,18 +1,10 @@
 #pragma once
 
-#include "onyx/core.hpp"
 #include "onyx/camera.hpp"
 #include "onyx/color.hpp"
+#include "onyx/pass.hpp"
+#include "graph/execution.hpp"
 #include "tkit/container/tier_array.hpp"
-
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(DescriptorSet)
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(Semaphore)
-ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(CommandBuffer)
-
-namespace Onyx::Execution
-{
-struct Tracker;
-}
 
 namespace Onyx
 {
@@ -62,7 +54,11 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Hidden = 1U << 8,
 };
 
-struct Framebuffer;
+struct Framebuffer
+{
+    Graph::Tracker Tracker{};
+    TKit::FixedArray<Graph::Image, Attachment_Count> Attachments{};
+};
 
 // TODO(Isma): Thoroughly test absolute viewport and scissor coordinate usage here
 template <Dimension D> class RenderView
@@ -106,19 +102,19 @@ template <Dimension D> class RenderView
         return absolute / extent;
     }
 
-    void MarkCurrentAttachmentsInUse(const Execution::Tracker &tracker);
+    void MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker);
 
-    void BeginOpaquePass(Onyx_CommandBuffer cmd);
-    void EndOpaquePass(Onyx_CommandBuffer cmd);
+    void BeginOpaquePass(Graph::CommandBuffer cmd);
+    void EndOpaquePass(Graph::CommandBuffer cmd);
 
-    void BeginTransparentPass(Onyx_CommandBuffer cmd);
-    void EndTransparentPass(Onyx_CommandBuffer cmd);
+    void BeginTransparentPass(Graph::CommandBuffer cmd);
+    void EndTransparentPass(Graph::CommandBuffer cmd);
 
-    void BeginBlendPass(Onyx_CommandBuffer cmd);
-    void EndBlendPass(Onyx_CommandBuffer cmd);
+    void BeginBlendPass(Graph::CommandBuffer cmd);
+    void EndBlendPass(Graph::CommandBuffer cmd);
 
-    void BeginPostProcess(Onyx_CommandBuffer cmd);
-    void EndPostProcess(Onyx_CommandBuffer cmd);
+    void BeginPostProcess(Graph::CommandBuffer cmd);
+    void EndPostProcess(Graph::CommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const;
 
@@ -254,15 +250,15 @@ template <Dimension D> class RenderView
         CacheMatrices();
     }
 
-    Onyx_DescriptorSet GetBlendSet() const
+    Graph::DescriptorSet GetBlendSet() const
     {
         return m_BlendSet;
     }
-    Onyx_DescriptorSet GetPostProcessSet() const
+    Graph::DescriptorSet GetPostProcessSet() const
     {
         return m_PostProcessSet;
     }
-    Onyx_DescriptorSet GetCompositorSet() const
+    Graph::DescriptorSet GetCompositorSet() const
     {
         return m_CompositorSet;
     }
@@ -351,10 +347,11 @@ template <Dimension D> class RenderView
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();
 
-    TKit::TierArray<Framebuffer *> m_Framebuffers{};
-    Onyx_DescriptorSet m_BlendSet;
-    Onyx_DescriptorSet m_PostProcessSet;
-    Onyx_DescriptorSet m_CompositorSet;
+    TKit::TierArray<Framebuffer> m_Framebuffers{};
+    Graph::DescriptorSet m_BlendSet;
+    Graph::DescriptorSet m_PostProcessSet;
+    Graph::DescriptorSet m_CompositorSet;
+
     u32 m_AttachmentIndex = TKIT_U32_MAX;
     RenderViewFlags m_Flags = 0;
 

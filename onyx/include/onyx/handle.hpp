@@ -49,23 +49,23 @@
 
 #    define ONYX_CHECK_RESOURCE_IS_VALID(hndl, rtype)                                                                  \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype);                                                              \
-        TKIT_ASSERT(Onyx::Resources::IsResourceValid(hndl, rtype),                                                     \
+        TKIT_ASSERT(Onyx::IsResourceValid(hndl, rtype),                                                                \
                     "[ONYX][RESOURCES] The handle {:#010x} is not a valid '{}' handle", hndl, ToString(rtype))
 
 #    define ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(hndl, rtype, dim)                                                    \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype);                                                              \
-        TKIT_ASSERT(Onyx::Resources::IsResourceValid<dim>(hndl, rtype),                                                \
+        TKIT_ASSERT(Onyx::IsResourceValid<dim>(hndl, rtype),                                                           \
                     "[ONYX][RESOURCES] The handle {:#010x} is not a valid '{}' handle", hndl, ToString(rtype))
 
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID(hndl, ptype)                                                             \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(hndl, ptype);                                                         \
-        TKIT_ASSERT(Onyx::Resources::IsResourcePoolValid(hndl, ptype),                                                 \
+        TKIT_ASSERT(Onyx::IsResourcePoolValid(hndl, ptype),                                                            \
                     "[ONYX][RESOURCES] The handle {:#010x} does not contain a valid '{}' pool handle", hndl,           \
                     ToString(ptype))
 
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(hndl, ptype, dim)                                               \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(hndl, ptype);                                                         \
-        TKIT_ASSERT(Onyx::Resources::IsResourcePoolValid<dim>(hndl, ptype),                                            \
+        TKIT_ASSERT(Onyx::IsResourcePoolValid<dim>(hndl, ptype),                                                       \
                     "[ONYX][RESOURCES] The handle {:#010x} does not contain a valid '{}' pool handle", hndl,           \
                     ToString(ptype))
 
@@ -102,7 +102,6 @@ enum ResourceType : u8
     Resource_DynamicMesh,
     Resource_Font,
     Resource_Material,
-    Resource_Buffer,
     Resource_Bounds,
     Resource_Sampler,
     Resource_Image,

@@ -69,7 +69,7 @@ struct TransferInfo
 
 struct RenderInfo
 {
-    Timeout AcquireImageTimeout = Block;
+    u64 AcquireImageTimeout = Block;
 };
 
 void Transfer(const TransferInfo &info = {});

@@ -2,12 +2,22 @@
 
 #include "onyx/mesh.hpp"
 #include "onyx/material.hpp"
-#include "onyx/sampler.hpp"
 #include "onyx/image.hpp"
 #include "tkit/container/tier_array.hpp"
 
 namespace Onyx
 {
+struct SamplerData
+{
+    Graph::SamplerMode Mode = Graph::SamplerMode_Linear;
+
+    Graph::Filter MagFilter = Graph::Filter_Linear;
+    Graph::Filter MinFilter = Graph::Filter_Linear;
+
+    Graph::Wrap WrapU = Graph::Wrap_Repeat;
+    Graph::Wrap WrapV = Graph::Wrap_Repeat;
+    Graph::Wrap WrapW = Graph::Wrap_Repeat;
+};
 struct GltfHandles
 {
     TKit::TierArray<Resource> StaticMeshes{};

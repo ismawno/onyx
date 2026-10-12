@@ -2,18 +2,6 @@
 #include "onyx/dialog.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <nfd.h>
-#ifdef TKIT_OS_APPLE
-#    define GLFW_EXPOSE_NATIVE_COCOA
-#    define USE_GLFW
-#    include <nfd_glfw3.h>
-#elif defined(TKIT_OS_WINDOWS)
-#    define GLFW_EXPOSE_NATIVE_WIN32
-#    define USE_GLFW
-#    include <nfd_glfw3.h>
-#endif
-
-#undef DialogStatus
-#undef Success
 
 namespace Onyx
 {
@@ -50,7 +38,7 @@ DialogResult<fs::path> OpenFolderDialog(const Options &options)
     nfdnchar_t *path;
     nfdpickfoldernargs_t args{};
 #ifdef USE_GLFW
-    if (options.Window)
+    if (options.Window != Graph::NullHandle)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     args.defaultPath = options.DefaultPath;

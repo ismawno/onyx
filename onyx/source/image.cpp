@@ -1,7 +1,7 @@
 #include "pch.hpp"
 #include "onyx/image.hpp"
 #include "conversion.hpp"
-#include "vkit/resource/device_image.hpp"
+#include "graph/resources.hpp"
 #ifdef ONYX_ENABLE_IMAGE_LOAD
 #    include <stb_image.h>
 #endif
@@ -81,7 +81,7 @@ static void rotate90CCW(std::byte *&data, u32 &width, u32 &height, const u32 com
 
 usz ImageData::ComputeSize() const
 {
-    return Width * Height * VKit::DeviceImage::GetBytesPerPixel(AsVulkanFormat(Format));
+    return Width * Height * Graph::Format_GetBytesPerPixel(Format);
 }
 
 void ImageData::Manipulate(const ImageOperation op)

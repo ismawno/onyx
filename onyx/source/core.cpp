@@ -1,316 +1,335 @@
 #include "pch.hpp"
-#include "onyx/specs.hpp"
-#include "onyx.hpp"
 #include "core.hpp"
 #include "resources.hpp"
-#include "glfw.hpp"
-#include "platform.hpp"
-#include "pipelines.hpp"
 #include "renderer.hpp"
-#ifdef ONYX_ENABLE_SHADER_API
-#    include "shaders.hpp"
-#endif
-#include "descriptors.hpp"
-#include "execution.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "imgui_backend.hpp"
 #endif
 
-#include "vkit/memory/allocator.hpp"
-#include "vkit/core/core.hpp"
+#include "graph/core.hpp"
 
-#include "tkit/container/stack_array.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
-#include "tkit/utils/debug.hpp"
 #ifdef ONYX_FONTCONFIG
 #    include <fontconfig/fontconfig.h>
 #endif
-#include <fstream>
-#include <filesystem>
 
-using namespace Onyx::Detail;
-// TODO(Isma): Better error handling. if a function cannot keep a sane state after an error, it should not return an
-// error
 namespace Onyx
 {
+constexpr u32 Dim2 = 0;
+constexpr u32 Dim3 = 1;
+
+/////////////////////////////////////////////
+/// PLATFORM
+/////////////////////////////////////////////
+
+static TKit::Storage<TKit::StaticArray<Window *, ONYX_MAX_VIEWS>> s_Windows{};
+
+static void platform_Initialize()
+{
+    TKIT_LOG_INFO("[ONYX][PLATFORM] Initializing");
+    s_Windows.Construct();
+}
+
+static void platform_Terminate()
+{
+    DestroyWindows();
+    s_Windows.Destruct();
+}
+
+Window *CreateWindow(const WindowSpecs &specs)
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    Window *window = tier->Create<Window>(specs);
+    s_Windows->Append(window);
+    return window;
+}
+
+static void removeWindow(const Window *window)
+{
+    for (u32 i = 0; i < s_Windows->GetSize(); ++i)
+        if (s_Windows->At(i) == window)
+        {
+            s_Windows->RemoveUnordered(s_Windows->begin() + i);
+            return;
+        }
+    TKIT_FATAL("[ONYX][PLATFORM] Window '{}' not found", window->GetTitle());
+}
+
+void DestroyWindow(const Window *window)
+{
+    removeWindow(window);
+    TKit::TierAllocator *tier = TKit::GetTier();
+    tier->Destroy(window);
+}
+
+void DestroyWindows()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (const Window *window : *s_Windows)
+        tier->Destroy(window);
+    s_Windows->Clear();
+}
+
+/////////////////////////////////////////////
+/// END PLATFORM
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// EXECUTION
+/////////////////////////////////////////////
+
+struct CommandPool
+{
+    Graph::CommandPool Pool;
+    Graph::Tracker Tracker{};
+};
+static Graph::CommandPool s_Graphics = NullHandle;
+static Graph::CommandPool s_Transfer = NullHandle;
+static TKit::Storage<TKit::ArenaArray<CommandPool>> s_CommandPools{};
+
+static void createTransientCommandPools()
+{
+    s_Graphics = Graph::CommandPool_Create(Graph::Queue_Graphics, Graph::CommandPoolFlag_CreateTransient);
+    s_Transfer = Graph::CommandPool_Create(Graph::Queue_Transfer, Graph::CommandPoolFlag_CreateTransient);
+
+    if (Graph::IsValidationEnabled())
+    {
+        Graph::CommandPool_SetName(s_Graphics, "onyx-transient-graphics-command-pool");
+        Graph::CommandPool_SetName(s_Transfer, "onyx-transient-transfer-command-pool");
+    }
+}
+
+Graph::CommandPool FindAvailableCommandPool(const Graph::QueueType queue)
+{
+    for (CommandPool &pool : *s_CommandPools)
+        if (pool.Tracker.Queue == queue && !pool.Tracker.InUse())
+        {
+            Graph::CommandPool_Reset(pool.Pool);
+            return pool.Pool;
+        }
+
+    CommandPool &pool = s_CommandPools->Append();
+    pool.Pool = Graph::CommandPool_Create(queue, Graph::CommandPoolFlag_CreateTransient);
+    pool.Tracker.Queue = queue;
+    if (Graph::IsValidationEnabled())
+    {
+        const TKit::StackString name = TKit::StackString::Format("onyx-ring-command-pool-index-{}-type-{}",
+                                                                 s_CommandPools->GetSize() - 1, u32(queue));
+        Graph::CommandPool_SetName(pool.Pool, name.CString());
+    }
+    return pool.Pool;
+}
+
+void MarkCommandPoolInUse(const Graph::CommandPool pool, const u64 inFlightValue)
+{
+    for (CommandPool &p : *s_CommandPools)
+        if (p.Pool == pool)
+        {
+            p.Tracker.InFlightValue = inFlightValue;
+            return;
+        }
+    TKIT_FATAL("[ONYX][EXECUTION] Failed to find command pool with handle {:010x}", pool);
+}
+
+static void execution_Initialize()
+{
+    TKIT_LOG_INFO("[ONYX][EXECUTION] Initializing");
+    s_CommandPools.Construct();
+    s_CommandPools->Reserve(Graph::GetSpecs().MaxCommandPools);
+    createTransientCommandPools();
+}
+static void execution_Terminate()
+{
+    Graph::CommandPool_Destroy(s_Graphics);
+    Graph::CommandPool_Destroy(s_Transfer);
+    s_Graphics = Graph::NullHandle;
+    s_Transfer = Graph::NullHandle;
+    for (const CommandPool &pool : *s_CommandPools)
+        Graph::CommandPool_Destroy(pool.Pool);
+
+    s_CommandPools.Destruct();
+}
+
+Graph::CommandPool GetTransientGraphicsCommandPool()
+{
+    return s_Graphics;
+}
+Graph::CommandPool GetTransientTransferCommandPool()
+{
+    return s_Transfer;
+}
+
+/////////////////////////////////////////////
+/// END EXECUTION
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// DESCRIPTORS
+/////////////////////////////////////////////
+
+struct DescriptorData
+{
+    ten<Graph::DescriptorSetLayout, D_Count, RenderPass_Count> Layouts{};
+    TKit::FixedArray<Graph::DescriptorSetLayout, StandalonePass_Count> StandaloneLayouts{};
+};
+
+static TKit::Storage<DescriptorData> s_DescriptorData{};
+
+static void createDescriptorData()
+{
+    // TODO(Isma): There are several flags with the unused while pending bit. revisit if those are really necessary
+
+    using Binding = Graph::DescriptorBinding;
+    using BindingArray = TKit::StaticArray16<Binding>;
+
+    constexpr Graph::DescriptorType buffer = Graph::Descriptor_StorageBuffer;
+    constexpr Graph::DescriptorType sampler = Graph::Descriptor_Sampler;
+    constexpr Graph::DescriptorType sampledImage = Graph::Descriptor_SampledImage;
+    constexpr Graph::DescriptorType combined = Graph::Descriptor_CombinedImageSampler;
+    constexpr Graph::DescriptorType storageImage = Graph::Descriptor_StorageImage;
+
+    constexpr Graph::ShaderStageFlags compute = Graph::ShaderStageFlag_Compute;
+    constexpr Graph::ShaderStageFlags vertex = Graph::ShaderStageFlag_Vertex;
+    constexpr Graph::ShaderStageFlags fragment = Graph::ShaderStageFlag_Fragment;
+
+    // bind unused is disabled for now
+    constexpr Graph::DescriptorBindingFlags pbound = Graph::DescriptorBindingFlag_PartiallyBound;
+
+    BindingArray flat{};
+    flat.Append(Binding::Create(ONYX_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    flat.Append(Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
+    flat.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
+    flat.Append(Binding::Create(ONYX_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
+    flat.Append(Binding::Create(ONYX_BOUNDS_BINDING_POINT, buffer, vertex));
+
+    s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
+    s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
+
+    // flat is also the common prefix of the shaded bindings
+    BindingArray shaded = flat;
+    shaded.Append(Binding::Create(ONYX_MATERIALS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_POINT_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_DIRECTIONAL_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_SHADOW_SAMPLER_BINDING_POINT, sampler, fragment));
+    shaded.Append(Binding::Create(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT, sampler, fragment));
+
+    // we perform a copy to not modify shaded
+    BindingArray shaded2 = shaded;
+    shaded2.Append(Binding::Create(ONYX_SHADOW_MAPS_BINDING_POINT, sampledImage, fragment,
+                                   ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound));
+    s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded2);
+
+    shaded.Append(
+        Binding::Create(ONYX_POINT_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(
+        Binding::Create(ONYX_DIRECTIONAL_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(Binding::Create(ONYX_SPOT_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(Binding::Create(ONYX_SPOT_LIGHTS_BINDING_POINT, buffer, fragment));
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded);
+
+    BindingArray shadow{};
+    shadow.Append(Binding::Create(ONYX_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    shadow.Append(Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
+    shadow.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
+    shadow.Append(Binding::Create(ONYX_BOUNDS_BINDING_POINT, buffer, vertex));
+
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
+
+    shadow.Append(Binding::Create(ONYX_MATERIALS_BINDING_POINT, buffer, fragment));
+    s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
+
+    // NOTE(Isma): Removed bind unused here
+    const Binding rayMarch[] = {
+        Binding::Create(ONYX_OCCLUSION_MAP_BINDING_POINT, storageImage, compute,
+                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound),
+        Binding::Create(ONYX_RAY_MARCH_MAP_BINDING_POINT, storageImage, compute,
+                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound),
+    };
+    s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch] = Graph::DescriptorSetLayout_Create(rayMarch);
+
+    constexpr Binding blend[] = {
+        Binding::Create(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+        Binding::Create(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+    };
+    s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] = Graph::DescriptorSetLayout_Create(blend);
+
+    constexpr Binding postProcess[] = {
+        Binding::Create(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+        Binding::Create(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound),
+        Binding::Create(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound),
+    };
+    s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess] = Graph::DescriptorSetLayout_Create(postProcess);
+
+    constexpr Binding compositor[] = {
+        Binding::Create(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+    };
+    s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor] = Graph::DescriptorSetLayout_Create(compositor);
+
+    if (Graph::IsValidationEnabled())
+    {
+        s_DescriptorData->Layouts.IterateMultiIndex([&](const u32 i, const u32 j) {
+            Graph::DescriptorSetLayout_SetName(
+                s_DescriptorData->Layouts[i][j],
+                TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i + 2, j).CString());
+        });
+
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch],
+                                           "onyx-ray-march-descriptor-set-layout");
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Blend],
+                                           "onyx-blend-descriptor-set-layout");
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess],
+                                           "onyx-post-process-descriptor-set-layout");
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor],
+                                           "onyx-compositor-descriptor-set-layout");
+    }
+}
+
+static void descriptors_Initialize()
+{
+    TKIT_LOG_INFO("[ONYX][DESCRIPTORS] Initializing");
+    s_DescriptorData.Construct();
+    return createDescriptorData();
+}
+static void descriptors_Terminate()
+{
+    for (const Graph::DescriptorSetLayout layout : s_DescriptorData->Layouts)
+        Graph::DescriptorSetLayout_Destroy(layout);
+
+    for (const Graph::DescriptorSetLayout layout : s_DescriptorData->StandaloneLayouts)
+        Graph::DescriptorSetLayout_Destroy(layout);
+    s_DescriptorData.Destruct();
+}
+
+template <Dimension D> Graph::DescriptorSetLayout GetDescriptorLayout(const RenderPass pass)
+{
+    return s_DescriptorData->Layouts[D - 2][pass];
+}
+Graph::DescriptorSetLayout GetDescriptorLayout(const StandalonePass pass)
+{
+    return s_DescriptorData->StandaloneLayouts[pass];
+}
+
+template Graph::DescriptorSetLayout GetDescriptorLayout<D2>(RenderPass pass);
+template Graph::DescriptorSetLayout GetDescriptorLayout<D3>(RenderPass pass);
+
+/////////////////////////////////////////////
+/// END DESCRIPTORS
+/////////////////////////////////////////////
+
+/////////////////////////////////////////////
+/// CORE
+/////////////////////////////////////////////
+
 static u8 s_PushedAlloc = 0;
-static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
+static TKit::FixedArray<Graph::Allocation, TKit::MaxThreads> s_Allocation{};
 
 static TKit::ITaskManager *s_TaskManager;
 static TKit::Storage<TKit::TaskManager> s_DefaultTaskManager;
 static TKit::Storage<TKit::ThreadPool> s_DefaultThreadPool;
 
-static TKit::Storage<VKit::Instance> s_Instance{};
-static TKit::Storage<VKit::PhysicalDevice> s_Physical{};
-static TKit::Storage<VKit::LogicalDevice> s_Device{};
-static TKit::Storage<VKit::DeletionQueue> s_DeletionQueue{};
-
-static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
-static const char *s_DumpPath;
-
-#define PUSH_DELETER(code) s_DeletionQueue->Push([=] { code; })
-#define SUBMIT_DELETION(object) s_DeletionQueue->SubmitForDeletion(object)
-
-static void createDevice(const InitializationFlags flags)
-{
-    TKIT_LOG_INFO("[ONYX][CORE] Initializing Vulkit");
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    Onyx_WindowHandle *dummy = glfwCreateWindow(120, 120, "Eduardo", nullptr, nullptr);
-    TKIT_ASSERT(dummy, "[ONYX][CORE] Failed to create a dummy window so choose a device based on surface capabilities");
-
-    VkSurfaceKHR surface;
-    ONYX_CHECK_VKIT_RESULT(glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface));
-    VKit::PhysicalDevice::Selector selector(&s_Instance.Get());
-
-    TKIT_COMPILER_WARNING_IGNORE_PUSH()
-    TKIT_MSVC_WARNING_IGNORE(4996)
-    const char *dev = std::getenv("ONYX_DEVICE");
-    TKIT_COMPILER_WARNING_IGNORE_POP()
-
-    if (dev)
-    {
-        u32 id = TKIT_U32_MAX;
-        const char *begin = dev;
-        const char *end = dev + std::strlen(dev);
-        const auto [ptr, ec] = std::from_chars(begin, end, id);
-        if (ec == std::errc{} && ptr == end)
-            selector.SetId(id);
-        else
-            selector.SetName(dev);
-    }
-    TKIT_LOG_INFO_IF(
-        !dev, "[ONYX][CORE] The environment variable 'ONYX_DEVICE' was not set, meaning the physical device will be "
-              "chosen automatically. To force a specific option, set such variable with the device name or device ID");
-
-    selector.SetSurface(surface)
-        .PreferType(VKit::Device_Discrete)
-        .AddFlags(VKit::DeviceSelectorFlag_AnyType | VKit::DeviceSelectorFlag_PortabilitySubset |
-                  VKit::DeviceSelectorFlag_RequireGraphicsQueue | VKit::DeviceSelectorFlag_RequirePresentQueue |
-                  VKit::DeviceSelectorFlag_RequireTransferQueue)
-        .RequireExtension("VK_KHR_dynamic_rendering")
-        .RequireExtension("VK_KHR_timeline_semaphore")
-        .RequireExtension("VK_KHR_synchronization2")
-        .RequireExtension("VK_KHR_copy_commands2")
-        .RequireExtension("VK_KHR_image_format_list")
-        .RequireExtension("VK_EXT_descriptor_indexing")
-        .RequireExtension("VK_EXT_extended_dynamic_state")
-        .RequireApiVersion(1, 2, 0)
-        .RequestApiVersion(1, 4, 0);
-    if (flags & InitializationFlag_EnableDeviceFaultExtension)
-        selector.RequestExtension("VK_EXT_device_fault");
-
-    *s_Physical = ONYX_CHECK_VKIT_RESULT(selector.Select());
-
-    s_Instance->GetInfo().Table->DestroySurfaceKHR(*s_Instance, surface, nullptr);
-    glfwDestroyWindow(dummy);
-
-    TKIT_LOG_INFO("[ONYX][CORE] Selected vulkan device: {}. API version: {}.{}.{}",
-                  s_Physical->GetInfo().Properties.Core.deviceName,
-                  VKIT_EXPAND_VERSION(s_Physical->GetInfo().ApiVersion));
-
-    TKIT_LOG_WARNING_IF(!(s_Physical->GetInfo().Flags & VKit::DeviceFlag_Optimal),
-                        "[ONYX][CORE] The device is suitable, but not optimal");
-
-    TKIT_LOG_INFO("[ONYX][CORE] The following device extensions were enabled");
-#ifdef TKIT_ENABLE_INFO_LOGS
-    for (const TKit::TierString &ext : s_Physical->GetInfo().EnabledExtensions)
-        TKIT_LOG_INFO("[ONYX][CORE]     {}", ext);
-#endif
-
-    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableDeviceFaultExtension) &&
-                          !s_Physical->IsExtensionEnabled("VK_EXT_device_fault"),
-                      "[ONYX][CORE] The device fault extension (VK_EXT_device_fault) could not be enabled");
-
-    TKIT_LOG_INFO_IF(s_Physical->GetInfo().Flags & VKit::DeviceFlag_Optimal, "[ONYX][CORE] The device is optimal");
-
-    const u32 apiVersion = s_Physical->GetInfo().ApiVersion;
-
-    VkPhysicalDeviceFaultFeaturesEXT faultFeatures{};
-    if ((flags & InitializationFlag_EnableDeviceFaultExtension) &&
-        s_Physical->IsExtensionEnabled("VK_EXT_device_fault"))
-    {
-        faultFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
-
-        const auto table = GetInstanceTable();
-        VkPhysicalDeviceFeatures2KHR features2{};
-        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
-        features2.pNext = &faultFeatures;
-        table->GetPhysicalDeviceFeatures2KHR(*s_Physical, &features2);
-
-        TKIT_LOG_WARNING_IF(!faultFeatures.deviceFaultVendorBinary,
-                            "[ONYX][CORE] The 'deviceFaultVendorBinary' feature is not supported");
-        TKIT_LOG_ERROR_IF(!faultFeatures.deviceFault, "[ONYX][CORE] The 'deviceFault' feature is not supported. The "
-                                                      "extension 'VK_EXT_device_fault' is virtually useless");
-        s_Physical->EnableExtensionBoundFeature(&faultFeatures);
-    }
-
-    VkPhysicalDeviceShaderDrawParameterFeatures drawParams{};
-    drawParams.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
-
-    VkPhysicalDeviceTimelineSemaphoreFeaturesKHR tsem{};
-    tsem.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR;
-    tsem.timelineSemaphore = VK_TRUE;
-
-    VKit::DeviceFeatures features{};
-    features.Core.independentBlend = VK_TRUE;
-    features.Core.drawIndirectFirstInstance = VK_TRUE;
-    features.Core.multiDrawIndirect = VK_TRUE;
-    features.Vulkan11.shaderDrawParameters = VK_TRUE;
-    features.Vulkan12.timelineSemaphore = VK_TRUE;
-    features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;
-    features.Vulkan12.runtimeDescriptorArray = VK_TRUE;
-    features.Vulkan12.descriptorIndexing = VK_TRUE;
-    features.Vulkan12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
-    // features.Vulkan12.descriptorBindingVariableDescriptorCount = VK_TRUE;
-    features.Vulkan12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-
-    VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
-    drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-    drendering.dynamicRendering = VK_TRUE;
-
-    VkPhysicalDeviceSynchronization2FeaturesKHR sync2{};
-    sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR;
-    sync2.synchronization2 = VK_TRUE;
-
-    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT extState2{};
-    extState2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
-    extState2.extendedDynamicState = VK_TRUE;
-
-    s_Physical->EnableExtensionBoundFeature(&extState2);
-    if (apiVersion >= VKIT_API_VERSION_1_3)
-    {
-        features.Vulkan13.dynamicRendering = VK_TRUE;
-        features.Vulkan13.synchronization2 = VK_TRUE;
-        TKIT_ASSERT(s_Physical->EnableFeatures(features),
-                    "[ONYX][CORE] Failed to enable dynamic rendering and synchronization2");
-    }
-    else
-    {
-        s_Physical->EnableExtensionBoundFeature(&drendering);
-        s_Physical->EnableExtensionBoundFeature(&sync2);
-    }
-
-    TKIT_ASSERT(s_Physical->EnableFeatures(features),
-                "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
-
-    *s_Device = ONYX_CHECK_VKIT_RESULT(VKit::LogicalDevice::Builder(&s_Instance.Get(), &s_Physical.Get())
-                                           .RequireQueue(VKit::Queue_Graphics)
-                                           .RequireQueue(VKit::Queue_Present)
-                                           .RequireQueue(VKit::Queue_Transfer)
-                                           .Build()
-
-    );
-
-    SUBMIT_DELETION(*s_Device);
-    if (IsDebugUtilsEnabled())
-    {
-        ONYX_CHECK_VKIT_RESULT(s_Device->SetName("onyx-device"));
-    }
-}
-
-static void createVulkanAllocator()
-{
-    TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan allocator");
-    s_VulkanAllocator = ONYX_CHECK_VKIT_RESULT(VKit::CreateAllocator(*s_Device));
-
-    PUSH_DELETER(VKit::DestroyAllocator(s_VulkanAllocator));
-}
-
-static void createInstance(InitializationFlags flags)
-{
-    TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan instance");
-
-    VKit::Instance::Builder builder{};
-
-    builder.SetApplicationName("Onyx")
-        .RequestApiVersion(1, 4, 0)
-        .RequireApiVersion(1, 2, 0)
-        .SetApplicationVersion(1, 2, 0)
-        .RequestExtension("VK_KHR_get_physical_device_properties2")
-        .RequestExtension("VK_KHR_portability_enumeration");
-
-    // TODO(Isma): Add extension for debug printf
-    const InitializationFlags debugFeatFlags =
-        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableBestPracticesDebugFeature |
-        InitializationFlag_EnableSyncValidationDebugFeature | InitializationFlag_EnablePrintfDebugFeature;
-
-    const InitializationFlags validationFlags = debugFeatFlags | InitializationFlag_EnableDebugUtilsExtension;
-
-    if (flags & validationFlags)
-        flags |= InitializationFlag_EnableValidationLayers;
-
-    if (flags & InitializationFlag_EnableValidationLayers)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Validation layers (VK_LAYER_KHRONOS_validation) have been requested");
-        builder.RequestLayer("VK_LAYER_KHRONOS_validation");
-    }
-    if (flags & InitializationFlag_EnableDebugUtilsExtension)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Debug utils extension (VK_EXT_debug_utils) has been requested");
-        builder.RequestExtension("VK_EXT_debug_utils");
-    }
-
-    if (flags & debugFeatFlags)
-        builder.RequestExtension("VK_EXT_validation_features");
-
-    if (flags & InitializationFlag_EnableDeviceAssistedDebugFeature)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Device assisted debug feature has been requested");
-        builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
-        builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
-    }
-    if (flags & InitializationFlag_EnableBestPracticesDebugFeature)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Best practices debug feature has been requested");
-        builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
-    }
-    if (flags & InitializationFlag_EnablePrintfDebugFeature)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Printf debug feature has been requested");
-        builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT);
-    }
-    if (flags & InitializationFlag_EnableSyncValidationDebugFeature)
-    {
-        TKIT_LOG_INFO("[ONYX][CORE] Sync validation debug feature has been requested");
-        builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
-    }
-
-    u32 extensionCount;
-    const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-    const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
-    for (u32 i = 0; i < extensionCount; ++i)
-        builder.RequireExtension(extensions[i]);
-
-    *s_Instance = ONYX_CHECK_VKIT_RESULT(builder.Build());
-    const VKit::Instance::Info &info = s_Instance->GetInfo();
-    TKIT_LOG_INFO("[ONYX][CORE] Created vulkan instance. API version: {}.{}.{}", VKIT_EXPAND_VERSION(info.ApiVersion));
-
-    TKIT_LOG_INFO("[ONYX][CORE] The following instance layers were enabled");
-#ifdef TKIT_ENABLE_INFO_LOGS
-    for (const char *layer : info.EnabledLayers)
-        TKIT_LOG_INFO("[ONYX][CORE]     {}", layer);
-#endif
-
-    TKIT_LOG_INFO("[ONYX][CORE] The following instance extensions were enabled");
-#ifdef TKIT_ENABLE_INFO_LOGS
-    for (const char *ext : info.EnabledExtensions)
-        TKIT_LOG_INFO("[ONYX][CORE]     {}", ext);
-#endif
-
-    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableValidationLayers) &&
-                          !s_Instance->IsLayerEnabled("VK_LAYER_KHRONOS_validation"),
-                      "[ONYX][CORE] Validation layers (VK_LAYER_KHRONOS_validation) could not be enabled");
-    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableDebugUtilsExtension) &&
-                          !s_Instance->IsExtensionEnabled("VK_EXT_debug_utils"),
-                      "[ONYX][CORE] Debug utils extension (VK_EXT_debug_utils) could not be enabled");
-    TKIT_LOG_ERROR_IF((flags & debugFeatFlags) && !s_Instance->IsExtensionEnabled("VK_EXT_validation_features"),
-                      "[ONYX][CORE] Validation features extension (VK_EXT_validation_features) could not be enabled");
-    SUBMIT_DELETION(*s_Instance);
-}
-
-static void initializeAllocators(const Specs &specs)
+static void allocators_Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing allocators");
     // these are purposefully leaked
@@ -318,12 +337,12 @@ static void initializeAllocators(const Specs &specs)
     {
         const Allocation &alloc = specs.Allocators[i];
 
-        VKit::Allocation userAlloc{};
+        Graph::Allocation userAlloc{};
         userAlloc.Arena = alloc.Arena;
         userAlloc.Stack = alloc.Stack;
         userAlloc.Tier = alloc.Tier;
 
-        VKit::Allocation &libAlloc = s_Allocation[i];
+        Graph::Allocation &libAlloc = s_Allocation[i];
         if (userAlloc.Arena)
             libAlloc.Arena = userAlloc.Arena;
         else if (!libAlloc.Arena)
@@ -354,7 +373,7 @@ static void initializeAllocators(const Specs &specs)
             libAlloc.Tier = new TKit::TierAllocator(desc, 32);
         }
     }
-    VKit::Allocation &libAlloc = s_Allocation[0];
+    Graph::Allocation &libAlloc = s_Allocation[0];
     if (TKit::GetArena() != libAlloc.Arena)
     {
         TKit::PushArena(libAlloc.Arena);
@@ -372,11 +391,11 @@ static void initializeAllocators(const Specs &specs)
     }
 }
 
-static void terminateAllocators(const bool resetArenas)
+static void allocators_Terminate()
 {
-    if (resetArenas)
-        for (const VKit::Allocation &alloc : s_Allocation)
-            alloc.Arena->Reset();
+    // if (resetArenas)
+    for (const Graph::Allocation &alloc : s_Allocation)
+        alloc.Arena->Reset();
 
     if (s_PushedAlloc & 4)
         TKit::PopTier();
@@ -391,258 +410,92 @@ TKit::ITaskManager *GetTaskManager()
     return s_TaskManager;
 }
 
-const VKit::Instance &GetInstance()
+static void core_Initialize(const Specs &specs)
 {
-    TKIT_ASSERT(*s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Initialize?");
-    return *s_Instance;
-}
-const VKit::Vulkan::InstanceTable *GetInstanceTable()
-{
-    TKIT_ASSERT(*s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Initialize?");
-    return s_Instance->GetInfo().Table;
-};
-const VKit::LogicalDevice &GetDevice()
-{
-    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
-    return *s_Device;
-}
-const VKit::PhysicalDevice &GetPhysicalDevice()
-{
-    TKIT_ASSERT(*s_Physical,
-                "[ONYX][CORE] Vulkan physical device is not initialized! Forgot to call Onyx::Initialize?");
-    return *s_Physical;
-}
-const VKit::Vulkan::DeviceTable *GetDeviceTable()
-{
-    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
-    return s_Device->GetInfo().Table;
-};
-bool IsDebugUtilsEnabled()
-{
-    return s_Instance->IsExtensionEnabled("VK_EXT_debug_utils");
-}
-void DeviceWaitIdle()
-{
-    TKIT_BEGIN_DEBUG_CLOCK();
-    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
-    ONYX_CHECK_VKIT_RESULT(s_Device->WaitIdle());
-    TKIT_END_DEBUG_CLOCK(Milliseconds, "[ONYX][CORE] Waiting for device took {:.2f} milliseconds");
-    return Execution::UpdateCompletedQueueTimelines();
-}
-
-VmaAllocator GetVulkanAllocator()
-{
-    TKIT_ASSERT(s_VulkanAllocator,
-                "[ONYX][CORE] Vulkan allocator is not initialized! Forgot to call Onyx::Initialize?");
-    return s_VulkanAllocator;
-}
-
-VKit::DeletionQueue &GetDeletionQueue()
-{
-    return *s_DeletionQueue;
-}
-
-static const char *toString(const VkDeviceFaultAddressTypeEXT faultType)
-{
-    switch (faultType)
-    {
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT:
-        return "NONE";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT:
-        return "READ_INVALID";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT:
-        return "WRITE_INVALID";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT:
-        return "EXECUTE_INVALID";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT:
-        return "INSTRUCTION_POINTER_UNKNOWN";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT:
-        return "INSTRUCTION_POINTER_INVALID";
-    case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT:
-        return "INSTRUCTION_POINTER_FAULT";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-void HandleVulkanResult(const VkResult result)
-{
-#ifdef TKIT_ENABLE_ERROR_LOGS
-    if (result != VK_ERROR_DEVICE_LOST)
-        return;
-    if (!s_Physical->IsExtensionEnabled("VK_EXT_device_fault"))
-    {
-        TKIT_LOG_ERROR("[ONYX][CORE] A device lost error was encountered, but could not study it further because the "
-                       "'VK_EXT_device_fault' extension was not enabled");
-        return;
-    }
-
-    VkDeviceFaultCountsEXT counts{};
-    counts.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT;
-    const auto &device = GetDevice();
-    const auto table = GetDeviceTable();
-
-    ONYX_CHECK_VKIT_RESULT(table->GetDeviceFaultInfoEXT(device, &counts, nullptr));
-
-    TKit::StackArray<VkDeviceFaultAddressInfoEXT> addresses{};
-    TKit::StackArray<VkDeviceFaultVendorInfoEXT> vendors{};
-    TKit::StackArray<std::byte> vendorBinary{};
-
-    addresses.Resize(counts.addressInfoCount);
-    vendors.Resize(counts.vendorInfoCount);
-    vendorBinary.Resize(u32(counts.vendorBinarySize));
-
-    VkDeviceFaultInfoEXT faultInfo{};
-    faultInfo.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT;
-    faultInfo.pAddressInfos = addresses.GetData();
-    faultInfo.pVendorInfos = vendors.GetData();
-    faultInfo.pVendorBinaryData = vendorBinary.GetData();
-
-    ONYX_CHECK_VKIT_RESULT(table->GetDeviceFaultInfoEXT(device, &counts, &faultInfo));
-
-    TKIT_LOG_ERROR("[ONYX][CORE] Device fault description: {}", faultInfo.description);
-
-    for (u32 i = 0; i < counts.addressInfoCount; ++i)
-    {
-        const VkDeviceFaultAddressInfoEXT &info = addresses[i];
-        TKIT_LOG_ERROR("[ONYX][CORE]    Address[{}]: {}", i, toString(info.addressType));
-        TKIT_LOG_ERROR("[ONYX][CORE]        addr={:#18X}", info.reportedAddress);
-        TKIT_LOG_ERROR("[ONYX][CORE]        precision={}", info.addressPrecision);
-
-        if (info.addressPrecision > 1)
-        {
-            const u64 lo = info.reportedAddress & ~(info.addressPrecision - 1);
-            const u64 hi = lo + info.addressPrecision;
-            TKIT_LOG_ERROR("        Actual address in range [{:#18X}, {:#18X}]", lo, hi);
-        }
-    }
-
-    for (u32 i = 0; i < counts.vendorInfoCount; ++i)
-    {
-        const VkDeviceFaultVendorInfoEXT &info = vendors[i];
-        TKIT_LOG_ERROR("[ONYX][CORE]    Vendor[{}]: {}", i, info.description);
-        TKIT_LOG_ERROR("[ONYX][CORE]        faultcode={:#18X}", info.vendorFaultCode);
-        TKIT_LOG_ERROR("[ONYX][CORE]        faultdata={:#18X}", info.vendorFaultData);
-    }
-    if (counts.vendorBinarySize == 0)
-        return;
-
-    if (vendorBinary.GetSize() < sizeof(VkDeviceFaultVendorBinaryHeaderVersionOneEXT))
-    {
-        TKIT_LOG_ERROR("[ONYX][CORE] Cannot retrieve vendor binary data: It is too small to be contained in the vulkan "
-                       "header version one");
-        return;
-    }
-
-    const VkDeviceFaultVendorBinaryHeaderVersionOneEXT *header =
-        reinterpret_cast<const VkDeviceFaultVendorBinaryHeaderVersionOneEXT *>(vendorBinary.GetData());
-#endif
-
-    TKIT_LOG_ERROR("[ONYX][CORE] Vendor binary ({:L} bytes)", vendorBinary.GetSize());
-    TKIT_LOG_ERROR("[ONYX][CORE]    vendor={:#010x}", header->vendorID);
-    TKIT_LOG_ERROR("[ONYX][CORE]    device={:#010x}", header->deviceID);
-
-    namespace fs = std::filesystem;
-    const auto path = s_DumpPath ? fs::path(s_DumpPath) : fs::temp_directory_path();
-    std::ofstream f{path, std::ios::binary};
-    if (!f)
-    {
-        TKIT_LOG_ERROR("[ONYX][CORE] Failed to open file at '{}' to write device fault dump", path.string());
-        return;
-    }
-    f.write(reinterpret_cast<const char *>(vendorBinary.GetData()), std::streamsize(vendorBinary.GetSize()));
-
-    TKIT_LOG_ERROR("[ONYX][CORE] Wrote crash dump to '{}'", path.string());
-}
-
-void Initialize(const Specs &specs)
-{
-    TKIT_BEGIN_INFO_CLOCK();
     TKIT_LOG_INFO("[ONYX][CORE] Initializing");
-    TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
+
+    s_DefaultTaskManager.Construct();
+    s_DefaultThreadPool.Construct(TKit::MaxThreads - 1);
+
     if (specs.Locale)
         std::locale::global(std::locale(specs.Locale));
-    s_DumpPath = specs.DeviceFaultCrashDump;
-    s_Instance.Construct();
-    s_Physical.Construct();
-    s_Device.Construct();
-    s_DeletionQueue.Construct();
 
-    initializeAllocators(specs);
-    PUSH_DELETER(terminateAllocators(specs.Flags & InitializationFlag_ResetArenasOnTermination));
+    allocators_Initialize(specs);
 #ifdef ONYX_FONTCONFIG
     FcInit();
 #endif
 
-    VKit::Specs vspecs{};
-    vspecs.Allocators = s_Allocation[0];
-    vspecs.LoaderPath = specs.VulkanLoaderPath;
+    Graph::Specs gspecs{};
+    gspecs.Allocators = s_Allocation[0];
+    gspecs.LoaderPath = specs.LoaderPath;
+    gspecs.DumpPath = specs.DeviceFaultCrashDump;
+    gspecs.EnabledCapabilities = Graph::Capability_IndependentBlend | Graph::Capability_MultiDrawIndirect |
+                                 Graph::Capability_ShaderDrawParameters | Graph::Capability_ExtendedDynamicState |
+                                 Graph::Capability_BindlessDescriptors | Graph::Capability_ImageMultiFormat |
+                                 Graph::Capability_RequireGraphicsQueue | Graph::Capability_RequireTransferQueue;
+    gspecs.MaxCommandPools = 1024;
+    gspecs.MaxBuffers = 1024;
+    gspecs.MaxImages = 512;
+    gspecs.MaxDescriptorSets = 1024;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageBuffer] = 16384;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_Sampler] = 1024;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_SampledImage] = 131072;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_CombinedImageSampler] = 1024;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageImage] = 512;
 
-    PUSH_DELETER(VKit::Terminate());
-    ONYX_CHECK_VKIT_RESULT(VKit::Initialize(vspecs));
+    Graph::Initialize(gspecs);
 
     if (specs.TaskManager)
         s_TaskManager = specs.TaskManager;
     else if (specs.Flags & InitializationFlag_DefaultTaskManagerSingleThread)
-    {
-        s_DefaultTaskManager.Construct();
         s_TaskManager = &s_DefaultTaskManager.Get();
-        PUSH_DELETER(s_DefaultTaskManager.Destruct());
-    }
     else
-    {
-        s_DefaultThreadPool.Construct(TKit::MaxThreads - 1);
         s_TaskManager = &s_DefaultThreadPool.Get();
-        PUSH_DELETER(s_DefaultThreadPool.Destruct());
-    }
+}
+static void core_Terminate()
+{
+    Graph::Terminate();
+    allocators_Terminate();
 
-    PUSH_DELETER(Platform::Terminate());
-    Platform::Initialize(specs.PlatformSpecs ? *specs.PlatformSpecs : Platform::Specs{});
+    s_DefaultTaskManager.Destruct();
+    s_DefaultThreadPool.Destruct();
+}
 
-    createInstance(specs.Flags);
-    createDevice(specs.Flags);
-    createVulkanAllocator();
+void Frontend_Initialize();
+void Frontend_Terminate();
 
-    PUSH_DELETER(Platform::DestroyWindows());
-    PUSH_DELETER(Execution::Terminate());
-    Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{});
+void Initialize(const Specs &specs)
+{
+    TKIT_BEGIN_INFO_CLOCK();
 
-    PUSH_DELETER(Descriptors::Terminate());
-    Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{});
-
-#ifdef ONYX_ENABLE_SHADER_API
-    PUSH_DELETER(Shaders::Terminate());
-#endif
-
-    PUSH_DELETER(Pipelines::Terminate());
-    Pipelines::Initialize();
-
-    PUSH_DELETER(Renderer::Terminate());
-    Renderer::Initialize(specs.RendererSpecs ? *specs.RendererSpecs : Renderer::Specs{});
-
-    PUSH_DELETER(Resources::Terminate());
-    Resources::Initialize(specs.ResourceSpecs ? *specs.ResourceSpecs : Resources::Specs{});
+    core_Initialize(specs);
+    platform_Initialize();
+    execution_Initialize();
+    descriptors_Initialize();
+    Renderer_Initialize();
+    Resources_Initialize();
 
 #ifdef ONYX_ENABLE_IMGUI
-    PUSH_DELETER(ImGuiBackend::Terminate());
-    ImGuiBackend::Initialize();
+    ImGuiBackend_Initialize();
 #endif
 
-    PUSH_DELETER(TerminateApi());
-    InitializeApi();
+    Frontend_Initialize();
 
     TKIT_END_INFO_CLOCK(Seconds, "[ONYX][CORE] Done in {:.2f} seconds");
 }
 
 void Terminate()
 {
-    if (*s_Device)
-        DeviceWaitIdle();
-
-    s_DeletionQueue.Destruct();
-    s_Device.Destruct();
-    s_Physical.Destruct();
-    s_Instance.Destruct();
+    Frontend_Terminate();
+#ifdef ONYX_ENABLE_IMGUI
+    ImGuiBackend_Terminate();
+#endif
+    Resources_Terminate();
+    Renderer_Terminate();
+    descriptors_Terminate();
+    execution_Terminate();
+    platform_Terminate();
+    core_Terminate();
 }
 
 TKit::TierString Error::ToString() const
@@ -680,4 +533,8 @@ void PushTier(const u32 threadIndex)
 {
     TKit::PushTier(s_Allocation[threadIndex].Tier);
 }
+
+/////////////////////////////////////////////
+/// END CORE
+/////////////////////////////////////////////
 } // namespace Onyx

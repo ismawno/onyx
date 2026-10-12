@@ -1,61 +1,24 @@
 #pragma once
 
 #include "onyx/core.hpp"
-#include "vkit/memory/allocator.hpp"
-#include "vkit/vulkan/instance.hpp"
-#include "vkit/vulkan/loader.hpp"
-#include "vkit/device/logical_device.hpp"
-
-#define ONYX_CHECK_VKIT_RESULT(expression) Onyx::CheckVKitError(expression)
-
-// This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
-// properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
-// objects are alive at that point.
+#include "onyx/window.hpp"
+#include "pass.hpp"
+#include "graph/core.hpp"
 
 namespace Onyx
 {
-void HandleVulkanResult(const VkResult result);
+Window *CreateWindow(const WindowSpecs &specs = {});
+void DestroyWindow(const Window *window);
+void DestroyWindows();
 
-template <typename T> auto CheckVKitError(TKit::Result<T, VKit::Error> &&result)
-{
-#ifdef TKIT_ENABLE_ENSURE
-    if (!result)
-    {
-        const auto &error = result.GetError();
-        if (error.GetCode() == VKit::Error_VulkanError)
-            HandleVulkanResult(error.GetVulkanResult());
+template <Dimension D> Graph::DescriptorSetLayout GetDescriptorLayout(RenderPass pass);
+Graph::DescriptorSetLayout GetDescriptorLayout(StandalonePass pass);
 
-        TKIT_PANIC("{}", error.ToString());
-    }
-#else
-    TKIT_ASSERT(result, "{}", result.GetError().ToString());
-#endif
+Graph::CommandPool FindAvailableCommandPool(Graph::QueueType queue);
 
-    if constexpr (!std::same_as<T, void>)
-        return *result;
-}
+void MarkCommandPoolInUse(Graph::CommandPool pool, u64 inFlightValue);
 
-inline void CheckVKitError(const VkResult result)
-{
-#ifdef TKIT_ENABLE_ENSURE
-    HandleVulkanResult(result);
-#endif
-    VKIT_CHECK_RESULT(result);
-}
-
-const VKit::Instance &GetInstance();
-const VKit::Vulkan::InstanceTable *GetInstanceTable();
-
-const VKit::LogicalDevice &GetDevice();
-const VKit::Vulkan::DeviceTable *GetDeviceTable();
-
-const VKit::PhysicalDevice &GetPhysicalDevice();
-
-bool IsDebugUtilsEnabled();
-
-void DeviceWaitIdle();
-
-VmaAllocator GetVulkanAllocator();
-VKit::DeletionQueue &GetDeletionQueue();
+Graph::CommandPool GetTransientGraphicsCommandPool();
+Graph::CommandPool GetTransientTransferCommandPool();
 
 }; // namespace Onyx

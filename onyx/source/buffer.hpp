@@ -4,56 +4,50 @@
 #    define ONYX_BUFFER_INITIAL_CAPACITY 16
 #endif
 
-#include "vkit/resource/device_buffer.hpp"
-#include "core.hpp"
+#include "graph/resources.hpp"
 
 namespace Onyx
 {
-using enum VKit::DeviceBufferFlagBit;
+using enum Graph::BufferFlagBit;
 
-enum BufferType : VKit::DeviceBufferFlags
+enum BufferType : Graph::BufferFlags
 {
-    Buffer_DeviceVertex = DeviceBufferFlag_Vertex | DeviceBufferFlag_DeviceLocal,
-    Buffer_DeviceIndex = DeviceBufferFlag_Index | DeviceBufferFlag_DeviceLocal,
-    Buffer_DeviceStorage = DeviceBufferFlag_Storage | DeviceBufferFlag_DeviceLocal,
-    Buffer_Staging = DeviceBufferFlag_Staging | DeviceBufferFlag_HostMapped | DeviceBufferFlag_HostRandomAccess,
-    Buffer_HostVertex = DeviceBufferFlag_Vertex | DeviceBufferFlag_HostMapped | DeviceBufferFlag_HostRandomAccess,
-    Buffer_HostIndex = DeviceBufferFlag_Index | DeviceBufferFlag_HostMapped | DeviceBufferFlag_HostRandomAccess,
+    Buffer_DeviceVertex = Graph::BufferFlag_Vertex | Graph::BufferFlag_DeviceLocal,
+    Buffer_DeviceIndex = Graph::BufferFlag_Index | Graph::BufferFlag_DeviceLocal,
+    Buffer_DeviceStorage = Graph::BufferFlag_Storage | Graph::BufferFlag_DeviceLocal,
+    Buffer_Staging = Graph::BufferFlag_Staging | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
+    Buffer_HostVertex = Graph::BufferFlag_Vertex | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
+    Buffer_HostIndex = Graph::BufferFlag_Index | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
 };
-
-inline VKit::DeviceBuffer CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize size)
-{
-    return ONYX_CHECK_VKIT_RESULT(
-        VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), flags).SetSize(size).Build());
-}
-template <typename T>
-VKit::DeviceBuffer CreateBuffer(const VKit::DeviceBufferFlags flags, const u32 capacity = ONYX_BUFFER_INITIAL_CAPACITY)
-{
-    return CreateBuffer(flags, capacity * sizeof(T));
-}
 
 inline u32 GrowCapacity(const u32 instances, const f32 factor = 1.5f)
 {
     return u32(factor * f32(instances));
 }
 
-inline bool GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize,
-                               const f32 factor = 1.5f)
+inline bool GrowBufferIfNeeded(Graph::Buffer &buffer, const u32 instances, const u32 instanceSize,
+                               const Graph::BufferFlags flags, const f32 factor = 1.5f)
 {
-    const VKit::DeviceBuffer::Info &info = buffer.GetInfo();
-    const u32 inst = u32(info.Size / instanceSize);
-    if (buffer && inst >= instances)
-        return false;
+    if (buffer != Graph::NullHandle)
+    {
+        const usz size = Graph::Buffer_GetSize(buffer);
+        const u32 inst = u32(size / instanceSize);
+        if (inst >= instances)
+            return false;
+    }
 
     const u32 ninst = GrowCapacity(instances, factor);
-    buffer.Destroy();
-    buffer = Onyx::CreateBuffer(info.Flags, ninst * instanceSize);
+    if (buffer != Graph::NullHandle)
+        Graph::Buffer_Destroy(buffer);
+    buffer = Graph::Buffer_Create(ninst * instanceSize, flags);
     return true;
 }
 
-template <typename T> bool GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const f32 factor = 1.5f)
+template <typename T>
+bool GrowBufferIfNeeded(Graph::Buffer &buffer, const u32 instances, const Graph::BufferFlags flags,
+                        const f32 factor = 1.5f)
 {
-    return GrowBufferIfNeeded(buffer, instances, sizeof(T), factor);
+    return GrowBufferIfNeeded(buffer, instances, sizeof(T), flags, factor);
 }
 
 } // namespace Onyx

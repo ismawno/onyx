@@ -248,46 +248,46 @@ template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::stri
         {
         case TINYGLTF_TEXTURE_FILTER_NEAREST:
         case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
-            samplerData.MinFilter = SamplerFilter_Nearest;
-            samplerData.Mode = SamplerMode_Nearest;
+            samplerData.MinFilter = Graph::Filter_Nearest;
+            samplerData.Mode = Graph::SamplerMode_Nearest;
             break;
         case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
-            samplerData.MinFilter = SamplerFilter_Linear;
-            samplerData.Mode = SamplerMode_Nearest;
+            samplerData.MinFilter = Graph::Filter_Linear;
+            samplerData.Mode = Graph::SamplerMode_Nearest;
             break;
         case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
-            samplerData.MinFilter = SamplerFilter_Nearest;
-            samplerData.Mode = SamplerMode_Linear;
+            samplerData.MinFilter = Graph::Filter_Nearest;
+            samplerData.Mode = Graph::SamplerMode_Linear;
             break;
         case TINYGLTF_TEXTURE_FILTER_LINEAR:
         case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
         default:
-            samplerData.MinFilter = SamplerFilter_Linear;
-            samplerData.Mode = SamplerMode_Linear;
+            samplerData.MinFilter = Graph::Filter_Linear;
+            samplerData.Mode = Graph::SamplerMode_Linear;
             break;
         }
 
         switch (sampler.magFilter)
         {
         case TINYGLTF_TEXTURE_FILTER_NEAREST:
-            samplerData.MagFilter = SamplerFilter_Nearest;
+            samplerData.MagFilter = Graph::Filter_Nearest;
             break;
         case TINYGLTF_TEXTURE_FILTER_LINEAR:
         default:
-            samplerData.MagFilter = SamplerFilter_Linear;
+            samplerData.MagFilter = Graph::Filter_Linear;
             break;
         }
 
-        const auto toWrap = [](const i32 wrap) -> SamplerWrap {
+        const auto toWrap = [](const i32 wrap) {
             switch (wrap)
             {
             case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
-                return SamplerWrap_ClampToEdge;
+                return Graph::Wrap_ClampToEdge;
             case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
-                return SamplerWrap_MirroredRepeat;
+                return Graph::Wrap_MirroredRepeat;
             case TINYGLTF_TEXTURE_WRAP_REPEAT:
             default:
-                return SamplerWrap_Repeat;
+                return Graph::Wrap_Repeat;
             }
         };
 

@@ -4,7 +4,7 @@
 #    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_NFD"
 #endif
 
-#include "onyx/window.hpp"
+#include "onyx/core.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"
@@ -35,7 +35,6 @@ struct Filter
 
 struct Options
 {
-    Onyx_WindowHandle *Window = nullptr;
     const DialogChar *DefaultName = nullptr;
     const DialogChar *DefaultPath = nullptr;
     TKit::Span<const Filter> Filters{};

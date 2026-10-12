@@ -185,9 +185,6 @@ template <Dimension D> struct ContextState
     BlendPass Blend = BlendPass_Opaque;
 };
 
-struct InstanceDataBuffer;
-struct ContextInstanceData;
-
 // contexts must always be created by the same thread
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
@@ -523,11 +520,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
     void Unicode(const CodePoint code)
     {
-        Glyph(Resources::Font_GetGlyph(m_State.Font, code));
+        Glyph(Font_GetGlyph(m_State.Font, code));
     }
     void Unicode(const CodePoint code, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        Glyph(Resources::Font_GetGlyph(m_State.Font, code), transform, mode);
+        Glyph(Font_GetGlyph(m_State.Font, code), transform, mode);
     }
     void Unicode(const TKit::StringView code)
     {
@@ -707,7 +704,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_State.Blend = Math::Approximately(m_State.FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
-    const ContextInstanceData *GetInstanceData() const
+    const ContextInstanceData &GetInstanceData() const
     {
         return m_InstanceData;
     }
@@ -819,7 +816,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
     TKit::StaticArray16<ContextState<D>> m_StateStack{};
-    ContextInstanceData *m_InstanceData;
+    ContextInstanceData m_InstanceData{};
 
     // NOTE(Isma): This is not good for multithreading, as, unless its context is dutifully pinned to a thread, this
     // tier array may try to race against another thread that is using the underlying tier allocator, because these

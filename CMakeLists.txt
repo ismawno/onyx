@@ -41,12 +41,9 @@ set(ONYX_ENABLE_GLTF_LOAD
 set(ONYX_ENABLE_FONT_LOAD
     OFF
     CACHE BOOL "")
-# right now for these two, former doesnt make sense without latter. but its left
-# as is bc the shader api will be exposed in the future
-set(ONYX_ENABLE_SHADER_API
-    OFF
-    CACHE BOOL "")
-set(ONYX_COMPILE_SHADERS_ON_EXEC
+# requires graphite to have a shader compilation backend set with
+# GRAPHITE_SHADER_COMPILATION_BACKEND
+set(ONYX_COMPILE_SHADERS_AT_RUNTIME
     OFF
     CACHE BOOL "")
 #
@@ -63,12 +60,9 @@ if(ONYX_INCLUDE_DEFAULT_FONT AND NOT ONYX_ENABLE_FONT_LOAD)
     "ONYX - Font loading is required to use the default font. Enable font loading as well"
   )
 endif()
-if(ONYX_COMPILE_SHADERS_ON_EXEC AND NOT ONYX_ENABLE_SHADER_API)
-  message(
-    ERROR
-    "ONYX - Shader API is required to load shaders on execution. Enable the shader api as well"
-  )
-endif()
+# if(ONYX_COMPILE_SHADERS_AT_RUNTIME AND NOT ONYX_ENABLE_SHADER_API) message(
+# ERROR "ONYX - Shader API is required to load shaders on execution. Enable the
+# shader api as well" ) endif()
 
 if(ONYX_BUILD_ENGINE
    AND (NOT ONYX_INCLUDE_DEFAULT_FONT
@@ -90,7 +84,7 @@ message(STATUS "ONYX - IMAGE LOAD: ${ONYX_ENABLE_IMAGE_LOAD}")
 message(STATUS "ONYX - FONT LOAD: ${ONYX_ENABLE_FONT_LOAD}")
 message(STATUS "ONYX - DEFAULT FONT: ${ONYX_INCLUDE_DEFAULT_FONT}")
 message(STATUS "ONYX - GLTF LOAD: ${ONYX_ENABLE_GLTF_LOAD}")
-message(STATUS "ONYX - COMPILE SHADERS: ${ONYX_COMPILE_SHADERS_ON_EXEC}")
+message(STATUS "ONYX - COMPILE SHADERS: ${ONYX_COMPILE_SHADERS_AT_RUNTIME}")
 message(STATUS "ONYX - SHADER API: ${ONYX_ENABLE_SHADER_API}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making

@@ -1,20 +1,20 @@
 #include "pch.hpp"
-#include "onyx/specs.hpp"
 #include "onyx/context.hpp"
 #include "onyx/overlay.hpp"
+#include "onyx/vertex.hpp"
 #include "core.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
 #include "resources.hpp"
 #include "renderer.hpp"
 #include "conversion.hpp"
-#include "pipelines.hpp"
-#include "descriptors.hpp"
-#include "execution.hpp"
-#include "vkit/resource/device_buffer.hpp"
-#include "vkit/resource/device_image.hpp"
-#include "vkit/resource/sampler.hpp"
-#include "vkit/state/compute_pipeline.hpp"
+#ifndef ONYX_COMPILE_SHADERS_AT_RUNTIME
+#    include "spirv.hpp"
+#endif
+#include "graph/pipeline.hpp"
+#include "graph/shader.hpp"
+#include "graph/execution.hpp"
+#include "graph/pipeline.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
 
@@ -26,7 +26,7 @@
 #    endif
 #endif
 
-namespace Onyx::Renderer
+namespace Onyx
 {
 using namespace Detail;
 struct Range
@@ -36,8 +36,8 @@ struct Range
 };
 struct ContextInstanceRange
 {
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
     ViewMask ViewMask = 0;
     u64 Generation = 0;
     u32 ContextIndex = TKIT_U32_MAX;
@@ -45,10 +45,10 @@ struct ContextInstanceRange
 
 struct TransferRange
 {
-    Execution::Tracker Tracker{};
+    Graph::Tracker Tracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
 };
 
 // note that graphics ranges, even tho purely gpu resources (not accessed/written by cpu directly) still have gpu usage
@@ -59,11 +59,11 @@ struct TransferRange
 // pretty much costs nothing, ive decided to keep them at least for now
 struct GraphicsRange
 {
-    Execution::Tracker TransferTracker{};
-    Execution::Tracker GraphicsTracker{};
+    Graph::Tracker TransferTracker{};
+    Graph::Tracker GraphicsTracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
 
     // the generation is used to identify ranges. in the case of light, which range is the current one in use for
     // lights. in the case of vertex/index, to map graphics instance ranges with vertex/index graphics ranges
@@ -85,7 +85,7 @@ struct GraphicsRange
 
 template <typename T> struct Pool
 {
-    VKit::DeviceBuffer Buffer{};
+    Graph::Buffer Buffer = Graph::NullHandle;
     TKit::TierArray<T> Ranges{};
 };
 
@@ -104,11 +104,11 @@ struct Arena
 using TransferInstanceRange = TransferRange;
 struct GraphicsInstanceRange
 {
-    Execution::Tracker TransferTracker{};
-    Execution::Tracker GraphicsTracker{};
+    Graph::Tracker TransferTracker{};
+    Graph::Tracker GraphicsTracker{};
 
-    VkDeviceSize Offset = 0;
-    VkDeviceSize Size = 0;
+    usz Offset = 0;
+    usz Size = 0;
     ViewMask ViewMask = 0;
 
     Resource MeshHandle = NullHandle;
@@ -180,7 +180,7 @@ struct GeometryData
     TKit::FixedArray<InstanceArena, Geometry_Count> Arenas{};
     Arena VertexArena{};
     Arena IndexArena{};
-    ten<VKit::GraphicsPipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
+    ten<Graph::Pipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
 };
 
 template <typename LightParams> struct ContextLights
@@ -224,8 +224,10 @@ template <Dimension D> struct LightData
 
 struct TextureMap
 {
-    Execution::Tracker Tracker{};
-    VKit::DeviceImage Image{};
+    Graph::Image Image = Graph::NullHandle;
+    // images have no extent getter in Graph, so it is cached at creation
+    u32v2 Extent{0};
+    Graph::Tracker Tracker{};
 };
 
 using TextureMapArray = TKit::StaticArray<TextureMap, ONYX_MAX_TEXTURE_MAPS>;
@@ -235,18 +237,24 @@ template <Dimension D> struct ShadowData;
 template <> struct ShadowData<D2>
 {
     TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
-    TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{};
 
     TextureMapArray OcclusionMaps{};
-    u32 OcclusionResolution = 0;
 
-    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
-    VKit::ComputePipeline RayMarchPipeline{};
-    VkDescriptorSet RayMarchSet = VK_NULL_HANDLE;
-    VkFormat OcclusionFormat = VK_FORMAT_UNDEFINED;
-    VkFormat ShadowFormat = VK_FORMAT_UNDEFINED;
+    ten<Graph::Pipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
+    // compute pipeline!
+    Graph::Pipeline RayMarchPipeline{};
+    //
+    Graph::Format ShadowFormat = Graph::Format_Undefined; // not usually supported when used as 1D
+    Graph::DescriptorSet RayMarchSet = Graph::NullHandle;
     ViewMask DirtyShadowViews = 0;
-    bool UsesFallback = false;
+
+    static constexpr Graph::Format OcclusionFormat = Graph::Format_R8_UNORM;
+    static constexpr Graph::Format PrimaryShadowFormat =
+        Graph::Format_D16_UNORM; // not usually supported when used as 1D
+                                 // storage. thats why a fallback is provided
+    static constexpr Graph::Format FallbackShadowFormat = Graph::Format_R16_UNORM;
+    static constexpr u32 OcclusionResolution = 1024;
+    static constexpr TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{1024, 1024};
 };
 
 using ShadowMapId = u32;
@@ -254,11 +262,12 @@ using ShadowMapId = u32;
 template <> struct ShadowData<D3>
 {
     TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
-    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{};
 
-    ten<VKit::GraphicsPipeline, Geometry_Count> Pipelines{};
-    VkFormat ShadowFormat = VK_FORMAT_UNDEFINED;
+    ten<Graph::Pipeline, Geometry_Count> Pipelines{};
     ViewMask DirtyShadowViews = 0;
+
+    static constexpr Graph::Format ShadowFormat = Graph::Format_D32_SFLOAT;
+    static constexpr TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 
 template <Dimension D> struct ContextInfo
@@ -275,8 +284,8 @@ template <Dimension D> struct ContextInfo
 template <Dimension D> struct RendererData
 {
     TKit::TierArray<ContextInfo<D>> Contexts{};
-    TKit::TierArray<VkBufferMemoryBarrier2KHR> AcquireBarriers{};
-    ten<VkDescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
+    TKit::TierArray<Graph::BufferMemoryBarrierInfo> AcquireBarriers{};
+    ten<Graph::DescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
 
     GeometryData Geometry{};
     LightData<D> Lights{};
@@ -324,24 +333,62 @@ template <Dimension D> struct RendererData
 
 struct DrawBuffer
 {
-    Execution::Tracker Tracker{};
-    VKit::DeviceBuffer Buffer{};
+    Graph::Buffer Buffer = Graph::NullHandle;
+    Graph::Tracker Tracker{};
 };
 
+struct ShaderData
+{
+    TKit::FixedArray<Graph::Shader, Geometry_Count> VertexShaders{};
+    TKit::FixedArray<Graph::Shader, Geometry_Count> OpaqueFragmentShaders{};
+    TKit::FixedArray<Graph::Shader, Geometry_Count> TransparentFragmentShaders{};
+
+    void Destroy()
+    {
+        for (const Graph::Shader sh : VertexShaders)
+            Graph::Shader_Destroy(sh);
+        for (const Graph::Shader sh : OpaqueFragmentShaders)
+            Graph::Shader_Destroy(sh);
+        for (const Graph::Shader sh : TransparentFragmentShaders)
+            Graph::Shader_Destroy(sh);
+    }
+};
+
+struct StandalonePipelineData
+{
+    Graph::PipelineLayout Layout = Graph::NullHandle;
+    Graph::Shader Shader = Graph::NullHandle;
+};
+
+struct PipelineData
+{
+    ten<Graph::PipelineLayout, D_Count, RenderPass_Count> Layouts{};
+    ten<ShaderData, D_Count, RenderPass_Count> Shaders{};
+
+    Graph::Shader FullPassVertexShader = Graph::NullHandle;
+    TKit::FixedArray<StandalonePipelineData, StandalonePass_Count> Standalone{};
+};
+
+static TKit::Storage<PipelineData> s_PipelineData{};
 static TKit::Storage<TKit::TierArray<DrawBuffer>> s_DrawBuffers{};
 static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
-static VKit::GraphicsPipeline s_BlendPipeline{};
-static VKit::GraphicsPipeline s_PostProcessPipeline{};
-static VKit::GraphicsPipeline s_CompositorPipeline{};
+static Graph::Pipeline s_BlendPipeline = Graph::NullHandle;
+static Graph::Pipeline s_PostProcessPipeline = Graph::NullHandle;
+static Graph::Pipeline s_CompositorPipeline = Graph::NullHandle;
 
-static VKit::Sampler s_LinearSampler{};
-static VKit::Sampler s_CompareSampler{};
-static VKit::Sampler s_NearSampler{};
+static Graph::Sampler s_LinearSampler = Graph::NullHandle;
+static Graph::Sampler s_CompareSampler = Graph::NullHandle;
+static Graph::Sampler s_NearSampler = Graph::NullHandle;
 
 static u64 s_SyncPointCount = 0;
+
+template <Dimension D> static ShaderData &getShaders(const RenderPass pass)
+{
+    return s_PipelineData->Shaders[D - 2][pass];
+}
 
 template <Dimension D> static RendererData<D> &getRendererData()
 {
@@ -349,6 +396,15 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return *s_RendererData2;
     else
         return *s_RendererData3;
+}
+
+template <Dimension D> static Graph::PipelineLayout getPipelineLayout(const RenderPass pass)
+{
+    return s_PipelineData->Layouts[D - 2][pass];
+}
+Graph::PipelineLayout getPipelineLayout(const StandalonePass pass)
+{
+    return s_PipelineData->Standalone[pass].Layout;
 }
 
 template <Dimension D> static u32 getLightSize(const LightType light)
@@ -370,14 +426,10 @@ template <Dimension D> static u32 getLightSize(const LightType light)
 template <Dimension D> static void updateInstanceDescriptorSets(const Geometry geo)
 {
     RendererData<D> &rdata = getRendererData<D>();
+    const Graph::DescriptorBufferInfo info =
+        Graph::DescriptorBufferInfo::Create(rdata.Geometry.Arenas[geo].Graphics.Buffer);
     for (u32 i = 0; i < RenderPass_Count; ++i)
-    {
-        const RenderPass rpass = RenderPass(i);
-        const VkDescriptorSet set = rdata.Descriptors[i][geo];
-        const VkDescriptorBufferInfo info = rdata.Geometry.Arenas[geo].Graphics.Buffer.CreateDescriptorInfo();
-
-        Descriptors::BindBuffer<D>(ONYX_INSTANCES_BINDING_POINT, set, info, rpass);
-    }
+        Graph::DescriptorSet_Write(rdata.Descriptors[i][geo], ONYX_INSTANCES_BINDING_POINT, info);
 }
 
 static u32 lightToBinding(const LightType light)
@@ -396,127 +448,697 @@ static u32 lightToBinding(const LightType light)
     }
 }
 
+static void createPipelineLayouts()
+{
+    constexpr u32 Dim2 = 0;
+    constexpr u32 Dim3 = 1;
+
+    constexpr Graph::ShaderStageFlags vertex = Graph::ShaderStageFlag_Vertex;
+    constexpr Graph::ShaderStageFlags fragment = Graph::ShaderStageFlag_Fragment;
+    constexpr Graph::ShaderStageFlags compute = Graph::ShaderStageFlag_Compute;
+
+    const auto create = [](const Graph::DescriptorSetLayout set, const Graph::ShaderStageFlags stages, const u32 size) {
+        const Graph::PushConstantRange range = Graph::PushConstantRange::Create(stages, size);
+        return Graph::PipelineLayout_Create({.DescriptorSetLayouts = set, .PushRanges = range});
+    };
+
+    s_PipelineData->Layouts[Dim2][RenderPass_Shaded] =
+        create(GetDescriptorLayout<D2>(RenderPass_Shaded), vertex | fragment, sizeof(ShadedPushConstantData<D2>));
+
+    s_PipelineData->Layouts[Dim3][RenderPass_Shaded] =
+        create(GetDescriptorLayout<D3>(RenderPass_Shaded), vertex | fragment, sizeof(ShadedPushConstantData<D3>));
+
+    s_PipelineData->Layouts[Dim2][RenderPass_Flat] =
+        create(GetDescriptorLayout<D2>(RenderPass_Flat), vertex, sizeof(FlatPushConstantData));
+
+    s_PipelineData->Layouts[Dim3][RenderPass_Flat] =
+        create(GetDescriptorLayout<D3>(RenderPass_Flat), vertex, sizeof(FlatPushConstantData));
+
+    s_PipelineData->Layouts[Dim2][RenderPass_Shadow] =
+        create(GetDescriptorLayout<D2>(RenderPass_Shadow), vertex, sizeof(ShadowPushConstantData<D2>));
+
+    s_PipelineData->Layouts[Dim3][RenderPass_Shadow] =
+        create(GetDescriptorLayout<D3>(RenderPass_Shadow), vertex | fragment, sizeof(ShadowPushConstantData<D3>));
+
+    s_PipelineData->Standalone[StandalonePass_RayMarch].Layout =
+        create(GetDescriptorLayout(StandalonePass_RayMarch), compute, sizeof(RayMarchPushConstantData));
+
+    s_PipelineData->Standalone[StandalonePass_Blend].Layout =
+        create(GetDescriptorLayout(StandalonePass_Blend), fragment, sizeof(BlendPushConstantData));
+
+    s_PipelineData->Standalone[StandalonePass_PostProcess].Layout =
+        create(GetDescriptorLayout(StandalonePass_PostProcess), fragment, sizeof(PostProcessPushConstantData));
+
+    s_PipelineData->Standalone[StandalonePass_Compositor].Layout =
+        create(GetDescriptorLayout(StandalonePass_Compositor), fragment, sizeof(CompositorPushConstantData));
+
+    if (Graph::IsValidationEnabled())
+    {
+        s_PipelineData->Layouts.IterateMultiIndex([&](const u32 i, const u32 j) {
+            Graph::PipelineLayout_SetName(
+                s_PipelineData->Layouts[i][j],
+                TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i + 2, ToString(RenderPass(j))).CString());
+        });
+        Graph::PipelineLayout_SetName(s_PipelineData->Standalone[StandalonePass_RayMarch].Layout,
+                                      "onyx-ray-march-pipeline-layout");
+        Graph::PipelineLayout_SetName(s_PipelineData->Standalone[StandalonePass_Blend].Layout,
+                                      "onyx-blend-pipeline-layout");
+        Graph::PipelineLayout_SetName(s_PipelineData->Standalone[StandalonePass_PostProcess].Layout,
+                                      "onyx-post-process-pipeline-layout");
+        Graph::PipelineLayout_SetName(s_PipelineData->Standalone[StandalonePass_Compositor].Layout,
+                                      "onyx-compositor-pipeline-layout");
+    }
+}
+
+#ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
+static bool isOldMesa()
+{
+    const DeviceInfo dev = GetRenderBackendInfo().Device;
+    if (dev.Driver != Driver_MesaIntelOpenSource && dev.Driver != Driver_MesaLLVMPipe)
+        return false;
+
+    u32 major;
+    u32 minor;
+    u32 patch;
+
+#    ifdef TKIT_COMPILER_MSVC
+    if (sscanf_s(dev.DriverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
+        return false;
+#    else
+    if (std::sscanf(dev.DriverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
+        return false;
+#    endif
+
+    if (major > 25)
+        return false;
+    if (major == 25 && minor > 3)
+        return false;
+    if (major == 25 && minor == 3 && patch >= 3)
+        return false;
+    return true;
+}
+#else
+static Graph::Shader shaderFromBinary(const ShaderBinary &binary)
+{
+    return Graph::Shader_Create(rcast<const u32 *>(binary.Code), binary.Count);
+}
+#endif
+
+// at some point ill need this
+// static void reloadShaders()
+// {
+//     destroyShaders();
+//     createShaders();
+// }
+
+static void createShaders()
+{
+#ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
+    TKit::StackArray<Graph::ShaderArgument, 2> args{};
+    if (isOldMesa())
+    {
+        TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
+                         "optimized spir-v code. Setting optimizations to 0 as a fix");
+        args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_Optimization, 0));
+    }
+    else
+        args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_Optimization, 3));
+    if (Graph::IsValidationEnabled())
+        args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_DebugInformation));
+
+    const char *const searchPaths[] = {ONYX_SHADERS_PATH};
+
+    const TKit::FixedArray<TKit::String, Geometry_Count> geos = {"circle", "static", "parametric", "glyph", "dynamic"};
+    const TKit::FixedArray<TKit::String, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
+    const TKit::FixedArray<TKit::String, D_Count> dims = {"2D", "3D"};
+
+    const Graph::EntryPoint geometryEntries[] = {{"mainVS", Graph::ShaderStageFlag_Vertex},
+                                                 {"mainFSO", Graph::ShaderStageFlag_Fragment},
+                                                 {"mainFST", Graph::ShaderStageFlag_Fragment}};
+    const Graph::EntryPoint fullVertexEntries[] = {{"mainVS", Graph::ShaderStageFlag_Vertex}};
+    const Graph::EntryPoint rayMarchEntries[] = {{"main", Graph::ShaderStageFlag_Compute}};
+    const Graph::EntryPoint fragmentEntries[] = {{"mainFS", Graph::ShaderStageFlag_Fragment}};
+
+    // module names and the module array must not reallocate, since the compilation specs point into them
+    TKit::StackArray<TKit::String> names{};
+    names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
+
+    TKit::StackArray<Graph::ShaderModule> modules{};
+    modules.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count) + 5);
+
+    // TODO(Isma): Would be nice to parallelize this
+    for (const TKit::TierString &geo : geos)
+        for (u32 rpass = 0; rpass < passes.GetSize(); ++rpass)
+            for (const TKit::TierString &dim : dims)
+            {
+                const TKit::TierString &name = names.Append(geo + "-" + passes[rpass] + "-" + dim);
+                const u32 count = rpass != RenderPass_Shadow ? 3 : 2;
+                modules.Append(Graph::ShaderModule::Create(
+                    name.GetData(), TKit::Span<const Graph::EntryPoint>{geometryEntries, count}));
+            }
+
+    modules.Append(Graph::ShaderModule::Create("full-vertex", fullVertexEntries));
+    modules.Append(Graph::ShaderModule::Create("ray-march", rayMarchEntries));
+    modules.Append(Graph::ShaderModule::Create("blend", fragmentEntries));
+    modules.Append(Graph::ShaderModule::Create("post-process", fragmentEntries));
+    modules.Append(Graph::ShaderModule::Create("compositor", fragmentEntries));
+
+    Graph::CompilationSpecs cspecs{};
+    cspecs.Modules = modules;
+    cspecs.Arguments = args;
+    cspecs.SearchPaths = searchPaths;
+    const Graph::Compilation cmp = ONYX_CHECK_RESULT(Graph::Compilation_Create(cspecs));
+
+    u32 idx = 0;
+    const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasTransparent) {
+        const TKit::TierString &name = names[idx++];
+        data.VertexShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainVS", name.GetData());
+        data.OpaqueFragmentShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainFSO", name.GetData());
+        if (hasTransparent)
+            data.TransparentFragmentShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainFST", name.GetData());
+
+        if (Graph::IsValidationEnabled())
+        {
+            const TKit::TierString v = "onyx-vertex-shader-" + name;
+            const TKit::TierString of = "onyx-opaque-fragment-shader-" + name;
+            Graph::Shader_SetName(data.VertexShaders[geo], v.CString());
+            Graph::Shader_SetName(data.OpaqueFragmentShaders[geo], of.CString());
+            if (hasTransparent)
+            {
+                const TKit::TierString tf = "onyx-transparent-fragment-shader-" + name;
+                Graph::Shader_SetName(data.TransparentFragmentShaders[geo], tf.CString());
+            }
+        }
+    };
+
+    for (u32 i = 0; i < geos.GetSize(); ++i)
+    {
+        const Geometry geo = Geometry(i);
+        for (u32 j = 0; j < passes.GetSize(); ++j)
+        {
+            const RenderPass rpass = RenderPass(j);
+            createShader(geo, getShaders<D2>(rpass), rpass != RenderPass_Shadow);
+            createShader(geo, getShaders<D3>(rpass), rpass != RenderPass_Shadow);
+        }
+    }
+
+    s_PipelineData->FullPassVertexShader = Graph::Compilation_CreateShader(cmp, "mainVS", "full-vertex");
+    s_PipelineData->Standalone[StandalonePass_RayMarch].Shader =
+        Graph::Compilation_CreateShader(cmp, "main", "ray-march");
+    s_PipelineData->Standalone[StandalonePass_Blend].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "blend");
+    s_PipelineData->Standalone[StandalonePass_PostProcess].Shader =
+        Graph::Compilation_CreateShader(cmp, "mainFS", "post-process");
+    s_PipelineData->Standalone[StandalonePass_Compositor].Shader =
+        Graph::Compilation_CreateShader(cmp, "mainFS", "compositor");
+
+    Graph::Compilation_Destroy(cmp);
+#else
+    for (u32 dim = 0; dim < D_Count; ++dim)
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+            {
+                ShaderData &sdata = s_PipelineData->Shaders[dim][rpass];
+                sdata.VertexShaders[geo] = shaderFromBinary(g_ShaderBinaryData.VertexShaders[dim][rpass][geo]);
+                sdata.OpaqueFragmentShaders[geo] =
+                    shaderFromBinary(g_ShaderBinaryData.OpaqueFragmentShaders[dim][rpass][geo]);
+                if (rpass != RenderPass_Shadow)
+                    sdata.TransparentFragmentShaders[geo] =
+                        shaderFromBinary(g_ShaderBinaryData.TransparentFragmentShaders[dim][rpass][geo]);
+            }
+
+    s_PipelineData->FullPassVertexShader = shaderFromBinary(g_ShaderBinaryData.FullVertex);
+
+    s_PipelineData->Standalone[StandalonePass_RayMarch].Shader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
+    s_PipelineData->Standalone[StandalonePass_Blend].Shader = shaderFromBinary(g_ShaderBinaryData.Blend);
+    s_PipelineData->Standalone[StandalonePass_PostProcess].Shader = shaderFromBinary(g_ShaderBinaryData.PostProcess);
+    s_PipelineData->Standalone[StandalonePass_Compositor].Shader = shaderFromBinary(g_ShaderBinaryData.Compositor);
+#endif
+}
+
+static void destroyShaders()
+{
+    for (auto &sdata : s_PipelineData->Shaders)
+        sdata.Destroy();
+
+    Graph::Shader_Destroy(s_PipelineData->FullPassVertexShader);
+    for (const auto &st : s_PipelineData->Standalone)
+        Graph::Shader_Destroy(st.Shader);
+}
+
+template <typename T> static Graph::VertexBinding vertexBinding()
+{
+    return {u32(sizeof(T)), Graph::VertexInputRate_Vertex};
+}
+static Graph::VertexAttribute vertexAttribute(const Graph::Format format, const u32 offset)
+{
+    return {.Binding = 0, .Offset = offset, .Format = format};
+}
+static void setLocation(TKit::StaticArray8<Graph::VertexAttribute> &atts)
+{
+    for (u32 i = 0; i < atts.GetSize(); ++i)
+        atts[i].Location = i;
+}
+
 template <Dimension D> static void updateLightDescriptorSets(const LightType light)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    const VkDescriptorBufferInfo info = rdata.Lights.Arenas[light].Graphics.Buffer.CreateDescriptorInfo();
-    Descriptors::BindBuffer<D>(lightToBinding(light), rdata.Descriptors[RenderPass_Shaded], info, RenderPass_Shaded);
+    const Graph::DescriptorBufferInfo info =
+        Graph::DescriptorBufferInfo::Create(rdata.Lights.Arenas[light].Graphics.Buffer);
+    for (const Graph::DescriptorSet set : rdata.Descriptors[RenderPass_Shaded])
+        Graph::DescriptorSet_Write(set, lightToBinding(light), info);
+}
+
+static bool isDepth2DSupported()
+{
+    return s_RendererData2->Shadows.ShadowFormat == ShadowData<D2>::PrimaryShadowFormat;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createTransferInstanceBuffer(const Geometry geo,
-                                                       const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const BlendPass bpass, const Geometry geo)
 {
-    const VKit::DeviceBufferFlags flags = VKit::DeviceBufferFlags(Buffer_Staging) | DeviceBufferFlag_Destination;
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, GetInstanceSize<D>(geo) * instances);
+    constexpr Graph::Format f1u = Graph::Format_R32_UINT;
+    constexpr Graph::Format f2 = Graph::Format_R32G32_SFLOAT;
+    constexpr Graph::Format f3 = Graph::Format_R32G32B32_SFLOAT;
+    constexpr Graph::Format f4 = Graph::Format_R32G32B32A32_SFLOAT;
 
-    if (IsDebugUtilsEnabled())
+    const RenderPass rpass = GetRenderPass(pass);
+    const ShaderData &shaders = getShaders<D>(rpass);
+
+    const bool opaque = bpass == BlendPass_Opaque;
+    const bool opaqueParams = opaque && geo == Geometry_Glyph;
+    const bool needsConstant = D == D2 && pass == PipelinePass_Shaded;
+
+    const u32 depth2 = u32(isDepth2DSupported());
+    const Graph::SpecializationEntry entry{0, 0, sizeof(u32)};
+
+    Graph::ShaderStageInfo stages[2]{};
+    stages[0].Shader = shaders.VertexShaders[geo];
+    stages[0].Stage = Graph::ShaderStageFlag_Vertex;
+    stages[1].Shader = opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo];
+    stages[1].Stage = Graph::ShaderStageFlag_Fragment;
+    if (needsConstant)
+    {
+        stages[1].Specialization.Entries = entry;
+        stages[1].Specialization.Data = &depth2;
+        stages[1].Specialization.DataSize = sizeof(u32);
+    }
+
+    const Graph::Format cf = GetAttachmentFormat(Attachment_Intermediate);
+    const Graph::Format tf = GetAttachmentFormat(Attachment_Transparent);
+    const Graph::Format rf = GetAttachmentFormat(Attachment_Revealage);
+
+    const Graph::ColorWriteMask full = Graph::ColorWrite_All;
+    const Graph::ColorWriteMask mainMask = pass != PipelinePass_Outlined ? full : 0;
+    const Graph::ColorWriteMask outlineMask = pass == PipelinePass_Outlined ? full : 0;
+
+    const u32 acount = opaque ? 2 : 3;
+    TKit::FixedArray<Graph::ColorAttachment, 3> attachments{};
+    TKit::FixedArray<Graph::Format, 3> formats{};
+
+    formats[0] = opaque ? cf : tf;
+    formats[1] = cf;
+    formats[2] = rf;
+
+    Graph::ColorAttachment &color = attachments[0];
+    color.BlendEnabled = !opaque || geo == Geometry_Glyph;
+    color.SrcColor = opaqueParams ? Graph::BlendFactor_SrcAlpha : Graph::BlendFactor_One;
+    color.DstColor = opaqueParams ? Graph::BlendFactor_OneMinusSrcAlpha : Graph::BlendFactor_One;
+    color.SrcAlpha = Graph::BlendFactor_One;
+    color.DstAlpha = opaqueParams ? Graph::BlendFactor_OneMinusSrcAlpha : Graph::BlendFactor_One;
+    color.WriteMask = mainMask;
+
+    attachments[1].WriteMask = outlineMask;
+
+    if (!opaque)
+    {
+        Graph::ColorAttachment &revealage = attachments[2];
+        revealage.BlendEnabled = true;
+        revealage.SrcColor = Graph::BlendFactor_Zero;
+        revealage.DstColor = Graph::BlendFactor_OneMinusSrcColor;
+        revealage.WriteMask = mainMask;
+    }
+
+    TKit::StaticArray8<Graph::VertexBinding> bindings{};
+    TKit::StaticArray8<Graph::VertexAttribute> attributes{};
+    switch (geo)
+    {
+    case Geometry_Circle:
+        break;
+    case Geometry_Static:
+        bindings.Append(vertexBinding<StaticVertex<D>>());
+        if constexpr (D == D2)
+        {
+            attributes.Append(vertexAttribute(f2, offsetof(StaticVertex<D2>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(StaticVertex<D2>, TexCoord)));
+        }
+        else
+        {
+            attributes.Append(vertexAttribute(f3, offsetof(StaticVertex<D3>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(StaticVertex<D3>, TexCoord)));
+            if (pass == PipelinePass_Shaded)
+            {
+                attributes.Append(vertexAttribute(f3, offsetof(StaticVertex<D3>, Normal)));
+                attributes.Append(vertexAttribute(f4, offsetof(StaticVertex<D3>, Tangent)));
+            }
+        }
+        break;
+    case Geometry_Parametric:
+        bindings.Append(vertexBinding<ParametricVertex<D>>());
+        if constexpr (D == D2)
+        {
+            attributes.Append(vertexAttribute(f2, offsetof(ParametricVertex<D2>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(ParametricVertex<D2>, TexCoord)));
+            attributes.Append(vertexAttribute(f1u, offsetof(ParametricVertex<D2>, Region)));
+        }
+        else
+        {
+            attributes.Append(vertexAttribute(f3, offsetof(ParametricVertex<D3>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(ParametricVertex<D3>, TexCoord)));
+            attributes.Append(vertexAttribute(f3, offsetof(ParametricVertex<D3>, Normal)));
+            if (pass == PipelinePass_Shaded)
+                attributes.Append(vertexAttribute(f4, offsetof(ParametricVertex<D3>, Tangent)));
+            attributes.Append(vertexAttribute(f1u, offsetof(ParametricVertex<D3>, Region)));
+        }
+        break;
+    case Geometry_Glyph:
+        bindings.Append(vertexBinding<GlyphVertex>());
+        attributes.Append(vertexAttribute(f2, offsetof(GlyphVertex, Position)));
+        attributes.Append(vertexAttribute(f2, offsetof(GlyphVertex, AtlasCoord)));
+        attributes.Append(vertexAttribute(f2, offsetof(GlyphVertex, TexCoord)));
+        break;
+    case Geometry_Dynamic:
+        bindings.Append(vertexBinding<DynamicVertex<D>>());
+        if constexpr (D == D2)
+        {
+            attributes.Append(vertexAttribute(f2, offsetof(DynamicVertex<D2>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(DynamicVertex<D2>, TexCoord)));
+            attributes.Append(vertexAttribute(f1u, offsetof(DynamicVertex<D2>, Color)));
+        }
+        else
+        {
+            attributes.Append(vertexAttribute(f3, offsetof(DynamicVertex<D3>, Position)));
+            attributes.Append(vertexAttribute(f2, offsetof(DynamicVertex<D3>, TexCoord)));
+            if (pass == PipelinePass_Shaded)
+            {
+                attributes.Append(vertexAttribute(f3, offsetof(DynamicVertex<D3>, Normal)));
+                attributes.Append(vertexAttribute(f4, offsetof(DynamicVertex<D3>, Tangent)));
+            }
+            attributes.Append(vertexAttribute(f1u, offsetof(DynamicVertex<D3>, Color)));
+        }
+        break;
+    default:
+        TKIT_FATAL("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo));
+        return Graph::NullHandle;
+    }
+
+    setLocation(attributes);
+    Graph::GraphicsPipelineSpecs specs{};
+    specs.ShaderStages = stages;
+    specs.VertexBindings = bindings;
+    specs.VertexAttributes = attributes;
+    specs.ColorAttachments = {attachments.GetData(), acount};
+    specs.ColorAttachmentFormats = {formats.GetData(), acount};
+    specs.DepthFormat = GetAttachmentFormat(Attachment_DepthStencil);
+    specs.StencilFormat = specs.DepthFormat;
+
+    const bool depth = pass == PipelinePass_Shaded || pass == PipelinePass_Flat;
+    specs.DepthStencil.DepthTestEnabled = depth;
+    specs.DepthStencil.DepthWriteEnabled = depth && opaque;
+
+    if (pass == PipelinePass_Outlined)
+    {
+        Graph::StencilOpState stencil{};
+        stencil.PassOp = Graph::StencilOp_IncrementAndClamp;
+        stencil.CompareOp = Graph::CompareOp_Always;
+        stencil.CompareMask = 0xFF;
+        stencil.WriteMask = 0xFF;
+        specs.DepthStencil.StencilTestEnabled = true;
+        specs.DepthStencil.Front = stencil;
+        specs.DepthStencil.Back = stencil;
+    }
+
+    constexpr Graph::DynamicStateFlags vpScissor = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
+
+    const bool dynCull = D == D3 && geo != Geometry_Circle && geo != Geometry_Glyph;
+    specs.DynamicState = vpScissor | (dynCull ? Graph::DynamicStateFlag_CullMode : 0);
+
+    return Graph::Pipeline_CreateGraphics(getPipelineLayout<D>(rpass), specs);
+}
+
+template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometry geo, const Graph::Format format)
+{
+    constexpr Graph::Format f1u = Graph::Format_R32_UINT;
+    constexpr Graph::Format f2 = Graph::Format_R32G32_SFLOAT;
+    constexpr Graph::Format f3 = Graph::Format_R32G32B32_SFLOAT;
+
+    const ShaderData &shaders = getShaders<D>(RenderPass_Shadow);
+
+    Graph::ShaderStageInfo stages[2]{};
+    stages[0].Shader = shaders.VertexShaders[geo];
+    stages[0].Stage = Graph::ShaderStageFlag_Vertex;
+    stages[1].Shader = shaders.OpaqueFragmentShaders[geo];
+    stages[1].Stage = Graph::ShaderStageFlag_Fragment;
+
+    TKit::StaticArray8<Graph::VertexBinding> bindings{};
+    TKit::StaticArray8<Graph::VertexAttribute> attributes{};
+    switch (geo)
+    {
+    case Geometry_Circle:
+        break;
+    case Geometry_Static:
+        bindings.Append(vertexBinding<StaticVertex<D>>());
+        if constexpr (D == D2)
+            attributes.Append(vertexAttribute(f2, offsetof(StaticVertex<D2>, Position)));
+        else
+            attributes.Append(vertexAttribute(f3, offsetof(StaticVertex<D3>, Position)));
+        break;
+    case Geometry_Parametric:
+        bindings.Append(vertexBinding<ParametricVertex<D>>());
+        if constexpr (D == D2)
+        {
+            attributes.Append(vertexAttribute(f2, offsetof(ParametricVertex<D2>, Position)));
+            attributes.Append(vertexAttribute(f1u, offsetof(ParametricVertex<D2>, Region)));
+        }
+        else
+        {
+            attributes.Append(vertexAttribute(f3, offsetof(ParametricVertex<D3>, Position)));
+            attributes.Append(vertexAttribute(f3, offsetof(ParametricVertex<D3>, Normal)));
+            attributes.Append(vertexAttribute(f1u, offsetof(ParametricVertex<D3>, Region)));
+        }
+        break;
+    case Geometry_Glyph:
+        bindings.Append(vertexBinding<GlyphVertex>());
+        attributes.Append(vertexAttribute(f2, offsetof(GlyphVertex, Position)));
+        attributes.Append(vertexAttribute(f2, offsetof(GlyphVertex, AtlasCoord)));
+        break;
+    case Geometry_Dynamic:
+        bindings.Append(vertexBinding<DynamicVertex<D>>());
+        if constexpr (D == D2)
+            attributes.Append(vertexAttribute(f2, offsetof(DynamicVertex<D2>, Position)));
+        else
+            attributes.Append(vertexAttribute(f3, offsetof(DynamicVertex<D3>, Position)));
+        break;
+    default:
+        TKIT_FATAL("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo));
+        return Graph::NullHandle;
+    }
+
+    Graph::ColorAttachment attachment{};
+    attachment.WriteMask = Graph::ColorWrite_R;
+
+    setLocation(attributes);
+    Graph::GraphicsPipelineSpecs specs{};
+    specs.ShaderStages = stages;
+    specs.VertexBindings = bindings;
+    specs.VertexAttributes = attributes;
+
+    specs.DynamicState = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
+    if constexpr (D == D2)
+    {
+        specs.ColorAttachments = attachment;
+        specs.ColorAttachmentFormats = format;
+        specs.DepthStencil.DepthTestEnabled = false;
+        specs.DepthStencil.DepthWriteEnabled = false;
+    }
+    else
+    {
+        specs.DepthFormat = format;
+        specs.DepthStencil.DepthTestEnabled = true;
+        specs.DepthStencil.DepthWriteEnabled = true;
+        if (geo != Geometry_Circle && geo != Geometry_Glyph)
+            specs.DynamicState |= Graph::DynamicStateFlag_CullMode;
+    }
+    return Graph::Pipeline_CreateGraphics(getPipelineLayout<D>(RenderPass_Shadow), specs);
+}
+
+static Graph::Pipeline createRayMarchPipeline()
+{
+    const StandalonePipelineData &data = s_PipelineData->Standalone[StandalonePass_RayMarch];
+    Graph::ShaderStageInfo stage{};
+    stage.Shader = data.Shader;
+    stage.Stage = Graph::ShaderStageFlag_Compute;
+    return Graph::Pipeline_CreateCompute(data.Layout, stage);
+}
+
+static Graph::Pipeline createFullPassPipeline(const StandalonePass pass, const Graph::Format format,
+                                              const Graph::ColorAttachment &attachment)
+{
+    const StandalonePipelineData &data = s_PipelineData->Standalone[pass];
+
+    Graph::ShaderStageInfo stages[2]{};
+    stages[0].Shader = s_PipelineData->FullPassVertexShader;
+    stages[0].Stage = Graph::ShaderStageFlag_Vertex;
+    stages[1].Shader = data.Shader;
+    stages[1].Stage = Graph::ShaderStageFlag_Fragment;
+
+    Graph::GraphicsPipelineSpecs specs{};
+    specs.ShaderStages = stages;
+    specs.ColorAttachments = attachment;
+    specs.ColorAttachmentFormats = format;
+    specs.DepthStencil.DepthTestEnabled = false;
+    specs.DepthStencil.DepthWriteEnabled = false;
+    return Graph::Pipeline_CreateGraphics(data.Layout, specs);
+}
+
+static Graph::Pipeline createBlendPipeline()
+{
+    Graph::ColorAttachment attachment{};
+    attachment.BlendEnabled = true;
+    attachment.SrcColor = Graph::BlendFactor_SrcAlpha;
+    attachment.DstColor = Graph::BlendFactor_OneMinusSrcAlpha;
+    // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
+    // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
+    // counterintuitive
+    attachment.SrcAlpha = Graph::BlendFactor_SrcAlpha;
+    attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
+    return createFullPassPipeline(StandalonePass_Blend, GetAttachmentFormat(Attachment_Intermediate), attachment);
+}
+
+static Graph::Pipeline createPostProcessPipeline()
+{
+    return createFullPassPipeline(StandalonePass_PostProcess, GetAttachmentFormat(Attachment_Final), {});
+}
+
+static Graph::Pipeline createCompositorPipeline()
+{
+    Graph::ColorAttachment attachment{};
+    attachment.BlendEnabled = true;
+    return createFullPassPipeline(StandalonePass_Compositor, SurfaceFormat, attachment);
+}
+
+template <Dimension D>
+static Graph::Buffer createTransferInstanceBuffer(const Geometry geo,
+                                                  const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+{
+    const Graph::BufferFlags flags = Graph::BufferFlags(Buffer_Staging) | Graph::BufferFlag_Destination;
+    const Graph::Buffer buffer = Graph::Buffer_Create(GetInstanceSize<D>(geo) * instances, flags);
+
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createTransferLightBuffer(const LightType light,
-                                                    const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createTransferLightBuffer(const LightType light,
+                                               const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(Buffer_Staging, instances * getLightSize<D>(light));
-    if (IsDebugUtilsEnabled())
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * getLightSize<D>(light), Buffer_Staging);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-transfer-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createTransferVertexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createTransferVertexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    const VKit::DeviceBufferFlags flags = DeviceBufferFlag_Vertex | DeviceBufferFlag_HostMapped |
-                                          DeviceBufferFlag_HostRandomAccess | DeviceBufferFlag_Staging |
-                                          DeviceBufferFlag_Destination;
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, instances * sizeof(DynamicVertex<D>));
-    if (IsDebugUtilsEnabled())
+    const Graph::BufferFlags flags = Graph::BufferFlag_Vertex | Graph::BufferFlag_HostMapped |
+                                     Graph::BufferFlag_HostRandomAccess | Graph::BufferFlag_Staging |
+                                     Graph::BufferFlag_Destination;
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * sizeof(DynamicVertex<D>), flags);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-renderer-transfer-vertex-buffer-{}D", u8(D));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createTransferIndexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createTransferIndexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    const VKit::DeviceBufferFlags flags = DeviceBufferFlag_Index | DeviceBufferFlag_HostMapped |
-                                          DeviceBufferFlag_HostRandomAccess | DeviceBufferFlag_Staging |
-                                          DeviceBufferFlag_Destination;
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, instances * sizeof(Index));
-    if (IsDebugUtilsEnabled())
+    const Graph::BufferFlags flags = Graph::BufferFlag_Index | Graph::BufferFlag_HostMapped |
+                                     Graph::BufferFlag_HostRandomAccess | Graph::BufferFlag_Staging |
+                                     Graph::BufferFlag_Destination;
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * sizeof(Index), flags);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-renderer-transfer-index-buffer-{}D", u8(D));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createGraphicsInstanceBuffer(const Geometry geo,
-                                                       const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createGraphicsInstanceBuffer(const Geometry geo,
+                                                  const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    const VKit::DeviceBufferFlags flags = VKit::DeviceBufferFlags(Buffer_DeviceStorage) | DeviceBufferFlag_Source;
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, instances * GetInstanceSize<D>(geo));
-    if (IsDebugUtilsEnabled())
+    const Graph::BufferFlags flags = Graph::BufferFlags(Buffer_DeviceStorage) | Graph::BufferFlag_Source;
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * GetInstanceSize<D>(geo), flags);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createGraphicsLightBuffer(const LightType light,
-                                                    const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createGraphicsLightBuffer(const LightType light,
+                                               const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(Buffer_DeviceStorage, instances * getLightSize<D>(light));
-    if (IsDebugUtilsEnabled())
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * getLightSize<D>(light), Buffer_DeviceStorage);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name =
             TKit::StackString::Format("onyx-renderer-graphics-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 
 template <Dimension D>
-static VKit::DeviceBuffer createGraphicsVertexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createGraphicsVertexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    const VKit::DeviceBufferFlags flags =
-        DeviceBufferFlag_Vertex | DeviceBufferFlag_DeviceLocal | DeviceBufferFlag_Source;
+    const Graph::BufferFlags flags =
+        Graph::BufferFlag_Vertex | Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Source;
 
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, instances * sizeof(DynamicVertex<D>));
-    if (IsDebugUtilsEnabled())
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * sizeof(DynamicVertex<D>), flags);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-renderer-graphics-vertex-buffer-{}D", u8(D));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
 template <Dimension D>
-static VKit::DeviceBuffer createGraphicsIndexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
+static Graph::Buffer createGraphicsIndexBuffer(const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    const VKit::DeviceBufferFlags flags =
-        DeviceBufferFlag_Index | DeviceBufferFlag_DeviceLocal | DeviceBufferFlag_Source;
+    const Graph::BufferFlags flags = Graph::BufferFlag_Index | Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Source;
 
-    VKit::DeviceBuffer buffer = Onyx::CreateBuffer(flags, instances * sizeof(Index));
-    if (IsDebugUtilsEnabled())
+    const Graph::Buffer buffer = Graph::Buffer_Create(instances * sizeof(Index), flags);
+    if (Graph::IsValidationEnabled())
     {
         const TKit::StackString name = TKit::StackString::Format("onyx-renderer-graphics-index-buffer-{}D", u8(D));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.CString()));
+        Graph::Buffer_SetName(buffer, name.CString());
     }
     return buffer;
 }
@@ -528,56 +1150,54 @@ template <Dimension D> static void createPipelines()
 
     rdata.Geometry.Pipelines.IterateMultiIndex([&](const u32 bpass, const u32 ppass, const u32 geo) {
         rdata.Geometry.Pipelines[bpass][ppass][geo] =
-            Pipelines::CreateGeometryPipeline<D>(PipelinePass(ppass), BlendPass(bpass), Geometry(geo));
+            createGeometryPipeline<D>(PipelinePass(ppass), BlendPass(bpass), Geometry(geo));
 
-        if (IsDebugUtilsEnabled())
+        if (Graph::IsValidationEnabled())
         {
             const TKit::StackString name = TKit::StackString::Format(
                 "onyx-renderer-geometry-pipeline-{}D-{}-pass-{}-geometry-'{}'", u8(D), ToString(BlendPass(bpass)),
                 ToString(PipelinePass(ppass)), ToString(Geometry(geo)));
 
-            ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[bpass][ppass][geo].SetName(name.CString()));
+            Graph::Pipeline_SetName(rdata.Geometry.Pipelines[bpass][ppass][geo], name.CString());
         }
     });
 
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
     {
-        VkFormat format;
+        Graph::Format format;
         if constexpr (D == D2)
             format = sdata.OcclusionFormat;
         else
             format = sdata.ShadowFormat;
 
-        sdata.Pipelines[geo] = Pipelines::CreateShadowPipeline<D>(Geometry(geo), format);
-        if (IsDebugUtilsEnabled())
+        sdata.Pipelines[geo] = createShadowPipeline<D>(Geometry(geo), format);
+        if (Graph::IsValidationEnabled())
         {
             const TKit::StackString name = TKit::StackString::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'",
                                                                      u8(D), ToString(Geometry(geo)));
-            ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.CString()));
+            Graph::Pipeline_SetName(sdata.Pipelines[geo], name.CString());
         }
     }
 
     if constexpr (D == D2)
     {
-        sdata.RayMarchPipeline = Pipelines::CreateRayMarchPipeline();
-        if (IsDebugUtilsEnabled())
-        {
-            ONYX_CHECK_VKIT_RESULT(sdata.RayMarchPipeline.SetName("onyx-renderer-ray-march-pipeline"));
-        }
+        sdata.RayMarchPipeline = createRayMarchPipeline();
+        if (Graph::IsValidationEnabled())
+            Graph::Pipeline_SetName(sdata.RayMarchPipeline, "onyx-renderer-ray-march-pipeline");
     }
 }
 
 static void createPipelines()
 {
-    s_BlendPipeline = Pipelines::CreateBlendPipeline();
-    s_PostProcessPipeline = Pipelines::CreatePostProcessPipeline();
-    s_CompositorPipeline = Pipelines::CreateCompositorPipeline();
+    s_BlendPipeline = createBlendPipeline();
+    s_PostProcessPipeline = createPostProcessPipeline();
+    s_CompositorPipeline = createCompositorPipeline();
 
-    if (IsDebugUtilsEnabled())
+    if (Graph::IsValidationEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(s_BlendPipeline.SetName("onyx-blend-pipeline"));
-        ONYX_CHECK_VKIT_RESULT(s_PostProcessPipeline.SetName("onyx-post-process-pipeline"));
-        ONYX_CHECK_VKIT_RESULT(s_CompositorPipeline.SetName("onyx-compositor-pipeline"));
+        Graph::Pipeline_SetName(s_BlendPipeline, "onyx-blend-pipeline");
+        Graph::Pipeline_SetName(s_PostProcessPipeline, "onyx-post-process-pipeline");
+        Graph::Pipeline_SetName(s_CompositorPipeline, "onyx-compositor-pipeline");
     }
 
     createPipelines<D2>();
@@ -588,21 +1208,21 @@ template <Dimension D> static void destroyPipelines()
 {
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
-    for (VKit::GraphicsPipeline &p : rdata.Geometry.Pipelines)
-        p.Destroy();
-    for (VKit::GraphicsPipeline &p : sdata.Pipelines)
-        p.Destroy();
+    for (const Graph::Pipeline p : rdata.Geometry.Pipelines)
+        Graph::Pipeline_Destroy(p);
+    for (const Graph::Pipeline p : sdata.Pipelines)
+        Graph::Pipeline_Destroy(p);
     if constexpr (D == D2)
-        sdata.RayMarchPipeline.Destroy();
+        Graph::Pipeline_Destroy(sdata.RayMarchPipeline);
 }
 
 static void destroyPipelines()
 {
     destroyPipelines<D2>();
     destroyPipelines<D3>();
-    s_BlendPipeline.Destroy();
-    s_PostProcessPipeline.Destroy();
-    s_CompositorPipeline.Destroy();
+    Graph::Pipeline_Destroy(s_BlendPipeline);
+    Graph::Pipeline_Destroy(s_PostProcessPipeline);
+    Graph::Pipeline_Destroy(s_CompositorPipeline);
 }
 
 template <Dimension D> static void initializeLights()
@@ -614,58 +1234,38 @@ template <Dimension D> static void initializeLights()
         TransferLightPool &tpool = ldata.Arenas[light].Transfer;
 
         tpool.Buffer = createTransferLightBuffer<D>(light);
-        tpool.Ranges.Append(TransferLightRange{.Size = tpool.Buffer.GetInfo().Size});
+        tpool.Ranges.Append(TransferLightRange{.Size = Graph::Buffer_GetSize(tpool.Buffer)});
 
         GraphicsLightPool &gpool = ldata.Arenas[light].Graphics;
         gpool.Buffer = createGraphicsLightBuffer<D>(light);
 
-        gpool.Ranges.Append(GraphicsRange{.Size = gpool.Buffer.GetInfo().Size});
+        gpool.Ranges.Append(GraphicsRange{.Size = Graph::Buffer_GetSize(gpool.Buffer)});
         updateLightDescriptorSets<D>(light);
     }
 }
 
-template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs)
+template <Dimension D> struct ShadowParams;
+
+template <Dimension D> static void initializeShadows()
 {
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
 
-    VkDescriptorImageInfo info{};
-    info.sampler = s_LinearSampler;
-    BindImage<D>(ONYX_SHADOW_SAMPLER_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer_BindSampler<D>(ONYX_SHADOW_SAMPLER_BINDING_POINT, s_LinearSampler, RenderPass_Shaded);
+    Renderer_BindSampler<D>(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT, s_CompareSampler, RenderPass_Shaded);
 
-    info.sampler = s_CompareSampler;
-    BindImage<D>(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT, info, RenderPass_Shaded);
-
-    sdata.ShadowFormat = AsVulkanFormat(specs.ShadowFormat);
     if constexpr (D == D2)
     {
-        sdata.OcclusionFormat = AsVulkanFormat(specs.OcclusionFormat);
-        sdata.OcclusionResolution = specs.OcclusionResolution;
-        sdata.RayMarchSet = ONYX_CHECK_VKIT_RESULT(
-            Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDescriptorLayout(StandalonePass_RayMarch)));
+        sdata.RayMarchSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_RayMarch));
 
-        VkPhysicalDeviceImageFormatInfo2KHR finfo{};
-        finfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR;
-        finfo.format = sdata.ShadowFormat;
-        finfo.type = VK_IMAGE_TYPE_1D;
-        finfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        finfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-
-        VkImageFormatProperties2KHR props{};
-        props.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR;
-
-        const auto table = GetInstanceTable();
-        const VkResult result = table->GetPhysicalDeviceImageFormatProperties2KHR(GetPhysicalDevice(), &finfo, &props);
-        if (result == VK_ERROR_FORMAT_NOT_SUPPORTED)
-        {
-            sdata.ShadowFormat = AsVulkanFormat(specs.FallbackShadowFormat);
-            sdata.UsesFallback = true;
-        }
+        if (Graph::Format_IsSupported(sdata.PrimaryShadowFormat, Graph::ImageType_1D,
+                                      Graph::ImageFlag_Sampled | Graph::ImageFlag_Storage))
+            sdata.ShadowFormat = ShadowData<D2>::PrimaryShadowFormat;
+        else
+            sdata.ShadowFormat = ShadowData<D2>::FallbackShadowFormat;
     }
-
-    sdata.ShadowResolutions = specs.ShadowResolutions;
 }
 
-template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
+template <Dimension D> static void initialize()
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
@@ -674,49 +1274,47 @@ template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
 
         TransferInstancePool &tpool = rdata.Geometry.Arenas[geo].Transfer;
         tpool.Buffer = createTransferInstanceBuffer<D>(geo);
-        tpool.Ranges.Append(TransferInstanceRange{.Size = tpool.Buffer.GetInfo().Size});
+        tpool.Ranges.Append(TransferInstanceRange{.Size = Graph::Buffer_GetSize(tpool.Buffer)});
 
         GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
         gpool.Buffer = createGraphicsInstanceBuffer<D>(geo);
-        gpool.Ranges.Append(GraphicsInstanceRange{.Size = gpool.Buffer.GetInfo().Size});
+        gpool.Ranges.Append(GraphicsInstanceRange{.Size = Graph::Buffer_GetSize(gpool.Buffer)});
 
         for (u32 j = 0; j < RenderPass_Count; ++j)
         {
             const RenderPass rpass = RenderPass(j);
-            const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorLayout<D>(rpass);
-            const VkDescriptorSet set = ONYX_CHECK_VKIT_RESULT(Descriptors::GetDescriptorPool().Allocate(layout));
-            if (IsDebugUtilsEnabled())
+            const Graph::DescriptorSet set = Graph::DescriptorSet_Create(GetDescriptorLayout<D>(rpass));
+            if (Graph::IsValidationEnabled())
             {
-                const auto &device = GetDevice();
                 const TKit::StackString name = TKit::StackString::Format(
                     "onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D), ToString(geo), ToString(rpass));
-                ONYX_CHECK_VKIT_RESULT(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.CString()));
+                Graph::DescriptorSet_SetName(set, name.CString());
             }
 
-            const VkDescriptorBufferInfo info = gpool.Buffer.CreateDescriptorInfo();
-            Descriptors::BindBuffer<D>(ONYX_INSTANCES_BINDING_POINT, set, info, rpass);
+            const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(gpool.Buffer);
+            Graph::DescriptorSet_Write(set, ONYX_INSTANCES_BINDING_POINT, info);
             rdata.Descriptors[j][i] = set;
         }
     }
 
     TransferPool &vtpool = rdata.Geometry.VertexArena.Transfer;
     vtpool.Buffer = createTransferVertexBuffer<D>();
-    vtpool.Ranges.Append(TransferRange{.Size = vtpool.Buffer.GetInfo().Size});
+    vtpool.Ranges.Append(TransferRange{.Size = Graph::Buffer_GetSize(vtpool.Buffer)});
 
     TransferPool &itpool = rdata.Geometry.IndexArena.Transfer;
     itpool.Buffer = createTransferIndexBuffer<D>();
-    itpool.Ranges.Append(TransferRange{.Size = itpool.Buffer.GetInfo().Size});
+    itpool.Ranges.Append(TransferRange{.Size = Graph::Buffer_GetSize(itpool.Buffer)});
 
     GraphicsPool &vgpool = rdata.Geometry.VertexArena.Graphics;
     vgpool.Buffer = createGraphicsVertexBuffer<D>();
-    vgpool.Ranges.Append(GraphicsRange{.Size = vgpool.Buffer.GetInfo().Size});
+    vgpool.Ranges.Append(GraphicsRange{.Size = Graph::Buffer_GetSize(vgpool.Buffer)});
 
     GraphicsPool &igpool = rdata.Geometry.IndexArena.Graphics;
     igpool.Buffer = createGraphicsIndexBuffer<D>();
-    igpool.Ranges.Append(GraphicsRange{.Size = igpool.Buffer.GetInfo().Size});
+    igpool.Ranges.Append(GraphicsRange{.Size = Graph::Buffer_GetSize(igpool.Buffer)});
 
     initializeLights<D>();
-    return initializeShadows(shadowSpecs);
+    return initializeShadows<D>();
 }
 
 template <Dimension D> static void terminateShadows()
@@ -724,32 +1322,32 @@ template <Dimension D> static void terminateShadows()
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     for (auto &maps : sdata.ShadowMaps)
         for (auto &map : maps)
-            map.Image.Destroy();
+            Graph::Image_Destroy(map.Image);
     if constexpr (D == D2)
         for (auto &map : sdata.OcclusionMaps)
-            map.Image.Destroy();
+            Graph::Image_Destroy(map.Image);
 }
 
 template <Dimension D> static void terminate()
 {
     RendererData<D> &rdata = getRendererData<D>();
 
-    DeviceWaitIdle();
+    Graph::DeviceWaitIdle();
     for (InstanceArena &arena : rdata.Geometry.Arenas)
     {
-        arena.Transfer.Buffer.Destroy();
-        arena.Graphics.Buffer.Destroy();
+        Graph::Buffer_Destroy(arena.Transfer.Buffer);
+        Graph::Buffer_Destroy(arena.Graphics.Buffer);
     }
     for (LightArena &arena : rdata.Lights.Arenas)
     {
-        arena.Transfer.Buffer.Destroy();
-        arena.Graphics.Buffer.Destroy();
+        Graph::Buffer_Destroy(arena.Transfer.Buffer);
+        Graph::Buffer_Destroy(arena.Graphics.Buffer);
     }
 
-    rdata.Geometry.VertexArena.Graphics.Buffer.Destroy();
-    rdata.Geometry.VertexArena.Transfer.Buffer.Destroy();
-    rdata.Geometry.IndexArena.Graphics.Buffer.Destroy();
-    rdata.Geometry.IndexArena.Transfer.Buffer.Destroy();
+    Graph::Buffer_Destroy(rdata.Geometry.VertexArena.Graphics.Buffer);
+    Graph::Buffer_Destroy(rdata.Geometry.VertexArena.Transfer.Buffer);
+    Graph::Buffer_Destroy(rdata.Geometry.IndexArena.Graphics.Buffer);
+    Graph::Buffer_Destroy(rdata.Geometry.IndexArena.Transfer.Buffer);
 
     terminateShadows<D>();
 
@@ -758,47 +1356,49 @@ template <Dimension D> static void terminate()
         tier->Destroy(info.Context);
 }
 
-void Initialize(const Specs &specs)
+void Renderer_Initialize()
 {
     TKIT_LOG_INFO("[ONYX][RENDERER] Initializing");
     s_DrawBuffers.Construct();
     s_IndexedDrawBuffers.Construct();
     s_RendererData2.Construct();
     s_RendererData3.Construct();
+    s_PipelineData.Construct();
 
-    VKit::Sampler::Builder builder{GetDevice()};
+#ifndef ONYX_COMPILE_SHADERS_AT_RUNTIME
+    InitializeBinaries();
+#endif
 
-    s_LinearSampler = ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
-                                                 .SetMinFilter(VK_FILTER_LINEAR)
-                                                 .SetMagFilter(VK_FILTER_LINEAR)
-                                                 .SetAddressModes(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-                                                 .SetBorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)
-                                                 .Build());
+    createPipelineLayouts();
+    createShaders();
 
-    s_NearSampler = ONYX_CHECK_VKIT_RESULT(
-        VKit::Sampler::Builder(GetDevice()).SetMinFilter(VK_FILTER_NEAREST).SetMagFilter(VK_FILTER_NEAREST).Build());
+    Graph::SamplerSpecs linear{};
+    linear.Wraps = Graph::Wrap_ClampToBorder;
+    linear.Border = Graph::BorderColor_FloatOpaqueWhite;
+    s_LinearSampler = Graph::Sampler_Create(linear);
 
-    s_CompareSampler = ONYX_CHECK_VKIT_RESULT(VKit::Sampler::Builder(GetDevice())
-                                                  .SetMinFilter(VK_FILTER_LINEAR)
-                                                  .SetMagFilter(VK_FILTER_LINEAR)
-                                                  .EnableCompare()
-                                                  .SetCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
-                                                  .SetAddressModes(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-                                                  .SetBorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)
-                                                  .Build());
+    Graph::SamplerSpecs nearest{};
+    nearest.Filters = Graph::Filter_Nearest;
+    s_NearSampler = Graph::Sampler_Create(nearest);
 
-    if (IsDebugUtilsEnabled())
+    Graph::SamplerSpecs compare{};
+    compare.Compare = Graph::CompareOp_LessOrEqual;
+    compare.Wraps = Graph::Wrap_ClampToBorder;
+    compare.Border = Graph::BorderColor_FloatOpaqueWhite;
+    s_CompareSampler = Graph::Sampler_Create(compare);
+
+    if (Graph::IsValidationEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(s_LinearSampler.SetName("onyx-linear-sampler"));
-        ONYX_CHECK_VKIT_RESULT(s_NearSampler.SetName("onyx-near-sampler"));
-        ONYX_CHECK_VKIT_RESULT(s_CompareSampler.SetName("onyx-compare-sampler"));
+        Graph::Sampler_SetName(s_LinearSampler, "onyx-linear-sampler");
+        Graph::Sampler_SetName(s_NearSampler, "onyx-near-sampler");
+        Graph::Sampler_SetName(s_CompareSampler, "onyx-compare-sampler");
     }
 
-    initialize<D2>(specs.Shadows2);
-    initialize<D3>(specs.Shadows3);
-    return createPipelines();
+    initialize<D2>();
+    initialize<D3>();
+    createPipelines();
 }
-void Terminate()
+void Renderer_Terminate()
 {
     terminate<D2>();
     terminate<D3>();
@@ -806,19 +1406,28 @@ void Terminate()
     destroyPipelines();
 
     for (DrawBuffer &buffer : *s_DrawBuffers)
-        buffer.Buffer.Destroy();
+        Graph::Buffer_Destroy(buffer.Buffer);
     for (DrawBuffer &buffer : *s_IndexedDrawBuffers)
-        buffer.Buffer.Destroy();
-    s_LinearSampler.Destroy();
-    s_NearSampler.Destroy();
-    s_CompareSampler.Destroy();
+        Graph::Buffer_Destroy(buffer.Buffer);
+    Graph::Sampler_Destroy(s_LinearSampler);
+    Graph::Sampler_Destroy(s_NearSampler);
+    Graph::Sampler_Destroy(s_CompareSampler);
+
+    destroyShaders();
+    for (const auto layout : s_PipelineData->Layouts)
+        Graph::PipelineLayout_Destroy(layout);
+
+    for (const auto &st : s_PipelineData->Standalone)
+        Graph::PipelineLayout_Destroy(st.Layout);
+
     s_RendererData2.Destruct();
     s_RendererData3.Destruct();
     s_IndexedDrawBuffers.Destruct();
     s_DrawBuffers.Destruct();
+    s_PipelineData.Destruct();
 }
 
-template <Dimension D> RenderContext<D> *CreateContext(const u32 immediateDynamicMeshCapacity)
+template <Dimension D> RenderContext<D> *Renderer_CreateContext(const u32 immediateDynamicMeshCapacity)
 {
     RendererData<D> &rdata = getRendererData<D>();
     ContextInfo<D> info;
@@ -841,7 +1450,7 @@ template <Dimension D> static u32 getContextIndex(const RenderContext<D> *contex
     return TKIT_U32_MAX;
 }
 
-template <Dimension D> void DestroyContext(const RenderContext<D> *context)
+template <Dimension D> void Renderer_DestroyContext(const RenderContext<D> *context)
 {
     RendererData<D> &rdata = getRendererData<D>();
     const u32 index = getContextIndex(context);
@@ -875,21 +1484,17 @@ template <Dimension D> void flushAllContexts()
         info.Context->Flush();
 }
 
-void FlushAllContexts()
+void Renderer_FlushAllContexts()
 {
     flushAllContexts<D2>();
     flushAllContexts<D3>();
 }
 
-void ReloadPipelines()
+void Renderer_ReloadPipelines()
 {
-    DeviceWaitIdle();
+    Graph::DeviceWaitIdle();
     destroyPipelines();
     return createPipelines();
-}
-bool IsDepthSupportedFor2D()
-{
-    return !s_RendererData2->Shadows.UsesFallback;
 }
 
 template <Dimension D> static void addTarget(const ViewMask vmask)
@@ -905,38 +1510,48 @@ template <Dimension D> static void removeTarget(const ViewMask vmask)
         info.Context->RemoveTarget(vmask);
 }
 
-void AddTarget(const ViewMask vmask)
+void Renderer_AddTarget(const ViewMask vmask)
 {
     addTarget<D2>(vmask);
     addTarget<D2>(vmask);
 }
-void RemoveTarget(const ViewMask vmask)
+void Renderer_RemoveTarget(const ViewMask vmask)
 {
     removeTarget<D2>(vmask);
     removeTarget<D3>(vmask);
 }
 
 template <Dimension D>
-void BindBuffer(const u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, const RenderPass pass,
-                const u32 dstElement)
+void Renderer_BindBuffer(const u32 binding, const Graph::DescriptorBufferInfo &info, const RenderPass pass,
+                         const u32 dstElement)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    Descriptors::BindBuffer<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+    for (const Graph::DescriptorSet set : rdata.Descriptors[pass])
+        Graph::DescriptorSet_Write(set, binding, info, dstElement);
 }
 template <Dimension D>
-void BindImage(const u32 binding, TKit::Span<const VkDescriptorImageInfo> info, const RenderPass pass,
-               const u32 dstElement)
+void Renderer_BindImage(const u32 binding, const Graph::DescriptorImageInfo &info, const RenderPass pass,
+                        const u32 dstElement)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    Descriptors::BindImage<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+    for (const Graph::DescriptorSet set : rdata.Descriptors[pass])
+        Graph::DescriptorSet_Write(set, binding, info, dstElement);
+}
+template <Dimension D>
+void Renderer_BindSampler(const u32 binding, const Graph::Sampler sampler, const RenderPass pass, const u32 dstElement)
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    for (const Graph::DescriptorSet set : rdata.Descriptors[pass])
+        Graph::DescriptorSet_Write(set, binding, sampler, dstElement);
 }
 
-const VKit::Sampler &GetNearSampler()
+Graph::Sampler Renderer_GetNearSampler()
 {
     return s_NearSampler;
 }
 
-template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const RenderPass pass)
+template <Dimension D>
+const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets(const RenderPass pass)
 {
     return getRendererData<D>().Descriptors[pass];
 }
@@ -945,15 +1560,15 @@ template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &GetDescriptor
 template <typename Range> static void validateRanges(const char *name, const Pool<Range> &pool)
 {
     const auto &ranges = pool.Ranges;
-    const VKit::DeviceBuffer::Info &info = pool.Buffer.GetInfo();
-    VkDeviceSize size = 0;
+    const usz bsize = Graph::Buffer_GetSize(pool.Buffer);
+    usz size = 0;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         const Range &range = ranges[i];
-        TKIT_ENSURE(info.Size >= range.Offset + range.Size,
+        TKIT_ENSURE(bsize >= range.Offset + range.Size,
                     "[ONYX][RENDERER] A {} memory range with index {} ({} total) exceeds buffer "
                     "size. Buffer size is {} bytes, which is smaller than offset + size = {} + {} = {}",
-                    name, i, ranges.GetSize(), info.Size, range.Offset, range.Size, range.Offset + range.Size);
+                    name, i, ranges.GetSize(), bsize, range.Offset, range.Size, range.Offset + range.Size);
         if (i != 0)
         {
             const Range &prange = ranges[i - 1];
@@ -965,24 +1580,24 @@ template <typename Range> static void validateRanges(const char *name, const Poo
         }
         size += range.Size;
     }
-    TKIT_ENSURE(size == info.Size,
+    TKIT_ENSURE(size == bsize,
                 "[ONYX][RENDERER] The sum of the {} memory range sizes ({:L}) does not equal the one of the "
                 "buffer ({:L})",
-                name, size, info.Size);
+                name, size, bsize);
 }
 
 static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
 {
     const auto &granges = gpool.Ranges;
-    const VKit::DeviceBuffer::Info &ginfo = gpool.Buffer.GetInfo();
-    VkDeviceSize gsize = 0;
+    const usz bsize = Graph::Buffer_GetSize(gpool.Buffer);
+    usz gsize = 0;
     for (u32 i = 0; i < granges.GetSize(); ++i)
     {
         const GraphicsInstanceRange &grange = granges[i];
-        TKIT_ASSERT(ginfo.Size >= grange.Offset + grange.Size,
+        TKIT_ASSERT(bsize >= grange.Offset + grange.Size,
                     "[ONYX][RENDERER] A graphics instance memory range with index {} ({} total) exceeds buffer size"
                     ". Buffer size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
-                    i, granges.GetSize(), ginfo.Size, grange.Offset, grange.Size, grange.Offset + grange.Size);
+                    i, granges.GetSize(), bsize, grange.Offset, grange.Size, grange.Offset + grange.Size);
         if (i != 0)
         {
             const GraphicsInstanceRange &pgrange = granges[i - 1];
@@ -994,7 +1609,7 @@ static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
                         pgrange.Offset + pgrange.Size, grange.Offset);
         }
         const auto &cranges = grange.ContextRanges;
-        VkDeviceSize csize = 0;
+        usz csize = 0;
         ViewMask vmask = 0;
         for (u32 j = 0; j < cranges.GetSize(); ++j)
         {
@@ -1020,10 +1635,10 @@ static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
                         "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds graphics range size. "
                         "Range size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
                         j, cranges.GetSize(), grange.Size, crange.Offset, crange.Size, crange.Offset + crange.Size);
-            TKIT_ASSERT(ginfo.Size >= crange.Offset + crange.Size,
+            TKIT_ASSERT(bsize >= crange.Offset + crange.Size,
                         "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds buffer size. "
                         "Buffer size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
-                        j, cranges.GetSize(), ginfo.Size, crange.Offset, crange.Size, crange.Offset + crange.Size);
+                        j, cranges.GetSize(), bsize, crange.Offset, crange.Size, crange.Offset + crange.Size);
             if (j != 0)
             {
                 const ContextInstanceRange &pcrange = cranges[j - 1];
@@ -1048,10 +1663,10 @@ static void validateGraphicsInstanceRanges(const GraphicsInstancePool &gpool)
         gsize += grange.Size;
     }
     TKIT_ASSERT(
-        gsize == ginfo.Size,
+        gsize == bsize,
         "[ONYX][RENDERER] The sum of the graphics instance memory range sizes ({:L}) does not equal the one of the "
         "buffer ({:L})",
-        gsize, ginfo.Size);
+        gsize, bsize);
 }
 
 template <Dimension D> static void validateRanges()
@@ -1087,64 +1702,34 @@ template <Dimension D> static void validateRanges()
 #endif
 
 template <Dimension D, typename Range>
-static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffer &nbuffer, VKit::DeviceBuffer &buffer,
-                               TKit::TierArray<Range> &ranges, const bool copyOldContents = false,
-                               VKit::Queue *transfer = nullptr)
+static Range *handlePoolResize(const usz requiredMem, Graph::Buffer &nbuffer, Graph::Buffer &buffer,
+                               TKit::TierArray<Range> &ranges, const bool copyOldContents = false)
 {
-    TKit::StackArray<VkSemaphore> semaphores{};
-    semaphores.Reserve(2 * ranges.GetSize());
-    TKit::StackArray<u64> values{};
-    values.Reserve(2 * ranges.GetSize());
-
     for (const Range &range : ranges)
+    {
         if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsRange>)
         {
-            if (range.TransferTracker.InFlight())
-            {
-                semaphores.Append(range.TransferTracker.Queue->GetTimelineSempahore());
-                values.Append(range.TransferTracker.InFlightValue);
-            }
-
-            if (range.GraphicsTracker.InFlight())
-            {
-                semaphores.Append(range.GraphicsTracker.Queue->GetTimelineSempahore());
-                values.Append(range.GraphicsTracker.InFlightValue);
-            }
+            Graph::Queue_WaitForTracker(range.TransferTracker);
+            Graph::Queue_WaitForTracker(range.GraphicsTracker);
         }
-        else if (range.Tracker.InFlight())
-        {
-            semaphores.Append(range.Tracker.Queue->GetTimelineSempahore());
-            values.Append(range.Tracker.InFlightValue);
-        }
-    if (!semaphores.IsEmpty())
-    {
-        VkSemaphoreWaitInfoKHR waitInfo{};
-        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = semaphores.GetSize();
-        waitInfo.pSemaphores = semaphores.GetData();
-        waitInfo.pValues = values.GetData();
-
-        const auto &device = GetDevice();
-        const auto table = GetDeviceTable();
-        ONYX_CHECK_VKIT_RESULT(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
+        else
+            Graph::Queue_WaitForTracker(range.Tracker);
     }
 
-    const VkDeviceSize size = buffer.GetInfo().Size;
-    const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
+    const usz size = Graph::Buffer_GetSize(buffer);
+    const Graph::BufferCopy copy{.Size = size};
 
     if (copyOldContents)
     {
         if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsRange>)
-        {
-            TKIT_ASSERT(transfer);
-            ONYX_CHECK_VKIT_RESULT(
-                nbuffer.CopyFromBuffer(Execution::GetTransientTransferPool(), *transfer, buffer, copy));
-        }
+            Graph::CommandPool_ImmediateSubmission(
+                GetTransientTransferCommandPool(),
+                [&](const Graph::CommandBuffer cmd) { Graph::Command_CopyBuffer(cmd, buffer, nbuffer, copy); });
         else if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferRange>)
-            nbuffer.Write(buffer.GetData(), copy);
+            Graph::Buffer_Write(nbuffer, Graph::Buffer_GetData(buffer), copy);
     }
 
-    buffer.Destroy();
+    Graph::Buffer_Destroy(buffer);
     buffer = nbuffer;
 
     Range smallRange{};
@@ -1152,8 +1737,8 @@ static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffe
     smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
-    const VkDeviceSize nsize = nbuffer.GetInfo().Size;
-    const VkDeviceSize offset = size + requiredMem;
+    const usz nsize = Graph::Buffer_GetSize(nbuffer);
+    const usz offset = size + requiredMem;
     if (nsize == offset)
         return &ranges[ranges.GetSize() - 1];
 
@@ -1167,7 +1752,7 @@ static Range *handlePoolResize(const VkDeviceSize requiredMem, VKit::DeviceBuffe
 }
 
 template <typename Range>
-static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const VkDeviceSize requiredMem)
+static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const usz requiredMem)
 {
     Range &range = ranges[index];
     if (range.Size == requiredMem)
@@ -1191,9 +1776,9 @@ static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const 
     return &ranges[index];
 }
 
-static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &buffer, const VkDeviceSize requiredMem)
+static u32 computeNewInstanceCount(const u32 instanceSize, const Graph::Buffer buffer, const usz requiredMem)
 {
-    const VkDeviceSize size = buffer.GetInfo().Size;
+    const usz size = Graph::Buffer_GetSize(buffer);
     const u32 icount = 2 * u32(Math::Max(requiredMem, size) / instanceSize);
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find an available range with {:L} bytes of memory. A new buffer "
@@ -1203,7 +1788,7 @@ static u32 computeNewInstanceCount(const u32 instanceSize, VKit::DeviceBuffer &b
 }
 
 template <Dimension D, typename Range, typename Pool, typename F>
-static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
+static Range *findTransferRange(Pool &pool, const usz requiredMem, const F createBuffer,
                                 const bool copyOldContents = false)
 {
     auto &ranges = pool.Ranges;
@@ -1213,13 +1798,13 @@ static Range *findTransferRange(Pool &pool, const VkDeviceSize requiredMem, cons
         if (ranges[i].Size >= requiredMem && !ranges[i].Tracker.InUse())
             return splitRange(i, ranges, requiredMem);
 
-    VKit::DeviceBuffer nbuffer = createBuffer();
+    Graph::Buffer nbuffer = createBuffer();
     return handlePoolResize<D>(requiredMem, nbuffer, pool.Buffer, ranges, copyOldContents);
 }
 
 template <Dimension D>
 static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, TransferInstancePool &pool,
-                                                        const VkDeviceSize requiredMem)
+                                                        const usz requiredMem)
 {
     return findTransferRange<D, TransferInstanceRange>(
         pool, requiredMem,
@@ -1231,8 +1816,7 @@ static TransferInstanceRange *findTransferInstanceRange(const Geometry geo, Tran
 }
 
 template <Dimension D>
-static TransferLightRange *findTransferLightRange(const LightType light, TransferLightPool &pool,
-                                                  const VkDeviceSize requiredMem)
+static TransferLightRange *findTransferLightRange(const LightType light, TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferLightRange>(pool, requiredMem, [&] {
         return createTransferLightBuffer<D>(light,
@@ -1240,8 +1824,7 @@ static TransferLightRange *findTransferLightRange(const LightType light, Transfe
     });
 }
 
-template <Dimension D>
-static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
+template <Dimension D> static TransferRange *findTransferVertexRange(TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
@@ -1251,8 +1834,7 @@ static TransferRange *findTransferVertexRange(TransferLightPool &pool, const VkD
         },
         true);
 }
-template <Dimension D>
-static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDeviceSize requiredMem)
+template <Dimension D> static TransferRange *findTransferIndexRange(TransferLightPool &pool, const usz requiredMem)
 {
     return findTransferRange<D, TransferRange>(
         pool, requiredMem,
@@ -1261,9 +1843,8 @@ static TransferRange *findTransferIndexRange(TransferLightPool &pool, const VkDe
 }
 
 template <Dimension D, typename Range, typename Pool, typename F1, typename F2>
-static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F1 createBuffer,
-                                const F2 canRangeSplit, bool *resized = nullptr, const bool copyOldContents = false,
-                                VKit::Queue *transfer = nullptr)
+static Range *findGraphicsRange(Pool &pool, const usz requiredMem, const F1 createBuffer, const F2 canRangeSplit,
+                                bool *resized = nullptr, const bool copyOldContents = false)
 {
     auto &ranges = pool.Ranges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
@@ -1278,29 +1859,28 @@ static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, cons
     if (resized)
         *resized = true;
 
-    VKit::DeviceBuffer &buffer = pool.Buffer;
+    Graph::Buffer &buffer = pool.Buffer;
     for (u32 i = rdata.AcquireBarriers.GetSize() - 1; i < rdata.AcquireBarriers.GetSize(); --i)
     {
-        const VkBufferMemoryBarrier2KHR &barrier = rdata.AcquireBarriers[i];
-        if (barrier.buffer == buffer.GetHandle())
+        const Graph::BufferMemoryBarrierInfo &barrier = rdata.AcquireBarriers[i];
+        if (barrier.Buffer == buffer)
             rdata.AcquireBarriers.RemoveUnordered(rdata.AcquireBarriers.begin() + i);
     }
 
-    VKit::DeviceBuffer nbuffer = createBuffer();
-    return handlePoolResize<D>(requiredMem, nbuffer, buffer, ranges, copyOldContents, transfer);
+    Graph::Buffer nbuffer = createBuffer();
+    return handlePoolResize<D>(requiredMem, nbuffer, buffer, ranges, copyOldContents);
 }
 template <Dimension D, typename Range, typename Pool, typename F>
-static Range *findGraphicsRange(Pool &pool, const VkDeviceSize requiredMem, const F createBuffer,
-                                bool *resized = nullptr, const bool copyOldContents = false,
-                                VKit::Queue *transfer = nullptr)
+static Range *findGraphicsRange(Pool &pool, const usz requiredMem, const F createBuffer, bool *resized = nullptr,
+                                const bool copyOldContents = false)
 {
     return findGraphicsRange<D, Range>(
-        pool, requiredMem, createBuffer, [](const auto &) { return true; }, resized, copyOldContents, transfer);
+        pool, requiredMem, createBuffer, [](const auto &) { return true; }, resized, copyOldContents);
 }
 
 template <Dimension D>
 static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, GraphicsInstancePool &pool,
-                                                        const VkDeviceSize requiredMem, VKit::Queue *transfer)
+                                                        const usz requiredMem)
 {
     RendererData<D> &rdata = getRendererData<D>();
     bool resized = false;
@@ -1310,16 +1890,14 @@ static GraphicsInstanceRange *findGraphicsInstanceRange(const Geometry geo, Grap
             return createGraphicsInstanceBuffer<D>(
                 geo, computeNewInstanceCount(GetInstanceSize<D>(geo), pool.Buffer, requiredMem));
         },
-        [&](const GraphicsInstanceRange &range) { return rdata.AreAllContextRangesDirty(range); }, &resized, true,
-        transfer);
+        [&](const GraphicsInstanceRange &range) { return rdata.AreAllContextRangesDirty(range); }, &resized, true);
     if (resized)
         updateInstanceDescriptorSets<D>(geo);
     return range;
 }
 
 template <Dimension D>
-static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLightPool &pool,
-                                             const VkDeviceSize requiredMem)
+static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLightPool &pool, const usz requiredMem)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindGraphicsLightRange");
     bool resized = false;
@@ -1335,8 +1913,7 @@ static GraphicsRange *findGraphicsLightRange(const LightType light, GraphicsLigh
     return range;
 }
 
-template <Dimension D>
-GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
+template <Dimension D> GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const usz requiredMem)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
@@ -1344,58 +1921,53 @@ GraphicsRange *findGraphicsVertexRange(GraphicsPool &pool, const VkDeviceSize re
             return createGraphicsVertexBuffer<D>(
                 computeNewInstanceCount(sizeof(DynamicVertex<D>), pool.Buffer, requiredMem));
         },
-        nullptr, true, transfer);
+        nullptr, true);
 }
-template <Dimension D>
-GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const VkDeviceSize requiredMem, VKit::Queue *transfer)
+template <Dimension D> GraphicsRange *findGraphicsIndexRange(GraphicsPool &pool, const usz requiredMem)
 {
     return findGraphicsRange<D, GraphicsRange>(
         pool, requiredMem,
         [&] { return createGraphicsIndexBuffer<D>(computeNewInstanceCount(sizeof(Index), pool.Buffer, requiredMem)); },
-        nullptr, true, transfer);
+        nullptr, true);
 }
 
-static VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
-                                                      const VkDeviceSize size)
+// the transfer and graphics queues may or may not belong to the same family. if they do not, ownership must be released
+// by the transfer queue and acquired by the graphics queue
+static bool isSeparateTransfer()
 {
-    const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
-    const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
-    const bool needsTransfer = qsrc != qdst;
+    return !Graph::BelongToTheSameFamily(Graph::Queue_Transfer, Graph::Queue_Graphics);
+}
 
-    VkBufferMemoryBarrier2KHR barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
-    barrier.srcAccessMask = needsTransfer ? VK_ACCESS_2_NONE_KHR : VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
-    barrier.srcStageMask = needsTransfer ? VK_PIPELINE_STAGE_2_NONE_KHR : VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
+static Graph::BufferMemoryBarrierInfo createAcquireBarrier(const Graph::Buffer deviceLocalBuffer, const usz offset,
+                                                           const usz size)
+{
+    const bool needsTransfer = isSeparateTransfer();
 
-    barrier.srcQueueFamilyIndex = needsTransfer ? qsrc : VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = needsTransfer ? qdst : VK_QUEUE_FAMILY_IGNORED;
-    barrier.buffer = deviceLocalBuffer;
-    barrier.offset = offset;
-    barrier.size = size;
+    Graph::BufferMemoryBarrierInfo barrier{};
+    barrier.Offset = offset;
+    barrier.Size = size;
+    barrier.Buffer = deviceLocalBuffer;
+    barrier.AcceptFrom = needsTransfer ? Graph::Queue_Transfer : Graph::Queue_None;
+    barrier.SrcStages = needsTransfer ? 0 : Graph::PipelineStageFlag_Transfer;
+    barrier.SrcAccess = needsTransfer ? 0 : Graph::AccessFlag_TransferWrite;
+    barrier.DstStages = Graph::PipelineStageFlag_VertexShader;
+    barrier.DstAccess = Graph::AccessFlag_ShaderRead;
 
     return barrier;
 }
-static VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
-                                                      const VkDeviceSize size)
+static Graph::BufferMemoryBarrierInfo createReleaseBarrier(const Graph::Buffer deviceLocalBuffer, const usz offset,
+                                                           const usz size)
 {
-    const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
-    const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
-    TKIT_ASSERT(qsrc != qdst, "[ONYX][RENDERER] Cannot create a release barrier if the graphics and transfer Execution "
-                              "belong to the same family");
+    TKIT_ASSERT(isSeparateTransfer(), "[ONYX][RENDERER] Cannot create a release barrier if the graphics and transfer "
+                                      "queues belong to the same family");
 
-    VkBufferMemoryBarrier2KHR barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
-    barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR;
-    barrier.dstAccessMask = VK_ACCESS_2_NONE_KHR;
-    barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
-    barrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE_KHR;
-    barrier.srcQueueFamilyIndex = qsrc;
-    barrier.dstQueueFamilyIndex = qdst;
-    barrier.buffer = deviceLocalBuffer;
-    barrier.offset = offset;
-    barrier.size = size;
+    Graph::BufferMemoryBarrierInfo barrier{};
+    barrier.Offset = offset;
+    barrier.Size = size;
+    barrier.Buffer = deviceLocalBuffer;
+    barrier.HandTo = Graph::Queue_Graphics;
+    barrier.SrcStages = Graph::PipelineStageFlag_Transfer;
+    barrier.SrcAccess = Graph::AccessFlag_TransferWrite;
 
     return barrier;
 }
@@ -1429,26 +2001,23 @@ static u32 findAvailableOcclusionMap()
             return i;
 
     TextureMap &map = sdata.OcclusionMaps.Append();
-    map.Image = ONYX_CHECK_VKIT_RESULT(
-        VKit::DeviceImage::Builder(
-            GetDevice(), GetVulkanAllocator(), VkExtent2D{sdata.OcclusionResolution, sdata.OcclusionResolution},
-            sdata.OcclusionFormat, VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Storage)
-            .AddImageView()
-            .Build());
+    map.Extent = u32v2{sdata.OcclusionResolution, sdata.OcclusionResolution};
 
-    if (IsDebugUtilsEnabled())
+    const Graph::ImageViewSpecs view{};
+    Graph::ImageSpecs specs{};
+    specs.ImageViews = view;
+    specs.Formats = sdata.OcclusionFormat;
+    map.Image = Graph::Image_Create(map.Extent, specs, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Storage);
+
+    if (Graph::IsValidationEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(map.Image.SetName(TKit::StackString::Format("onyx-occlusion-map-{}", size).CString()));
-        ONYX_CHECK_VKIT_RESULT(
-            map.Image.SetViewNames(TKit::StackString::Format("onyx-occlusion-map-view-{}", size).CString()));
+        Graph::Image_SetName(map.Image, TKit::StackString::Format("onyx-occlusion-map-{}", size).CString());
+        Graph::Image_SetViewNames(map.Image, TKit::StackString::Format("onyx-occlusion-map-view-{}", size).CString());
     }
 
-    VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_RayMarch)};
-    VkDescriptorImageInfo info{};
-    info.imageView = map.Image.GetView();
-    info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    writer.WriteImage(ONYX_OCCLUSION_MAP_BINDING_POINT, info, size);
-    writer.Overwrite(sdata.RayMarchSet);
+    const Graph::DescriptorImageInfo info =
+        Graph::DescriptorImageInfo::Create(Graph::Image_GetView(map.Image), Graph::ImageLayout_General);
+    Graph::DescriptorSet_Write(sdata.RayMarchSet, ONYX_OCCLUSION_MAP_BINDING_POINT, info, size);
     return size;
 }
 
@@ -1470,7 +2039,7 @@ template <Dimension D> u32 computeShadowMapPoolIndex(const LightType ltype, cons
 }
 
 template <Dimension D>
-static Range findAvailableTextureMapRange(const LightType light, const VkFormat format, const u32 count)
+static Range findAvailableTextureMapRange(const LightType light, const Graph::Format format, const u32 count)
 {
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     const u32 resolution = sdata.ShadowResolutions[light];
@@ -1490,84 +2059,92 @@ static Range findAvailableTextureMapRange(const LightType light, const VkFormat 
             return range;
     }
 
-    VKit::DeviceImageFlags flags = VKit::DeviceImageFlag_Sampled;
+    Graph::ImageFlags flags = Graph::ImageFlag_Sampled;
     if constexpr (D == D3)
-        flags |= VKit::DeviceImageFlag_DepthAttachment;
+        flags |= Graph::ImageFlag_DepthAttachment;
     else
     {
-        flags |= VKit::DeviceImageFlag_Storage;
-        if (sdata.UsesFallback)
-            flags |= VKit::DeviceImageFlag_Color;
+        flags |= Graph::ImageFlag_Storage;
+        if (isDepth2DSupported())
+            flags |= Graph::ImageFlag_Depth;
         else
-            flags |= VKit::DeviceImageFlag_Depth;
+            flags |= Graph::ImageFlag_Color;
     }
 
     for (u32 i = range.Count; i < count; ++i)
     {
         TextureMap &map = maps.Append();
-        VKit::DeviceImage::Builder builder{GetDevice(), GetVulkanAllocator(),
-                                           VkExtent2D{resolution, D == D3 ? resolution : 1}, format, flags};
+        map.Extent = u32v2{resolution, D == D3 ? resolution : 1};
+
+        Graph::ImageFlags iflags = flags;
+        Graph::ImageSpecs specs{};
+        specs.Formats = format;
+
+        // one view per layer, followed by a view of the whole image
+        TKit::StackArray<Graph::ImageViewSpecs> views{};
+        u32 viewIndex = 0;
         if constexpr (D == D2)
         {
-            builder.SetImageType(VK_IMAGE_TYPE_1D);
-            builder.AddImageView();
+            specs.Type = Graph::ImageType_1D;
+            views.Append();
         }
         else
         {
             constexpr TKit::FixedArray<u32, Light_Count> lcounts = {6, ONYX_MAX_CASCADES, 1};
             const u32 lcount = lcounts[light];
 
-            builder.SetArrayLayers(lcount);
+            specs.ArrayLayers = lcount;
             for (u32 j = 0; j < lcount; ++j)
             {
-                VkImageSubresourceRange rg{};
-                rg.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-                rg.baseArrayLayer = j;
-                rg.layerCount = 1;
-                rg.levelCount = 1;
-                builder.AddImageView(rg);
+                Graph::ImageViewSpecs &layer = views.Append();
+                layer.Range.MipStart = 0;
+                layer.Range.MipCount = 1;
+                layer.Range.LayerStart = j;
+                layer.Range.LayerCount = 1;
+                layer.Range.Aspect = Graph::ImageAspectFlag_Depth;
             }
             if (light == Light_Point)
             {
-                builder.SetFlags(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
-                builder.AddImageView(VK_IMAGE_VIEW_TYPE_CUBE);
+                iflags |= Graph::ImageFlag_CubeCompatible;
+                views.Append().Type = Graph::ImageViewType_Cube;
             }
             else if (light == Light_Directional)
-                builder.AddImageView(VK_IMAGE_VIEW_TYPE_2D_ARRAY);
+                views.Append().Type = Graph::ImageViewType_2DArray;
             else
-                builder.AddImageView();
-        }
+                views.Append();
 
-        map.Image = ONYX_CHECK_VKIT_RESULT(builder.Build());
-        if (IsDebugUtilsEnabled())
+            // the whole image view is the last one
+            viewIndex = lcount;
+        }
+        specs.ImageViews = views;
+
+        map.Image = Graph::Image_Create(map.Extent, specs, iflags);
+        if (Graph::IsValidationEnabled())
         {
-            ONYX_CHECK_VKIT_RESULT(map.Image.SetName(
-                TKit::StackString::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
-                    .CString()));
-            ONYX_CHECK_VKIT_RESULT(map.Image.SetViewNames(
-                TKit::StackString::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
-                    .CString()));
+            Graph::Image_SetName(map.Image, TKit::StackString::Format("onyx-texture-map-{}D-'{}'-{}", u8(D),
+                                                                      ToString(light), range.Offset + i)
+                                                .CString());
+            Graph::Image_SetViewNames(map.Image, TKit::StackString::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D),
+                                                                           ToString(light), range.Offset + i)
+                                                     .CString());
         }
 
-        VkDescriptorImageInfo info{};
-        info.imageView = map.Image.GetViews().GetBack();
-        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        Graph::DescriptorImageInfo info = Graph::DescriptorImageInfo::Create(Graph::Image_GetView(map.Image, viewIndex),
+                                                                             Graph::ImageLayout_ShaderReadOnly);
 
         const u32 dstElement = computeShadowMapDescriptorIndex<D>(light, range.Offset + i);
         if constexpr (D == D2)
         {
-            BindImage<D>(ONYX_SHADOW_MAPS_BINDING_POINT, info, RenderPass_Shaded, dstElement);
-            info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-            VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDescriptorLayout(StandalonePass_RayMarch)};
-            writer.WriteImage(ONYX_RAY_MARCH_MAP_BINDING_POINT, info, dstElement);
-            writer.Overwrite(getRendererData<D2>().Shadows.RayMarchSet);
+            Renderer_BindImage<D>(ONYX_SHADOW_MAPS_BINDING_POINT, info, RenderPass_Shaded, dstElement);
+            info.Layout = Graph::ImageLayout_General;
+            Graph::DescriptorSet_Write(getRendererData<D2>().Shadows.RayMarchSet, ONYX_RAY_MARCH_MAP_BINDING_POINT,
+                                       info, dstElement);
         }
         else
         {
             constexpr TKit::FixedArray<u32, Light_Count> bindings = {
                 ONYX_POINT_MAPS_BINDING_POINT, ONYX_DIRECTIONAL_MAPS_BINDING_POINT, ONYX_SPOT_MAPS_BINDING_POINT};
-            BindImage<D>(bindings[light], info, RenderPass_Shaded, dstElement);
+            Renderer_BindImage<D>(bindings[light], info, RenderPass_Shaded, dstElement);
         }
     }
     range.Count = count;
@@ -1835,8 +2412,8 @@ SpotLightData createLightData(const ViewMask vmask, const u32 shadowMapOffset, c
 }
 
 template <Dimension D>
-static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, TransferSubmitInfo &info,
-                     TKit::StackArray<VkBufferMemoryBarrier2KHR> *release, const u64 transferFlightValue,
+static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &info,
+                     TKit::StackArray<Graph::BufferMemoryBarrierInfo> *release, const Graph::Tracker &tracker,
                      const u32 maxLights)
 {
 
@@ -1885,15 +2462,15 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         {
             dirtyContexts.Append(i);
 
-            const ContextInstanceData *idata = ctx->GetInstanceData();
+            const ContextInstanceData &idata = ctx->GetInstanceData();
             ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
-                const InstanceResourceGroup &group = idata->Meshes[bpass][rmode][mtype][pid];
+                const InstanceResourceGroup &group = idata.Meshes[bpass][rmode][mtype][pid];
                 for (const u32 rid : group.Registry.ResourceIds)
                     meshRegistry[bpass][rmode][mtype][pid].RegisterResourceId(rid);
             });
 
-            idata->DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
-                const InstanceResourceGroup &group = idata->DynamicMeshes[bpass][rmode];
+            idata.DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
+                const InstanceResourceGroup &group = idata.DynamicMeshes[bpass][rmode];
                 for (const u32 rid : group.Registry.ResourceIds)
                     dynMeshRegistry[bpass][rmode].RegisterResourceId(rid);
             });
@@ -1954,7 +2531,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         GraphicsLightPool &gpool = arena.Graphics;
 
         using LightData = typename LightParams::InstanceData;
-        const VkDeviceSize requiredMem = sizeof(LightData) * clights.Lights.GetSize();
+        const usz requiredMem = sizeof(LightData) * clights.Lights.GetSize();
 
         const TKit::StackArray<ViewMask> &vmasks = lightViews[ltype];
         for (u32 i = 0; i < clights.Lights.GetSize(); ++i)
@@ -1971,7 +2548,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                 // this is a small hack: shadow maps wont ever be used by the transfer queue, but this way we prevent
                 // lights from taking the same shadow map this run
                 for (u32 j = 0; j < range.Count; ++j)
-                    sdata.ShadowMaps[ltype][j + range.Offset].Tracker.MarkInUse(transfer, transferFlightValue);
+                    sdata.ShadowMaps[ltype][j + range.Offset].Tracker = tracker;
 
                 shadowOffset = computeShadowMapDescriptorIndex<D>(ltype, range.Offset);
             }
@@ -1979,22 +2556,21 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         }
 
         TransferLightRange *trange = findTransferLightRange<D>(ltype, tpool, requiredMem);
-        trange->Tracker.MarkInUse(transfer, transferFlightValue);
-        tpool.Buffer.Write(clights.Data.GetData(), {.srcOffset = 0, .dstOffset = trange->Offset, .size = trange->Size});
+        trange->Tracker = tracker;
+        Graph::Buffer_Write(tpool.Buffer, clights.Data.GetData(),
+                            {.Size = trange->Size, .SrcOffset = 0, .DstOffset = trange->Offset});
 
         GraphicsRange *grange = findGraphicsLightRange<D>(ltype, gpool, requiredMem);
-        grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
+        grange->TransferTracker = tracker;
         grange->GraphicsTracker = {};
         grange->Generation = ++arena.ActiveGeneration;
 
-        VkBufferCopy2KHR copy{};
-        copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
-        copy.pNext = nullptr;
-        copy.srcOffset = trange->Offset;
-        copy.dstOffset = grange->Offset;
-        copy.size = requiredMem;
+        Graph::BufferCopy copy{};
+        copy.Size = requiredMem;
+        copy.SrcOffset = trange->Offset;
+        copy.DstOffset = grange->Offset;
 
-        gpool.Buffer.CopyFromBuffer2(command, tpool.Buffer, copy);
+        Graph::Command_CopyBuffer(command, tpool.Buffer, gpool.Buffer, copy);
         rdata.AcquireBarriers.Append(createAcquireBarrier(gpool.Buffer, grange->Offset, requiredMem));
         if (release)
             release->Append(createReleaseBarrier(gpool.Buffer, grange->Offset, requiredMem));
@@ -2016,9 +2592,9 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     // for both instance and v/i buffers
     struct RangePair
     {
-        VKit::DeviceBuffer *GraphicsBuffer;
-        VkDeviceSize GraphicsOffset;
-        VkDeviceSize RequiredMemory;
+        Graph::Buffer *GraphicsBuffer;
+        usz GraphicsOffset;
+        usz RequiredMemory;
     };
 
     // the actual copy commands for each data type (instance, vertex and index). can belong to any buffer (in the case
@@ -2031,9 +2607,9 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             Vertex.Reserve(dynCount);
             Index.Reserve(dynCount);
         }
-        TKit::StackArray<VkBufferCopy2KHR> Instance{};
-        TKit::StackArray<VkBufferCopy2KHR> Vertex{};
-        TKit::StackArray<VkBufferCopy2KHR> Index{};
+        TKit::StackArray<Graph::BufferCopy> Instance{};
+        TKit::StackArray<Graph::BufferCopy> Vertex{};
+        TKit::StackArray<Graph::BufferCopy> Index{};
     };
 
     // a "copy struct slice" to identify what chunks of the global copy array belongs to which instance buffer, as there
@@ -2041,14 +2617,14 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     // only one buffer so all copies go to those
     struct BufferCopySlice
     {
-        VKit::DeviceBuffer *Transfer;
-        VKit::DeviceBuffer *Graphics;
+        Graph::Buffer *Transfer;
+        Graph::Buffer *Graphics;
         u32 Offset;
         u32 Size;
     };
 
-    const u32 bcount = Resources::GetDistinctBatchDrawCount<D>();
-    const u32 dynCount = Resources::DynamicMesh_GetCount<D>();
+    const u32 bcount = Resources_GetDistinctBatchDrawCount<D>();
+    const u32 dynCount = DynamicMesh_GetCount<D>();
     const u32 upperCapacity =
         dirtyContexts.GetSize() * bcount * u32(RenderMode_Count) * u32(BlendPass_Count) * u32(Geometry_Count);
 
@@ -2069,7 +2645,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         u64 igen = 0;
         if (geo == Geometry_Dynamic)
         {
-            const DynamicMeshData<D> *data = Resources::DynamicMesh_GetData<D>(handle);
+            const DynamicMeshData<D> *data = DynamicMesh_GetData<D>(handle);
             if (data->Vertices.IsEmpty() || data->Indices.IsEmpty())
                 return;
 
@@ -2082,26 +2658,25 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             const auto processTransferArena = [&](TransferPool &pool, const auto &data, const bool vertices) {
                 TransferRange *trng = vertices ? findTransferVertexRange<D>(pool, data.GetBytes())
                                                : findTransferIndexRange<D>(pool, data.GetBytes());
-                trng->Tracker.MarkInUse(transfer, transferFlightValue);
-                pool.Buffer.Write(data.GetData(), {.srcOffset = 0, .dstOffset = trng->Offset, .size = trng->Size});
+                trng->Tracker = tracker;
+                Graph::Buffer_Write(pool.Buffer, data.GetData(),
+                                    {.Size = trng->Size, .SrcOffset = 0, .DstOffset = trng->Offset});
                 return trng;
             };
 
             const TransferRange *vtrng = processTransferArena(varena.Transfer, data->Vertices, true);
             const TransferRange *itrng = processTransferArena(iarena.Transfer, data->Indices, false);
 
-            const auto processGraphicsArena = [&](GraphicsPool &pool, const VkDeviceSize reqMem,
-                                                  const TransferRange *trng, const bool vertices) {
-                GraphicsRange *grng = vertices ? findGraphicsVertexRange<D>(pool, reqMem, transfer)
-                                               : findGraphicsIndexRange<D>(pool, reqMem, transfer);
-                grng->TransferTracker.MarkInUse(transfer, transferFlightValue);
+            const auto processGraphicsArena = [&](GraphicsPool &pool, const usz reqMem, const TransferRange *trng,
+                                                  const bool vertices) {
+                GraphicsRange *grng =
+                    vertices ? findGraphicsVertexRange<D>(pool, reqMem) : findGraphicsIndexRange<D>(pool, reqMem);
+                grng->TransferTracker = tracker;
 
-                VkBufferCopy2KHR &copy = vertices ? copies.Vertex.Append() : copies.Index.Append();
-                copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
-                copy.pNext = nullptr;
-                copy.srcOffset = trng->Offset;
-                copy.dstOffset = grng->Offset;
-                copy.size = reqMem;
+                Graph::BufferCopy &copy = vertices ? copies.Vertex.Append() : copies.Index.Append();
+                copy.SrcOffset = trng->Offset;
+                copy.DstOffset = grng->Offset;
+                copy.Size = reqMem;
                 ranges.Append(&pool.Buffer, grng->Offset, reqMem);
                 return grng;
             };
@@ -2117,7 +2692,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
 
         contextRanges.Clear();
-        VkDeviceSize requiredMem = 0;
+        usz requiredMem = 0;
         ViewMask viewMask = 0;
         for (const u32 idx : dirtyContexts)
         {
@@ -2142,24 +2717,24 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             return;
 
         TransferInstanceRange *trange = findTransferInstanceRange<D>(Geometry(geo), tpool, requiredMem);
-        trange->Tracker.MarkInUse(transfer, transferFlightValue);
+        trange->Tracker = tracker;
 
         for (const ContextInstanceRange &crange : contextRanges)
         {
             const RenderContext<D> *ctx = contexts[crange.ContextIndex].Context;
 
             const auto &idata = getInstanceData(ctx);
-            tpool.Buffer.Write(idata.Data.GetData(),
-                               {.srcOffset = 0, .dstOffset = trange->Offset + crange.Offset, .size = crange.Size});
+            Graph::Buffer_Write(tpool.Buffer, idata.Data.GetData(),
+                                {.Size = crange.Size, .SrcOffset = 0, .DstOffset = trange->Offset + crange.Offset});
         }
 
-        GraphicsInstanceRange *grange = findGraphicsInstanceRange<D>(Geometry(geo), gpool, requiredMem, transfer);
+        GraphicsInstanceRange *grange = findGraphicsInstanceRange<D>(Geometry(geo), gpool, requiredMem);
         grange->Blend = BlendPass(bpass);
         grange->MeshHandle = handle;
         grange->ContextRanges = contextRanges;
         grange->ViewMask = viewMask;
         grange->RenderFlags = GetRenderModeFlags(RenderMode(rmode));
-        grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
+        grange->TransferTracker = tracker;
         grange->GraphicsTracker = {};
         if (geo == Geometry_Dynamic)
         {
@@ -2167,12 +2742,10 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             grange->ActiveIndexGeneration = igen;
         }
 
-        VkBufferCopy2KHR &copy = copies.Instance.Append();
-        copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
-        copy.pNext = nullptr;
-        copy.srcOffset = trange->Offset;
-        copy.dstOffset = grange->Offset;
-        copy.size = requiredMem;
+        Graph::BufferCopy &copy = copies.Instance.Append();
+        copy.SrcOffset = trange->Offset;
+        copy.DstOffset = grange->Offset;
+        copy.Size = requiredMem;
 
         ranges.Append(&gpool.Buffer, grange->Offset, requiredMem);
     };
@@ -2191,7 +2764,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
             for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
                 findInstanceRanges(rmode, bpass, Geometry_Circle, NullHandle,
                                    [rmode, bpass](const RenderContext<D> *ctx) -> const auto & {
-                                       return ctx->GetInstanceData()->Circles[BlendPass(bpass)][rmode];
+                                       return ctx->GetInstanceData().Circles[BlendPass(bpass)][rmode];
                                    });
         else if (geo == Geometry_Dynamic)
             for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -2200,13 +2773,13 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                 for (const u32 rid : resources)
                     findInstanceRanges(rmode, bpass, geo, Handle_CreateForResource(Resource_DynamicMesh, rid),
                                        [rmode, bpass, rid](const RenderContext<D> *ctx) -> const auto & {
-                                           return ctx->GetInstanceData()->DynamicMeshes[bpass][rmode].Buffers[rid];
+                                           return ctx->GetInstanceData().DynamicMeshes[bpass][rmode].Buffers[rid];
                                        });
             }
         else
         {
             const ResourceType rtype = getResourceType(Geometry(geo));
-            const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
+            const TKit::Span<const u32> poolIds = ResourcePool_GetIds<D>(rtype);
             for (const u32 pid : poolIds)
             {
                 for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
@@ -2216,7 +2789,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                         findInstanceRanges(
                             rmode, bpass, geo, Handle_CreateForResource(rtype, rid, pid),
                             [rtype, rmode, bpass, pid, rid](const RenderContext<D> *ctx) -> const auto & {
-                                return ctx->GetInstanceData()->Meshes[bpass][rmode][rtype][pid].Buffers[rid];
+                                return ctx->GetInstanceData().Meshes[bpass][rmode][rtype][pid].Buffers[rid];
                             });
                 }
             }
@@ -2241,34 +2814,38 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
     }
     for (const BufferCopySlice &cmdSlice : instanceCopyCmds)
     {
-        const TKit::Span<const VkBufferCopy2KHR> cpspan{copies.Instance.GetData() + cmdSlice.Offset, cmdSlice.Size};
-        cmdSlice.Graphics->CopyFromBuffer2(command, *cmdSlice.Transfer, cpspan);
+        const TKit::Span<const Graph::BufferCopy> cpspan{copies.Instance.GetData() + cmdSlice.Offset, cmdSlice.Size};
+        Graph::Command_CopyBuffer(command, *cmdSlice.Transfer, *cmdSlice.Graphics, cpspan);
     }
     if (!copies.Vertex.IsEmpty())
-        rdata.Geometry.VertexArena.Graphics.Buffer.CopyFromBuffer2(command, rdata.Geometry.VertexArena.Transfer.Buffer,
-                                                                   copies.Vertex);
+        Graph::Command_CopyBuffer(command, rdata.Geometry.VertexArena.Transfer.Buffer,
+                                  rdata.Geometry.VertexArena.Graphics.Buffer, copies.Vertex);
 
     if (!copies.Index.IsEmpty())
-        rdata.Geometry.IndexArena.Graphics.Buffer.CopyFromBuffer2(command, rdata.Geometry.IndexArena.Transfer.Buffer,
-                                                                  copies.Index);
+        Graph::Command_CopyBuffer(command, rdata.Geometry.IndexArena.Transfer.Buffer,
+                                  rdata.Geometry.IndexArena.Graphics.Buffer, copies.Index);
 
     info.Command = command;
 }
 
-TransferSubmitInfo Transfer(VKit::Queue *tqueue, const VkCommandBuffer command, const u32 maxLights,
-                            const u32 maxReleaseBarriers)
+TransferSubmitInfo Renderer_Transfer(const Graph::CommandBuffer command, const u32 maxLights,
+                                     const u32 maxReleaseBarriers)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Transfer");
     TransferSubmitInfo submitInfo{};
-    const bool separate = Execution::IsSeparateTransferMode();
-    TKit::StackArray<VkBufferMemoryBarrier2KHR> release{};
+    const bool separate = isSeparateTransfer();
+    TKit::StackArray<Graph::BufferMemoryBarrierInfo> release{};
     if (separate)
         release.Reserve(maxReleaseBarriers);
 
-    const u64 transferFlight = tqueue->NextTimelineValue();
+    const u64 transferFlight = Graph::Queue_ReserveTimelineValue(Graph::Queue_Transfer);
 
-    transfer<D2>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight, maxLights);
-    transfer<D3>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight, maxLights);
+    Graph::Tracker tracker{};
+    tracker.Queue = Graph::Queue_Transfer;
+    tracker.InFlightValue = transferFlight;
+
+    transfer<D2>(command, submitInfo, separate ? &release : nullptr, tracker, maxLights);
+    transfer<D3>(command, submitInfo, separate ? &release : nullptr, tracker, maxLights);
 
 #ifdef TKIT_ENABLE_ENSURE
     validateRanges<D2>();
@@ -2276,25 +2853,10 @@ TransferSubmitInfo Transfer(VKit::Queue *tqueue, const VkCommandBuffer command, 
 #endif
 
     if (separate)
-    {
-        VkDependencyInfoKHR info{};
-        info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
-        info.bufferMemoryBarrierCount = release.GetSize();
-        info.pBufferMemoryBarriers = release.GetData();
-        info.dependencyFlags = 0;
-        const auto table = GetDeviceTable();
-        table->CmdPipelineBarrier2KHR(command, &info);
-    }
+        Graph::Command_BufferBarrier(command, release);
+
     if (submitInfo)
-    {
-        VkSemaphoreSubmitInfoKHR semInfo{};
-        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        semInfo.semaphore = tqueue->GetTimelineSempahore();
-        semInfo.value = transferFlight;
-        semInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-        submitInfo.SignalSemaphore = semInfo;
         submitInfo.InFlightValue = transferFlight;
-    }
 
     s_SyncPointCount = 0;
     for (const InstanceArena &arena : getRendererData<D2>().Geometry.Arenas)
@@ -2304,46 +2866,29 @@ TransferSubmitInfo Transfer(VKit::Queue *tqueue, const VkCommandBuffer command, 
     return submitInfo;
 }
 
-void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info)
+void Renderer_SubmitTransfer(const Graph::CommandPool pool, const TKit::Span<const TransferSubmitInfo> info)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::SubmitTransfer");
-    TKit::StackArray<VkSubmitInfo2KHR> submits{};
+    TKit::StackArray<Graph::SubmitInfo> submits{};
     submits.Reserve(info.GetSize());
-
-    TKit::StackArray<VkCommandBufferSubmitInfoKHR> cmds{};
-    cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
     for (const TransferSubmitInfo &inf : info)
     {
-        TKIT_ASSERT(inf.Command,
-                    "[ONYX][RENDERER] A submission must have a valid transfer command buffer to be submitted");
+        TKIT_ASSERT(inf, "[ONYX][RENDERER] A submission must have a valid transfer command buffer to be submitted");
         if (inf.InFlightValue > maxFlight)
             maxFlight = inf.InFlightValue;
 
-        VkSubmitInfo2KHR &sinfo = submits.Append();
-        sinfo = {};
-        sinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
-
-        sinfo.signalSemaphoreInfoCount = 1;
-        sinfo.pSignalSemaphoreInfos = &inf.SignalSemaphore;
-
-        VkCommandBufferSubmitInfoKHR &cmd = cmds.Append();
-        cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
-        cmd.pNext = nullptr;
-        cmd.commandBuffer = inf.Command;
-        cmd.deviceMask = 0;
-
-        sinfo.commandBufferInfoCount = 1;
-        sinfo.pCommandBufferInfos = &cmd;
-        sinfo.flags = 0;
+        Graph::SubmitInfo &sinfo = submits.Append();
+        sinfo.Commands = inf.Command;
+        sinfo.SignalValue = inf.InFlightValue;
     }
 
-    Execution::MarkInUse(pool, transfer, maxFlight);
-    ONYX_CHECK_VKIT_RESULT(transfer->Submit2(submits));
+    MarkCommandPoolInUse(pool, maxFlight);
+    Graph::Queue_Submit(Graph::Queue_Transfer, submits);
 }
 
-template <Dimension D> void gatherAcquireBarriers(TKit::StackArray<VkBufferMemoryBarrier2KHR> &barriers)
+template <Dimension D> void gatherAcquireBarriers(TKit::StackArray<Graph::BufferMemoryBarrierInfo> &barriers)
 {
     RendererData<D> &rdata = getRendererData<D>();
     barriers.Insert(barriers.end(), rdata.AcquireBarriers.begin(), rdata.AcquireBarriers.end());
@@ -2397,207 +2942,189 @@ template <Dimension D> void prepareRender()
     }
 }
 
-void PrepareRender()
+void Renderer_PrepareRender()
 {
     prepareRender<D2>();
     prepareRender<D3>();
 }
-void ApplyAcquireBarriers(const VkCommandBuffer cmd)
+void Renderer_ApplyAcquireBarriers(const Graph::CommandBuffer cmd)
 {
-    TKit::StackArray<VkBufferMemoryBarrier2KHR> barriers{};
+    TKit::StackArray<Graph::BufferMemoryBarrierInfo> barriers{};
     barriers.Reserve(s_RendererData2->AcquireBarriers.GetSize() + s_RendererData3->AcquireBarriers.GetSize());
     gatherAcquireBarriers<D2>(barriers);
     gatherAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())
-    {
-        const auto table = GetDeviceTable();
-        VkDependencyInfoKHR info{};
-        info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
-        info.bufferMemoryBarrierCount = barriers.GetSize();
-        info.pBufferMemoryBarriers = barriers.GetData();
-        info.dependencyFlags = 0;
-        table->CmdPipelineBarrier2KHR(cmd, &info);
-    }
+        Graph::Command_BufferBarrier(cmd, barriers);
 }
 
+static constexpr Graph::BufferFlags s_DrawBufferFlags =
+    Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess | Graph::BufferFlag_Indirect;
+
 template <typename T>
-ONYX_NO_DISCARD static VKit::DeviceBuffer *findAvailableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers,
-                                                                   const u32 drawCount, const VKit::Queue *graphics,
-                                                                   const u64 inFlightValue)
+ONYX_NO_DISCARD static Graph::Buffer *findAvailableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers, const u32 drawCount,
+                                                              const Graph::Tracker &tracker)
 {
     for (DrawBuffer &db : buffers)
         if (!db.Tracker.InUse())
         {
-            GrowBufferIfNeeded<T>(db.Buffer, drawCount);
-            db.Tracker.MarkInUse(graphics, inFlightValue);
+            GrowBufferIfNeeded<T>(db.Buffer, drawCount, s_DrawBufferFlags);
+            db.Tracker = tracker;
             return &db.Buffer;
         }
 
     DrawBuffer &db = buffers.Append();
 
-    db.Buffer = Onyx::CreateBuffer<T>(
-        DeviceBufferFlag_HostMapped | DeviceBufferFlag_HostRandomAccess | DeviceBufferFlag_Indirect, drawCount);
+    db.Buffer = Graph::Buffer_Create<T>(drawCount, s_DrawBufferFlags);
 
-    if (IsDebugUtilsEnabled())
-    {
-        ONYX_CHECK_VKIT_RESULT(db.Buffer.SetName("onyx-draw-buffer"));
-    }
+    if (Graph::IsValidationEnabled())
+        Graph::Buffer_SetName(db.Buffer, "onyx-draw-buffer");
 
-    db.Tracker.MarkInUse(graphics, inFlightValue);
+    db.Tracker = tracker;
     return &db.Buffer;
 }
 
-static VKit::DeviceBuffer *findAvailableDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
-                                                   const u64 inFlightValue)
+static Graph::Buffer *findAvailableDrawBuffer(const u32 drawCount, const Graph::Tracker &tracker)
 {
-    return findAvailableDrawBuffer<VkDrawIndirectCommand>(*s_DrawBuffers, drawCount, graphics, inFlightValue);
+    return findAvailableDrawBuffer<Graph::DrawIndirectCommand>(*s_DrawBuffers, drawCount, tracker);
 }
-static VKit::DeviceBuffer *findAvailableIndexedDrawBuffer(const u32 drawCount, const VKit::Queue *graphics,
-                                                          const u64 inFlightValue)
+static Graph::Buffer *findAvailableIndexedDrawBuffer(const u32 drawCount, const Graph::Tracker &tracker)
 {
-    return findAvailableDrawBuffer<VkDrawIndexedIndirectCommand>(*s_IndexedDrawBuffers, drawCount, graphics,
-                                                                 inFlightValue);
+    return findAvailableDrawBuffer<Graph::DrawIndexedIndirectCommand>(*s_IndexedDrawBuffers, drawCount, tracker);
 }
 
-template <Dimension D> static void bindMeshBuffers(const ResourcePool pool, const VkCommandBuffer command)
-{
-    const Resources::MeshBuffers buffers = Resources::ResourcePool_GetMeshBuffers<D>(pool);
+static constexpr Graph::IndexType s_IndexType = sizeof(Index) == 1   ? Graph::IndexType_Unsigned8
+                                                : sizeof(Index) == 2 ? Graph::IndexType_Unsigned16
+                                                                     : Graph::IndexType_Unsigned32;
 
-    buffers.VertexBuffer->BindAsVertexBuffer(command);
-    buffers.IndexBuffer->BindAsIndexBuffer<Index>(command);
+template <Dimension D> static void bindMeshBuffers(const ResourcePool pool, const Graph::CommandBuffer command)
+{
+    const MeshBuffers buffers = ResourcePool_GetMeshBuffers<D>(pool);
+
+    Graph::Command_BindVertexBuffers(command, buffers.VertexBuffer);
+    Graph::Command_BindIndexBuffer(command, buffers.IndexBuffer, s_IndexType);
 }
 
-static VkDrawIndirectCommand createCircleCommand(const u32 firstInstance, const u32 instanceCount)
+static Graph::DrawIndirectCommand createCircleCommand(const u32 firstInstance, const u32 instanceCount)
 {
-    VkDrawIndirectCommand cmd;
-    cmd.firstInstance = firstInstance;
-    cmd.instanceCount = instanceCount;
-    cmd.firstVertex = 0;
-    cmd.vertexCount = 6;
+    Graph::DrawIndirectCommand cmd;
+    cmd.FirstInstance = firstInstance;
+    cmd.InstanceCount = instanceCount;
+    cmd.FirstVertex = 0;
+    cmd.VertexCount = 6;
     return cmd;
 }
 
 template <Dimension D>
-static VkDrawIndexedIndirectCommand createMeshCommand(const Resource mesh, const u32 firstInstance,
-                                                      const u32 instanceCount)
+static Graph::DrawIndexedIndirectCommand createMeshCommand(const Resource mesh, const u32 firstInstance,
+                                                           const u32 instanceCount)
 {
-    const MeshDataLayout layout = Resources::Mesh_GetLayout<D>(mesh);
-    VkDrawIndexedIndirectCommand cmd;
-    cmd.firstInstance = firstInstance;
-    cmd.instanceCount = instanceCount;
-    cmd.firstIndex = layout.IndexStart;
-    cmd.indexCount = layout.IndexCount;
-    cmd.vertexOffset = layout.VertexStart;
+    const MeshDataLayout layout = Mesh_GetLayout<D>(mesh);
+    Graph::DrawIndexedIndirectCommand cmd;
+    cmd.FirstInstance = firstInstance;
+    cmd.InstanceCount = instanceCount;
+    cmd.FirstIndex = layout.IndexStart;
+    cmd.IndexCount = layout.IndexCount;
+    cmd.VertexOffset = i32(layout.VertexStart);
     return cmd;
 }
 
 template <Dimension D>
-static VkDrawIndexedIndirectCommand createDynamicMeshCommand(const GraphicsInstanceRange &grange,
-                                                             const u32 firstInstance, const u32 instanceCount)
+static Graph::DrawIndexedIndirectCommand createDynamicMeshCommand(const GraphicsInstanceRange &grange,
+                                                                  const u32 firstInstance, const u32 instanceCount)
 {
     TKIT_ASSERT(grange.ActiveVertexRange && grange.ActiveIndexRange,
                 "[ONYX][RENDERER] Cannot create a dynamic mesh command when any of the active vertex/index memory "
                 "ranges are null");
 
-    VkDrawIndexedIndirectCommand cmd;
-    cmd.firstInstance = firstInstance;
-    cmd.instanceCount = instanceCount;
-    cmd.firstIndex = grange.ActiveIndexRange->Offset / sizeof(Index);
-    cmd.indexCount = grange.ActiveIndexRange->Size / sizeof(Index);
-    cmd.vertexOffset = grange.ActiveVertexRange->Offset / sizeof(DynamicVertex<D>);
+    Graph::DrawIndexedIndirectCommand cmd;
+    cmd.FirstInstance = firstInstance;
+    cmd.InstanceCount = instanceCount;
+    cmd.FirstIndex = grange.ActiveIndexRange->Offset / sizeof(Index);
+    cmd.IndexCount = grange.ActiveIndexRange->Size / sizeof(Index);
+    cmd.VertexOffset = i32(grange.ActiveVertexRange->Offset / sizeof(DynamicVertex<D>));
 
     return cmd;
 }
 
-template <Dimension D> static void beginShadowTransitionLayout(const VkCommandBuffer cmd, TextureMap &map)
+static void transitionLayout(const Graph::CommandBuffer cmd, const Graph::Image image, const Graph::ImageLayout layout,
+                             const Graph::AccessFlags srcAccess, const Graph::AccessFlags dstAccess,
+                             const Graph::PipelineStageFlags srcStage, const Graph::PipelineStageFlags dstStage)
 {
-    const VkImageLayout attLayout =
-        D == D3 ? VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    map.Image.TransitionLayout2(
-        cmd, attLayout,
-        {.SrcAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-         .DstAccess =
-             D == D3 ? VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-         .SrcStage = D == D3 ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-         .DstStage = D == D3 ? VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR
-                             : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
+    Graph::ImageMemoryBarrierInfo barrier{};
+    barrier.Image = image;
+    barrier.NewLayout = layout;
+    barrier.SrcStages = srcStage;
+    barrier.SrcAccess = srcAccess;
+    barrier.DstStages = dstStage;
+    barrier.DstAccess = dstAccess;
+    Graph::Command_ImageBarrier(cmd, barrier);
 }
 
-template <Dimension D> static void endShadowTransitionLayout(const VkCommandBuffer cmd, TextureMap &map)
+template <Dimension D> static void beginShadowTransitionLayout(const Graph::CommandBuffer cmd, TextureMap &map)
 {
-    map.Image.TransitionLayout2(cmd, D == D3 ? VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL,
-                                {.SrcAccess = D == D3 ? VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR
-                                                      : VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-                                 .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                 .SrcStage = D == D3 ? VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT_KHR
-                                                     : VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                 .DstStage = D == D3 ? VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR
-                                                     : VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR});
+    const Graph::ImageLayout attLayout =
+        D == D3 ? Graph::ImageLayout_DepthStencilAttachment : Graph::ImageLayout_ColorAttachment;
+    transitionLayout(cmd, map.Image, attLayout, Graph::AccessFlag_ShaderRead,
+                     D == D3 ? Graph::AccessFlag_DepthStencilAttachmentWrite : Graph::AccessFlag_ColorAttachmentWrite,
+                     D == D3 ? Graph::PipelineStageFlag_FragmentShader : Graph::PipelineStageFlag_ComputeShader,
+                     D == D3 ? Graph::PipelineStageFlag_EarlyFragmentTests
+                             : Graph::PipelineStageFlag_ColorAttachmentOutput);
+}
+
+// NOTE: the depth maps used to be transitioned to VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL. Graph has no such layout, and the
+// descriptors referencing these maps are written with the shader read only layout, so that is the one used instead
+template <Dimension D> static void endShadowTransitionLayout(const Graph::CommandBuffer cmd, TextureMap &map)
+{
+    transitionLayout(cmd, map.Image, D == D3 ? Graph::ImageLayout_ShaderReadOnly : Graph::ImageLayout_General,
+                     D == D3 ? Graph::AccessFlag_DepthStencilAttachmentWrite : Graph::AccessFlag_ColorAttachmentWrite,
+                     Graph::AccessFlag_ShaderRead,
+                     D == D3 ? Graph::PipelineStageFlag_LateFragmentTests
+                             : Graph::PipelineStageFlag_ColorAttachmentOutput,
+                     D == D3 ? Graph::PipelineStageFlag_FragmentShader : Graph::PipelineStageFlag_ComputeShader);
 }
 
 template <Dimension D>
-static void beginShadowPass(const VkCommandBuffer cmd, TextureMap &map, const u32 imageViewIndex = 0)
+static void beginShadowPass(const Graph::CommandBuffer cmd, TextureMap &map, const u32 imageViewIndex = 0)
 {
-    const VkImageLayout attLayout =
-        D == D3 ? VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    const Graph::ImageLayout attLayout =
+        D == D3 ? Graph::ImageLayout_DepthStencilAttachment : Graph::ImageLayout_ColorAttachment;
 
-    const VKit::DeviceImage::Info &info = map.Image.GetInfo();
-    const VkExtent2D extent = VkExtent2D{info.Width, info.Height};
+    Graph::AttachmentInfo att{};
+    att.View = Graph::Image_GetView(map.Image, imageViewIndex);
+    att.Layout = attLayout;
+    att.LoadOp = Graph::LoadOp_Clear;
+    att.StoreOp = Graph::StoreOp_Store;
 
-    VkRenderingAttachmentInfo att{};
-    att.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    att.imageView = map.Image.GetView(imageViewIndex);
-    att.imageLayout = attLayout;
-    att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    VkRenderingInfoKHR renderInfo{};
-
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
-    renderInfo.renderArea = {{0, 0}, extent};
-    renderInfo.layerCount = 1;
+    Graph::RenderPassInfo renderInfo{};
+    renderInfo.RenderArea = {{0, 0}, map.Extent};
+    renderInfo.LayerCount = 1;
     if constexpr (D == D3)
     {
-        att.clearValue.depthStencil = {1.f, 0};
-        renderInfo.pDepthAttachment = &att;
+        att.ClearValue.DepthStencil = {1.f, 0};
+        renderInfo.DepthAttachment = &att;
     }
     else
     {
-        att.clearValue.color = {{0.f, 0.f, 0.f, 0.f}};
-        renderInfo.colorAttachmentCount = 1;
-        renderInfo.pColorAttachments = &att;
+        att.ClearValue.Color = f32v4{0.f};
+        renderInfo.ColorAttachments = att;
     }
 
-    VkViewport viewport{};
-    viewport.x = 0.f;
-    viewport.y = 0.f;
-    viewport.width = f32(extent.width);
-    viewport.height = f32(extent.height);
-    viewport.minDepth = 0.f;
-    viewport.maxDepth = 1.f;
+    Graph::Command_SetViewport(cmd, f32v2{0.f}, f32v2{map.Extent});
+    Graph::Command_SetScissor(cmd, i32v2{0}, map.Extent);
 
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = extent;
-
-    const auto table = GetDeviceTable();
-    table->CmdSetViewport(cmd, 0, 1, &viewport);
-    table->CmdSetScissor(cmd, 0, 1, &scissor);
-
-    table->CmdBeginRenderingKHR(cmd, &renderInfo);
+    Graph::Command_BeginRenderPass(cmd, renderInfo);
 }
 
-static void endShadowPass(const VkCommandBuffer cmd)
+static void endShadowPass(const Graph::CommandBuffer cmd)
 {
-    const auto table = GetDeviceTable();
-    table->CmdEndRenderingKHR(cmd);
+    Graph::Command_EndRenderPass(cmd);
 }
 
-static void addTransferTrackerIfNeeded(TKit::StackArray<Execution::Tracker> &transferTrackers,
-                                       const Execution::Tracker &tracker)
+static void addTransferTrackerIfNeeded(TKit::StackArray<Graph::Tracker> &transferTrackers,
+                                       const Graph::Tracker &tracker)
 {
     bool found = false;
-    for (Execution::Tracker &tr : transferTrackers)
+    for (Graph::Tracker &tr : transferTrackers)
     {
         if (tr.Queue == tracker.Queue)
         {
@@ -2612,9 +3139,9 @@ static void addTransferTrackerIfNeeded(TKit::StackArray<Execution::Tracker> &tra
 }
 
 template <Dimension D, typename F>
-static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, const ViewMask viewBit,
-                            const u64 inFlightValue, const F &insertCommand, const RenderModeFlags flags,
-                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr,
+static void collectDrawInfo(const Graph::Tracker &tracker, const Geometry geo, const ViewMask viewBit,
+                            const F &insertCommand, const RenderModeFlags flags,
+                            TKit::StackArray<Graph::Tracker> *transferTrackers = nullptr,
                             const BlendPass bpass = BlendPass_All)
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -2634,8 +3161,8 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
         TKIT_ASSERT(geo != Geometry_Circle || grange.MeshHandle == NullHandle,
                     "[ONYX][RENDERER] Circle geometry is required to have a null mesh handle");
 
-        VkDeviceSize offset = grange.Offset;
-        VkDeviceSize size = 0;
+        usz offset = grange.Offset;
+        usz size = 0;
 
         bool found = false;
         for (const ContextInstanceRange &crange : grange.ContextRanges)
@@ -2667,19 +3194,19 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
         else if (!found)
             continue;
 
-        grange.GraphicsTracker.MarkInUse(graphics, inFlightValue);
+        grange.GraphicsTracker = tracker;
         if (transferTrackers && grange.InUseByTransfer())
             addTransferTrackerIfNeeded(*transferTrackers, grange.TransferTracker);
 
         if (grange.ActiveVertexRange)
         {
-            grange.ActiveVertexRange->GraphicsTracker.MarkInUse(graphics, inFlightValue);
+            grange.ActiveVertexRange->GraphicsTracker = tracker;
             if (transferTrackers && grange.ActiveVertexRange->InUseByTransfer())
                 addTransferTrackerIfNeeded(*transferTrackers, grange.ActiveVertexRange->TransferTracker);
         }
         if (grange.ActiveIndexRange)
         {
-            grange.ActiveIndexRange->GraphicsTracker.MarkInUse(graphics, inFlightValue);
+            grange.ActiveIndexRange->GraphicsTracker = tracker;
             if (transferTrackers && grange.ActiveIndexRange->InUseByTransfer())
                 addTransferTrackerIfNeeded(*transferTrackers, grange.ActiveIndexRange->TransferTracker);
         }
@@ -2687,14 +3214,14 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
 }
 
 template <Dimension D>
-static void setupState(const VkCommandBuffer cmd, const RenderPass rpass, const Geometry geo,
-                       const VKit::PipelineLayout &playout, const VKit::GraphicsPipeline &pipeline)
+static void setupState(const Graph::CommandBuffer cmd, const RenderPass rpass, const Geometry geo,
+                       const Graph::PipelineLayout playout, const Graph::Pipeline pipeline)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    const VkDescriptorSet set = rdata.Descriptors[rpass][geo];
+    const Graph::DescriptorSet set = rdata.Descriptors[rpass][geo];
 
-    pipeline.Bind(cmd);
-    VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+    Graph::Command_BindPipeline(cmd, pipeline);
+    Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 }
 
 enum CullMode : u8
@@ -2706,9 +3233,9 @@ enum CullMode : u8
 
 // TODO(Isma): These could be stack arrays
 //  per draw cmd
-using CircleDrawCommands = TKit::TierArray<VkDrawIndirectCommand>;
+using CircleDrawCommands = TKit::TierArray<Graph::DrawIndirectCommand>;
 
-using IndexedCommands = TKit::TierArray<VkDrawIndexedIndirectCommand>;
+using IndexedCommands = TKit::TierArray<Graph::DrawIndexedIndirectCommand>;
 
 // per mesh type per resource pool per cull mode per draw cmd
 using PerCullPerCmd = ten<IndexedCommands, CullMode_Count>;
@@ -2720,23 +3247,22 @@ using DynMeshDrawCommands = ten<IndexedCommands, CullMode_Count>;
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4127)
 template <Dimension D>
-static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightValue, const VkCommandBuffer cmd,
-                               const RenderPass rpass, const VKit::PipelineLayout &playout,
-                               const ten<VKit::GraphicsPipeline, Geometry_Count> &pipelines,
+static void submitDrawCommands(const Graph::Tracker &tracker, const Graph::CommandBuffer cmd, const RenderPass rpass,
+                               const Graph::PipelineLayout playout,
+                               const ten<Graph::Pipeline, Geometry_Count> &pipelines,
                                const CircleDrawCommands &circleCmds, const MeshDrawCommands &meshCmds,
                                const DynMeshDrawCommands &dynMeshCmds)
 {
-    const auto table = GetDeviceTable();
     const u32 drawCount = circleCmds.GetSize();
     const usz size = circleCmds.GetBytes();
     if (drawCount != 0)
     {
         setupState<D>(cmd, rpass, Geometry_Circle, playout, pipelines[Geometry_Circle]);
-        VKit::DeviceBuffer *dbuffer = findAvailableDrawBuffer(drawCount, graphics, inFlightValue);
+        Graph::Buffer *dbuffer = findAvailableDrawBuffer(drawCount, tracker);
 
-        dbuffer->Write(circleCmds.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
-        ONYX_CHECK_VKIT_RESULT(dbuffer->Flush());
-        table->CmdDrawIndirect(cmd, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
+        Graph::Buffer_Write(*dbuffer, circleCmds.GetData(), {.Size = size});
+        Graph::Buffer_Flush(*dbuffer);
+        Graph::Command_DrawIndirect(cmd, *dbuffer, drawCount);
     }
 
     // NOTE(Isma): Bit of a mess, should consider cleaning this up
@@ -2746,8 +3272,8 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
     };
 
     const auto drawCulledMeshes = [&]([[maybe_unused]] const Geometry geo, const PerCullPerCmd &drawCmds) {
-        const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds1 = drawCmds[CullMode_None];
-        const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds2 = drawCmds[CullMode_Back];
+        const TKit::TierArray<Graph::DrawIndexedIndirectCommand> &cmds1 = drawCmds[CullMode_None];
+        const TKit::TierArray<Graph::DrawIndexedIndirectCommand> &cmds2 = drawCmds[CullMode_Back];
 
         const u32 dc1 = cmds1.GetSize();
         const u32 dc2 = cmds2.GetSize();
@@ -2759,27 +3285,27 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         TKIT_ASSERT((D == D3 && geo != Geometry_Glyph) || size2 == 0,
                     "[ONYX][RENDERER] No back culling draw commands must be submitted for flat geometry");
 
-        VKit::DeviceBuffer *dbuffer = findAvailableIndexedDrawBuffer(drawCount, graphics, inFlightValue);
+        Graph::Buffer *dbuffer = findAvailableIndexedDrawBuffer(drawCount, tracker);
 
         if (D == D2 || size1 != 0)
-            dbuffer->Write(cmds1.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size1});
+            Graph::Buffer_Write(*dbuffer, cmds1.GetData(), {.Size = size1});
         if constexpr (D == D3)
             if (size2 != 0)
-                dbuffer->Write(cmds2.GetData(), {.srcOffset = 0, .dstOffset = size1, .size = size2});
+                Graph::Buffer_Write(*dbuffer, cmds2.GetData(), {.Size = size2, .DstOffset = size1});
 
-        ONYX_CHECK_VKIT_RESULT(dbuffer->Flush());
+        Graph::Buffer_Flush(*dbuffer);
 
         if constexpr (D == D3)
             if (geo != Geometry_Glyph)
-                table->CmdSetCullModeEXT(cmd, VK_CULL_MODE_NONE);
+                Graph::Command_SetCullMode(cmd, Graph::CullMode_None);
 
         if (D == D2 || size1 != 0)
-            table->CmdDrawIndexedIndirect(cmd, *dbuffer, 0, dc1, sizeof(VkDrawIndexedIndirectCommand));
+            Graph::Command_DrawIndexedIndirect(cmd, *dbuffer, dc1);
         if constexpr (D == D3)
             if (size2 != 0)
             {
-                table->CmdSetCullModeEXT(cmd, VK_CULL_MODE_BACK_BIT);
-                table->CmdDrawIndexedIndirect(cmd, *dbuffer, size1, dc2, sizeof(VkDrawIndexedIndirectCommand));
+                Graph::Command_SetCullMode(cmd, Graph::CullMode_Back);
+                Graph::Command_DrawIndexedIndirect(cmd, *dbuffer, dc2, size1);
             }
     };
 
@@ -2787,7 +3313,7 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
         setupState<D>(cmd, rpass, geo, playout, pipelines[geo]);
 
         const ResourceType rtype = getResourceType(geo);
-        const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
+        const TKit::Span<const u32> poolIds = ResourcePool_GetIds<D>(rtype);
 
         for (const ResourcePool pid : poolIds)
             if (hasCommands(meshCmds[rtype][pid]))
@@ -2805,8 +3331,8 @@ static void submitDrawCommands(const VKit::Queue *graphics, const u64 inFlightVa
     {
         RendererData<D> &rdata = getRendererData<D>();
         setupState<D>(cmd, rpass, Geometry_Dynamic, playout, pipelines[Geometry_Dynamic]);
-        rdata.Geometry.VertexArena.Graphics.Buffer.BindAsVertexBuffer(cmd);
-        rdata.Geometry.IndexArena.Graphics.Buffer.template BindAsIndexBuffer<Index>(cmd);
+        Graph::Command_BindVertexBuffers(cmd, rdata.Geometry.VertexArena.Graphics.Buffer);
+        Graph::Command_BindIndexBuffer(cmd, rdata.Geometry.IndexArena.Graphics.Buffer, s_IndexType);
 
         drawCulledMeshes(Geometry_Dynamic, dynMeshCmds);
     }
@@ -2824,12 +3350,11 @@ template <Dimension D> static f32m4 unpackTransform(const PackedTransform<D> &pa
 
 static CullMode getCullMode(const Resource handle)
 {
-    return CullMode(Resources::IsBackCulled(handle));
+    return CullMode(Resources_IsBackCulled(handle));
 }
 
 template <Dimension D>
-static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd, const ViewMask viewBit,
-                          const u64 inFlightValue)
+static void renderShadows(const Graph::CommandBuffer cmd, const ViewMask viewBit, const Graph::Tracker &tracker)
 {
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
@@ -2837,214 +3362,208 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
     const ViewMask dirtyViews = sdata.DirtyShadowViews;
     sdata.DirtyShadowViews &= ~viewBit;
 
-    const auto table = GetDeviceTable();
-    const auto processLight =
-        [&]<typename LightParams>(const LightType ltype, const TKit::TierArray<LightParams> &lights,
+    const auto processLight = [&]<typename LightParams>(
+                                  const LightType ltype, const TKit::TierArray<LightParams> &lights,
                                   const TKit::TierArray<typename LightParams::InstanceData> lightData) {
-            using LightData = LightParams::InstanceData;
-            TKIT_ASSERT(
-                lights.GetSize() == lightData.GetSize(),
-                "[ONYX][RENDERER] Light count and light instance data count must match, but former has {} element(s) "
-                "while latter has {}",
-                lights.GetSize(), lightData.GetSize());
+        using LightData = LightParams::InstanceData;
+        TKIT_ASSERT(
+            lights.GetSize() == lightData.GetSize(),
+            "[ONYX][RENDERER] Light count and light instance data count must match, but former has {} element(s) "
+            "while latter has {}",
+            lights.GetSize(), lightData.GetSize());
 
-            for (u32 i = 0; i < lights.GetSize(); ++i)
-            {
-                const LightData &data = lightData[i];
+        for (u32 i = 0; i < lights.GetSize(); ++i)
+        {
+            const LightData &data = lightData[i];
 
-                static constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
-                static constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
-                static constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
+            static constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
+            static constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
+            static constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
 
-                if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
-                    continue;
-                if constexpr (D == D3 && isDir)
-                    if (data.CascadeEnable == 0)
-                        continue;
-
-                const LightParams &params = lights[i];
-
-                const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
-                const u32 shindex = data.ShadowMapOffset + viewIndex;
-                const u32 shPoolIndex = computeShadowMapPoolIndex<D>(ltype, shindex);
-
-                TextureMapArray &shadowMaps = sdata.ShadowMaps[ltype];
-                TextureMap &smap = shadowMaps[shPoolIndex];
-
-                smap.Tracker.MarkInUse(graphics, inFlightValue);
-
-                if (!(dirtyViews & viewBit))
+            if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
+                continue;
+            if constexpr (D == D3 && isDir)
+                if (data.CascadeEnable == 0)
                     continue;
 
-                CircleDrawCommands circleCmds{};
-                DynMeshDrawCommands dynMeshCmds{};
-                MeshDrawCommands meshCmds{};
-                const auto insertCommand = [&](const ResourceType rtype, const GraphicsInstanceRange &grange,
-                                               const u32 fi, const u32 ic) {
-                    if (grange.MeshHandle == NullHandle) // circles sentry
-                        circleCmds.Append(createCircleCommand(fi, ic));
-                    else
-                    {
-                        ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
-#ifdef TKIT_ENABLE_ENSURE
-                        if (rtype != Resource_DynamicMesh)
-                        {
-                            ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
-                            ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
-                        }
-#endif
-                        ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
+            const LightParams &params = lights[i];
 
-                        const u32 pid = Handle_GetResourcePoolId(grange.MeshHandle);
-                        PerCullPerCmd &cmds = rtype == Resource_DynamicMesh ? dynMeshCmds : meshCmds[rtype][pid];
-                        const VkDrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
-                                                                     ? createDynamicMeshCommand<D>(grange, fi, ic)
-                                                                     : createMeshCommand<D>(grange.MeshHandle, fi, ic);
+            const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
+            const u32 shindex = data.ShadowMapOffset + viewIndex;
+            const u32 shPoolIndex = computeShadowMapPoolIndex<D>(ltype, shindex);
 
-                        if constexpr (D == D2)
-                            cmds[CullMode_None].Append(cmd);
-                        else
-                            cmds[getCullMode(grange.MeshHandle)].Append(cmd);
-                    }
-                };
-                for (u32 j = 0; j < Geometry_Count; ++j)
-                {
-                    const Geometry geo = Geometry(j);
-                    // filtering by _Shaded saves us from a lot of computation (obviously) but most importantly avoids
-                    // misinterpretation of the MatOrSamplerTex field in the instance data with flat render modes
-                    collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
-                }
+            TextureMapArray &shadowMaps = sdata.ShadowMaps[ltype];
+            TextureMap &smap = shadowMaps[shPoolIndex];
 
-                const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) {
-                    beginShadowPass<D>(cmd, map, viewIndex);
-                    const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(RenderPass_Shadow);
+            smap.Tracker = tracker;
 
-                    ShadowPushConstantData<D> pdata;
-                    pdata.LightProjection = projView;
+            if (!(dirtyViews & viewBit))
+                continue;
 
-                    VkShaderStageFlags flags = VK_SHADER_STAGE_VERTEX_BIT;
-                    if constexpr (D == D3)
-                    {
-                        flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-                        if constexpr (isSpot || isPoint)
-                            pdata.DepthBias = params.DepthBias;
-                        else
-                            pdata.DepthBias = params.Cascades.DepthBias[viewIndex];
-
-                        if constexpr (isPoint)
-                        {
-                            pdata.LightPos = data.Position;
-                            pdata.Far = data.ShadowRadius;
-                        }
-                        else
-                            pdata.Far = 0.f;
-                    }
-
-                    table->CmdPushConstants(cmd, playout, flags, 0, sizeof(ShadowPushConstantData<D>), &pdata);
-                    submitDrawCommands<D>(graphics, inFlightValue, cmd, RenderPass_Shadow, playout, sdata.Pipelines,
-                                          circleCmds, meshCmds, dynMeshCmds);
-
-                    endShadowPass(cmd);
-                };
-
-                if constexpr (D == D2)
-                {
-                    const u32 ocindex = findAvailableOcclusionMap();
-                    TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
-                    ocmap.Tracker.MarkInUse(graphics, inFlightValue);
-
-                    beginShadowTransitionLayout<D2>(cmd, ocmap);
-                    if constexpr (isPoint)
-                    {
-                        const f32 r = data.ShadowRadius;
-                        f32m3 pv = Transform<D2>::Orthographic(-r, r, -r, r);
-                        pv[2][0] -= data.Position[0] * pv[0][0];
-                        pv[2][1] -= data.Position[1] * pv[1][1];
-                        processMap(ocmap, Transform<D2>::Promote(pv));
-                    }
-                    else
-                        processMap(ocmap, unpackTransform<D>(data.ProjectionView));
-
-                    endShadowTransitionLayout<D2>(cmd, ocmap);
-
-                    smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_GENERAL,
-                                                 {.SrcAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                                  .DstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
-                                                  .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                                  .DstStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR});
-
-                    const VkDescriptorSet set = sdata.RayMarchSet;
-
-                    sdata.RayMarchPipeline.Bind(cmd);
-                    const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout(StandalonePass_RayMarch);
-                    VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_COMPUTE, playout);
-
-                    RayMarchPushConstantData pdata;
-                    pdata.OcclusionMapIndex = ocindex;
-                    pdata.OcclusionResolution = sdata.OcclusionResolution;
-                    pdata.ShadowMapIndex = shindex;
-                    pdata.ShadowResolution = sdata.ShadowResolutions[ltype];
-                    pdata.DistanceBias = params.DepthBias;
-
-                    if constexpr (isPoint)
-                    {
-                        const f32 ext = Math::Pi() * data.Extent;
-                        const f32 angle = params.Angle;
-                        pdata.StartAngle = angle - ext;
-                        pdata.EndAngle = angle + ext;
-                        pdata.Mode = ONYX_MARCH_MODE_POINT_LIGHT;
-                    }
-                    else
-                        pdata.Mode = ONYX_MARCH_MODE_DIRECTIONAL_LIGHT;
-
-                    table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                                            sizeof(RayMarchPushConstantData), &pdata);
-
-                    constexpr u32 groupSize = 64;
-                    table->CmdDispatch(cmd, (pdata.ShadowResolution + groupSize - 1) / groupSize, 1, 1);
-
-                    smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                 {.SrcAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
-                                                  .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                                  .SrcStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                                                  .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
-                }
+            CircleDrawCommands circleCmds{};
+            DynMeshDrawCommands dynMeshCmds{};
+            MeshDrawCommands meshCmds{};
+            const auto insertCommand = [&](const ResourceType rtype, const GraphicsInstanceRange &grange, const u32 fi,
+                                           const u32 ic) {
+                if (grange.MeshHandle == NullHandle) // circles sentry
+                    circleCmds.Append(createCircleCommand(fi, ic));
                 else
                 {
-                    beginShadowTransitionLayout<D3>(cmd, smap);
-                    // TODO(Isma): Try to pseudo optimize this by working out the views?
+                    ONYX_CHECK_RESOURCE_IS_NOT_NULL(grange.MeshHandle);
+#ifdef TKIT_ENABLE_ENSURE
+                    if (rtype != Resource_DynamicMesh)
+                    {
+                        ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(grange.MeshHandle);
+                        ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
+                    }
+#endif
+                    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(grange.MeshHandle, rtype, D);
+
+                    const u32 pid = Handle_GetResourcePoolId(grange.MeshHandle);
+                    PerCullPerCmd &cmds = rtype == Resource_DynamicMesh ? dynMeshCmds : meshCmds[rtype][pid];
+                    const Graph::DrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
+                                                                      ? createDynamicMeshCommand<D>(grange, fi, ic)
+                                                                      : createMeshCommand<D>(grange.MeshHandle, fi, ic);
+
+                    if constexpr (D == D2)
+                        cmds[CullMode_None].Append(cmd);
+                    else
+                        cmds[getCullMode(grange.MeshHandle)].Append(cmd);
+                }
+            };
+            for (u32 j = 0; j < Geometry_Count; ++j)
+            {
+                const Geometry geo = Geometry(j);
+                // filtering by _Shaded saves us from a lot of computation (obviously) but most importantly avoids
+                // misinterpretation of the MatOrSamplerTex field in the instance data with flat render modes
+                collectDrawInfo<D>(tracker, geo, viewBit, insertCommand, RenderModeFlag_Shaded);
+            }
+
+            const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) {
+                beginShadowPass<D>(cmd, map, viewIndex);
+                const Graph::PipelineLayout playout = getPipelineLayout<D>(RenderPass_Shadow);
+
+                ShadowPushConstantData<D> pdata;
+                pdata.LightProjection = projView;
+
+                Graph::ShaderStageFlags flags = Graph::ShaderStageFlag_Vertex;
+                if constexpr (D == D3)
+                {
+                    flags |= Graph::ShaderStageFlag_Fragment;
+                    if constexpr (isSpot || isPoint)
+                        pdata.DepthBias = params.DepthBias;
+                    else
+                        pdata.DepthBias = params.Cascades.DepthBias[viewIndex];
+
                     if constexpr (isPoint)
                     {
-                        const f32 near = ONYX_POINT_LIGHT_NEAR_RADIUS_FACTOR * data.ShadowRadius;
-                        const f32 far = data.ShadowRadius;
-                        const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi(), near, far);
-
-                        constexpr f32v3 faceDir[6] = {
-                            f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},
-                            f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},  f32v3{0.f, 0.f, -1.f},
-                        };
-                        constexpr f32v3 faceUp[6] = {
-                            f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},
-                            f32v3{0.f, 0.f, -1.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f},
-                        };
-                        for (u32 j = 0; j < 6; ++j)
-                        {
-                            const f32m4 view = Transform<D3>::LookTowards(data.Position, faceDir[j], faceUp[j]);
-                            processMap(smap, proj * view, j);
-                        }
-                    }
-                    else if constexpr (isDir)
-                    {
-                        for (u32 j = 0; j < data.CascadeCount; ++j)
-                            if ((1U << j) & data.CascadeEnable)
-                                processMap(smap, unpackTransform<D>(data.Cascades[j].ProjectionView), j);
+                        pdata.LightPos = data.Position;
+                        pdata.Far = data.ShadowRadius;
                     }
                     else
-                        processMap(smap, data.ProjectionView);
-                    endShadowTransitionLayout<D3>(cmd, smap);
+                        pdata.Far = 0.f;
                 }
+
+                Graph::Command_PushConstants(cmd, playout, flags, &pdata);
+                submitDrawCommands<D>(tracker, cmd, RenderPass_Shadow, playout, sdata.Pipelines, circleCmds, meshCmds,
+                                      dynMeshCmds);
+
+                endShadowPass(cmd);
+            };
+
+            if constexpr (D == D2)
+            {
+                const u32 ocindex = findAvailableOcclusionMap();
+                TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
+                ocmap.Tracker = tracker;
+
+                beginShadowTransitionLayout<D2>(cmd, ocmap);
+                if constexpr (isPoint)
+                {
+                    const f32 r = data.ShadowRadius;
+                    f32m3 pv = Transform<D2>::Orthographic(-r, r, -r, r);
+                    pv[2][0] -= data.Position[0] * pv[0][0];
+                    pv[2][1] -= data.Position[1] * pv[1][1];
+                    processMap(ocmap, Transform<D2>::Promote(pv));
+                }
+                else
+                    processMap(ocmap, unpackTransform<D>(data.ProjectionView));
+
+                endShadowTransitionLayout<D2>(cmd, ocmap);
+
+                transitionLayout(cmd, smap.Image, Graph::ImageLayout_General, Graph::AccessFlag_ShaderRead,
+                                 Graph::AccessFlag_ShaderWrite, Graph::PipelineStageFlag_FragmentShader,
+                                 Graph::PipelineStageFlag_ComputeShader);
+
+                const Graph::DescriptorSet set = sdata.RayMarchSet;
+
+                Graph::Command_BindPipeline(cmd, sdata.RayMarchPipeline);
+                const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_RayMarch);
+                Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Compute, set);
+
+                RayMarchPushConstantData pdata;
+                pdata.OcclusionMapIndex = ocindex;
+                pdata.OcclusionResolution = sdata.OcclusionResolution;
+                pdata.ShadowMapIndex = shindex;
+                pdata.ShadowResolution = sdata.ShadowResolutions[ltype];
+                pdata.DistanceBias = params.DepthBias;
+
+                if constexpr (isPoint)
+                {
+                    const f32 ext = Math::Pi() * data.Extent;
+                    const f32 angle = params.Angle;
+                    pdata.StartAngle = angle - ext;
+                    pdata.EndAngle = angle + ext;
+                    pdata.Mode = ONYX_MARCH_MODE_POINT_LIGHT;
+                }
+                else
+                    pdata.Mode = ONYX_MARCH_MODE_DIRECTIONAL_LIGHT;
+
+                Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Compute, &pdata);
+
+                constexpr u32 groupSize = 64;
+                Graph::Command_Dispatch(cmd, (pdata.ShadowResolution + groupSize - 1) / groupSize);
+
+                transitionLayout(cmd, smap.Image, Graph::ImageLayout_ShaderReadOnly, Graph::AccessFlag_ShaderWrite,
+                                 Graph::AccessFlag_ShaderRead, Graph::PipelineStageFlag_ComputeShader,
+                                 Graph::PipelineStageFlag_FragmentShader);
             }
-        };
+            else
+            {
+                beginShadowTransitionLayout<D3>(cmd, smap);
+                // TODO(Isma): Try to pseudo optimize this by working out the views?
+                if constexpr (isPoint)
+                {
+                    const f32 near = ONYX_POINT_LIGHT_NEAR_RADIUS_FACTOR * data.ShadowRadius;
+                    const f32 far = data.ShadowRadius;
+                    const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi(), near, far);
+
+                    constexpr f32v3 faceDir[6] = {
+                        f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},
+                        f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},  f32v3{0.f, 0.f, -1.f},
+                    };
+                    constexpr f32v3 faceUp[6] = {
+                        f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},
+                        f32v3{0.f, 0.f, -1.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f},
+                    };
+                    for (u32 j = 0; j < 6; ++j)
+                    {
+                        const f32m4 view = Transform<D3>::LookTowards(data.Position, faceDir[j], faceUp[j]);
+                        processMap(smap, proj * view, j);
+                    }
+                }
+                else if constexpr (isDir)
+                {
+                    for (u32 j = 0; j < data.CascadeCount; ++j)
+                        if ((1U << j) & data.CascadeEnable)
+                            processMap(smap, unpackTransform<D>(data.Cascades[j].ProjectionView), j);
+                }
+                else
+                    processMap(smap, data.ProjectionView);
+                endShadowTransitionLayout<D3>(cmd, smap);
+            }
+        }
+    };
 
     const LightData<D> &ldata = rdata.Lights;
     processLight(Light_Point, ldata.Instances.Points.Lights, ldata.Instances.Points.Data);
@@ -3054,9 +3573,9 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 }
 
 template <Dimension D>
-static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cmd, const ViewInfo<D> &vinfo,
-                           const BlendPass bpass, const u64 inFlightValue,
-                           TKit::StackArray<Execution::Tracker> &transferTrackers, const bool shadows)
+static void renderGeometry(const Graph::CommandBuffer cmd, const ViewInfo<D> &vinfo, const BlendPass bpass,
+                           const Graph::Tracker &tracker, TKit::StackArray<Graph::Tracker> &transferTrackers,
+                           const bool shadows)
 {
     const ViewMask viewBit = vinfo.ViewBit;
 
@@ -3117,9 +3636,9 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             else
                 cull = getCullMode(grange.MeshHandle);
 
-            const VkDrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
-                                                         ? createDynamicMeshCommand<D>(grange, fi, ic)
-                                                         : createMeshCommand<D>(grange.MeshHandle, fi, ic);
+            const Graph::DrawIndexedIndirectCommand cmd = rtype == Resource_DynamicMesh
+                                                              ? createDynamicMeshCommand<D>(grange, fi, ic)
+                                                              : createMeshCommand<D>(grange.MeshHandle, fi, ic);
             if (rtype == Resource_DynamicMesh)
                 for (u32 i = 0; i < pcount; ++i)
                 {
@@ -3140,7 +3659,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
-        collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand,
+        collectDrawInfo<D>(tracker, geo, viewBit, insertCommand,
                            RenderModeFlag_Shaded | RenderModeFlag_Outlined | RenderModeFlag_Flat, &transferTrackers,
                            bpass);
     }
@@ -3156,12 +3675,10 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
                     "[ONYX][RENDERER] Active light graphics range arena does not have a valid generation or is just "
                     "null (forgot to call Renderer::PrepareRender()?)");
 
-        arena.ActiveRange->GraphicsTracker.MarkInUse(graphics, inFlightValue);
+        arena.ActiveRange->GraphicsTracker = tracker;
         if (arena.ActiveRange->InUseByTransfer())
             addTransferTrackerIfNeeded(transferTrackers, arena.ActiveRange->TransferTracker);
     }
-
-    const auto table = GetDeviceTable();
 
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 i = 0; i < PipelinePass_Count; ++i)
@@ -3170,10 +3687,9 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             continue;
         const PipelinePass pass = PipelinePass(i);
         const RenderPass rpass = GetRenderPass(pass);
-        const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(rpass);
+        const Graph::PipelineLayout playout = getPipelineLayout<D>(rpass);
         if (rpass == RenderPass_Flat)
-            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FlatPushConstantData),
-                                    &vinfo.ProjectionView);
+            Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Vertex, &vinfo.ProjectionView);
         else
         {
             ShadedPushConstantData<D> pdata;
@@ -3194,78 +3710,39 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 
             pdata.ViewBit = viewBit;
             pdata.AmbientColor = ambientColor;
-            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                                    sizeof(ShadedPushConstantData<D>), &pdata);
+            Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Vertex | Graph::ShaderStageFlag_Fragment,
+                                         &pdata);
         }
 
         const u32 idx = bpass == BlendPass_All ? BlendPass_Opaque : bpass;
-        submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout, rdata.Geometry.Pipelines[idx][pass],
-                              circleCmds[pass], meshCmds[pass], dynMeshCmds[pass]);
+        submitDrawCommands<D>(tracker, cmd, rpass, playout, rdata.Geometry.Pipelines[idx][pass], circleCmds[pass],
+                              meshCmds[pass], dynMeshCmds[pass]);
     }
 }
 
-static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCommandBuffer command,
-                                               const u64 graphicsFlight, const RenderTargetInfo &tinfo,
-                                               TKit::StackArray<Execution::Tracker> &transferTrackers)
+static RenderSubmitInfo createRenderSubmitInfo(const Graph::CommandBuffer command, const u64 graphicsFlight,
+                                               const RenderTargetInfo &tinfo,
+                                               TKit::StackArray<Graph::Tracker> &transferTrackers)
 {
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = command;
+    submitInfo.Swapchain = tinfo.Swapchain;
     submitInfo.InFlightValue = graphicsFlight;
 
-    if (tinfo.ImageAvailableSemaphore)
+    for (const Graph::Tracker &ttracker : transferTrackers)
     {
-        VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
-        imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        imgInfo.pNext = nullptr;
-        imgInfo.semaphore = tinfo.ImageAvailableSemaphore;
-        imgInfo.deviceIndex = 0;
-        imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-    }
-
-    VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores.Append();
-    gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    gtimSemInfo.pNext = nullptr;
-    gtimSemInfo.value = graphicsFlight;
-    gtimSemInfo.deviceIndex = 0;
-    gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
-    gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-
-    if (tinfo.RenderFinishedSemaphore)
-    {
-        VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores.Append();
-        rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        rendFinInfo.pNext = nullptr;
-        rendFinInfo.value = 0;
-        rendFinInfo.semaphore = tinfo.RenderFinishedSemaphore;
-        rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-        rendFinInfo.deviceIndex = 0;
-    }
-
-    for (const Execution::Tracker &ttracker : transferTrackers)
-    {
-        VkSemaphoreSubmitInfoKHR &ttimSemInfo = submitInfo.WaitSemaphores.Append();
-        ttimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        ttimSemInfo.pNext = nullptr;
-        ttimSemInfo.semaphore = ttracker.Queue->GetTimelineSempahore();
-        ttimSemInfo.deviceIndex = 0;
-        ttimSemInfo.value = ttracker.InFlightValue;
-        ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
+        Graph::WaitInfo &wait = submitInfo.WaitValues.Append();
+        wait.Value = ttracker.InFlightValue;
+        wait.QueueType = ttracker.Queue;
+        wait.StageFlags = Graph::PipelineStageFlag_VertexShader;
     }
     return submitInfo;
 }
 
 template <Dimension D>
-static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views, VKit::Queue *graphics,
-                        const VkCommandBuffer cmd, const u64 graphicsFlight,
-                        TKit::StackArray<Execution::Tracker> &transferTrackers)
+static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views, const Graph::CommandBuffer cmd,
+                        const Graph::Tracker &tracker, TKit::StackArray<Graph::Tracker> &transferTrackers)
 {
-    Execution::Tracker tracker;
-    tracker.Queue = graphics;
-    tracker.InFlightValue = graphicsFlight;
-
-    const auto &device = GetDevice();
-    const auto table = GetDeviceTable();
-
     TKit::StackArray<RenderView<D> *> ppViews{};
     ppViews.Reserve(views.GetSize());
 
@@ -3279,7 +3756,7 @@ static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS>
 
         const bool shadows = flags & RenderViewFlag_Shadows;
         if (shadows)
-            renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
+            renderShadows<D>(cmd, rv->GetViewBit(), tracker);
 
         rv->CacheMatrices();
         const ViewInfo<D> vinfo = rv->CreateViewInfo();
@@ -3290,27 +3767,28 @@ static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS>
         const BlendPass opaquePass = transparency ? BlendPass_Opaque : BlendPass_All;
 
         rv->BeginOpaquePass(cmd);
-        renderGeometry<D>(graphics, cmd, vinfo, opaquePass, graphicsFlight, transferTrackers, shadows);
+        renderGeometry<D>(cmd, vinfo, opaquePass, tracker, transferTrackers, shadows);
         rv->EndOpaquePass(cmd);
         if (transparency)
         {
             rv->BeginTransparentPass(cmd);
-            renderGeometry<D>(graphics, cmd, vinfo, BlendPass_Transparent, graphicsFlight, transferTrackers, shadows);
+            renderGeometry<D>(cmd, vinfo, BlendPass_Transparent, tracker, transferTrackers, shadows);
             rv->EndTransparentPass(cmd);
             rv->BeginBlendPass(cmd);
-            s_BlendPipeline.Bind(cmd);
+            Graph::Command_BindPipeline(cmd, s_BlendPipeline);
 
-            const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout(StandalonePass_Blend);
-            const VkDescriptorSet set = rv->GetBlendSet();
-            VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+            const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Blend);
+            const Graph::DescriptorSet set = rv->GetBlendSet();
+            Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
             const u32 idx = rv->GetAttachmentIndex();
             TKIT_ASSERT(idx < ONYX_MAX_ATTACHMENTS,
                         "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})", idx,
                         ONYX_MAX_ATTACHMENTS);
 
-            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(BlendPushConstantData), &idx);
-            table->CmdDraw(cmd, 6, 1, 0, 0);
+            static_assert(std::is_same_v<BlendPushConstantData, u32>);
+            Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
+            Graph::Command_Draw(cmd, 6);
 
             rv->EndBlendPass(cmd);
         }
@@ -3318,14 +3796,14 @@ static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS>
 
     if (!ppViews.IsEmpty())
     {
-        const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout(StandalonePass_PostProcess);
+        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_PostProcess);
         for (RenderView<D> *rv : ppViews)
         {
             rv->BeginPostProcess(cmd);
-            s_PostProcessPipeline.Bind(cmd);
+            Graph::Command_BindPipeline(cmd, s_PostProcessPipeline);
 
-            const VkDescriptorSet set = rv->GetPostProcessSet();
-            VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+            const Graph::DescriptorSet set = rv->GetPostProcessSet();
+            Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
             PostProcessPushConstantData pdata;
             pdata.AttachmentIndex = rv->GetAttachmentIndex();
@@ -3338,9 +3816,8 @@ static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS>
             pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
             pdata.Flags = rv->GetFlags();
 
-            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PostProcessPushConstantData),
-                                    &pdata);
-            table->CmdDraw(cmd, 6, 1, 0, 0);
+            Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);
+            Graph::Command_Draw(cmd, 6);
 
             rv->EndPostProcess(cmd);
         }
@@ -3348,18 +3825,16 @@ static void renderViews(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS>
 }
 
 template <Dimension D>
-static void renderCompositor(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views, const VkCommandBuffer cmd,
-                             const VKit::PipelineLayout &playout)
+static void renderCompositor(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views,
+                             const Graph::CommandBuffer cmd, const Graph::PipelineLayout playout)
 {
-    const auto &device = GetDevice();
-    const auto table = GetDeviceTable();
     for (const RenderView<D> *rv : views)
     {
         if (rv->GetFlags() & RenderViewFlag_Hidden)
             continue;
 
-        const VkDescriptorSet set = rv->GetCompositorSet();
-        VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+        const Graph::DescriptorSet set = rv->GetCompositorSet();
+        Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
         // TODO(Isma): Here, you must get the scissor normalized wrt viewport, re-normalize to screen with the viewport
         // coordinates, and multiply by the parent extent
@@ -3375,46 +3850,42 @@ static void renderCompositor(const TKit::StaticArray<RenderView<D> *, ONYX_MAX_V
         sc.Position = (sc.Position * nvp.Extent + nvp.Position) * pext; // (pext + padding);
         sc.Extent *= nvp.Extent * pext;                                 // (pext - padding);
 
-        const VkRect2D scissor = AsVulkanScissor(sc);
-
-        const VkViewport viewport = AsVulkanViewport(vp);
         const u32 idx = rv->GetAttachmentIndex();
 
-        table->CmdSetViewport(cmd, 0, 1, &viewport);
-        table->CmdSetScissor(cmd, 0, 1, &scissor);
-        table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(u32), &idx);
-        table->CmdDraw(cmd, 6, 1, 0, 0);
+        Graph::Command_SetViewport(cmd, vp.Position, vp.Extent, vp.Depth);
+        Graph::Command_SetScissor(cmd, i32v2{sc.Position}, u32v2{sc.Extent});
+        Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
+        Graph::Command_Draw(cmd, 6);
     }
 }
 
 template <typename Target>
-RenderSubmitInfo render(VKit::Queue *graphics, const VkCommandBuffer cmd, Target *target, const RenderFlags flags)
+RenderSubmitInfo render(const Graph::CommandBuffer cmd, Target *target, const RenderFlags flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
 
-    const u64 graphicsFlight = graphics->NextTimelineValue();
+    const u64 graphicsFlight = Graph::Queue_ReserveTimelineValue(Graph::Queue_Graphics);
     const RenderTargetInfo tinfo = target->CreateRenderTargetInfo();
 
-    TKit::StackArray<Execution::Tracker> transferTrackers{};
+    TKit::StackArray<Graph::Tracker> transferTrackers{};
     transferTrackers.Reserve(s_SyncPointCount);
 
-    renderViews(tinfo.Views2, graphics, cmd, graphicsFlight, transferTrackers);
-    renderViews(tinfo.Views3, graphics, cmd, graphicsFlight, transferTrackers);
-
-    Execution::Tracker tracker;
-    tracker.Queue = graphics;
+    Graph::Tracker tracker{};
+    tracker.Queue = Graph::Queue_Graphics;
     tracker.InFlightValue = graphicsFlight;
 
-    if constexpr (std::is_same_v<Target, Window>)
-        target->MarkImageSemaphoreInUse(tracker);
-    else
+    renderViews(tinfo.Views2, cmd, tracker, transferTrackers);
+    renderViews(tinfo.Views3, cmd, tracker, transferTrackers);
+
+    // windows do not need to mark their image as in use: the swap chain is tracked by Graph on submission
+    if constexpr (!std::is_same_v<Target, Window>)
         target->MarkWriteImageInUse(tracker);
 
     target->BeginRendering(cmd);
 
-    s_CompositorPipeline.Bind(cmd);
+    Graph::Command_BindPipeline(cmd, s_CompositorPipeline);
 
-    const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout(StandalonePass_Compositor);
+    const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Compositor);
     renderCompositor(tinfo.Views2, cmd, playout);
     renderCompositor(tinfo.Views3, cmd, playout);
 
@@ -3423,72 +3894,52 @@ RenderSubmitInfo render(VKit::Queue *graphics, const VkCommandBuffer cmd, Target
         if (flags & RenderFlag_ImGui)
         {
             ImGui::Render();
-            ImGuiBackend::RenderData(ImGui::GetDrawData(), cmd);
-            ImGuiBackend::UpdatePlatformWindows();
+            ImGuiBackend_RenderData(ImGui::GetDrawData(), cmd);
+            ImGuiBackend_UpdatePlatformWindows();
         }
 #else
     TKIT_UNUSED(flags);
 #endif
 
     target->EndRendering(cmd);
-    return createRenderSubmitInfo(graphics, cmd, graphicsFlight, tinfo, transferTrackers);
+    return createRenderSubmitInfo(cmd, graphicsFlight, tinfo, transferTrackers);
 }
 
-RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window *window, const RenderFlags flags)
+RenderSubmitInfo Renderer_Render(const Graph::CommandBuffer cmd, Window *window, const RenderFlags flags)
 {
-    return render(graphics, cmd, window, flags);
+    return render(cmd, window, flags);
 }
-RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, RenderTexture *rtex)
+RenderSubmitInfo Renderer_Render(const Graph::CommandBuffer cmd, RenderTexture *rtex)
 {
-    return render(graphics, cmd, rtex, 0);
+    return render(cmd, rtex, 0);
 }
 
-void SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)
+void Renderer_SubmitRender(const Graph::CommandPool pool, const TKit::Span<const RenderSubmitInfo> info)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::SubmitRender");
     TKIT_ASSERT(!info.IsEmpty(), "[ONYX][RENDERER] Must at least provide one submission");
-    TKit::StackArray<VkSubmitInfo2KHR> submits{};
+    TKit::StackArray<Graph::SubmitInfo> submits{};
     submits.Reserve(info.GetSize());
-
-    TKit::StackArray<VkCommandBufferSubmitInfoKHR> cmds{};
-    cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
     for (const RenderSubmitInfo &rinfo : info)
     {
-        TKIT_ASSERT(rinfo.Command,
+        TKIT_ASSERT(rinfo.Command != Graph::NullHandle,
                     "[ONYX][RENDERER] A submission must have a valid graphics command buffer to be submitted");
         if (rinfo.InFlightValue > maxFlight)
             maxFlight = rinfo.InFlightValue;
 
-        VkSubmitInfo2KHR &sinfo = submits.Append();
-        sinfo = {};
-        sinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
-        if (!rinfo.WaitSemaphores.IsEmpty())
-        {
-            sinfo.waitSemaphoreInfoCount = rinfo.WaitSemaphores.GetSize();
-            sinfo.pWaitSemaphoreInfos = rinfo.WaitSemaphores.GetData();
-        }
-
-        if (!rinfo.SignalSemaphores.IsEmpty())
-        {
-            sinfo.signalSemaphoreInfoCount = rinfo.SignalSemaphores.GetSize();
-            sinfo.pSignalSemaphoreInfos = rinfo.SignalSemaphores.GetData();
-        }
-
-        VkCommandBufferSubmitInfoKHR &cmd = cmds.Append();
-        cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
-        cmd.pNext = nullptr;
-        cmd.commandBuffer = rinfo.Command;
-        cmd.deviceMask = 0;
-
-        sinfo.commandBufferInfoCount = 1;
-        sinfo.pCommandBufferInfos = &cmd;
-        sinfo.flags = 0;
+        Graph::SubmitInfo &sinfo = submits.Append();
+        sinfo.Commands = rinfo.Command;
+        if (!rinfo.WaitValues.IsEmpty())
+            sinfo.Waits = TKit::Span<const Graph::WaitInfo>{rinfo.WaitValues.GetData(), rinfo.WaitValues.GetSize()};
+        // when a swap chain is provided, Graph takes care of the image available/render finished semaphores
+        sinfo.Swapchain = rinfo.Swapchain;
+        sinfo.SignalValue = rinfo.InFlightValue;
     }
 
-    Execution::MarkInUse(pool, graphics, maxFlight);
-    ONYX_CHECK_VKIT_RESULT(graphics->Submit2(submits));
+    MarkCommandPoolInUse(pool, maxFlight);
+    Graph::Queue_Submit(Graph::Queue_Graphics, submits);
 }
 
 template <typename Range, typename F> static void coalesceRanges(Pool<Range> &pool, F &&isInUse)
@@ -3560,7 +4011,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
             ngrange.RenderFlags = grange.RenderFlags;
             ngrange.MeshHandle = grange.MeshHandle;
 
-            // VkDeviceSize leftover = grange.Size;
+            // usz leftover = grange.Size;
             for (const ContextInstanceRange &crange : grange.ContextRanges)
             {
                 // leftover -= crange.Size;
@@ -3660,7 +4111,7 @@ template <Dimension D> void coalesce(const u32 maxRanges)
 #endif
 }
 
-void Coalesce(const u32 maxRanges)
+void Renderer_Coalesce(const u32 maxRanges)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Coalesce");
     coalesce<D2>(maxRanges);
@@ -3671,7 +4122,7 @@ template <typename... Args> static TKit::StackString fmt(fmt::format_string<Args
 {
     return TKit::StackString::Format(str, std::forward<Args>(args)...);
 }
-static TKit::StackString fmts(const VkDeviceSize bytes)
+static TKit::StackString fmts(const usz bytes)
 {
     if (bytes > 1_gib)
         return fmt("{:.2f} gib", f32(bytes) / f32(1_gib));
@@ -3681,7 +4132,7 @@ static TKit::StackString fmts(const VkDeviceSize bytes)
         return fmt("{:.2f} kib", f32(bytes) / f32(1_kib));
     return fmt("{:L} b", bytes);
 }
-static TKit::StackString fmtb(const VkDeviceSize bytes)
+static TKit::StackString fmtb(const usz bytes)
 {
     return fmt("{:L} b", bytes);
 }
@@ -3693,7 +4144,7 @@ static void displayRanges(Overlay *ov, const TKit::StringView name, const Pool<R
     const RendererData<D> &rdata = getRendererData<D>();
     if (ov->PushTree({&pool, fmt("{} pool ranges ({})", name, pool.Ranges.GetSize())}, s_DrawLines))
     {
-        ov->Text("Buffer size: {}", fmts(pool.Buffer.GetInfo().Size));
+        ov->Text("Buffer size: {}", fmts(Graph::Buffer_GetSize(pool.Buffer)));
         for (const Range &range : pool.Ranges)
             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
                 ov->Text("{} ({}): {} - {}", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size),
@@ -3766,7 +4217,7 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
                                                Color::FromHexadecimal(0x3B82F6B3), Color::FromHexadecimal(0xF59E0BB3),
                                                Color::FromHexadecimal(0xF97316B3)};
 
-    const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
+    const usz maxSize = Math::Max(Graph::Buffer_GetSize(tpool.Buffer), Graph::Buffer_GetSize(gpool.Buffer));
     if (maxSize == 0)
         return;
 
@@ -3811,9 +4262,8 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
         ov->EndPanel(); // row
     };
 
-    const auto drawBlock = [&](const VkDeviceSize offset, const VkDeviceSize size, const u32 colorIdx,
-                               const char *tooltipLabel, const Resource meshHandle = NullHandle,
-                               const RenderMode rmode = RenderMode_None) {
+    const auto drawBlock = [&](const usz offset, const usz size, const u32 colorIdx, const char *tooltipLabel,
+                               const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
         const f32 gap = 0.003f;
         const f32 normOffset = f32(offset) * invMax + 0.5f * gap;
         const f32 normSize = Math::Max(f32(size) * invMax - gap, 0.001f);
@@ -3911,7 +4361,7 @@ void plotRanges(Overlay *ov, const Pool<TRange> &tpool, const Pool<GRange> &gpoo
     ov->EndPanel(); // outer container
 }
 
-template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
+template <Dimension D> void Renderer_DisplayMemoryLayout(Overlay *ov)
 {
     const RendererData<D> &rdata = getRendererData<D>();
     const LightData<D> &ldata = rdata.Lights;
@@ -3962,320 +4412,29 @@ template <Dimension D> void DisplayMemoryLayout(Overlay *ov)
     ov->PopId();
 }
 
-// imgui code i used to visualize with that im still unsure to delete
-// #ifdef ONYX_ENABLE_IMGUI
-// template <Dimension D, typename Range>
-// static void displayRanges(const char *name, const Pool<Range> &pool, const u64 generation = 0)
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     // NOTE(Isma): Using stack strings as return values may be a bit dangerous. RVO may save us here, but its an
-//     // unreliable solution
-//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         if (bytes > 1_gib)
-//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-//         if (bytes > 1_mib)
-//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-//         if (bytes > 1_kib)
-//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
-//     {
-//         ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).CString());
-//         for (const Range &range : pool.Ranges)
-//             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
-//                 ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE",
-//                 fmts(range.Size).CString(),
-//                             fmtb(range.Offset).CString(), fmtb(range.Offset + range.Size).CString());
-//             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
-//             {
-//                 if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
-//                                     range.InUse()
-//                                         ? "IN-USE"
-//                                         : (rdata.AreAllContextRangesDirty(range)
-//                                                ? "FREE"
-//                                                : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-//                                     fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-//                                     fmtb(range.Offset + range.Size).CString()))
-//                 {
-//                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
-//                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
-//                     if (range.MeshHandle != NullHandle)
-//                         ImGui::Text("Mesh handle: %u", range.MeshHandle);
-//
-//                     if (range.RenderFlags != 0)
-//                         ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
-//                     const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
-//                     ImGui::Text("View mask: %s", vmask.CString());
-//                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
-//                     {
-//                         for (const ContextInstanceRange &crange : range.ContextRanges)
-//                             if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
-//                                                 rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
-//                                                 fmts(crange.Size).CString(), fmtb(crange.Offset).CString(),
-//                                                 fmtb(crange.Offset + crange.Size).CString()))
-//                             {
-//                                 if (crange.ContextIndex != TKIT_U32_MAX)
-//                                 {
-//                                     ImGui::Text("Context index: %u", crange.ContextIndex);
-// #    ifndef TKIT_OS_LINUX
-//                                     ImGui::Text("Context generation: %llu", crange.Generation);
-// #    else
-//                                     ImGui::Text("Context generation: %lu", crange.Generation);
-// #    endif
-//                                 }
-//                                 else
-//                                     ImGui::Text("Context index: None");
-//
-//                                 const TKit::StackString cvmask = TKit::StackString::Format("{:032b}",
-//                                 crange.ViewMask); ImGui::Text("View mask: %s", cvmask.CString()); ImGui::TreePop();
-//                                 ImGui::Spacing();
-//                             }
-//                         ImGui::TreePop();
-//                         ImGui::Spacing();
-//                     }
-//                     ImGui::TreePop();
-//                     ImGui::Spacing();
-//                 }
-//             }
-//             else
-//                 ImGui::Text("%s (%s): %s - %s",
-//                             range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
-//                             fmts(range.Size).CString(), fmtb(range.Offset).CString(),
-//                             fmtb(range.Offset + range.Size).CString());
-//         ImGui::TreePop();
-//         ImGui::Spacing();
-//     }
-// }
-//
-// #    ifdef ONYX_ENABLE_IMPLOT
-// template <Dimension D, typename TRange, typename GRange>
-// static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         if (bytes > 1_gib)
-//             return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
-//         if (bytes > 1_mib)
-//             return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
-//         if (bytes > 1_kib)
-//             return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//
-//     const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
-//         return TKit::StackString::Format("{:L} b", bytes);
-//     };
-//     const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
-//     constexpr u32 top = 2 + std::is_same_v<GRange, GraphicsInstanceRange>;
-//     ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, top, ImGuiCond_Always);
-//
-//     if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
-//     {
-//         constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
-//         const TKit::FixedArray<u32, 5> colors = {
-//             Color::FromHexadecimal(0x6B7280B3).Pack(), Color::FromHexadecimal(0x22C55EB3).Pack(),
-//             Color::FromHexadecimal(0x3B82F6B3).Pack(), Color::FromHexadecimal(0xF59E0BB3).Pack(),
-//             Color::FromHexadecimal(0xF97316B3).Pack()};
-//
-//         ImPlot::SetupAxes("Offset", nullptr, 0, ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Lock);
-//         ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, f64(top), ImGuiCond_Always);
-//         ImDrawList *dl = ImPlot::GetPlotDrawList();
-//
-//         const f32 height = 1.f;
-//         const f32 separation = 0.1f;
-//         const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32
-//         idx,
-//                                   const Resource meshHandle = NullHandle, const RenderMode rmode = RenderMode_None) {
-//             const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
-//             const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
-//
-//             dl->AddRectFilled(mnpix, mxpix, colors[idx]);
-//             dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
-//
-//             const char *lbl = status[idx];
-//             if (ImPlot::IsPlotHovered())
-//             {
-//                 const ImPlotPoint mouse = ImPlot::GetPlotMousePos();
-//                 if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
-//                 {
-//                     ImGui::BeginTooltip();
-//                     ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).CString(), fmts(size).CString());
-//                     if (rmode != RenderMode_None)
-//                     {
-//                         ImGui::SameLine();
-//                         ImGui::Text("- Mesh handle: %s - Render mode: %s",
-//                                     TKit::StackString::Format("{:#010x}", meshHandle).CString(), ToString(rmode));
-//                     }
-//                     ImGui::EndTooltip();
-//                 }
-//             }
-//         };
-//
-//         const auto drawLabel = [&dl](const char *name, const u32 bindex) {
-//             const ImVec2 labelPos = ImPlot::PlotToPixels(0, (bindex + 0.5));
-//             dl->AddText(ImVec2(labelPos.x + 4, labelPos.y - ImGui::GetTextLineHeight() * 0.5f),
-//                         IM_COL32(255, 255, 255, 255), name);
-//         };
-//
-//         for (const TRange &trange : tpool.Ranges)
-//             drawPlot(top - 1, trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0);
-//
-//         for (const GRange &range : gpool.Ranges)
-//             if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-//             {
-//                 const u32 idx =
-//                     range.InUse()
-//                         ? 1
-//                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 :
-//                         4));
-//                 drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle,
-//                          range.RenderFlags != 0 ? GetRenderMode(range.RenderFlags) : RenderMode_None);
-//                 for (const ContextInstanceRange &crange : range.ContextRanges)
-//                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 :
-//                     3);
-//             }
-//             else
-//             {
-//                 const u32 idx = range.InUse() ? 1 : (range.Generation == generation ? 2 : 0);
-//                 drawPlot(0, range.Offset, range.Size, idx);
-//             }
-//
-//         drawLabel("Transfer", top - 1);
-//         drawLabel("Graphics", top - 2);
-//         if constexpr (std::is_same_v<GRange, GraphicsInstanceRange>)
-//             drawLabel("Context", 0);
-//
-//         if (ImPlot::IsPlotHovered())
-//         {
-//             const ImVec2 plotPos = ImPlot::GetPlotPos();
-//             const ImVec2 plotSize = ImPlot::GetPlotSize();
-//
-//             constexpr f32 legendPadding = 8.f;
-//             constexpr f32 swatchSize = 12.f;
-//             constexpr f32 swatchSpacing = 4.f;
-//
-//             f32 totalWidth = legendPadding;
-//             const u32 stsize = status.GetSize() - 2 * std::is_same_v<GRange, GraphicsRange>;
-//             for (u32 j = 0; j < stsize; ++j)
-//                 totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[j]).x + legendPadding;
-//
-//             const f32 legendHeight = swatchSize + legendPadding * 2.f;
-//
-//             const ImVec2 legendMin = ImVec2(plotPos.x + (plotSize.x - totalWidth) * 0.5f,
-//                                             plotPos.y + plotSize.y - legendHeight - legendPadding);
-//             const ImVec2 legendMax = ImVec2(legendMin.x + totalWidth, legendMin.y + legendHeight);
-//
-//             dl->AddRectFilled(legendMin, legendMax, IM_COL32(30, 30, 30, 200));
-//             dl->AddRect(legendMin, legendMax, IM_COL32(255, 255, 255, 80));
-//
-//             f32 cursorX = legendMin.x + legendPadding;
-//             const f32 itemY = legendMin.y + legendPadding;
-//
-//             for (u32 j = 0; j < stsize; ++j)
-//             {
-//                 const ImVec2 swatchMin = ImVec2(cursorX, itemY);
-//                 const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
-//                 dl->AddRectFilled(swatchMin, swatchMax, colors[j]);
-//                 dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
-//                 cursorX += swatchSize + swatchSpacing;
-//
-//                 dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
-//                             IM_COL32(255, 255, 255, 255), status[j]);
-//                 cursorX += ImGui::CalcTextSize(status[j]).x + legendPadding;
-//             }
-//         }
-//         ImPlot::EndPlot();
-//     }
-// }
-// #    endif
-//
-// template <Dimension D> void DisplayMemoryLayout()
-// {
-//     const RendererData<D> &rdata = getRendererData<D>();
-//     const LightData<D> &ldata = rdata.Lights;
-//     ImGui::PushID(&rdata);
-//     if (ImGui::Button("Coalesce##Button"))
-//         coalesce<D>(512);
-//
-//     for (u32 i = 0; i < Geometry_Count; ++i)
-//     {
-//         const Geometry geo = Geometry(i);
-//         const InstanceArena &arena = rdata.Geometry.Arenas[geo];
-//         if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
-//         {
-//             displayRanges<D>("Transfer", arena.Transfer);
-//             displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//             plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//             ImGui::TreePop();
-//             ImGui::Spacing();
-//         }
-//     }
-//     for (u32 i = 0; i < LightTypeCount<D>; ++i)
-//     {
-//         const LightType light = LightType(i);
-//         const LightArena &arena = ldata.Arenas[light];
-//         if (ImGui::TreeNode(&arena, "%s", ToString(light)))
-//         {
-//             displayRanges<D>("Transfer", arena.Transfer);
-//             displayRanges<D>("Graphics", arena.Graphics, arena.ActiveGeneration);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//             plotRanges<D>(arena.Transfer, arena.Graphics, arena.ActiveGeneration);
-// #    endif
-//             ImGui::TreePop();
-//             ImGui::Spacing();
-//         }
-//     }
-//     if (ImGui::TreeNode("Vertex buffer"))
-//     {
-//         const Arena &arena = rdata.Geometry.VertexArena;
-//         displayRanges<D>("Transfer", arena.Transfer);
-//         displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//         plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//     }
-//     if (ImGui::TreeNode("Index buffer"))
-//     {
-//         const Arena &arena = rdata.Geometry.IndexArena;
-//         displayRanges<D>("Transfer", arena.Transfer);
-//         displayRanges<D>("Graphics", arena.Graphics);
-// #    ifdef ONYX_ENABLE_IMPLOT
-//         plotRanges<D>(arena.Transfer, arena.Graphics);
-// #    endif
-//     }
-//     ImGui::PopID();
-// }
-//
-// template void DisplayMemoryLayout<D2>();
-// template void DisplayMemoryLayout<D3>();
-// #endif
+template void Renderer_DisplayMemoryLayout<D2>(Overlay *ov);
+template void Renderer_DisplayMemoryLayout<D3>(Overlay *ov);
 
-template void DisplayMemoryLayout<D2>(Overlay *ov);
-template void DisplayMemoryLayout<D3>(Overlay *ov);
+template const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets<D2>(RenderPass rpass);
+template const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets<D3>(RenderPass rpass);
 
-template const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(RenderPass rpass);
-template const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(RenderPass rpass);
+template RenderContext<D2> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
+template RenderContext<D3> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
 
-template RenderContext<D2> *CreateContext(u32 immediateDynamicMeshCapacity);
-template RenderContext<D3> *CreateContext(u32 immediateDynamicMeshCapacity);
+template void Renderer_DestroyContext(const RenderContext<D2> *context);
+template void Renderer_DestroyContext(const RenderContext<D3> *context);
 
-template void DestroyContext(const RenderContext<D2> *context);
-template void DestroyContext(const RenderContext<D3> *context);
+template void Renderer_BindBuffer<D2>(u32 binding, const Graph::DescriptorBufferInfo &info, RenderPass pass,
+                                      u32 dstElement);
+template void Renderer_BindBuffer<D3>(u32 binding, const Graph::DescriptorBufferInfo &info, RenderPass pass,
+                                      u32 dstElement);
 
-template void BindBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
-                             u32 dstElement);
-template void BindBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
-                             u32 dstElement);
+template void Renderer_BindImage<D2>(u32 binding, const Graph::DescriptorImageInfo &info, RenderPass pass,
+                                     u32 dstElement);
+template void Renderer_BindImage<D3>(u32 binding, const Graph::DescriptorImageInfo &info, RenderPass pass,
+                                     u32 dstElement);
 
-template void BindImage<D2>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
-template void BindImage<D3>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
+template void Renderer_BindSampler<D2>(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement);
+template void Renderer_BindSampler<D3>(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement);
 
-} // namespace Onyx::Renderer
+} // namespace Onyx

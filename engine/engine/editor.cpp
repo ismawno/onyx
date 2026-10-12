@@ -1458,7 +1458,7 @@ static bool editor_SubmitUserLauncherDecision(const Editor_ProjectLauncherResult
 bool Initialize()
 {
     Onyx::Initialize();
-    Onyx::Resources::Default_Create();
+    Onyx::Resources_CreateDefault();
 
     s_Labels.Construct();
     s_Console.Construct();
@@ -1804,7 +1804,7 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         else
             ov->HorizontalSeparator("Static mesh 3D");
 
-        const Onyx::DefaultResources &defRes = Onyx::Resources::Default_Get();
+        const Onyx::DefaultResources &defRes = Onyx::Resources_GetDefault();
         TKit::StackArray<Onyx::Resource> defShapes{};
 
         defShapes.Reserve(5);
@@ -1875,7 +1875,7 @@ static void entityWindow_Draw()
 
         if (ov->BeginPopup("Components"))
         {
-            const Onyx::DefaultResources &defRes = Onyx::Resources::Default_Get();
+            const Onyx::DefaultResources &defRes = Onyx::Resources_GetDefault();
 
             const StaticMeshComponent<D2> defSt2 = {defRes.Quad2, Onyx::Color_White, StaticMesh_Quad};
             const StaticMeshComponent<D3> defSt3 = {defRes.Quad3, Onyx::Color_White, StaticMesh_Quad};

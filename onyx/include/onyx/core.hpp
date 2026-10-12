@@ -1,6 +1,9 @@
 #pragma once
 
 #include "onyx/alias.hpp"
+#include "onyx/dimension.hpp"
+#include "graph/core.hpp"
+#include "graph/input.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/utils/limits.hpp"
 #include "tkit/container/fixed_array.hpp"
@@ -48,32 +51,23 @@
 
 #define ONYX_CHECK_RESULT(expression) Onyx::CheckResult(expression);
 
-// if we ever implement other apis, we can alias its handles like this as well. these will have to be modified
-#define ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(name)                                                                      \
-    struct Vk##name##_T;                                                                                               \
-    using Onyx_##name = Vk##name##_T *;
-
-#if defined(__LP64__) || defined(_WIN64) || defined(__x86_64__) || defined(_M_X64) || defined(__ia64) ||               \
-    defined(_M_IA64) || defined(__aarch64__) || defined(__powerpc64__)
-#    define ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE ONYX_DECLARE_DISPATCHABLE_VK_HANDLE
-#else
-#    define ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(name) using Onyx_##name = u64;
-#endif
-
-#define ONYX_DECLARE_PLATFORM_HANDLES()                                                                                \
-    struct GLFWwindow;                                                                                                 \
-    struct GLFWcursor;                                                                                                 \
-    struct GLFWmonitor;                                                                                                \
-    using Onyx_WindowHandle = GLFWwindow;                                                                              \
-    using Onyx_CursorHandle = GLFWcursor;                                                                              \
-    using Onyx_MonitorHandle = GLFWmonitor;
-
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.
 
 namespace Onyx
 {
+using Graph::Key;
+using Graph::Mouse;
+using Graph::MouseCursor;
+using Graph::PresentMode;
+
+using enum Graph::Key;
+using enum Graph::Mouse;
+using enum Graph::PresentMode;
+using enum Graph::MouseCursor;
+
+static constexpr Graph::Format SurfaceFormat = Graph::Format_B8G8R8A8_UNORM;
 enum ErrorCode : u8
 {
     Error_LoadFailed,
@@ -124,47 +118,13 @@ template <typename T> T CheckResult(Result<T> &&result)
         return *result;
 }
 
-namespace Execution
-{
-struct Specs;
-} // namespace Execution
-namespace Resources
-{
-struct Specs;
-} // namespace Resources
-namespace Descriptors
-{
-struct Specs;
-} // namespace Descriptors
-
-#ifdef ONYX_ENABLE_SHADER_API
-namespace Shaders
-{
-struct Specs;
-} // namespace Shaders
-#endif
-
-namespace Renderer
-{
-struct Specs;
-} // namespace Renderer
-namespace Platform
-{
-struct Specs;
-} // namespace Platform
-
 using InitializationFlags = u16;
 enum InitializationFlagBit : InitializationFlags
 {
     InitializationFlag_DefaultTaskManagerSingleThread = 1U << 0,
-    InitializationFlag_EnableValidationLayers = 1U << 1,
-    InitializationFlag_EnableDebugUtilsExtension = 1U << 2,
-    InitializationFlag_EnableDeviceAssistedDebugFeature = 1U << 3,
-    InitializationFlag_EnableBestPracticesDebugFeature = 1U << 4,
-    InitializationFlag_EnablePrintfDebugFeature = 1U << 5,
-    InitializationFlag_EnableSyncValidationDebugFeature = 1U << 6,
-    InitializationFlag_EnableDeviceFaultExtension = 1U << 7,
-    InitializationFlag_ResetArenasOnTermination = 1U << 8
+    InitializationFlag_EnableValidation = 1U << 1,
+    InitializationFlag_EnablePrintfDebugFeature = 1U << 2,
+    InitializationFlag_EnableDeviceFaultExtension = 1U << 3,
 };
 
 struct Allocation
@@ -176,32 +136,19 @@ struct Allocation
 
 struct Specs
 {
-    const char *VulkanLoaderPath = nullptr;
+    const char *LoaderPath = nullptr;
     const char *Locale = "en_US.UTF-8";
     // null uses tmp dir. only relevant when device fault extension is enabled
     const char *DeviceFaultCrashDump = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
 
     TKit::FixedArray<Allocation, TKit::MaxThreads> Allocators{};
-    Execution::Specs *ExecutionSpecs = nullptr;
-    Resources::Specs *ResourceSpecs = nullptr;
-    Descriptors::Specs *DescriptorSpecs = nullptr;
-#ifdef ONYX_ENABLE_SHADER_API
-    Shaders::Specs *ShadersSpecs = nullptr;
-#endif
-    Renderer::Specs *RendererSpecs = nullptr;
-    Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ENSURE
 #    ifdef TKIT_OS_APPLE
-    InitializationFlags Flags =
-        InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
-        InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-        InitializationFlag_EnableDeviceFaultExtension;
+    InitializationFlags Flags = InitializationFlag_EnableValidation | InitializationFlag_EnableDeviceFaultExtension;
 #    else
-    InitializationFlags Flags =
-        InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
-        InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-        InitializationFlag_EnablePrintfDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
+    InitializationFlags Flags = InitializationFlag_EnableValidation | InitializationFlag_EnablePrintfDebugFeature |
+                                InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
     InitializationFlags Flags = 0;
@@ -225,4 +172,7 @@ void PushTier(u32 threadIndex);
 // NOTE(Isma): Should implement Pop for consistency
 
 TKit::ITaskManager *GetTaskManager();
+
+class Overlay;
+template <Dimension D> void Renderer_DisplayMemoryLayout(Overlay *ov);
 }; // namespace Onyx

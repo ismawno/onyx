@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/input.hpp"
+#include "graph/input.hpp"
 #include "onyx/transform.hpp"
 
 namespace Onyx
@@ -36,24 +36,24 @@ template <Dimension D> struct CameraControls;
 
 template <> struct CameraControls<D2>
 {
-    Key Up = Key_W;
-    Key Down = Key_S;
-    Key Left = Key_A;
-    Key Right = Key_D;
-    Key RotateLeft = Key_Q;
-    Key RotateRight = Key_E;
+    Graph::Key Up = Graph::Key_W;
+    Graph::Key Down = Graph::Key_S;
+    Graph::Key Left = Graph::Key_A;
+    Graph::Key Right = Graph::Key_D;
+    Graph::Key RotateLeft = Graph::Key_Q;
+    Graph::Key RotateRight = Graph::Key_E;
 };
 template <> struct CameraControls<D3>
 {
-    Key Forward = Key_W;
-    Key Backward = Key_S;
-    Key Left = Key_A;
-    Key Right = Key_D;
-    Key Up = Key_Space;
-    Key Down = Key_LeftControl;
-    Key RotateLeft = Key_Q;
-    Key RotateRight = Key_E;
-    Key ToggleLookAround = Key_LeftShift;
+    Graph::Key Forward = Graph::Key_W;
+    Graph::Key Backward = Graph::Key_S;
+    Graph::Key Left = Graph::Key_A;
+    Graph::Key Right = Graph::Key_D;
+    Graph::Key Up = Graph::Key_Space;
+    Graph::Key Down = Graph::Key_LeftControl;
+    Graph::Key RotateLeft = Graph::Key_Q;
+    Graph::Key RotateRight = Graph::Key_E;
+    Graph::Key ToggleLookAround = Graph::Key_LeftShift;
 };
 
 } // namespace Onyx

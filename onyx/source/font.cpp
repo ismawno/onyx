@@ -84,7 +84,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
     ImageData idata;
     idata.Width = u32(bitmap.width);
     idata.Height = u32(bitmap.height);
-    idata.Format = ImageFormat_R8G8B8A8_UNORM;
+    idata.Format = Graph::Format_R8G8B8A8_UNORM;
 
     TKit::StackArray<u8> flipped{};
     flipped.Reserve(idata.Width * idata.Height * 4);

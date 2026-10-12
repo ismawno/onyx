@@ -4,11 +4,8 @@
 #include "onyx/window.hpp"
 #include "onyx/render_texture.hpp"
 #include "onyx/instance.hpp"
-#include "execution.hpp"
 #include "pass.hpp"
-#include "vkit/execution/queue.hpp"
-#include "vkit/resource/sampler.hpp"
-#include "tkit/container/static_array.hpp"
+#include "graph/descriptor.hpp"
 
 namespace Onyx
 {
@@ -16,25 +13,23 @@ template <Dimension D> class RenderContext;
 
 struct TransferSubmitInfo
 {
-    VkCommandBuffer Command = VK_NULL_HANDLE;
+    Graph::CommandBuffer Command = Graph::NullHandle;
     u64 InFlightValue = 0;
-    VkSemaphoreSubmitInfoKHR SignalSemaphore{};
 
     operator bool() const
     {
-        return Command != VK_NULL_HANDLE;
+        return Command != Graph::NullHandle;
     }
 };
 
 struct RenderSubmitInfo
 {
-    VkCommandBuffer Command = VK_NULL_HANDLE;
+    Graph::CommandBuffer Command = Graph::NullHandle;
+    Graph::Swapchain Swapchain = Graph::NullHandle;
+    TKit::TierArray<Graph::WaitInfo> WaitValues{};
     u64 InFlightValue = 0;
-    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
-    TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
-// honestly, apart from imgui, rest can be toggled per view. these may be a bit redundant
 using RenderFlags = u8;
 enum RenderFlagBit : RenderFlags
 {
@@ -43,52 +38,45 @@ enum RenderFlagBit : RenderFlags
 #endif
 };
 
-} // namespace Onyx
+void Renderer_Initialize();
+void Renderer_Terminate();
 
-namespace Onyx::Renderer
-{
-
-void Initialize(const Specs &specs);
-void Terminate();
-
-VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
-
-template <Dimension D> RenderContext<D> *CreateContext(u32 immediateDynamicMeshCapacity);
-template <Dimension D> void DestroyContext(const RenderContext<D> *context);
-void FlushAllContexts();
-void ReloadPipelines();
-bool IsDepthSupportedFor2D();
+template <Dimension D> RenderContext<D> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
+template <Dimension D> void Renderer_DestroyContext(const RenderContext<D> *context);
+void Renderer_FlushAllContexts();
+void Renderer_ReloadPipelines();
 
 // TODO(Isma): Remove this. will not be necessary, onyx.hpp handles it
-void AddTarget(const ViewMask vmask);
-void RemoveTarget(const ViewMask vmask);
+void Renderer_AddTarget(const ViewMask vmask);
+void Renderer_RemoveTarget(const ViewMask vmask);
 
 // TODO(Isma): Add a bit more clearance on what these do. They essentially write into the renderer's descriptor sets
 template <Dimension D>
-void BindBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+void Renderer_BindBuffer(u32 binding, const Graph::DescriptorBufferInfo &info, RenderPass pass, u32 dstElement = 0);
 template <Dimension D>
-void BindImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+void Renderer_BindImage(u32 binding, const Graph::DescriptorImageInfo &info, RenderPass pass, u32 dstElement = 0);
+template <Dimension D>
+void Renderer_BindSampler(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement = 0);
 
-const VKit::Sampler &GetNearSampler();
+Graph::Sampler Renderer_GetNearSampler();
 
-template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
+template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets(RenderPass pass);
 
 // consider having arrays of semaphores to allow for some flexibility
 
 // NOTE(Isma): Same family index multi queue support was dropped. passing queues around is in theory no longer needed
 // anymore
-TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command, u32 maxLights = 1024,
-                            u32 maxReleaseBarriers = 256);
-void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info);
+TransferSubmitInfo Renderer_Transfer(Graph::CommandBuffer command, u32 maxLights = 1024, u32 maxReleaseBarriers = 256);
+void Renderer_SubmitTransfer(Graph::CommandPool pool, TKit::Span<const TransferSubmitInfo> info);
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)
-void PrepareRender();
-void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
+void Renderer_PrepareRender();
+void Renderer_ApplyAcquireBarriers(Graph::CommandBuffer graphicsCommand);
 
-RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window, RenderFlags flags = 0);
-RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, RenderTexture *rtex);
+RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, Window *window, RenderFlags flags = 0);
+RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, RenderTexture *rtex);
 
-void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
-void Coalesce(u32 maxRanges = 512);
+void Renderer_SubmitRender(Graph::CommandPool pool, TKit::Span<const RenderSubmitInfo> info);
+void Renderer_Coalesce(u32 maxRanges = 512);
 
-} // namespace Onyx::Renderer
+} // namespace Onyx

@@ -686,7 +686,7 @@ struct NativeWindow
     // a double click)
     u32 OverflowPresses = 0;
     u32 OverflowReleases = 0;
-    TKit::StaticBitSet<Key_Count> EventKeys{Key_Count};
+    TKit::StaticBitSet<Graph::Key_Count> EventKeys{Graph::Key_Count};
     TKit::TierString TextInput{};
 
     TKit::TierString InputWidgetBuffer{};
@@ -1175,7 +1175,7 @@ struct LastItemData
 struct NextItemData
 {
     LayoutId TextId = NullLayoutId;
-    Key ActivationKey = Key_None;
+    Graph::Key ActivationKey = Graph::Key_None;
     OverlayFocusFlags ActivationFlags = 0;
     NextItemFlags Flags = 0;
 };
@@ -1727,7 +1727,7 @@ class Overlay
         m_NextItem.TextId = id;
         m_NextItem.Flags |= NextItemFlag_HasTextId;
     }
-    void SetNextActivationKey(const Key key, const OverlayFocusFlags flags = 0)
+    void SetNextActivationKey(const Graph::Key key, const OverlayFocusFlags flags = 0)
     {
         m_NextItem.ActivationKey = key;
         m_NextItem.ActivationFlags = flags;
@@ -2507,7 +2507,7 @@ class Overlay
         f32 offset = 0.f;
         const NativeWindow *nw = m_Active->GetNative();
         const f32 normalized = imap(f32(clamped), f32(mn), f32(mx), -1.f, 1.f);
-        if ((iflags & OverlayInteractionQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Key_LeftControl))
+        if ((iflags & OverlayInteractionQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Graph::Key_LeftControl))
         {
             f32 relPos = nw->WorldMouse[idx] - elm->Position[idx] - 0.5f * length;
             if constexpr (TKit::Integer<T>)
@@ -2959,7 +2959,7 @@ class Overlay
     /// HELPERS PRIVATE
     /////////////////////////////////////////////
 
-    const FontData &Font_GetData() const;
+    const FontData &getFontData() const;
     f32 getLineHeight() const;
 
     OverlayFocusFlags standardHoverAllowance() const;

@@ -3,7 +3,8 @@
 #include "onyx/dimension.hpp"
 #include "onyx/handle.hpp"
 #include "onyx/pass.hpp"
-#include "onyx/math.hpp"
+#include "graph/resources.hpp"
+#include "tkit/container/bitset.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
 // (without any cpu detours)
@@ -133,5 +134,113 @@ template <> struct WorldRect<D3>
 
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
+
+class Buffer
+{
+  public:
+    Buffer() = default;
+    Buffer(const usz size, const usize alignment = alignof(std::max_align_t)) : m_Size(size), m_Alignment(alignment)
+    {
+        m_Data = TKit::AllocateAligned(size, alignment);
+    }
+
+    template <typename T> static Buffer Create(const u32 instanceCount)
+    {
+        return Buffer(instanceCount * sizeof(T), alignof(T));
+    }
+
+    void Write(const void *data, const Graph::BufferCopy &copy)
+    {
+        TKIT_ASSERT(m_Size >= copy.Size + copy.DstOffset,
+                    "[ONYX][BUFFER] Copy size ({}) must be smaller or equal than the buffer size ({}) minus "
+                    "destination offset ({})",
+                    copy.Size, m_Size, copy.DstOffset);
+
+        std::byte *dst = scast<std::byte *>(m_Data) + copy.DstOffset;
+        const std::byte *src = scast<const std::byte *>(data) + copy.SrcOffset;
+        TKit::ForwardCopy(dst, src, copy.Size);
+    }
+    void Destroy()
+    {
+        TKit::DeallocateAligned(m_Data);
+        m_Data = nullptr;
+    }
+
+    const void *GetData() const
+    {
+        return m_Data;
+    }
+    void *GetData()
+    {
+        return m_Data;
+    }
+
+    void Resize(const usz size)
+    {
+        void *data = TKit::AllocateAligned(size, m_Alignment);
+        TKit::ForwardCopy(data, m_Data, m_Size);
+        TKit::DeallocateAligned(m_Data);
+        m_Data = data;
+        m_Size = size;
+    }
+    operator bool() const
+    {
+        return m_Data != nullptr;
+    }
+
+    usz GetSize() const
+    {
+        return m_Size;
+    }
+
+  private:
+    void *m_Data = nullptr;
+    usz m_Size = 0;
+    usize m_Alignment = 0;
+};
+
+struct InstanceDataBuffer
+{
+    Buffer Data{};
+    u32 InstanceSize = 0;
+    u32 Instances = 0;
+    u32 Capacity = 0;
+};
+
+struct LocalResourceRegistry
+{
+    // NOTE(Isma): Is this enough?
+    TKit::TierArray<Resource> ResourceIds{};
+    TKit::StaticBitSet2048 UsedResourceIds{2048};
+
+    void Clear()
+    {
+        ResourceIds.Clear();
+        UsedResourceIds.ClearAll();
+    }
+
+    void RegisterResourceId(const u32 rid)
+    {
+        if (!UsedResourceIds[rid])
+        {
+            UsedResourceIds.Set(rid);
+            ResourceIds.Append(rid);
+        }
+    }
+};
+
+struct InstanceResourceGroup
+{
+    TKit::TierArray<InstanceDataBuffer> Buffers{};
+    LocalResourceRegistry Registry{};
+};
+
+struct ContextInstanceData
+{
+    ten<InstanceDataBuffer, BlendPass_Count, RenderMode_Count> Circles{};
+    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count> DynamicMeshes{};
+    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
+        Meshes{};
+};
 
 } // namespace Onyx

@@ -1,11 +1,8 @@
 #pragma once
 
 #include "onyx/instance.hpp"
-#include "onyx/math.hpp"
 #include "onyx/handle.hpp"
 #include "onyx/resources.hpp"
-#include "vkit/resource/host_buffer.hpp"
-#include "tkit/container/bitset.hpp"
 
 namespace Onyx
 {
@@ -275,56 +272,12 @@ struct RayMarchPushConstantData
     f32 DistanceBias;
 };
 
-struct InstanceDataBuffer
-{
-    VKit::HostBuffer Data{};
-    u32 InstanceSize = 0;
-    u32 Instances = 0;
-    u32 Capacity = 0;
-};
-
-struct LocalResourceRegistry
-{
-    // NOTE(Isma): Is this enough?
-    TKit::TierArray<Resource> ResourceIds{};
-    TKit::StaticBitSet2048 UsedResourceIds{2048};
-
-    void Clear()
-    {
-        ResourceIds.Clear();
-        UsedResourceIds.ClearAll();
-    }
-
-    void RegisterResourceId(const u32 rid)
-    {
-        if (!UsedResourceIds[rid])
-        {
-            UsedResourceIds.Set(rid);
-            ResourceIds.Append(rid);
-        }
-    }
-};
-
-struct InstanceResourceGroup
-{
-    TKit::TierArray<InstanceDataBuffer> Buffers{};
-    LocalResourceRegistry Registry{};
-};
-
-struct ContextInstanceData
-{
-    ten<InstanceDataBuffer, BlendPass_Count, RenderMode_Count> Circles{};
-    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count> DynamicMeshes{};
-    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
-        Meshes{};
-};
-
 template <Dimension D, typename F> void ForEachResourceGroup(F &&func)
 {
     TKit::IterateMultiIndex<BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount>(
         [&](const u32 bpass, const u32 rmode, const u32 mtype) {
             const ResourceType rtype = ResourceType(mtype);
-            const TKit::Span<const u32> poolIds = Resources::ResourcePool_GetIds<D>(rtype);
+            const TKit::Span<const u32> poolIds = ResourcePool_GetIds<D>(rtype);
             for (const u32 pid : poolIds)
                 std::forward<F>(func)(bpass, rmode, mtype, pid);
         });

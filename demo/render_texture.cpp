@@ -10,7 +10,7 @@ using Onyx::D2;
 int main()
 {
     Onyx::Initialize();
-    Onyx::Resources::Default_Create();
+    Onyx::Resources_CreateDefault();
 
     Onyx::Window *win = Onyx::OpenWindow();
     Onyx::Overlay *ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking});

@@ -14,25 +14,21 @@
 namespace Onyx
 {
 class Window;
-}
+void ImGuiBackend_Initialize();
+void ImGuiBackend_Terminate();
 
-namespace Onyx::ImGuiBackend
-{
-void Initialize();
-void Terminate();
+void ImGuiBackend_Create(Window *window);
 
-void Create(Window *window);
+void ImGuiBackend_NewFrame();
 
-void NewFrame();
+void ImGuiBackend_RenderData(ImDrawData *data, Graph::CommandBuffer cmd);
+void ImGuiBackend_UpdatePlatformWindows();
 
-void RenderData(ImDrawData *data, VkCommandBuffer commandBuffer);
-void UpdatePlatformWindows();
+u32 ImGuiBackend_GetPlatformWindowCount();
 
-u32 GetPlatformWindowCount();
+bool ImGuiBackend_AcquirePlatformWindowImage(u32 windowIndex, u64 timeout);
+RenderSubmitInfo ImGuiBackend_RenderPlatformWindow(u32 windowIndex, Graph::CommandBuffer cmd);
+void ImGuiBackend_PresentPlatformWindow(u32 windowIndex);
 
-bool AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout);
-RenderSubmitInfo RenderPlatformWindow(u32 windowIndex, VKit::Queue *graphics, VkCommandBuffer cmd);
-void PresentPlatformWindow(u32 windowIndex);
-
-void Destroy();
-} // namespace Onyx::ImGuiBackend
+void ImGuiBackend_DestroyCurrent();
+} // namespace Onyx
