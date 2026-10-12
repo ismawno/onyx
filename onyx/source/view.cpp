@@ -152,6 +152,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
     {
         const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
             Graph::Image_GetView(fb.Attachments[Attachment_Intermediate]), layout, near);
+
         const Graph::DescriptorImageInfo outline =
             Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Outline]), layout, near);
         // view 1 is the stencil-only view, created in createAttachment()

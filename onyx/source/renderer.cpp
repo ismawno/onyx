@@ -343,14 +343,27 @@ struct ShaderData
     TKit::FixedArray<Graph::Shader, Geometry_Count> OpaqueFragmentShaders{};
     TKit::FixedArray<Graph::Shader, Geometry_Count> TransparentFragmentShaders{};
 
+    ShaderData()
+    {
+        for (Graph::Shader &sh : VertexShaders)
+            sh = Graph::NullHandle;
+        for (Graph::Shader &sh : OpaqueFragmentShaders)
+            sh = Graph::NullHandle;
+        for (Graph::Shader &sh : TransparentFragmentShaders)
+            sh = Graph::NullHandle;
+    }
+
     void Destroy()
     {
         for (const Graph::Shader sh : VertexShaders)
-            Graph::Shader_Destroy(sh);
+            if (sh != Graph::NullHandle)
+                Graph::Shader_Destroy(sh);
         for (const Graph::Shader sh : OpaqueFragmentShaders)
-            Graph::Shader_Destroy(sh);
+            if (sh != Graph::NullHandle)
+                Graph::Shader_Destroy(sh);
         for (const Graph::Shader sh : TransparentFragmentShaders)
-            Graph::Shader_Destroy(sh);
+            if (sh != Graph::NullHandle)
+                Graph::Shader_Destroy(sh);
     }
 };
 
@@ -877,10 +890,8 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
         specs.DepthStencil.Back = stencil;
     }
 
-    constexpr Graph::DynamicStateFlags vpScissor = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
-
     const bool dynCull = D == D3 && geo != Geometry_Circle && geo != Geometry_Glyph;
-    specs.DynamicState = vpScissor | (dynCull ? Graph::DynamicStateFlag_CullMode : 0);
+    specs.DynamicState = dynCull ? Graph::DynamicStateFlag_CullMode : 0;
 
     return Graph::Pipeline_CreateGraphics(getPipelineLayout<D>(rpass), specs);
 }
@@ -952,7 +963,6 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
     specs.VertexBindings = bindings;
     specs.VertexAttributes = attributes;
 
-    specs.DynamicState = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
     if constexpr (D == D2)
     {
         specs.ColorAttachments = attachment;
@@ -966,7 +976,7 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
         specs.DepthStencil.DepthTestEnabled = true;
         specs.DepthStencil.DepthWriteEnabled = true;
         if (geo != Geometry_Circle && geo != Geometry_Glyph)
-            specs.DynamicState |= Graph::DynamicStateFlag_CullMode;
+            specs.DynamicState = Graph::DynamicStateFlag_CullMode;
     }
     return Graph::Pipeline_CreateGraphics(getPipelineLayout<D>(RenderPass_Shadow), specs);
 }
@@ -2082,6 +2092,7 @@ static Range findAvailableTextureMapRange(const LightType light, const Graph::Fo
 
         // one view per layer, followed by a view of the whole image
         TKit::StackArray<Graph::ImageViewSpecs> views{};
+        views.Reserve(64); // more than enough
         u32 viewIndex = 0;
         if constexpr (D == D2)
         {

@@ -1205,7 +1205,6 @@ static Graph::Pipeline renderer_CreatePipeline()
     specs.ColorAttachmentFormats = cformat;
     specs.DepthStencil.DepthTestEnabled = false;
     specs.DepthStencil.DepthWriteEnabled = false;
-    specs.DynamicState = Graph::DynamicStateFlag_Viewport | Graph::DynamicStateFlag_Scissor;
 
     return Graph::Pipeline_CreateGraphics(s_RendererData->PipelineLayout, specs);
 }

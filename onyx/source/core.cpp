@@ -2,6 +2,7 @@
 #include "core.hpp"
 #include "resources.hpp"
 #include "renderer.hpp"
+#include "conversion.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "imgui_backend.hpp"
 #endif
@@ -177,8 +178,6 @@ static TKit::Storage<DescriptorData> s_DescriptorData{};
 
 static void createDescriptorData()
 {
-    // TODO(Isma): There are several flags with the unused while pending bit. revisit if those are really necessary
-
     using Binding = Graph::DescriptorBinding;
     using BindingArray = TKit::StaticArray16<Binding>;
 
@@ -272,7 +271,8 @@ static void createDescriptorData()
         s_DescriptorData->Layouts.IterateMultiIndex([&](const u32 i, const u32 j) {
             Graph::DescriptorSetLayout_SetName(
                 s_DescriptorData->Layouts[i][j],
-                TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i + 2, j).CString());
+                TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i + 2, ToString(RenderPass(j)))
+                    .CString());
         });
 
         Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch],
@@ -414,13 +414,14 @@ static void core_Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing");
 
+    allocators_Initialize(specs);
+
     s_DefaultTaskManager.Construct();
     s_DefaultThreadPool.Construct(TKit::MaxThreads - 1);
 
     if (specs.Locale)
         std::locale::global(std::locale(specs.Locale));
 
-    allocators_Initialize(specs);
 #ifdef ONYX_FONTCONFIG
     FcInit();
 #endif
@@ -433,9 +434,18 @@ static void core_Initialize(const Specs &specs)
                                  Graph::Capability_ShaderDrawParameters | Graph::Capability_ExtendedDynamicState |
                                  Graph::Capability_BindlessDescriptors | Graph::Capability_ImageMultiFormat |
                                  Graph::Capability_RequireGraphicsQueue | Graph::Capability_RequireTransferQueue;
+    if (specs.Flags & InitializationFlag_EnableValidation)
+        gspecs.EnabledCapabilities |= Graph::Capability_Validation;
+    if (specs.Flags & InitializationFlag_EnablePrintfDebugFeature)
+        gspecs.EnabledCapabilities |= Graph::Capability_DebugPrintf;
+    if (specs.Flags & InitializationFlag_EnableDeviceFaultExtension)
+        gspecs.EnabledCapabilities |= Graph::Capability_FaultDump;
+
     gspecs.MaxCommandPools = 1024;
+    gspecs.MaxCommandBuffers = 1024;
     gspecs.MaxBuffers = 1024;
     gspecs.MaxImages = 512;
+    gspecs.MaxShaders = 256;
     gspecs.MaxDescriptorSets = 1024;
     gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageBuffer] = 16384;
     gspecs.DescriptorPoolSizes[Graph::Descriptor_Sampler] = 1024;
