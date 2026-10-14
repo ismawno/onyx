@@ -351,7 +351,7 @@ struct Editor_Data
     }
 };
 
-static TKit::Storage<const Labels_Data> s_Labels{};
+static TKit::Storage<Labels_Data> s_Labels{};
 static TKit::Storage<Console_Data> s_Console{};
 static TKit::Storage<UndoRedo_Data> s_UndoRedo{};
 static TKit::Storage<Editor_Data> s_Editor{};
