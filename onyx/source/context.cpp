@@ -937,7 +937,7 @@ void IRenderContext<D>::Line(const Resource mesh, const f32v<D> &start, const f3
                         "[ONYX][CONTEXT] A 2D line with a parametric shape is only supported with stadiums");
             InstanceParameters params{};
             params.Stadium.Height = yscale;
-            params.Stadium.Radius = thickness;
+            params.Stadium.Radius = 0.5f * thickness;
             addParametricData(mesh, transform, params);
         }
         else
@@ -946,7 +946,7 @@ void IRenderContext<D>::Line(const Resource mesh, const f32v<D> &start, const f3
                         "[ONYX][CONTEXT] A 3D line with a parametric shape is only supported with capsules");
             InstanceParameters params{};
             params.Capsule.Height = yscale;
-            params.Capsule.Radius = thickness;
+            params.Capsule.Radius = 0.5f * thickness;
             addParametricData(mesh, transform, params);
         }
     }
