@@ -86,7 +86,6 @@ message(STATUS "ONYX - FONT LOAD: ${ONYX_ENABLE_FONT_LOAD}")
 message(STATUS "ONYX - DEFAULT FONT: ${ONYX_INCLUDE_DEFAULT_FONT}")
 message(STATUS "ONYX - GLTF LOAD: ${ONYX_ENABLE_GLTF_LOAD}")
 message(STATUS "ONYX - COMPILE SHADERS: ${ONYX_COMPILE_SHADERS_AT_RUNTIME}")
-message(STATUS "ONYX - SHADER API: ${ONYX_ENABLE_SHADER_API}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making
 # available the toolkit library through the global CMAKE flag variables
