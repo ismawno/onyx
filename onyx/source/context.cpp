@@ -922,18 +922,43 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, c
 template <Dimension D>
 void IRenderContext<D>::Line(const Resource mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
 {
+    const ResourceType type = Handle_GetResourceType(mesh);
     const f32v<D> delta = end - start;
 
     f32m<D> transform = m_State.Transform;
     Onyx::Transform<D>::TranslateIntrinsic(transform, 0.5f * (start + end));
     Onyx::Transform<D>::RotateIntrinsic(transform, computeLineRotation<D>(start, end));
-
-    if constexpr (D == D2)
-        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v2{thickness, Math::Norm(delta)});
+    const f32 yscale = Math::Norm(delta);
+    if (type == Resource_ParametricMesh)
+    {
+        if constexpr (D == D2)
+        {
+            TKIT_ASSERT(Mesh_GetParametricShape<D2>(mesh) == ParametricShape_Stadium,
+                        "[ONYX][CONTEXT] A 2D line with a parametric shape is only supported with stadiums");
+            InstanceParameters params{};
+            params.Stadium.Height = yscale;
+            params.Stadium.Radius = thickness;
+            addParametricData(mesh, transform, params);
+        }
+        else
+        {
+            TKIT_ASSERT(Mesh_GetParametricShape<D3>(mesh) == ParametricShape_Capsule,
+                        "[ONYX][CONTEXT] A 3D line with a parametric shape is only supported with capsules");
+            InstanceParameters params{};
+            params.Capsule.Height = yscale;
+            params.Capsule.Radius = thickness;
+            addParametricData(mesh, transform, params);
+        }
+    }
     else
-        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{thickness, Math::Norm(delta), thickness});
+    {
+        if constexpr (D == D2)
+            Onyx::Transform<D>::ScaleIntrinsic(transform, f32v2{thickness, yscale});
+        else
+            Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{thickness, yscale, thickness});
 
-    addStaticData(mesh, transform);
+        addStaticData(mesh, transform);
+    }
 }
 template <Dimension D> void IRenderContext<D>::Axes(const Resource mesh, const AxesParameters &params)
 {
