@@ -1806,6 +1806,9 @@ class Overlay
     void BeginDisabled(bool enabled = true);
     void EndDisabled();
 
+    void BeginReadOnly(bool enabled = true);
+    void EndReadOnly();
+
     /////////////////////////////////////////////
     /// END DISPLAY PUBLIC
     /////////////////////////////////////////////
@@ -2882,7 +2885,9 @@ class Overlay
         u32 Depth;
     };
     TKit::TierArray<DisableInfo> m_DisabledStack{};
+    TKit::TierArray<u32> m_ReadOnlyStack{};
     u32 m_DisabledDepth = 0;
+    u32 m_ReadOnlyDepth = 0;
 
     TKit::TierHashMap<LayoutId, ScrollInfo> m_Scrollables{};
     TKit::TierArray<LayoutId> m_ScrollStack{};

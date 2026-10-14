@@ -5635,6 +5635,17 @@ void Overlay::EndDisabled()
     m_DisabledStack.Pop();
 }
 
+void Overlay::BeginReadOnly(const bool enabled)
+{
+    m_ReadOnlyStack.Append(u32(enabled));
+    m_ReadOnlyDepth += enabled;
+}
+void Overlay::EndReadOnly()
+{
+    m_ReadOnlyDepth -= m_ReadOnlyStack.GetBack();
+    m_ReadOnlyStack.Pop();
+}
+
 /////////////////////////////////////////////
 /// END DISPLAY
 /////////////////////////////////////////////
@@ -6395,7 +6406,8 @@ OverlayFocusQueryFlags Overlay::queryFocus(const LayoutElementQueryInfo *elm, co
         !(m_StateFlags & StateFlag_ActiveAllowsInteraction) && m_ActiveId != NullLayoutId && m_ActiveId != id;
     const bool popupBlocked = m_CurrentPopupDepth != m_PopupStack.GetSize();
     const bool popupCollapseBlocked = m_StateFlags & StateFlag_FocusBlockByPopupCollapse;
-    const bool disabledBlocked = m_DisabledDepth != 0;
+    // TODO(Isma): Move readonly to its own flag?
+    const bool disabledBlocked = m_DisabledDepth != 0 || m_ReadOnlyDepth != 0;
     const bool dragBlocked = m_DraggedId != NullLayoutId && m_DraggedId != id;
 
     flags |= OverlayFocusQueryFlag_Hovered * hovered;
@@ -7174,11 +7186,11 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBox("Disable other sections", &disableGlobal);
         ov->CheckBox("Disable items below", &disableLocal);
 
-        ov->BeginDisabled(disableLocal);
+        ov->BeginReadOnly(disableLocal);
         ov->TextRaw("I can be disabled");
         ov->CheckBox("I can be disabled##CB", &dummy);
         ov->Button("I can be disabled##ov->Button");
-        ov->EndDisabled();
+        ov->EndReadOnly();
 
         ov->PopTree();
     }
