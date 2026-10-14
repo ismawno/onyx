@@ -217,9 +217,9 @@ template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(Resource statMesh);
 template <Dimension D> ParametricMeshData<D> Mesh_GetDataParametric(Resource paramMesh);
 template <Dimension D> ParametricShape Mesh_GetParametricShape(Resource paramMesh);
 
-template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register();
+template <Dimension D> Resource DynamicMesh_Register();
 template <Dimension D> void DynamicMesh_Destroy(Resource mesh);
-template <Dimension D> DynamicMeshData<D> *DynamicMesh_GetData(Resource mesh);
+template <Dimension D> DynamicMeshData<D> &DynamicMesh_GetData(Resource mesh);
 template <Dimension D> u32 DynamicMesh_GetCount();
 
 template <Dimension D> Resource Material_Register(const MaterialData<D> &data = {});

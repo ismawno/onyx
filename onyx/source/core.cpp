@@ -193,11 +193,14 @@ static void createDescriptorData()
 
     // bind unused is disabled for now
     constexpr Graph::DescriptorBindingFlags pbound = Graph::DescriptorBindingFlag_PartiallyBound;
+    constexpr Graph::DescriptorBindingFlags updateAfterBind = Graph::DescriptorBindingFlag_UpdateUnusedWhilePending;
 
     BindingArray flat{};
     flat.Append(Binding::Create(ONYX_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
-    flat.Append(Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
-    flat.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
+    flat.Append(
+        Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound | updateAfterBind));
+    flat.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
+                                pbound | updateAfterBind));
     flat.Append(Binding::Create(ONYX_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
     flat.Append(Binding::Create(ONYX_BOUNDS_BINDING_POINT, buffer, vertex));
 
@@ -215,7 +218,7 @@ static void createDescriptorData()
     // we perform a copy to not modify shaded
     BindingArray shaded2 = shaded;
     shaded2.Append(Binding::Create(ONYX_SHADOW_MAPS_BINDING_POINT, sampledImage, fragment,
-                                   ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound));
+                                   ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind));
     s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded2);
 
     shaded.Append(
@@ -240,29 +243,33 @@ static void createDescriptorData()
     // NOTE(Isma): Removed bind unused here
     const Binding rayMarch[] = {
         Binding::Create(ONYX_OCCLUSION_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound),
+                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind),
         Binding::Create(ONYX_RAY_MARCH_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound),
+                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch] = Graph::DescriptorSetLayout_Create(rayMarch);
 
     constexpr Binding blend[] = {
-        Binding::Create(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
-        Binding::Create(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+        Binding::Create(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound | updateAfterBind),
+        Binding::Create(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] = Graph::DescriptorSetLayout_Create(blend);
 
     constexpr Binding postProcess[] = {
-        Binding::Create(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+        Binding::Create(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound | updateAfterBind),
         Binding::Create(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound),
+                        pbound | updateAfterBind),
         Binding::Create(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound),
+                        pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess] = Graph::DescriptorSetLayout_Create(postProcess);
 
     constexpr Binding compositor[] = {
-        Binding::Create(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS, pbound),
+        Binding::Create(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor] = Graph::DescriptorSetLayout_Create(compositor);
 
@@ -419,7 +426,7 @@ static void core_Initialize(const Specs &specs)
     s_DefaultTaskManager.Construct();
     s_DefaultThreadPool.Construct(TKit::MaxThreads - 1);
 
-    if (specs.Locale)
+    if (specs.Locale && std::setlocale(LC_ALL, specs.Locale))
         std::locale::global(std::locale(specs.Locale));
 
 #ifdef ONYX_FONTCONFIG
@@ -434,8 +441,8 @@ static void core_Initialize(const Specs &specs)
                                  Graph::Capability_ShaderDrawParameters | Graph::Capability_ExtendedDynamicState |
                                  Graph::Capability_BindlessDescriptors | Graph::Capability_ImageMultiFormat |
                                  Graph::Capability_RequireGraphicsQueue | Graph::Capability_RequireTransferQueue;
-    if (specs.Flags & InitializationFlag_EnableValidation)
-        gspecs.EnabledCapabilities |= Graph::Capability_Validation;
+    if (specs.Flags & InitializationFlag_EnableDebugUtils)
+        gspecs.EnabledCapabilities |= Graph::Capability_DebugUtils;
     if (specs.Flags & InitializationFlag_EnablePrintfDebugFeature)
         gspecs.EnabledCapabilities |= Graph::Capability_DebugPrintf;
     if (specs.Flags & InitializationFlag_EnableDeviceFaultExtension)
@@ -465,10 +472,11 @@ static void core_Initialize(const Specs &specs)
 static void core_Terminate()
 {
     Graph::Terminate();
-    allocators_Terminate();
 
     s_DefaultTaskManager.Destruct();
     s_DefaultThreadPool.Destruct();
+
+    allocators_Terminate();
 }
 
 void Frontend_Initialize();

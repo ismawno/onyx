@@ -45,13 +45,10 @@ struct WindowData
     }
 };
 
-struct ApiData
+struct FrontendData
 {
     TKit::StaticArray<WindowData, ONYX_MAX_VIEWS> Windows{};
     TKit::StaticArray<RenderTexture *, ONYX_MAX_VIEWS> RenderTextures{};
-
-    TKit::TierArray<RenderContext<D2> *> Contexts2{};
-    TKit::TierArray<RenderContext<D3> *> Contexts3{};
 
     TKit::StaticArray<Overlay *, ONYX_MAX_VIEWS> Overlays{};
 
@@ -61,7 +58,7 @@ struct ApiData
     QuitFlags Quit = 0;
 };
 
-static TKit::Storage<ApiData> s_Data{};
+static TKit::Storage<FrontendData> s_Data{};
 
 #ifdef ONYX_ENABLE_IMGUI
 static void initializeImGui(WindowData &wdata, const ImGuiConfigFlags flags)
@@ -485,7 +482,8 @@ void Render(const RenderInfo &info)
         }
     }
 
-    for (u32 i = 0; i < s_Data->Windows.GetSize(); ++i)
+    const u32 wsize = s_Data->Windows.GetSize();
+    for (u32 i = wsize - 1; i < wsize; --i)
     {
         const WindowData &wdata = s_Data->Windows[i];
         if (!(wdata.Flags & OpenWindowFlag_DoNotDestroyOnShouldClose) && wdata.Window->ShouldClose())

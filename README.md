@@ -397,7 +397,7 @@ The `Alpha()` call sets the opacity of subsequent draws and automatically marks 
 
 ## Dependencies and Third-Party Libraries
 
-Onyx relies on some dependencies such as [Toolkit](https://github.com/ismawno/toolkit), [Vulkit](https://github.com/ismawno/vulkit) and [GLFW](https://github.com/glfw/glfw). Both Toolkit and Vulkit are custom libraries I developed alongside Onyx: Toolkit provides general-purpose utilities (data structures, allocators, profiling, etc.) and Vulkit is an abstraction layer over the Vulkan API that handles device management, resource creation and synchronization. Some dependencies are optional ([ImGui](https://github.com/ocornut/imgui) and [ImPlot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
+Onyx relies on some dependencies such as [Toolkit](https://github.com/ismawno/toolkit) and [Graphite](https://github.com/ismawno/graphite). Both Toolkit and Graphite are custom libraries I developed alongside Onyx: Toolkit provides general-purpose utilities (data structures, allocators, profiling, etc.) and Graphite is a hardware rendering interface (built on Vulkan and [GLFW](https://github.com/glfw/glfw)) that handles device management, resource creation and synchronization. Some dependencies are optional ([ImGui](https://github.com/ocornut/imgui) and [ImPlot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
 
 ## Versioning
 

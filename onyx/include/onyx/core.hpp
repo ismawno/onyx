@@ -122,7 +122,7 @@ using InitializationFlags = u16;
 enum InitializationFlagBit : InitializationFlags
 {
     InitializationFlag_DefaultTaskManagerSingleThread = 1U << 0,
-    InitializationFlag_EnableValidation = 1U << 1,
+    InitializationFlag_EnableDebugUtils = 1U << 1,
     InitializationFlag_EnablePrintfDebugFeature = 1U << 2,
     InitializationFlag_EnableDeviceFaultExtension = 1U << 3,
 };
@@ -145,9 +145,9 @@ struct Specs
     TKit::FixedArray<Allocation, TKit::MaxThreads> Allocators{};
 #ifdef TKIT_ENABLE_ENSURE
 #    ifdef TKIT_OS_APPLE
-    InitializationFlags Flags = InitializationFlag_EnableValidation | InitializationFlag_EnableDeviceFaultExtension;
+    InitializationFlags Flags = InitializationFlag_EnableDebugUtils | InitializationFlag_EnableDeviceFaultExtension;
 #    else
-    InitializationFlags Flags = InitializationFlag_EnableValidation | InitializationFlag_EnablePrintfDebugFeature |
+    InitializationFlags Flags = InitializationFlag_EnableDebugUtils | InitializationFlag_EnablePrintfDebugFeature |
                                 InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else

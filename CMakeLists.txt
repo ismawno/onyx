@@ -52,7 +52,8 @@ set(ONYX_INCLUDE_DEFAULT_FONT
     CACHE BOOL "")
 
 if(ONYX_ENABLE_IMPLOT AND NOT ONYX_ENABLE_IMGUI)
-  message(ERROR "ONYX - ImGui is required to use ImPlot. Enable ImGui as well")
+  message(
+    FATAL_ERROR "ONYX - ImGui is required to use ImPlot. Enable ImGui as well")
 endif()
 if(ONYX_INCLUDE_DEFAULT_FONT AND NOT ONYX_ENABLE_FONT_LOAD)
   message(

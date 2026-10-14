@@ -50,7 +50,7 @@ RenderTexture::~RenderTexture()
         // may be the case that resources already freed everything on global tear-down
         if (IsResourceValid(img.Texture))
             Texture_Destroy(img.Texture);
-        Image_Destroy(img.Image);
+        Graph::Image_Destroy(img.Image);
     }
 }
 
@@ -63,16 +63,13 @@ void RenderTexture::Resize(const u32v2 &dims)
 
     const auto destroyImage = [&](const FrontEndImage &img) {
         Texture_Destroy(img.Texture);
-        Image_Destroy(img.Image);
+        Graph::Image_Destroy(img.Image);
     };
     for (u32 i = 1; i < m_Images.GetSize(); ++i)
         if (i != m_Writable)
             destroyImage(m_Images[i]);
 
     m_Images.Resize(1);
-
-    m_Writable = 0;
-    m_Readable = 0;
 
     const Graph::Image newImage = createImage(dims);
 
@@ -105,7 +102,10 @@ void RenderTexture::Resize(const u32v2 &dims)
     if (m_Writable != 0)
         destroyImage(mostUpToDate);
 
-    Image_Destroy(main.Image);
+    m_Writable = 0;
+    m_Readable = 0;
+
+    Graph::Image_Destroy(main.Image);
     main.Image = newImage;
 
     if (Graph::IsValidationEnabled())

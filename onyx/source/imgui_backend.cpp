@@ -1194,15 +1194,13 @@ static Graph::Pipeline renderer_CreatePipeline()
         {.Offset = offsetof(ImDrawVert, col), .Format = Graph::Format_R8G8B8A8_UNORM}};
 
     // The default blend factors are the ones ImGui expects
-    const Graph::ColorAttachment attachment{.BlendEnabled = true};
-    const Graph::Format cformat = SurfaceFormat;
+    const Graph::ColorAttachment attachment{.Format = SurfaceFormat, .BlendEnabled = true};
 
     Graph::GraphicsPipelineSpecs specs{};
     specs.ShaderStages = stages;
     specs.VertexBindings = binding;
     specs.VertexAttributes = attributes;
     specs.ColorAttachments = attachment;
-    specs.ColorAttachmentFormats = cformat;
     specs.DepthStencil.DepthTestEnabled = false;
     specs.DepthStencil.DepthWriteEnabled = false;
 

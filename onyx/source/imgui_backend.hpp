@@ -9,7 +9,6 @@
 #include "onyx/window.hpp"
 #include "renderer.hpp"
 #include <imgui.h>
-#include <vulkan/vulkan.h>
 
 namespace Onyx
 {

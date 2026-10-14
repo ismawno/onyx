@@ -767,8 +767,8 @@ Overlay::~Overlay()
             destroyNativeWindow(nw);
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
-        if (IsResourceValid<D2>(m_DynamicMeshes[i].Handle, Resource_DynamicMesh))
-            DynamicMesh_Destroy<D2>(m_DynamicMeshes[i].Handle);
+        if (IsResourceValid<D2>(m_DynamicMeshes[i], Resource_DynamicMesh))
+            DynamicMesh_Destroy<D2>(m_DynamicMeshes[i]);
 }
 
 /////////////////////////////////////////////
@@ -4525,8 +4525,8 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     constexpr u32 pickerDivs = 10;
     constexpr u32 hueDivs = 32;
 
-    const auto updatePickerGradient = [&](DynamicMeshData<D2> *data, const f32 hue) {
-        data->Vertices.Clear();
+    const auto updatePickerGradient = [&](DynamicMeshData<D2> &data, const f32 hue) {
+        data.Vertices.Clear();
 
         for (u32 y = 0; y <= pickerDivs; ++y)
             for (u32 x = 0; x <= pickerDivs; ++x)
@@ -4535,20 +4535,20 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
                 const f32 v = f32(y) / f32(pickerDivs);
                 const f32v4 hsva{hue, s, v, 1.f};
                 const u32 color = Color::FromHSV(hsva).ToLinear().Pack();
-                data->Vertices.Append(f32v2{s, f32(y) / f32(pickerDivs)}, 0.f, color);
+                data.Vertices.Append(f32v2{s, f32(y) / f32(pickerDivs)}, 0.f, color);
             }
     };
 
-    const auto updateAlphaBarGradient = [&](DynamicMeshData<D2> *data) {
-        data->Vertices.Clear();
+    const auto updateAlphaBarGradient = [&](DynamicMeshData<D2> &data) {
+        data.Vertices.Clear();
 
         const u32 opaque = Color{col, 1.f}.ToLinear().Pack();
         const u32 transparent = Color{col, 0.f}.ToLinear().Pack();
 
-        data->Vertices.Append(f32v2{0.f, 0.f}, 0.f, transparent);
-        data->Vertices.Append(f32v2{1.f, 0.f}, 0.f, transparent);
-        data->Vertices.Append(f32v2{0.f, 1.f}, 0.f, opaque);
-        data->Vertices.Append(f32v2{1.f, 1.f}, 0.f, opaque);
+        data.Vertices.Append(f32v2{0.f, 0.f}, 0.f, transparent);
+        data.Vertices.Append(f32v2{1.f, 0.f}, 0.f, transparent);
+        data.Vertices.Append(f32v2{0.f, 1.f}, 0.f, opaque);
+        data.Vertices.Append(f32v2{1.f, 1.f}, 0.f, opaque);
     };
 
     bool changed = false;
@@ -4556,26 +4556,30 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     if (it == m_PickerMeshes.end())
     {
         hsv = col.ToHSV();
-        const auto updateHueBarGradient = [&](DynamicMeshData<D2> *data) {
-            data->Vertices.Clear();
+        const auto updateHueBarGradient = [&](DynamicMeshData<D2> &data) {
+            data.Vertices.Clear();
 
             for (u32 y = 0; y <= hueDivs; ++y)
             {
                 const f32 h = f32(y) / f32(hueDivs);
                 const u32 color = Color::FromHSV({1.f - h, 1.f, 1.f, 1.f}).ToLinear().Pack();
-                data->Vertices.Append(f32v2{0.f, h}, 0.f, color);
-                data->Vertices.Append(f32v2{1.f, h}, 0.f, color);
+                data.Vertices.Append(f32v2{0.f, h}, 0.f, color);
+                data.Vertices.Append(f32v2{1.f, h}, 0.f, color);
             }
         };
 
         PickerData ndata;
-        ndata.PickerQuad = &m_DynamicMeshes[m_DynamicMeshIndex++];
-        ndata.HueBar = &m_DynamicMeshes[m_DynamicMeshIndex++];
-        ndata.AlphaBar = &m_DynamicMeshes[m_DynamicMeshIndex++];
+        ndata.PickerQuadDynMesh = m_DynamicMeshes[m_DynamicMeshIndex++];
+        ndata.HueBarDynMesh = m_DynamicMeshes[m_DynamicMeshIndex++];
+        ndata.AlphaBarDynMesh = m_DynamicMeshes[m_DynamicMeshIndex++];
 
-        updatePickerGradient(ndata.PickerQuad->Data, hsv[0]);
-        updateHueBarGradient(ndata.HueBar->Data);
-        updateAlphaBarGradient(ndata.AlphaBar->Data);
+        DynamicMeshData<D2> &pickerData = DynamicMesh_GetData<D2>(ndata.PickerQuadDynMesh);
+        DynamicMeshData<D2> &hueBarData = DynamicMesh_GetData<D2>(ndata.HueBarDynMesh);
+        DynamicMeshData<D2> &alphaBarData = DynamicMesh_GetData<D2>(ndata.AlphaBarDynMesh);
+
+        updatePickerGradient(pickerData, hsv[0]);
+        updateHueBarGradient(hueBarData);
+        updateAlphaBarGradient(alphaBarData);
 
         for (u32 y = 0; y < pickerDivs; ++y)
             for (u32 x = 0; x < pickerDivs; ++x)
@@ -4585,12 +4589,12 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
                 const u32 bl = tl + (pickerDivs + 1);
                 const u32 br = bl + 1;
 
-                ndata.PickerQuad->Data->Indices.Append(tl);
-                ndata.PickerQuad->Data->Indices.Append(tr);
-                ndata.PickerQuad->Data->Indices.Append(bl);
-                ndata.PickerQuad->Data->Indices.Append(tr);
-                ndata.PickerQuad->Data->Indices.Append(br);
-                ndata.PickerQuad->Data->Indices.Append(bl);
+                pickerData.Indices.Append(tl);
+                pickerData.Indices.Append(tr);
+                pickerData.Indices.Append(bl);
+                pickerData.Indices.Append(tr);
+                pickerData.Indices.Append(br);
+                pickerData.Indices.Append(bl);
             }
 
         for (u32 y = 0; y < hueDivs; ++y)
@@ -4599,20 +4603,20 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
             const u32 tr = tl + 1;
             const u32 bl = tl + 2;
             const u32 br = tl + 3;
-            ndata.HueBar->Data->Indices.Append(tl);
-            ndata.HueBar->Data->Indices.Append(tr);
-            ndata.HueBar->Data->Indices.Append(bl);
-            ndata.HueBar->Data->Indices.Append(tr);
-            ndata.HueBar->Data->Indices.Append(br);
-            ndata.HueBar->Data->Indices.Append(bl);
+            hueBarData.Indices.Append(tl);
+            hueBarData.Indices.Append(tr);
+            hueBarData.Indices.Append(bl);
+            hueBarData.Indices.Append(tr);
+            hueBarData.Indices.Append(br);
+            hueBarData.Indices.Append(bl);
         }
 
-        ndata.AlphaBar->Data->Indices.Append(0);
-        ndata.AlphaBar->Data->Indices.Append(1);
-        ndata.AlphaBar->Data->Indices.Append(2);
-        ndata.AlphaBar->Data->Indices.Append(1);
-        ndata.AlphaBar->Data->Indices.Append(3);
-        ndata.AlphaBar->Data->Indices.Append(2);
+        alphaBarData.Indices.Append(0);
+        alphaBarData.Indices.Append(1);
+        alphaBarData.Indices.Append(2);
+        alphaBarData.Indices.Append(1);
+        alphaBarData.Indices.Append(3);
+        alphaBarData.Indices.Append(2);
 
         pdata = &m_PickerMeshes.Insert(outerId, ndata);
         pdata->Hsv = hsv;
@@ -4626,12 +4630,15 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
             hsv = col.ToHSV();
             pdata->Rgb = col.rgb;
             pdata->Hsv = f32v3{hsv};
-            updatePickerGradient(pdata->PickerQuad->Data, hsv[0]);
-            updateAlphaBarGradient(pdata->AlphaBar->Data);
+            updatePickerGradient(DynamicMesh_GetData<D2>(pdata->PickerQuadDynMesh), hsv[0]);
+            updateAlphaBarGradient(DynamicMesh_GetData<D2>(pdata->AlphaBarDynMesh));
         }
         else
             hsv = {pdata->Hsv, col.rgba[3]};
     }
+
+    DynamicMeshData<D2> &pickerData = DynamicMesh_GetData<D2>(pdata->PickerQuadDynMesh);
+    DynamicMeshData<D2> &alphaBarData = DynamicMesh_GetData<D2>(pdata->AlphaBarDynMesh);
 
     const LayoutId pickerId = IdFromStack("__onyx_id_Picker");
     const LayoutId hueBarId = IdFromStack("__onyx_id_Hue_bar");
@@ -4676,7 +4683,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
 
         hsv[1] = 0.5f + pdata->CirclePos[0] / pickerSize;
         hsv[2] = 0.5f + pdata->CirclePos[1] / pickerSize;
-        updateAlphaBarGradient(pdata->AlphaBar->Data);
+        updateAlphaBarGradient(alphaBarData);
 
         changed = true;
     }
@@ -4692,8 +4699,8 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
         pdata->HueRodPos = Math::Clamp(pdata->HueRodPos, -posOffset, posOffset);
 
         hsv[0] = 0.5f - pdata->HueRodPos / pickerSize;
-        updatePickerGradient(pdata->PickerQuad->Data, hsv[0]);
-        updateAlphaBarGradient(pdata->AlphaBar->Data);
+        updatePickerGradient(pickerData, hsv[0]);
+        updateAlphaBarGradient(alphaBarData);
 
         changed = true;
     }
@@ -4719,7 +4726,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     ly->BeginPanel(pickerId, LyPnPar{.FillColor = Color_White,
                                      .Alignment = Center,
                                      .Sizing = {inferPickerSize ? grow() : sabs(pickerSize), sabs(pickerSize)},
-                                     .Shape = dynamic(pdata->PickerQuad->Handle)});
+                                     .Shape = dynamic(pdata->PickerQuadDynMesh)});
 
     ly->BeginPanel(LyPnPar{.FillColor = Color_White,
                            .Alignment = Center,
@@ -4736,7 +4743,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
     ly->BeginPanel(hueBarId, LyPnPar{.FillColor = Color_White,
                                      .Alignment = Center,
                                      .Sizing = sabs({barWidth, pickerSize}),
-                                     .Shape = dynamic(pdata->HueBar->Handle),
+                                     .Shape = dynamic(pdata->HueBarDynMesh),
                                      .ChildOverflow = LayoutOverflow_Spill});
 
     ly->Panel(LyPnPar{.FillColor = Color_White,
@@ -4780,7 +4787,7 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
                                            .Alignment = Center,
                                            .Sizing = barSizing,
                                            .SelfOffset = oabs({-barWidth, 0.f}),
-                                           .Shape = dynamic(pdata->AlphaBar->Handle),
+                                           .Shape = dynamic(pdata->AlphaBarDynMesh),
                                            .ChildOverflow = LayoutOverflow_Spill,
                                            .ForceBlend = true});
 

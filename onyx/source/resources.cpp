@@ -485,8 +485,10 @@ void Image_Destroy(const Resource handle)
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     ImageInfo &img = image_Get(handle);
-    for (const Resource tex : img.Textures)
+    const TKit::StackArray<Resource> texs = img.Textures;
+    for (const Resource tex : texs)
         Texture_Destroy(tex);
+    img.Textures.Clear();
 
     Graph::Image_Destroy(img.Image);
     const u32 iid = Handle_GetResourceId(handle);
@@ -504,8 +506,10 @@ void Image_Update(const Resource handle, const ImageData &data)
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     ImageInfo &img = image_Get(handle);
-    for (const Resource tex : img.Textures)
+    const TKit::StackArray<Resource> texs = img.Textures;
+    for (const Resource tex : texs)
         Texture_Destroy(tex);
+    img.Textures.Clear();
 
     Graph::Image_Destroy(img.Image);
     img.Image = image_Create(data);
@@ -569,9 +573,27 @@ template <Dimension D> static void texture_RemoveReferences(const Resource handl
                 materials.Flags |= updateRef(h);
 }
 
+static void texture_UnlinkImage(const Resource handle)
+{
+    const u32 tid = Handle_GetResourceId(handle);
+    Texture &tex = s_Textures->Resources[tid];
+    if (tex.Image != NullHandle)
+    {
+        auto &texs = image_Get(tex.Image).Textures;
+        for (u32 i = 0; i < texs.GetSize(); ++i)
+            if (texs[i] == handle)
+            {
+                texs.RemoveUnordered(texs.begin() + i);
+                break;
+            }
+    }
+}
+
 static void texture_Destroy(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+
+    texture_UnlinkImage(handle);
 
     texture_RemoveReferences<D2>(handle);
     texture_RemoveReferences<D3>(handle);
@@ -614,18 +636,9 @@ void Texture_Release(const Resource handle)
 
 static void texture_Update(const Resource handle, const Graph::ImageView view, const Resource image = NullHandle)
 {
+    texture_UnlinkImage(handle);
     const u32 tid = Handle_GetResourceId(handle);
     Texture &tex = s_Textures->Resources[tid];
-    if (tex.Image != NullHandle)
-    {
-        auto &texs = image_Get(tex.Image).Textures;
-        for (u32 i = 0; i < texs.GetSize(); ++i)
-            if (texs[i] == handle)
-            {
-                texs.RemoveUnordered(texs.begin() + i);
-                break;
-            }
-    }
 
     tex.Image = image;
     tex.View = view;
@@ -1191,22 +1204,19 @@ template <Dimension D> ParametricShape Mesh_GetParametricShape(const Resource ha
     return mpool.Meshes[mid].Shape;
 }
 
-template <Dimension D> DynamicMeshInfo<D> DynamicMesh_Register()
+template <Dimension D> Resource DynamicMesh_Register()
 {
     TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
     const u32 mid = meshes.Insert();
 
-    DynamicMeshInfo<D> info;
-    info.Data = &meshes[mid];
-    info.Handle = Handle_CreateForResource(Resource_DynamicMesh, mid);
-    return info;
+    return Handle_CreateForResource(Resource_DynamicMesh, mid);
 }
 
-template <Dimension D> DynamicMeshData<D> *DynamicMesh_GetData(const Resource handle)
+template <Dimension D> DynamicMeshData<D> &DynamicMesh_GetData(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_DynamicMesh, D);
     const u32 mid = Handle_GetResourceId(handle);
-    return &getData<D>().DynamicMeshes[mid];
+    return getData<D>().DynamicMeshes[mid];
 }
 
 template <Dimension D> void DynamicMesh_Destroy(const Resource handle)
@@ -1520,12 +1530,19 @@ void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
 
     for (const u32 id : offsets.GetValidIds())
         sparse[id] = offsets[id];
-
-    Graph::Command_UpdateBuffer(cmd, s_Textures->OffsetBuffer, sparse.GetData(), sparse.GetBytes());
-
     Graph::BufferMemoryBarrierInfo barrier{};
     barrier.Buffer = s_Textures->OffsetBuffer;
     barrier.Size = sparse.GetBytes();
+
+    barrier.SrcStages = Graph::PipelineStageFlag_FragmentShader | Graph::PipelineStageFlag_Transfer;
+    barrier.SrcAccess = Graph::AccessFlag_ShaderRead | Graph::AccessFlag_TransferWrite;
+    barrier.DstStages = Graph::PipelineStageFlag_Transfer;
+    barrier.DstAccess = Graph::AccessFlag_TransferWrite;
+
+    Graph::Command_BufferBarrier(cmd, barrier);
+
+    Graph::Command_UpdateBuffer(cmd, s_Textures->OffsetBuffer, sparse.GetData(), sparse.GetBytes());
+
     barrier.SrcStages = Graph::PipelineStageFlag_Transfer;
     barrier.SrcAccess = Graph::AccessFlag_TransferWrite;
     barrier.DstStages = Graph::PipelineStageFlag_FragmentShader | Graph::PipelineStageFlag_Transfer;
@@ -1536,15 +1553,15 @@ void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
 bool Resources_IsBackCulled(const Resource handle)
 {
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
-
     const ResourceType rtype = Handle_GetResourceType(handle);
-    if (rtype == Resource_GlyphMesh)
-        return false;
-
     const u32 rid = Handle_GetResourceId(handle);
     if (rtype == Resource_DynamicMesh)
         return s_ResourceData3->DynamicMeshes[rid].Flags & MeshDataFlag_BackCulled;
+
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
+
+    if (rtype == Resource_GlyphMesh)
+        return false;
 
     const u32 pid = Handle_GetResourcePoolId(handle);
     if (rtype == Resource_StaticMesh)
@@ -1858,11 +1875,11 @@ template void Material_Destroy<D3>(Resource handle);
 template void Material_Update(Resource mesh, const MaterialData<D2> &data);
 template void Material_Update(Resource mesh, const MaterialData<D3> &data);
 
-template DynamicMeshInfo<D2> DynamicMesh_Register();
-template DynamicMeshInfo<D3> DynamicMesh_Register();
+template Resource DynamicMesh_Register<D2>();
+template Resource DynamicMesh_Register<D3>();
 
-template DynamicMeshData<D2> *DynamicMesh_GetData(Resource mesh);
-template DynamicMeshData<D3> *DynamicMesh_GetData(Resource mesh);
+template DynamicMeshData<D2> &DynamicMesh_GetData(Resource mesh);
+template DynamicMeshData<D3> &DynamicMesh_GetData(Resource mesh);
 
 template u32 DynamicMesh_GetCount<D2>();
 template u32 DynamicMesh_GetCount<D3>();

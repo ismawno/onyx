@@ -16,7 +16,6 @@
 #include <fstream>
 #include <cstdlib>
 #include <filesystem>
-#include <vulkan/vulkan.h>
 #include "tkit/preprocessor/system.hpp"
 #include "tkit/preprocessor/utils.hpp"
 #include "onyx/alias.hpp"

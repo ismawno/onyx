@@ -46,12 +46,6 @@ template <Dimension D> using StaticMeshData = MeshData<StaticVertex<D>>;
 template <Dimension D> using DynamicMeshData = MeshData<DynamicVertex<D>>;
 template <Dimension D> using ParametricMeshData = MeshData<ParametricVertex<D>>;
 
-template <Dimension D> struct DynamicMeshInfo
-{
-    DynamicMeshData<D> *Data;
-    Resource Handle;
-};
-
 struct MeshDataLayout
 {
     u32 VertexStart = 0;

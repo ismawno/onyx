@@ -8,24 +8,25 @@
 
 namespace Onyx
 {
-static void flipX(std::byte *data, const u32 width, const u32 height, const u32 components)
+static void flipX(const u32 bpp, std::byte *data, const u32 width, const u32 height)
 {
-    const u32 stride = width * components;
+    const u32 stride = width * bpp;
     for (u32 y = 0; y < height; ++y)
     {
         std::byte *row = data + y * stride;
         for (u32 x = 0; x < width / 2; ++x)
         {
-            std::byte *a = row + x * components;
-            std::byte *b = row + (width - 1 - x) * components;
-            for (u32 c = 0; c < components; ++c)
+            std::byte *a = row + x * bpp;
+            std::byte *b = row + (width - 1 - x) * bpp;
+            for (u32 c = 0; c < bpp; ++c)
                 std::swap(a[c], b[c]);
         }
     }
 }
-static void flipY(std::byte *data, const u32 width, const u32 height, const u32 components)
+
+static void flipY(const u32 bpp, std::byte *data, const u32 width, const u32 height)
 {
-    const u32 stride = width * components;
+    const u32 stride = width * bpp;
     for (u32 y = 0; y < height / 2; ++y)
     {
         std::byte *a = data + y * stride;
@@ -35,19 +36,19 @@ static void flipY(std::byte *data, const u32 width, const u32 height, const u32 
     }
 }
 
-static void rotate90CW(std::byte *&data, u32 &width, u32 &height, const u32 components, const usz size)
+static void rotate90CW(const u32 bpp, std::byte *&data, u32 &width, u32 &height)
 {
     const u32 nw = height;
     const u32 nh = width;
 
-    std::byte *tmp = scast<std::byte *>(TKit::Allocate(size));
+    std::byte *tmp = scast<std::byte *>(TKit::Allocate(usz(width) * height * bpp));
 
     for (u32 y = 0; y < height; ++y)
         for (u32 x = 0; x < width; ++x)
         {
-            const std::byte *src = data + (y * width + x) * components;
-            std::byte *dst = tmp + (x * nw + (nw - 1 - y)) * components;
-            for (u32 c = 0; c < components; ++c)
+            const std::byte *src = data + (y * width + x) * bpp;
+            std::byte *dst = tmp + (x * nw + (nw - 1 - y)) * bpp;
+            for (u32 c = 0; c < bpp; ++c)
                 dst[c] = src[c];
         }
 
@@ -57,19 +58,19 @@ static void rotate90CW(std::byte *&data, u32 &width, u32 &height, const u32 comp
     height = nh;
 }
 
-static void rotate90CCW(std::byte *&data, u32 &width, u32 &height, const u32 components, const usz size)
+static void rotate90CCW(const u32 bpp, std::byte *&data, u32 &width, u32 &height)
 {
     const u32 nw = height;
     const u32 nh = width;
 
-    std::byte *tmp = scast<std::byte *>(TKit::Allocate(size));
+    std::byte *tmp = scast<std::byte *>(TKit::Allocate(usz(width) * height * bpp));
 
     for (u32 y = 0; y < height; ++y)
         for (u32 x = 0; x < width; ++x)
         {
-            const std::byte *src = data + (y * width + x) * components;
-            std::byte *dst = tmp + ((nh - 1 - x) * nw + y) * components;
-            for (u32 c = 0; c < components; ++c)
+            const std::byte *src = data + (y * width + x) * bpp;
+            std::byte *dst = tmp + ((nh - 1 - x) * nw + y) * bpp;
+            for (u32 c = 0; c < bpp; ++c)
                 dst[c] = src[c];
         }
 
@@ -86,23 +87,24 @@ usz ImageData::ComputeSize() const
 
 void ImageData::Manipulate(const ImageOperation op)
 {
+    const u32 bpp = Graph::Format_GetBytesPerPixel(Format);
     switch (op)
     {
     case ImageOperation_FlipX:
-        flipX(Data, Width, Height, Components);
+        flipX(bpp, Data, Width, Height);
         break;
     case ImageOperation_FlipY:
-        flipY(Data, Width, Height, Components);
+        flipY(bpp, Data, Width, Height);
         break;
     case ImageOperation_Rotate90CW:
-        rotate90CW(Data, Width, Height, Components, ComputeSize());
+        rotate90CW(bpp, Data, Width, Height);
         break;
     case ImageOperation_Rotate90CCW:
-        rotate90CCW(Data, Width, Height, Components, ComputeSize());
+        rotate90CCW(bpp, Data, Width, Height);
         break;
     case ImageOperation_Rotate180:
-        flipX(Data, Width, Height, Components);
-        flipY(Data, Width, Height, Components);
+        flipX(bpp, Data, Width, Height);
+        flipY(bpp, Data, Width, Height);
         break;
     }
 }

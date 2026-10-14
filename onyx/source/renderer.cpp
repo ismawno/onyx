@@ -185,7 +185,7 @@ struct GeometryData
 
 template <typename LightParams> struct ContextLights
 {
-    TKit::TierArray<LightParams> Lights{};
+    TKit::TierArray<LightParams> Parameters{};
     TKit::TierArray<typename LightParams::InstanceData> Data{};
 };
 
@@ -194,10 +194,10 @@ template <Dimension D> struct LightInstances
     ContextLights<PointLightParameters<D>> Points{};
     ContextLights<DirectionalLightParameters<D>> Directionals{};
 
-    void ClearLights()
+    void ClearParameters()
     {
-        Points.Lights.Clear();
-        Directionals.Lights.Clear();
+        Points.Parameters.Clear();
+        Directionals.Parameters.Clear();
     }
 };
 
@@ -207,11 +207,11 @@ template <> struct LightInstances<D3>
     ContextLights<DirectionalLightParameters<D3>> Directionals{};
     ContextLights<SpotLightParameters> Spots{};
 
-    void ClearLights()
+    void ClearParameters()
     {
-        Points.Lights.Clear();
-        Directionals.Lights.Clear();
-        Spots.Lights.Clear();
+        Points.Parameters.Clear();
+        Directionals.Parameters.Clear();
+        Spots.Parameters.Clear();
     }
 };
 
@@ -261,7 +261,7 @@ using ShadowMapId = u32;
 
 template <> struct ShadowData<D3>
 {
-    TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
+    TKit::FixedArray<TextureMapArray, LightTypeCount<D3>> ShadowMaps{};
 
     ten<Graph::Pipeline, Geometry_Count> Pipelines{};
     ViewMask DirtyShadowViews = 0;
@@ -526,8 +526,8 @@ static void createPipelineLayouts()
 #ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
 static bool isOldMesa()
 {
-    const DeviceInfo dev = GetRenderBackendInfo().Device;
-    if (dev.Driver != Driver_MesaIntelOpenSource && dev.Driver != Driver_MesaLLVMPipe)
+    const Graph::DeviceInfo dev = Graph::GetRenderBackendInfo().Device;
+    if (dev.Driver != Graph::Driver_MesaANV && dev.Driver != Graph::Driver_MesaLLVMPipe)
         return false;
 
     u32 major;
@@ -581,9 +581,10 @@ static void createShaders()
 
     const char *const searchPaths[] = {ONYX_SHADERS_PATH};
 
-    const TKit::FixedArray<TKit::String, Geometry_Count> geos = {"circle", "static", "parametric", "glyph", "dynamic"};
-    const TKit::FixedArray<TKit::String, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
-    const TKit::FixedArray<TKit::String, D_Count> dims = {"2D", "3D"};
+    const TKit::FixedArray<TKit::TierString, Geometry_Count> geos = {"circle", "static", "parametric", "glyph",
+                                                                     "dynamic"};
+    const TKit::FixedArray<TKit::TierString, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
+    const TKit::FixedArray<TKit::TierString, D_Count> dims = {"2D", "3D"};
 
     const Graph::EntryPoint geometryEntries[] = {{"mainVS", Graph::ShaderStageFlag_Vertex},
                                                  {"mainFSO", Graph::ShaderStageFlag_Fragment},
@@ -593,7 +594,7 @@ static void createShaders()
     const Graph::EntryPoint fragmentEntries[] = {{"mainFS", Graph::ShaderStageFlag_Fragment}};
 
     // module names and the module array must not reallocate, since the compilation specs point into them
-    TKit::StackArray<TKit::String> names{};
+    TKit::StackArray<TKit::TierString> names{};
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
     TKit::StackArray<Graph::ShaderModule> modules{};
@@ -764,13 +765,7 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
     const Graph::ColorWriteMask mainMask = pass != PipelinePass_Outlined ? full : 0;
     const Graph::ColorWriteMask outlineMask = pass == PipelinePass_Outlined ? full : 0;
 
-    const u32 acount = opaque ? 2 : 3;
     TKit::FixedArray<Graph::ColorAttachment, 3> attachments{};
-    TKit::FixedArray<Graph::Format, 3> formats{};
-
-    formats[0] = opaque ? cf : tf;
-    formats[1] = cf;
-    formats[2] = rf;
 
     Graph::ColorAttachment &color = attachments[0];
     color.BlendEnabled = !opaque || geo == Geometry_Glyph;
@@ -779,8 +774,10 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
     color.SrcAlpha = Graph::BlendFactor_One;
     color.DstAlpha = opaqueParams ? Graph::BlendFactor_OneMinusSrcAlpha : Graph::BlendFactor_One;
     color.WriteMask = mainMask;
+    color.Format = opaque ? cf : tf;
 
     attachments[1].WriteMask = outlineMask;
+    attachments[1].Format = cf;
 
     if (!opaque)
     {
@@ -789,6 +786,7 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
         revealage.SrcColor = Graph::BlendFactor_Zero;
         revealage.DstColor = Graph::BlendFactor_OneMinusSrcColor;
         revealage.WriteMask = mainMask;
+        revealage.Format = rf;
     }
 
     TKit::StaticArray8<Graph::VertexBinding> bindings{};
@@ -869,8 +867,7 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
     specs.ShaderStages = stages;
     specs.VertexBindings = bindings;
     specs.VertexAttributes = attributes;
-    specs.ColorAttachments = {attachments.GetData(), acount};
-    specs.ColorAttachmentFormats = {formats.GetData(), acount};
+    specs.ColorAttachments = {attachments.GetData(), u32(opaque ? 2 : 3)};
     specs.DepthFormat = GetAttachmentFormat(Attachment_DepthStencil);
     specs.StencilFormat = specs.DepthFormat;
 
@@ -956,6 +953,7 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
 
     Graph::ColorAttachment attachment{};
     attachment.WriteMask = Graph::ColorWrite_R;
+    attachment.Format = format;
 
     setLocation(attributes);
     Graph::GraphicsPipelineSpecs specs{};
@@ -966,7 +964,6 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
     if constexpr (D == D2)
     {
         specs.ColorAttachments = attachment;
-        specs.ColorAttachmentFormats = format;
         specs.DepthStencil.DepthTestEnabled = false;
         specs.DepthStencil.DepthWriteEnabled = false;
     }
@@ -990,8 +987,7 @@ static Graph::Pipeline createRayMarchPipeline()
     return Graph::Pipeline_CreateCompute(data.Layout, stage);
 }
 
-static Graph::Pipeline createFullPassPipeline(const StandalonePass pass, const Graph::Format format,
-                                              const Graph::ColorAttachment &attachment)
+static Graph::Pipeline createFullPassPipeline(const StandalonePass pass, const Graph::ColorAttachment &attachment)
 {
     const StandalonePipelineData &data = s_PipelineData->Standalone[pass];
 
@@ -1004,7 +1000,6 @@ static Graph::Pipeline createFullPassPipeline(const StandalonePass pass, const G
     Graph::GraphicsPipelineSpecs specs{};
     specs.ShaderStages = stages;
     specs.ColorAttachments = attachment;
-    specs.ColorAttachmentFormats = format;
     specs.DepthStencil.DepthTestEnabled = false;
     specs.DepthStencil.DepthWriteEnabled = false;
     return Graph::Pipeline_CreateGraphics(data.Layout, specs);
@@ -1021,19 +1016,21 @@ static Graph::Pipeline createBlendPipeline()
     // counterintuitive
     attachment.SrcAlpha = Graph::BlendFactor_SrcAlpha;
     attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
-    return createFullPassPipeline(StandalonePass_Blend, GetAttachmentFormat(Attachment_Intermediate), attachment);
+    attachment.Format = GetAttachmentFormat(Attachment_Intermediate);
+    return createFullPassPipeline(StandalonePass_Blend, attachment);
 }
 
 static Graph::Pipeline createPostProcessPipeline()
 {
-    return createFullPassPipeline(StandalonePass_PostProcess, GetAttachmentFormat(Attachment_Final), {});
+    return createFullPassPipeline(StandalonePass_PostProcess, {.Format = GetAttachmentFormat(Attachment_Final)});
 }
 
 static Graph::Pipeline createCompositorPipeline()
 {
     Graph::ColorAttachment attachment{};
     attachment.BlendEnabled = true;
-    return createFullPassPipeline(StandalonePass_Compositor, SurfaceFormat, attachment);
+    attachment.Format = SurfaceFormat;
+    return createFullPassPipeline(StandalonePass_Compositor, attachment);
 }
 
 template <Dimension D>
@@ -1523,7 +1520,7 @@ template <Dimension D> static void removeTarget(const ViewMask vmask)
 void Renderer_AddTarget(const ViewMask vmask)
 {
     addTarget<D2>(vmask);
-    addTarget<D2>(vmask);
+    addTarget<D3>(vmask);
 }
 void Renderer_RemoveTarget(const ViewMask vmask)
 {
@@ -1558,12 +1555,6 @@ void Renderer_BindSampler(const u32 binding, const Graph::Sampler sampler, const
 Graph::Sampler Renderer_GetNearSampler()
 {
     return s_NearSampler;
-}
-
-template <Dimension D>
-const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets(const RenderPass pass)
-{
-    return getRendererData<D>().Descriptors[pass];
 }
 
 #ifdef TKIT_ENABLE_ENSURE
@@ -2011,7 +2002,7 @@ static u32 findAvailableOcclusionMap()
             return i;
 
     TextureMap &map = sdata.OcclusionMaps.Append();
-    map.Extent = u32v2{sdata.OcclusionResolution, sdata.OcclusionResolution};
+    map.Extent = u32v2{sdata.OcclusionResolution};
 
     const Graph::ImageViewSpecs view{};
     Graph::ImageSpecs specs{};
@@ -2451,7 +2442,7 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
     LightUpdateFlags toUpdate = 0;
 
     LightData<D> &ldata = rdata.Lights;
-    ldata.Instances.ClearLights();
+    ldata.Instances.ClearParameters();
 
     ShadowData<D> &sdata = rdata.Shadows;
 
@@ -2508,17 +2499,17 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
                 sdata.DirtyShadowViews |= vmask * (flags & LightFlag_CastShadows);
             };
 
-        gatherLights(Light_Point, ctx->GetPointLightData(), ldata.Instances.Points.Lights, LightUpdateFlag_Point);
-        gatherLights(Light_Directional, ctx->GetDirectionalLightData(), ldata.Instances.Directionals.Lights,
+        gatherLights(Light_Point, ctx->GetPointLightData(), ldata.Instances.Points.Parameters, LightUpdateFlag_Point);
+        gatherLights(Light_Directional, ctx->GetDirectionalLightData(), ldata.Instances.Directionals.Parameters,
                      LightUpdateFlag_Directional);
         if constexpr (D == D3)
-            gatherLights(Light_Spot, ctx->GetSpotLightData(), ldata.Instances.Spots.Lights, LightUpdateFlag_Spot);
+            gatherLights(Light_Spot, ctx->GetSpotLightData(), ldata.Instances.Spots.Parameters, LightUpdateFlag_Spot);
     }
 
     const auto checkLightCountChange =
         [&]<typename LightParams>(const LightType ltype, const LightUpdateFlags flags,
                                   ContextLights<LightParams> &clights) -> LightUpdateFlags {
-        const u32 ncount = clights.Lights.GetSize();
+        const u32 ncount = clights.Parameters.GetSize();
         u32 &count = ldata.Arenas[ltype].LightCount;
         if (ncount != count)
         {
@@ -2542,12 +2533,12 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
         GraphicsLightPool &gpool = arena.Graphics;
 
         using LightData = typename LightParams::InstanceData;
-        const usz requiredMem = sizeof(LightData) * clights.Lights.GetSize();
+        const usz requiredMem = sizeof(LightData) * clights.Parameters.GetSize();
 
         const TKit::StackArray<ViewMask> &vmasks = lightViews[ltype];
-        for (u32 i = 0; i < clights.Lights.GetSize(); ++i)
+        for (u32 i = 0; i < clights.Parameters.GetSize(); ++i)
         {
-            const LightParams &light = clights.Lights[i];
+            const LightParams &light = clights.Parameters[i];
 
             const ViewMask vm = vmasks[i];
             const u32 count = std::popcount(vm);
@@ -2587,13 +2578,13 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
             release->Append(createReleaseBarrier(gpool.Buffer, grange->Offset, requiredMem));
     };
 
-    if ((toUpdate & LightUpdateFlag_Point) && !ldata.Instances.Points.Lights.IsEmpty())
+    if ((toUpdate & LightUpdateFlag_Point) && !ldata.Instances.Points.Parameters.IsEmpty())
         copyLightRanges(Light_Point, ldata.Instances.Points);
-    if ((toUpdate & LightUpdateFlag_Directional) && !ldata.Instances.Directionals.Lights.IsEmpty())
+    if ((toUpdate & LightUpdateFlag_Directional) && !ldata.Instances.Directionals.Parameters.IsEmpty())
         copyLightRanges(Light_Directional, ldata.Instances.Directionals);
 
     if constexpr (D == D3)
-        if ((toUpdate & LightUpdateFlag_Spot) && !ldata.Instances.Spots.Lights.IsEmpty())
+        if ((toUpdate & LightUpdateFlag_Spot) && !ldata.Instances.Spots.Parameters.IsEmpty())
             copyLightRanges(Light_Spot, ldata.Instances.Spots);
 
     if (dirtyContexts.IsEmpty())
@@ -2656,8 +2647,8 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
         u64 igen = 0;
         if (geo == Geometry_Dynamic)
         {
-            const DynamicMeshData<D> *data = DynamicMesh_GetData<D>(handle);
-            if (data->Vertices.IsEmpty() || data->Indices.IsEmpty())
+            const DynamicMeshData<D> &data = DynamicMesh_GetData<D>(handle);
+            if (data.Vertices.IsEmpty() || data.Indices.IsEmpty())
                 return;
 
             Arena &varena = rdata.Geometry.VertexArena;
@@ -2675,8 +2666,8 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
                 return trng;
             };
 
-            const TransferRange *vtrng = processTransferArena(varena.Transfer, data->Vertices, true);
-            const TransferRange *itrng = processTransferArena(iarena.Transfer, data->Indices, false);
+            const TransferRange *vtrng = processTransferArena(varena.Transfer, data.Vertices, true);
+            const TransferRange *itrng = processTransferArena(iarena.Transfer, data.Indices, false);
 
             const auto processGraphicsArena = [&](GraphicsPool &pool, const usz reqMem, const TransferRange *trng,
                                                   const bool vertices) {
@@ -2692,8 +2683,8 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
                 return grng;
             };
 
-            GraphicsRange *vgrng = processGraphicsArena(varena.Graphics, data->Vertices.GetBytes(), vtrng, true);
-            GraphicsRange *igrng = processGraphicsArena(iarena.Graphics, data->Indices.GetBytes(), itrng, false);
+            GraphicsRange *vgrng = processGraphicsArena(varena.Graphics, data.Vertices.GetBytes(), vtrng, true);
+            GraphicsRange *igrng = processGraphicsArena(iarena.Graphics, data.Indices.GetBytes(), itrng, false);
 
             vgrng->Generation = vgen;
             igrng->Generation = igen;
@@ -3373,19 +3364,19 @@ static void renderShadows(const Graph::CommandBuffer cmd, const ViewMask viewBit
     const ViewMask dirtyViews = sdata.DirtyShadowViews;
     sdata.DirtyShadowViews &= ~viewBit;
 
-    const auto processLight = [&]<typename LightParams>(
-                                  const LightType ltype, const TKit::TierArray<LightParams> &lights,
-                                  const TKit::TierArray<typename LightParams::InstanceData> lightData) {
+    const auto processLight = [&]<typename LightParams>(const LightType ltype,
+                                                        const ContextLights<LightParams> &lights) {
         using LightData = LightParams::InstanceData;
         TKIT_ASSERT(
-            lights.GetSize() == lightData.GetSize(),
+            lights.Parameters.GetSize() == lights.Data.GetSize(),
             "[ONYX][RENDERER] Light count and light instance data count must match, but former has {} element(s) "
             "while latter has {}",
-            lights.GetSize(), lightData.GetSize());
+            lights.Parameters.GetSize(), lights.Data.GetSize());
 
-        for (u32 i = 0; i < lights.GetSize(); ++i)
+        const u32 size = lights.Data.GetSize();
+        for (u32 i = 0; i < size; ++i)
         {
-            const LightData &data = lightData[i];
+            const LightData &data = lights.Data[i];
 
             static constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
             static constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
@@ -3397,7 +3388,7 @@ static void renderShadows(const Graph::CommandBuffer cmd, const ViewMask viewBit
                 if (data.CascadeEnable == 0)
                     continue;
 
-            const LightParams &params = lights[i];
+            const LightParams &params = lights.Parameters[i];
 
             const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
             const u32 shindex = data.ShadowMapOffset + viewIndex;
@@ -3577,10 +3568,10 @@ static void renderShadows(const Graph::CommandBuffer cmd, const ViewMask viewBit
     };
 
     const LightData<D> &ldata = rdata.Lights;
-    processLight(Light_Point, ldata.Instances.Points.Lights, ldata.Instances.Points.Data);
-    processLight(Light_Directional, ldata.Instances.Directionals.Lights, ldata.Instances.Directionals.Data);
+    processLight(Light_Point, ldata.Instances.Points);
+    processLight(Light_Directional, ldata.Instances.Directionals);
     if constexpr (D == D3)
-        processLight(Light_Spot, ldata.Instances.Spots.Lights, ldata.Instances.Spots.Data);
+        processLight(Light_Spot, ldata.Instances.Spots);
 }
 
 template <Dimension D>
@@ -4425,9 +4416,6 @@ template <Dimension D> void Renderer_DisplayMemoryLayout(Overlay *ov)
 
 template void Renderer_DisplayMemoryLayout<D2>(Overlay *ov);
 template void Renderer_DisplayMemoryLayout<D3>(Overlay *ov);
-
-template const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets<D2>(RenderPass rpass);
-template const ten<Graph::DescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets<D3>(RenderPass rpass);
 
 template RenderContext<D2> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
 template RenderContext<D3> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);

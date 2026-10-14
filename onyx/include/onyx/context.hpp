@@ -395,11 +395,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         addDynamicData(mesh,
                        mode == Transform_Extrinsic ? (transform * m_State.Transform) : (m_State.Transform * transform));
     }
-    void DynamicMesh(const DynamicMeshData<D> *data)
+    void DynamicMesh(const DynamicMeshData<D> &data)
     {
         DynamicMesh(getDynamicMeshHandle(data));
     }
-    void DynamicMesh(const DynamicMeshData<D> *data, const f32m<D> &transform,
+    void DynamicMesh(const DynamicMeshData<D> &data, const f32m<D> &transform,
                      const TransformMode mode = Transform_Extrinsic)
     {
         DynamicMesh(getDynamicMeshHandle(data), transform, mode);
@@ -794,7 +794,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void translateLayoutElement(const LayoutDrawInfo &info, u32 *depth);
     void scaleLayoutElement(const LayoutDrawInfo &info);
 
-    Resource getDynamicMeshHandle(const DynamicMeshData<D> *data)
+    Resource getDynamicMeshHandle(const DynamicMeshData<D> &data)
     {
         TKIT_ASSERT(!m_ImmediateDynamicMeshes.IsEmpty(),
                     "[ONYX][CONTEXT] Trying to draw an immediate dynamic mesh but initial capacity for immediate "
@@ -804,15 +804,15 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
                     "[ONYX][CONTEXT] The maximum amount of {} immediate dynamic meshes has been exceeded! Consider "
                     "increasing the parameter immediateDynamicMeshCapacity at context creation",
                     m_ImmediateDynamicMeshes.GetSize());
-        const DynamicMeshInfo<D> &info = m_ImmediateDynamicMeshes[m_DynamicMeshCounter++];
-        *info.Data = *data;
-        return info.Handle;
+        const Resource handle = m_ImmediateDynamicMeshes[m_DynamicMeshCounter++];
+        DynamicMesh_GetData<D>(handle) = data;
+        return handle;
     }
 
     template <typename... Args> Resource getDynamicMeshHandle(Args &&...args)
     {
-        const DynamicMeshData<D> data = CreateDynamicMeshData<D>(std::forward<Args>(args)...);
-        return getDynamicMeshHandle(&data);
+        const DynamicMeshData<D> data = DynamicMesh_CreateData<D>(std::forward<Args>(args)...);
+        return getDynamicMeshHandle(data);
     }
 
     TKit::StaticArray16<ContextState<D>> m_StateStack{};
@@ -826,7 +826,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     // if something is gonna be done about this DONT FORGET THE SPOT LIGHTS AT THE END OF THIS FILE
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
-    TKit::TierArray<DynamicMeshInfo<D>> m_ImmediateDynamicMeshes{};
+    TKit::TierArray<Resource> m_ImmediateDynamicMeshes{};
 
     u64 m_Generation = 0;
     Color m_AmbientLight = Color{Color_White, 0.4f};

@@ -1209,9 +1209,9 @@ struct ScrollParameterSpecs
 
 struct PickerData
 {
-    const DynamicMeshInfo<D2> *PickerQuad;
-    const DynamicMeshInfo<D2> *HueBar;
-    const DynamicMeshInfo<D2> *AlphaBar;
+    Resource PickerQuadDynMesh;
+    Resource HueBarDynMesh;
+    Resource AlphaBarDynMesh;
     f32v2 CirclePos{0.f};
     f32v3 Hsv{0.f};
     f32v3 Rgb{0.f};
@@ -2948,7 +2948,7 @@ class Overlay
     /////////////////////////////////////////////
 
     Camera<D2> m_Camera;
-    TKit::FixedArray<DynamicMeshInfo<D2>, 3 * 32> m_DynamicMeshes{};
+    TKit::FixedArray<Resource, 3 * 32> m_DynamicMeshes{};
     u32 m_DynamicMeshIndex = 0;
 
     /////////////////////////////////////////////

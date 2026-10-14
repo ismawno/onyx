@@ -586,17 +586,30 @@ Scene Scene_Create()
 
 static void scene_ClearReferences(const Scene sc)
 {
-    const Editor_Scene &scene = s_Editor->Scenes[sc];
+    Editor_Scene &scene = s_Editor->Scenes[sc];
     const TKit::StackArray<Viewport> vps = scene.Viewports.GetValidIds();
 
     for (const Viewport vp : vps)
         Scene_DestroyViewport(sc, vp);
+
+    scene.Viewports.Clear();
 
     TKit::TierAllocator *tier = TKit::GetTier();
     for (const Editor_Camera<D2> &cam : scene.Cameras2)
         tier->Destroy(cam.Handle);
     for (const Editor_Camera<D3> &cam : scene.Cameras3)
         tier->Destroy(cam.Handle);
+
+    scene.Cameras2.Clear();
+    scene.Cameras3.Clear();
+
+    for (const Editor_RenderContext<D2> &ctx : scene.Contexts2)
+        Onyx::DestroyRenderContext(ctx.Handle);
+    for (const Editor_RenderContext<D3> &ctx : scene.Contexts3)
+        Onyx::DestroyRenderContext(ctx.Handle);
+
+    scene.Contexts2.Clear();
+    scene.Contexts3.Clear();
 }
 
 void Scene_Destroy(const Scene sc)
@@ -612,7 +625,7 @@ Viewport Scene_CreateViewport(const Scene sc, const u32v2 &resolution)
     Editor_Viewport &viewport = scene.Viewports[vp];
 
     viewport.Id = vp;
-    viewport.Position = sc;
+    viewport.ParentScene = sc;
     viewport.Target = Onyx::CreateRenderTexture(resolution);
     viewport.Name = utils_CreateDefaultName("Viewport", vp);
     viewport.Position = 0.f;
@@ -921,9 +934,6 @@ void Scene_Deserialize(const Scene sc, const fs::path &path)
     Editor_Scene &scene = s_Editor->Scenes[sc];
     TKit::Registry &r = scene.Registry;
     r.Clear();
-
-    scene.Cameras2.Clear();
-    scene.Cameras3.Clear();
 
     deserialize_Cameras<D2>("2D Cameras", root, scene);
     deserialize_Cameras<D3>("3D Cameras", root, scene);

@@ -60,8 +60,6 @@ void Renderer_BindSampler(u32 binding, Graph::Sampler sampler, RenderPass pass, 
 
 Graph::Sampler Renderer_GetNearSampler();
 
-template <Dimension D> const ten<VkDescriptorSet, Geometry_Count> &Renderer_GetDescriptorSets(RenderPass pass);
-
 // consider having arrays of semaphores to allow for some flexibility
 
 // NOTE(Isma): Same family index multi queue support was dropped. passing queues around is in theory no longer needed

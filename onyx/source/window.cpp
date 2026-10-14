@@ -144,7 +144,6 @@ Window::Window(const WindowSpecs &specs)
 
 Window::~Window()
 {
-    // ONYX_CHECK_VKIT_RESULT(DeviceWaitIdle());
     Graph::Swapchain_Destroy(m_Swapchain);
 
     TKit::TierAllocator *tier = TKit::GetTier();
@@ -219,6 +218,7 @@ void Window::recreateSwapchain()
     TKIT_LOG_DEBUG("[ONYX][WINDOW] Out of date swap chain. Re-creating swap chain and resources");
 
     const Graph::Swapchain old = m_Swapchain;
+    waitForValidExtent();
     createSwapchain();
     Graph::Swapchain_Destroy(old);
 
@@ -236,8 +236,10 @@ void Window::recreateSurface()
     TKIT_LOG_WARNING("[ONYX][WINDOW] Surface lost... re-creating surface, swap chain and resources");
 
     Graph::Swapchain_Destroy(m_Swapchain);
+    m_Swapchain = Graph::NullHandle;
     Graph::Window_RecreateSurface(m_Window);
 
+    waitForValidExtent();
     createSwapchain();
     updateRenderViews();
 
@@ -301,6 +303,11 @@ TKit::Timespan Window::UpdateMonitorDeltaTime(const TKit::Timespan tdefault)
         return tdefault;
     }
     const Graph::VideoMode vm = Graph::Monitor_GetVideoMode(monitor);
+    if (vm.RefreshRate == 0)
+    {
+        m_MonitorDeltaTime = tdefault;
+        return tdefault;
+    }
     m_MonitorDeltaTime = TKit::Timespan::FromSeconds(1.f / f32(vm.RefreshRate));
     return m_MonitorDeltaTime;
 }
