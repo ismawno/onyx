@@ -5987,8 +5987,6 @@ void Overlay::BeginScroll(const OverlayLabel label, const f32v2 &maxSize, const 
     const bool tight = flags & OverlayScrollFlag_Tight;
     const bool flexWidth = flags & OverlayScrollFlag_FlexWidth;
 
-    const LayoutId contentId = IdFromStack("__onyx_id_Content_area");
-
     LySz2 outer;
     LySz2 content;
     const f32 omw = maxSize[0] == TKIT_F32_MAX ? TKIT_F32_MAX : (maxSize[0] + 2.f * padding);
