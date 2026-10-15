@@ -100,16 +100,24 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
     idata.Data = scast<std::byte *>(TKit::Allocate(size));
     TKit::ForwardCopy(idata.Data, flipped.GetData(), size);
 
-    msdfgen::FontMetrics metrics;
-    msdfgen::getFontMetrics(metrics, font);
+    f32 top = -1e9f;
+    f32 bottom = 1e9f;
+    for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
+    {
+        f64 pl, pb, pr, pt;
+        glyph.getQuadPlaneBounds(pl, pb, pr, pt);
+        if (pr == pl) // blank glyphs like space have no ink
+            continue;
+        top = Math::Max(top, f32(pt));
+        bottom = Math::Min(bottom, f32(pb));
+    }
 
     data.AtlasData = idata;
-    data.Ascender = f32(metrics.ascenderY) / opts.EmSize;
-    data.Descender = f32(metrics.descenderY) / opts.EmSize;
-    const f32 lh = f32(metrics.lineHeight) / opts.EmSize;
+    data.Ascender = top;
+    data.Descender = bottom;
+    const f32 lh = top - bottom;
     data.LineHeight = opts.LineGapFactor * lh;
     data.UnitRange = opts.SDFRange / f32(dims[0]);
-
     const f32 yoffset = 0.5f * (data.LineHeight - lh + data.Ascender + data.Descender);
 
     for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
