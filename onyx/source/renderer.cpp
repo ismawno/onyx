@@ -1014,7 +1014,7 @@ static Graph::Pipeline createBlendPipeline()
     // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
     // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
     // counterintuitive
-    attachment.SrcAlpha = Graph::BlendFactor_SrcAlpha;
+    attachment.SrcAlpha = Graph::BlendFactor_One;
     attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
     attachment.Format = GetAttachmentFormat(Attachment_Intermediate);
     return createFullPassPipeline(StandalonePass_Blend, attachment);
