@@ -48,6 +48,7 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_NeedsSync = 1U << 0,
 };
 
+// TODO(Isma): The naming is completely all over the place. refactor this, asap!!
 // NOTE(Isma): Messy. too many specializations
 template <typename Vertex> struct MeshDataInfo
 {
