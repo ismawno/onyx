@@ -229,7 +229,7 @@ template <Dimension D> const MaterialData<D> &Material_GetData(Resource material
 
 template <Dimension D> GltfHandles Gltf_Register(ResourcePool meshPool, GltfData<D> &data);
 
-const FontData &Font_GetData(Resource font);
+const FontInfo &Font_GetInfo(Resource font);
 Resource Font_GetAtlas(Resource font);
 Resource Font_GetGlyph(Resource font, CodePoint codePoint);
 MeshDataLayout Font_GetLayout(Resource font);

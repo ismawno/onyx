@@ -91,16 +91,17 @@ bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, co
     return true;
 }
 
-f32 CircleFade(f32 alpha, const CircleBounds bounds, const FadeData fade)
+f32 CircleFade(const CircleBounds bounds, const FadeData fade)
 {
     const f32 innerFade = fade.InnerFade * fade.InnerFade;
     const f32 outerFade = 1.0 - fade.OuterFade * fade.OuterFade;
     const f32 shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
+    f32 alpha;
     if (shiftLen < innerFade)
-        alpha *= shiftLen / innerFade;
+        alpha = shiftLen / innerFade;
     if (shiftLen > outerFade)
-        alpha *= 1.0 - (shiftLen - outerFade) / (1.0 - outerFade);
+        alpha = 1.0 - (shiftLen - outerFade) / (1.0 - outerFade);
 
     return clamp(alpha, 0.0, 1.0);
 }

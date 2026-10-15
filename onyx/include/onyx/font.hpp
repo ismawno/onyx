@@ -136,13 +136,12 @@ struct CharSet
 CodePoint DecodeUTF8(const char *code, u32 *count = nullptr);
 u32 EncodeUTF8(char *buf, CodePoint code);
 
-struct FontData
+struct FontInfo
 {
     TKit::TierArray<GlyphData> Glyphs{};
     TKit::TierHashMap<CodePoint, u32> GlyphMap{}; // code point to idx into Glyphs
     TKit::TierHashMap<u64, f32> Kerning{};
 
-    ImageData AtlasData{};
     f32 Ascender = 0.f;
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;
@@ -208,6 +207,12 @@ struct FontData
 
     f32 ComputeTextMinimumWidth(TKit::StringView text) const;
     TKit::TierString WrapText(TKit::StringView text, f32 maxWidth) const;
+};
+
+struct FontData
+{
+    FontInfo Info{};
+    ImageData AtlasData{};
 };
 
 #ifdef ONYX_ENABLE_FONT_LOAD

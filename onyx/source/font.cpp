@@ -113,12 +113,14 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
     }
 
     data.AtlasData = idata;
-    data.Ascender = top;
-    data.Descender = bottom;
+
+    FontInfo &info = data.Info;
+    info.Ascender = top;
+    info.Descender = bottom;
     const f32 lh = top - bottom;
-    data.LineHeight = opts.LineGapFactor * lh;
-    data.UnitRange = opts.SDFRange / f32(dims[0]);
-    const f32 yoffset = 0.5f * (data.LineHeight - lh + data.Ascender + data.Descender);
+    info.LineHeight = opts.LineGapFactor * lh;
+    info.UnitRange = opts.SDFRange / f32(dims[0]);
+    const f32 yoffset = 0.5f * (info.LineHeight - lh + info.Ascender + info.Descender);
 
     for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
     {
@@ -142,8 +144,8 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
         gdata.MinTexCoord = texCoordMin / atlasSize;
         gdata.MaxTexCoord = texCoordMax / atlasSize;
 
-        data.GlyphMap[glyph.getCodepoint()] = data.Glyphs.GetSize();
-        data.Glyphs.Append(gdata);
+        info.GlyphMap[glyph.getCodepoint()] = info.Glyphs.GetSize();
+        info.Glyphs.Append(gdata);
     }
     for (const msdf_atlas::GlyphGeometry &g1 : glyphs)
         for (const msdf_atlas::GlyphGeometry &g2 : glyphs)
@@ -155,7 +157,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
             f64 kerning = 0.;
             msdfgen::getKerning(kerning, font, a, b, msdfgen::FONT_SCALING_EM_NORMALIZED);
             if (kerning != 0.)
-                data.Kerning[key] = f32(kerning);
+                info.Kerning[key] = f32(kerning);
         }
 
     msdfgen::destroyFont(font);
@@ -286,7 +288,7 @@ u32 EncodeUTF8(char *buf, const CodePoint code)
     return 4;
 }
 
-f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
+f32v2 FontInfo::ComputeTextSize(const TKit::StringView text) const
 {
     const f32 lheight = LineHeight;
     u32 nlcount = 1;
@@ -308,7 +310,7 @@ f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
     return f32v2{Math::Max(width, lastWidth), nlcount * lheight};
 }
 
-f32 FontData::ComputeTextHeight(const TKit::StringView text) const
+f32 FontInfo::ComputeTextHeight(const TKit::StringView text) const
 {
     const f32 lheight = LineHeight;
     u32 nlcount = 1;
@@ -319,7 +321,7 @@ f32 FontData::ComputeTextHeight(const TKit::StringView text) const
     return nlcount * lheight;
 }
 
-f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
+f32 FontInfo::ComputeTextMinimumWidth(const TKit::StringView text) const
 {
     if (text.IsEmpty())
         return 0.f;
@@ -342,7 +344,7 @@ f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
     return size;
 }
 
-TKit::TierString FontData::WrapText(const TKit::StringView text, const f32 maxWidth) const
+TKit::TierString FontInfo::WrapText(const TKit::StringView text, const f32 maxWidth) const
 {
     TKit::TierString wrapped;
     wrapped.Reserve(text.GetSize());

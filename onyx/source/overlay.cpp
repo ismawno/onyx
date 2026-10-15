@@ -2501,6 +2501,7 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
     m_NativeWindows.Append(nw);
     nw->Window = win;
     nw->View = win->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
+    nw->View->ClearColor.rgba[3] = 0.f;
 
     nw->Context = CreateRenderContext<D2>();
     nw->Context->AddTarget(nw->View);
@@ -5262,7 +5263,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const LayoutElementQueryInfo *box = ibox;
     const f32 boxSize = ibox ? (ibox->Size[0] - 2.f * m_Style[OverlayStyle_WidgetPadding]) : 0.f;
 
-    const FontData &fdata = getFontData();
+    const FontInfo &finfo = getFontInfo();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     LyTxPar tparams = getTextParams();
@@ -5346,7 +5347,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         midAdvances.Append(0.f);
 
         f32 textWidth = 0.f;
-        fdata.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
+        finfo.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
             const f32 width = fs * w;
             // widths.Append(width);
 
@@ -5473,7 +5474,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         f32 offset = textEndAdv - textWidth + textOffset;
         if (useHint)
-            offset -= fs * fdata.ComputeTextWidth(hint);
+            offset -= fs * finfo.ComputeTextWidth(hint);
         else
             // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
             offset += 0.1f;
@@ -5564,7 +5565,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     else
     {
         const bool elide = flags & OverlayInputFlag_ElideLeft;
-        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * fdata.ComputeTextWidth(buf)) : 0.f;
+        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * finfo.ComputeTextWidth(buf)) : 0.f;
         const bool useHint = bufSize == 0 && !hint.IsEmpty();
 
         tparams.Offset[0] = oabs(textOffset);
@@ -6121,7 +6122,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     const bool indent = !(flags & OverlayTreeFlag_NoIndent);
 
-    const FontData &fdata = getFontData();
+    const FontInfo &finfo = getFontInfo();
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight, .Alignment = TopLeft, .Sizing = sizing});
@@ -6129,7 +6130,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
     if (indent)
     {
         const f32 iconWidth =
-            Math::Max(fs * fdata.GetGlyphData(CodePoint_ArrowDown)->Advance, m_Style[OverlayStyle_IconWidth]);
+            Math::Max(fs * finfo.GetGlyphData(CodePoint_ArrowDown)->Advance, m_Style[OverlayStyle_IconWidth]);
         const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
 
         ly->BeginPanel(LyPnPar{
@@ -6954,19 +6955,19 @@ void Overlay::Draw()
 /// HELPERS
 /////////////////////////////////////////////
 
-const FontData &Overlay::getFontData() const
+const FontInfo &Overlay::getFontInfo() const
 {
     if (!m_NativeWindows.IsEmpty())
     {
         const NativeWindow *nw = m_NativeWindows[0];
         const Resource font = nw->Context->GetState().Font;
-        return Font_GetData(font);
+        return Font_GetInfo(font);
     }
-    return Font_GetData(Resources_GetDefault().Font);
+    return Font_GetInfo(Resources_GetDefault().Font);
 }
 f32 Overlay::getLineHeight() const
 {
-    return m_Style[OverlayStyle_FontSize] * getFontData().LineHeight;
+    return m_Style[OverlayStyle_FontSize] * getFontInfo().LineHeight;
 }
 
 // used when having menu bars with windows that are not brought to focus. in those cases popups created by such

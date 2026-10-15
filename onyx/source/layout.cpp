@@ -230,13 +230,13 @@ LayoutId Layout::Text(const LayoutId id, const TKit::StringView text, const Layo
     elm.Shape.Type = LayoutShape_Text;
     elm.TextMode = params.Mode;
 
-    const FontData &fdata = Font_GetData(elm.Font);
+    const FontInfo &finfo = Font_GetInfo(elm.Font);
     const f32 fs = params.FontSize;
 
     elm.FontSize = fs;
     elm.Text = text;
-    elm.Size = Math::Max(fs * fdata.ComputeTextSize(text), params.MinSize);
-    elm.MinSize[0] = elm.TextMode == TextMode_Wrapped ? (fs * fdata.ComputeTextMinimumWidth(text)) : elm.Size[0];
+    elm.Size = Math::Max(fs * finfo.ComputeTextSize(text), params.MinSize);
+    elm.MinSize[0] = elm.TextMode == TextMode_Wrapped ? (fs * finfo.ComputeTextMinimumWidth(text)) : elm.Size[0];
     elm.MinSize[1] = 0.f; // this is set in wrapText. no problem that this is zero
 
     elm.MinSize = Math::Max(elm.MinSize, params.MinSize);
@@ -251,14 +251,14 @@ LayoutId Layout::Unicode(const LayoutId id, const CodePoint code, const LayoutUn
     elm.Type = LayoutElement_Unicode;
     elm.Shape.Type = LayoutShape_Unicode;
 
-    const FontData &fdata = Font_GetData(elm.Font);
+    const FontInfo &finfo = Font_GetInfo(elm.Font);
     const Resource glyph = Font_GetGlyph(elm.Font, code);
     const GlyphData &gdata = Glyph_GetData(glyph);
     const f32 fs = params.FontSize;
 
     elm.FontSize = fs;
     elm.Unicode = code;
-    elm.Size = Math::Max(fs * f32v2{gdata.Advance, fdata.LineHeight}, params.MinSize);
+    elm.Size = Math::Max(fs * f32v2{gdata.Advance, finfo.LineHeight}, params.MinSize);
     elm.MinSize = elm.Size;
 
     return id;
@@ -495,12 +495,12 @@ void Layout::wrapText(const TKit::StackArray<u16> &textElms)
         TKIT_ASSERT(elm.Type == LayoutElement_Text || elm.Type == LayoutElement_Unicode,
                     "[ONYX][LAYOUT] Only text elements allowed in wrap text");
 
-        const FontData &fdata = Font_GetData(elm.Font);
+        const FontInfo &finfo = Font_GetInfo(elm.Font);
         const f32 fs = elm.FontSize;
         if (elm.TextMode == TextMode_Wrapped)
-            elm.Text = fdata.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
+            elm.Text = finfo.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
 
-        elm.Size[1] = fs * fdata.ComputeTextHeight(elm.Text);
+        elm.Size[1] = fs * finfo.ComputeTextHeight(elm.Text);
         elm.MinSize[1] = elm.Size[1];
     }
 }

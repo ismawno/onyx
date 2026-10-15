@@ -590,12 +590,12 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const Alignment alg1 = m_State.Alignment[1] == Alignment_None ? Alignment_Top : m_State.Alignment[1];
 
     const Resource font = m_State.Font;
-    const FontData &fdata = Font_GetData(font);
+    const FontInfo &finfo = Font_GetInfo(font);
 
     TKit::TierString wrapped;
     if (params.MaxWidth != TKIT_F32_MAX)
     {
-        wrapped = fdata.WrapText(text, params.MaxWidth);
+        wrapped = finfo.WrapText(text, params.MaxWidth);
         text = wrapped;
     }
 
@@ -637,7 +637,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
         const GlyphData &gdata = Glyph_GetData(glyph);
         f32 advance = 0.f;
         if (line.Start < line.End)
-            advance = fdata.GetKerning(lastCode, code);
+            advance = finfo.GetKerning(lastCode, code);
 
         advance += gdata.Advance + params.Kerning;
         chars.Append(glyph, advance);
@@ -658,13 +658,13 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     const f32 xfactor = factors[alg0];
     const f32 yfactor = factors[2 - alg1];
 
-    const f32 dy = fdata.LineHeight + params.LineSpacing;
+    const f32 dy = finfo.LineHeight + params.LineSpacing;
     pos[1] = dy * (yfactor * f32(lines.GetSize() - 1) - factors[alg1]);
 
     GlyphInstanceData<D> instanceData;
     instanceData.Data.Transform = PackTransform<D>(transform);
     fillInstanceData(instanceData.Data, m_State, DepthCounter);
-    fillGlyphInstanceData(instanceData, m_State, fdata.UnitRange);
+    fillGlyphInstanceData(instanceData, m_State, finfo.UnitRange);
 
     PackedTransform<D> &t = instanceData.Data.Transform;
 
@@ -724,18 +724,18 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
 
     ++DepthCounter;
     const Resource font = Glyph_GetFont(glyph);
-    const FontData &fdata = Font_GetData(font);
+    const FontInfo &finfo = Font_GetInfo(font);
 
     const Alignment al0 = m_State.Alignment[0];
     const Alignment al1 = m_State.Alignment[1];
     if ((al0 == Alignment_None || al0 == Alignment_Left) && (al1 == Alignment_None || al1 == Alignment_Bottom))
     {
-        addGlyphData(glyph, fdata.UnitRange, transform);
+        addGlyphData(glyph, finfo.UnitRange, transform);
         return;
     }
     const GlyphData &gdata = Glyph_GetData(glyph);
     const f32 dx = gdata.Advance;
-    const f32 dy = fdata.Ascender - fdata.Descender;
+    const f32 dy = finfo.Ascender - finfo.Descender;
 
     f32v2 pos{0.f};
     if (al0 == Alignment_Right)
@@ -757,7 +757,7 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
             t[D][j] += t[i][j] * pos[i];
         }
     t[D] = p;
-    addGlyphData(glyph, fdata.UnitRange, t);
+    addGlyphData(glyph, finfo.UnitRange, t);
 }
 
 template <Dimension D>

@@ -434,7 +434,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     if (!CheckOutsideCircle(bounds, input.LocalPosition, gdata.Arc)) discard;
 
     #ifndef ONYX_PASS_SHADOW
-        const f32 alpha = CircleFade(fill.a, bounds, gdata.Fade);
+        const f32 alpha = CircleFade(bounds, gdata.Fade);
     #endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)

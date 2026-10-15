@@ -67,7 +67,7 @@ template <Dimension D> struct MeshDataInfo<ParametricVertex<D>>
 template <> struct MeshDataInfo<GlyphVertex>
 {
     MeshDataLayout Layout;
-    FontData Data{};
+    FontInfo Info{};
     Resource AtlasImage = NullHandle;
     Resource AtlasTexture = NullHandle;
 };
@@ -954,10 +954,7 @@ void FontPool_Destroy(const ResourcePool pool)
 
     const u32 pid = Handle_GetResourcePoolId(pool);
     for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
-    {
         Image_Destroy(finfo.AtlasImage);
-        TKit::Deallocate(finfo.Data.AtlasData.Data);
-    }
     resourcePool_DestroyForMeshes(pool, *s_FontData);
 }
 void FontPool_Release(const ResourcePool pool)
@@ -975,9 +972,9 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
 
     const u32 fid = fpool.Meshes.GetSize();
     FontDataInfo &finfo = fpool.Meshes.Append();
-    finfo.Data = data;
+    finfo.Info = data.Info;
 
-    const ImageData &adata = finfo.Data.AtlasData;
+    const ImageData &adata = data.AtlasData;
     TKIT_LOG_WARNING_IF(
         adata.Width != adata.Height,
         "[ONYX][RESOURCES] Atlas dimensions are not uniform (w = {} != {} = h). May cause a slight decrease in "
@@ -987,7 +984,7 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
     finfo.AtlasImage = Image_Create(adata);
     finfo.AtlasTexture = Texture_Create(finfo.AtlasImage);
 
-    const u32 gsize = data.Glyphs.GetSize();
+    const u32 gsize = data.Info.Glyphs.GetSize();
     finfo.Layout.VertexStart = fpool.Vertices.GetSize();
     finfo.Layout.VertexCount = gsize * 4;
     finfo.Layout.IndexStart = fpool.Indices.GetSize();
@@ -1001,9 +998,9 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
         fpool.Indices.Append(Index(idx + finfo.Layout.VertexStart));
     };
 
-    for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
+    for (u32 i = 0; i < data.Info.Glyphs.GetSize(); ++i)
     {
-        const GlyphData &glyph = data.Glyphs[i];
+        const GlyphData &glyph = data.Info.Glyphs[i];
         const f32v2 &min = glyph.Min;
         const f32v2 &max = glyph.Max;
 
@@ -1346,13 +1343,13 @@ template <Dimension D> GltfHandles Gltf_Register(const ResourcePool meshPool, Gl
     return handles;
 }
 
-const FontData &Font_GetData(const Resource handle)
+const FontInfo &Font_GetInfo(const Resource handle)
 {
     CHECK_RESOURCE_AND_POOL_HANDLES(handle, Resource_Font);
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 fid = Handle_GetResourceId(handle);
 
-    return s_FontData->Pools[pid].Meshes[fid].Data;
+    return s_FontData->Pools[pid].Meshes[fid].Info;
 }
 Resource Font_GetAtlas(const Resource handle)
 {
@@ -1378,8 +1375,8 @@ Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
     const FontDataInfo &finfo = fpool.Meshes[fid];
     const u32 gstart = finfo.Layout.VertexStart / 4;
 
-    const auto it = finfo.Data.GlyphMap.Find(codePoint);
-    if (it == finfo.Data.GlyphMap.end())
+    const auto it = finfo.Info.GlyphMap.Find(codePoint);
+    if (it == finfo.Info.GlyphMap.end())
         return NullHandle;
 
     return Handle_CreateForResource(Resource_GlyphMesh, gstart + it->Value, pid);
@@ -1406,7 +1403,7 @@ const GlyphData &Glyph_GetData(const Resource handle)
     const FontPoolData &fpool = s_FontData->Pools[pid];
     const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
     const u32 gstart = finfo.Layout.VertexStart / 4;
-    return finfo.Data.Glyphs[gid - gstart];
+    return finfo.Info.Glyphs[gid - gstart];
 }
 
 MeshDataLayout Glyph_GetLayout(const Resource handle)

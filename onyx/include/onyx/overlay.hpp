@@ -2964,7 +2964,7 @@ class Overlay
     /// HELPERS PRIVATE
     /////////////////////////////////////////////
 
-    const FontData &getFontData() const;
+    const FontInfo &getFontInfo() const;
     f32 getLineHeight() const;
 
     OverlayFocusFlags standardHoverAllowance() const;
