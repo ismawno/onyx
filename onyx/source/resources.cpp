@@ -50,24 +50,24 @@ enum StatusFlagBit : StatusFlags
 
 // TODO(Isma): The naming is completely all over the place. refactor this, asap!!
 // NOTE(Isma): Messy. too many specializations
-template <typename Vertex> struct MeshDataInfo
+template <typename Vertex> struct MeshInfo
 {
-    MeshDataLayout Layout;
+    MeshRange Range;
     Resource Bounds;
     MeshDataFlags Flags;
 };
 
-template <Dimension D> struct MeshDataInfo<ParametricVertex<D>>
+template <Dimension D> struct MeshInfo<ParametricVertex<D>>
 {
-    MeshDataLayout Layout;
+    MeshRange Range;
     Resource Bounds;
     ParametricShape Shape;
     MeshDataFlags Flags;
 };
 
-template <> struct MeshDataInfo<GlyphVertex>
+template <> struct MeshInfo<GlyphVertex>
 {
-    MeshDataLayout Layout;
+    MeshRange Range;
     FontInfo Info{};
     Resource AtlasImage = NullHandle;
     Resource AtlasTexture = NullHandle;
@@ -79,7 +79,7 @@ template <typename Vertex> struct MeshPoolData
     Graph::Buffer IndexBuffer = Graph::NullHandle;
     TKit::DynamicArray<Vertex> Vertices{};
     TKit::DynamicArray<Index> Indices{};
-    TKit::TierArray<MeshDataInfo<Vertex>> Meshes{};
+    TKit::TierArray<MeshInfo<Vertex>> Meshes{};
     StatusFlags Flags = 0;
 };
 
@@ -96,21 +96,21 @@ template <> struct MeshPoolData<GlyphVertex>
     TKit::TierArray<GlyphVertex> Vertices{};
     TKit::TierArray<Index> Indices{};
     TKit::TierArray<u32> GlyphIdToFontId{};
-    TKit::TierArray<MeshDataInfo<GlyphVertex>> Meshes{};
+    TKit::TierArray<MeshInfo<GlyphVertex>> Meshes{};
     StatusFlags Flags = 0;
 };
 
 template <Dimension D> using StaticMeshResourceData = MeshResourceData<StaticVertex<D>>;
 template <Dimension D> using StaticMeshPoolData = MeshPoolData<StaticVertex<D>>;
-template <Dimension D> using StaticMeshDataInfo = MeshDataInfo<StaticVertex<D>>;
+template <Dimension D> using StaticMeshDataInfo = MeshInfo<StaticVertex<D>>;
 
 template <Dimension D> using ParametricMeshResourceData = MeshResourceData<ParametricVertex<D>>;
 template <Dimension D> using ParametricMeshPoolData = MeshPoolData<ParametricVertex<D>>;
-template <Dimension D> using ParametricMeshDataInfo = MeshDataInfo<ParametricVertex<D>>;
+template <Dimension D> using ParametricMeshDataInfo = MeshInfo<ParametricVertex<D>>;
 
 using FontResourceData = MeshResourceData<GlyphVertex>;
 using FontPoolData = MeshPoolData<GlyphVertex>;
-using FontDataInfo = MeshDataInfo<GlyphVertex>;
+using FontDataInfo = MeshInfo<GlyphVertex>;
 
 template <typename T> struct HiveResourceData
 {
@@ -777,10 +777,10 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
     const u32 icount = mpool.Indices.GetSize();
 
     MeshDataInfo<Vertex> &minfo = mpool.Meshes.Append();
-    minfo.Layout.VertexStart = vcount;
-    minfo.Layout.VertexCount = data.Vertices.GetSize();
-    minfo.Layout.IndexStart = icount;
-    minfo.Layout.IndexCount = data.Indices.GetSize();
+    minfo.Range.VertexStart = vcount;
+    minfo.Range.VertexCount = data.Vertices.GetSize();
+    minfo.Range.IndexStart = icount;
+    minfo.Range.IndexCount = data.Indices.GetSize();
     minfo.Bounds = bounds_Create(Bounds_CreateData(data));
     minfo.Flags = data.Flags;
 
@@ -986,17 +986,17 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
     finfo.AtlasTexture = Texture_Create(finfo.AtlasImage);
 
     const u32 gsize = data.Info.Glyphs.GetSize();
-    finfo.Layout.VertexStart = fpool.Vertices.GetSize();
-    finfo.Layout.VertexCount = gsize * 4;
-    finfo.Layout.IndexStart = fpool.Indices.GetSize();
-    finfo.Layout.IndexCount = gsize * 6;
+    finfo.Range.VertexStart = fpool.Vertices.GetSize();
+    finfo.Range.VertexCount = gsize * 4;
+    finfo.Range.IndexStart = fpool.Indices.GetSize();
+    finfo.Range.IndexCount = gsize * 6;
     fpool.Flags = StatusFlag_NeedsSync;
 
     const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
         fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
     };
     const auto addIndex = [&fpool, &finfo](const u32 idx) {
-        fpool.Indices.Append(Index(idx + finfo.Layout.VertexStart));
+        fpool.Indices.Append(Index(idx + finfo.Range.VertexStart));
     };
 
     for (u32 i = 0; i < data.Info.Glyphs.GetSize(); ++i)
@@ -1091,7 +1091,7 @@ static void mesh_Update(const Resource handle, MeshResourceData<Vertex> &meshes,
     mpool.Flags = StatusFlag_NeedsSync;
 
     MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
-    const MeshDataLayout &layout = minfo.Layout;
+    const MeshRange &layout = minfo.Range;
     TKIT_ASSERT(data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
                 "[ONYX][RESOURCES] When updating a mesh, the vertex and index count of the previous and updated mesh "
                 "must be the "
@@ -1115,15 +1115,15 @@ template <Dimension D> void Mesh_Update(const Resource handle, const ParametricM
     return mesh_Update(handle, getData<D>().ParametricMeshes, data);
 }
 
-template <typename Vertex> static MeshDataLayout mesh_GetLayout(const Resource handle, MeshResourceData<Vertex> &meshes)
+template <typename Vertex> static MeshRange mesh_GetRange(const Resource handle, MeshResourceData<Vertex> &meshes)
 {
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 mid = Handle_GetResourceId(handle);
 
-    return meshes.Pools[pid].Meshes[mid].Layout;
+    return meshes.Pools[pid].Meshes[mid].Range;
 }
 
-template <Dimension D> MeshDataLayout Mesh_GetLayout(const Resource handle)
+template <Dimension D> MeshRange Mesh_GetRange(const Resource handle)
 {
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
@@ -1135,19 +1135,19 @@ template <Dimension D> MeshDataLayout Mesh_GetLayout(const Resource handle)
     {
     case Resource_StaticMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_StaticMesh);
-        return mesh_GetLayout(handle, getData<D>().StaticMeshes);
+        return mesh_GetRange(handle, getData<D>().StaticMeshes);
     case Resource_ParametricMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_ParametricMesh);
-        return mesh_GetLayout(handle, getData<D>().ParametricMeshes);
+        return mesh_GetRange(handle, getData<D>().ParametricMeshes);
     case Resource_Font:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_Font);
-        return Font_GetLayout(handle);
+        return Font_GetRange(handle);
     case Resource_GlyphMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(handle, Resource_GlyphMesh);
-        return Glyph_GetLayout(handle);
+        return Glyph_GetRange(handle);
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' does not have a mesh layout", ToString(rtype));
-        return MeshDataLayout{};
+        return MeshRange{};
     }
 }
 
@@ -1241,11 +1241,11 @@ template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource h
     MeshData<Vertex> data{};
     const MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
 
-    const u32 vstart = minfo.Layout.VertexStart;
-    const u32 vend = vstart + minfo.Layout.VertexCount;
+    const u32 vstart = minfo.Range.VertexStart;
+    const u32 vend = vstart + minfo.Range.VertexCount;
 
-    const u32 istart = minfo.Layout.IndexStart;
-    const u32 iend = istart + minfo.Layout.IndexCount;
+    const u32 istart = minfo.Range.IndexStart;
+    const u32 iend = istart + minfo.Range.IndexCount;
 
     data.Vertices.Insert(data.Vertices.end(), mpool.Vertices.begin() + vstart, mpool.Vertices.begin() + vend);
     data.Indices.Insert(data.Indices.end(), mpool.Indices.begin() + istart, mpool.Indices.begin() + iend);
@@ -1360,9 +1360,9 @@ Resource Font_GetAtlas(const Resource handle)
 
     return s_FontData->Pools[pid].Meshes[fid].AtlasTexture;
 }
-MeshDataLayout Font_GetLayout(const Resource handle)
+MeshRange Font_GetRange(const Resource handle)
 {
-    return mesh_GetLayout(handle, *s_FontData);
+    return mesh_GetRange(handle, *s_FontData);
 }
 
 Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
@@ -1374,7 +1374,7 @@ Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
     const FontDataInfo &finfo = fpool.Meshes[fid];
-    const u32 gstart = finfo.Layout.VertexStart / 4;
+    const u32 gstart = finfo.Range.VertexStart / 4;
 
     const auto it = finfo.Info.GlyphMap.Find(codePoint);
     if (it == finfo.Info.GlyphMap.end())
@@ -1403,14 +1403,14 @@ const GlyphData &Glyph_GetData(const Resource handle)
 
     const FontPoolData &fpool = s_FontData->Pools[pid];
     const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
-    const u32 gstart = finfo.Layout.VertexStart / 4;
+    const u32 gstart = finfo.Range.VertexStart / 4;
     return finfo.Info.Glyphs[gid - gstart];
 }
 
-MeshDataLayout Glyph_GetLayout(const Resource handle)
+MeshRange Glyph_GetRange(const Resource handle)
 {
     const u32 gid = Handle_GetResourceId(handle);
-    return MeshDataLayout{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 0, .IndexCount = 6};
+    return MeshRange{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 0, .IndexCount = 6};
 }
 
 const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
@@ -1939,8 +1939,8 @@ template bool IsResourcePoolValid<D3>(Handle handle, ResourceType rtype);
 template u32 Resources_GetDistinctBatchDrawCount<D2>();
 template u32 Resources_GetDistinctBatchDrawCount<D3>();
 
-template MeshDataLayout Mesh_GetLayout<D2>(Resource handle);
-template MeshDataLayout Mesh_GetLayout<D3>(Resource handle);
+template MeshRange Mesh_GetRange<D2>(Resource handle);
+template MeshRange Mesh_GetRange<D3>(Resource handle);
 
 template Resource Mesh_GetBounds<D2>(Resource mesh);
 template Resource Mesh_GetBounds<D3>(Resource mesh);

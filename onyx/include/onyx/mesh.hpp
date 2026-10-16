@@ -46,7 +46,7 @@ template <Dimension D> using StaticMeshData = MeshData<StaticVertex<D>>;
 template <Dimension D> using DynamicMeshData = MeshData<DynamicVertex<D>>;
 template <Dimension D> using ParametricMeshData = MeshData<ParametricVertex<D>>;
 
-struct MeshDataLayout
+struct MeshRange
 {
     u32 VertexStart = 0;
     u32 VertexCount = 0;

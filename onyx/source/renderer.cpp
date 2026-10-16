@@ -3020,13 +3020,13 @@ template <Dimension D>
 static Graph::DrawIndexedIndirectCommand createMeshCommand(const Resource mesh, const u32 firstInstance,
                                                            const u32 instanceCount)
 {
-    const MeshDataLayout layout = Mesh_GetLayout<D>(mesh);
+    const MeshRange range = Mesh_GetRange<D>(mesh);
     Graph::DrawIndexedIndirectCommand cmd;
     cmd.FirstInstance = firstInstance;
     cmd.InstanceCount = instanceCount;
-    cmd.FirstIndex = layout.IndexStart;
-    cmd.IndexCount = layout.IndexCount;
-    cmd.VertexOffset = i32(layout.VertexStart);
+    cmd.FirstIndex = range.IndexStart;
+    cmd.IndexCount = range.IndexCount;
+    cmd.VertexOffset = i32(range.VertexStart);
     return cmd;
 }
 

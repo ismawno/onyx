@@ -210,7 +210,7 @@ u32 FontPool_GetGlyphCount(ResourcePool pool);
 
 template <Dimension D> void Mesh_Update(Resource mesh, const StaticMeshData<D> &data);
 template <Dimension D> void Mesh_Update(Resource mesh, const ParametricMeshData<D> &data);
-template <Dimension D> MeshDataLayout Mesh_GetLayout(Resource mesh);
+template <Dimension D> MeshRange Mesh_GetRange(Resource mesh);
 template <Dimension D> Resource Mesh_GetBounds(Resource mesh);
 
 template <Dimension D> StaticMeshData<D> Mesh_GetDataStatic(Resource statMesh);
@@ -232,11 +232,11 @@ template <Dimension D> GltfHandles Gltf_Register(ResourcePool meshPool, GltfData
 const FontInfo &Font_GetInfo(Resource font);
 Resource Font_GetAtlas(Resource font);
 Resource Font_GetGlyph(Resource font, CodePoint codePoint);
-MeshDataLayout Font_GetLayout(Resource font);
+MeshRange Font_GetRange(Resource font);
 
 Resource Glyph_GetFont(Resource glyph);
 const GlyphData &Glyph_GetData(Resource glyph);
-MeshDataLayout Glyph_GetLayout(Resource glyph);
+MeshRange Glyph_GetRange(Resource glyph);
 
 const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts = {});
 const DefaultResources &Resources_GetDefault();
