@@ -54,7 +54,7 @@ template <typename Vertex> struct MeshInfo
 {
     MeshRange Range;
     Resource Bounds;
-    MeshDataFlags Flags;
+    MeshFlags Flags;
 };
 
 template <Dimension D> struct MeshInfo<ParametricVertex<D>>
@@ -62,7 +62,7 @@ template <Dimension D> struct MeshInfo<ParametricVertex<D>>
     MeshRange Range;
     Resource Bounds;
     ParametricShape Shape;
-    MeshDataFlags Flags;
+    MeshFlags Flags;
 };
 
 template <> struct MeshInfo<GlyphVertex>
@@ -1554,7 +1554,7 @@ bool Resources_IsBackCulled(const Resource handle)
     const ResourceType rtype = Handle_GetResourceType(handle);
     const u32 rid = Handle_GetResourceId(handle);
     if (rtype == Resource_DynamicMesh)
-        return s_ResourceData3->DynamicMeshes[rid].Flags & MeshDataFlag_BackCulled;
+        return s_ResourceData3->DynamicMeshes[rid].Flags & MeshFlag_BackCulled;
 
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
 
@@ -1563,9 +1563,9 @@ bool Resources_IsBackCulled(const Resource handle)
 
     const u32 pid = Handle_GetResourcePoolId(handle);
     if (rtype == Resource_StaticMesh)
-        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
+        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].Flags & MeshFlag_BackCulled;
 
-    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshDataFlag_BackCulled;
+    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshFlag_BackCulled;
 }
 
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
