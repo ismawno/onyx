@@ -2492,11 +2492,12 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
                     dst.Append(params);
                     vmasks.Append(vmask);
                 }
-                toUpdate |= (update * isDirty * !src.IsEmpty()) |
-                            ((flags & LightFlag_CastShadows) *
+                // NOTE(Isma): Why all flags if casts shadows? i forgot the reason
+                toUpdate |= (bool(update) * isDirty * !src.IsEmpty()) |
+                            (bool(flags & LightFlag_CastShadows) *
                              (LightUpdateFlag_Point | LightUpdateFlag_Directional | LightUpdateFlag_Spot));
 
-                sdata.DirtyShadowViews |= vmask * (flags & LightFlag_CastShadows);
+                sdata.DirtyShadowViews |= vmask * bool(flags & LightFlag_CastShadows);
             };
 
         gatherLights(Light_Point, ctx->GetPointLightData(), ldata.Instances.Points.Parameters, LightUpdateFlag_Point);
@@ -2547,8 +2548,8 @@ static void transfer(const Graph::CommandBuffer command, TransferSubmitInfo &inf
             if (light.Flags & LightFlag_CastShadows)
             {
                 const Range range = findAvailableTextureMapRange<D>(ltype, sdata.ShadowFormat, count);
-                // this is a small hack: shadow maps wont ever be used by the transfer queue, but this way we prevent
-                // lights from taking the same shadow map this run
+                // this is a small hack: shadow maps wont ever be used by the transfer queue (this tracker is from the
+                // transfer queue), but this way we prevent lights from taking the same shadow map this run
                 for (u32 j = 0; j < range.Count; ++j)
                     sdata.ShadowMaps[ltype][j + range.Offset].Tracker = tracker;
 
@@ -3378,12 +3379,13 @@ static void renderShadows(const Graph::CommandBuffer cmd, const ViewMask viewBit
         {
             const LightData &data = lights.Data[i];
 
+            if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
+                continue;
+
             static constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
             static constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
             static constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
 
-            if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
-                continue;
             if constexpr (D == D3 && isDir)
                 if (data.CascadeEnable == 0)
                     continue;
