@@ -73,7 +73,7 @@ template <> struct MeshInfo<GlyphVertex>
     Resource AtlasTexture = NullHandle;
 };
 
-template <typename Vertex> struct MeshPoolData
+template <typename Vertex> struct MeshPool
 {
     Graph::Buffer VertexBuffer = Graph::NullHandle;
     Graph::Buffer IndexBuffer = Graph::NullHandle;
@@ -85,11 +85,11 @@ template <typename Vertex> struct MeshPoolData
 
 template <typename Vertex> struct MeshResourceData
 {
-    TKit::StaticHive<MeshPoolData<Vertex>, ONYX_MAX_RESOURCE_POOLS> Pools{};
+    TKit::StaticHive<MeshPool<Vertex>, ONYX_MAX_RESOURCE_POOLS> Pools{};
     TKit::StaticArray<ResourcePool, ONYX_MAX_RESOURCE_POOLS> ToDestroy{};
 };
 
-template <> struct MeshPoolData<GlyphVertex>
+template <> struct MeshPool<GlyphVertex>
 {
     Graph::Buffer VertexBuffer = Graph::NullHandle;
     Graph::Buffer IndexBuffer = Graph::NullHandle;
@@ -101,26 +101,26 @@ template <> struct MeshPoolData<GlyphVertex>
 };
 
 template <Dimension D> using StaticMeshResourceData = MeshResourceData<StaticVertex<D>>;
-template <Dimension D> using StaticMeshPoolData = MeshPoolData<StaticVertex<D>>;
-template <Dimension D> using StaticMeshDataInfo = MeshInfo<StaticVertex<D>>;
+template <Dimension D> using StaticMeshPool = MeshPool<StaticVertex<D>>;
+template <Dimension D> using StaticMeshInfo = MeshInfo<StaticVertex<D>>;
 
 template <Dimension D> using ParametricMeshResourceData = MeshResourceData<ParametricVertex<D>>;
-template <Dimension D> using ParametricMeshPoolData = MeshPoolData<ParametricVertex<D>>;
-template <Dimension D> using ParametricMeshDataInfo = MeshInfo<ParametricVertex<D>>;
+template <Dimension D> using ParametricMeshPool = MeshPool<ParametricVertex<D>>;
+template <Dimension D> using ParametricMeshInfo = MeshInfo<ParametricVertex<D>>;
 
 using FontResourceData = MeshResourceData<GlyphVertex>;
-using FontPoolData = MeshPoolData<GlyphVertex>;
-using FontDataInfo = MeshInfo<GlyphVertex>;
+using FontPool = MeshPool<GlyphVertex>;
+using FontMeshInfo = MeshInfo<GlyphVertex>;
 
-template <typename T> struct HiveResourceData
+template <typename T> struct DeviceHive
 {
     Graph::Buffer Buffer = Graph::NullHandle;
     TKit::ArenaHive<T> Elements{};
     StatusFlags Flags = 0;
 };
 
-template <Dimension D> using MaterialResourceData = HiveResourceData<MaterialData<D>>;
-template <Dimension D> using BoundsResourceData = HiveResourceData<BoundsData<D>>;
+template <Dimension D> using MaterialResourceData = DeviceHive<MaterialData<D>>;
+template <Dimension D> using BoundsResourceData = DeviceHive<BoundsData<D>>;
 
 struct ImageInfo
 {
@@ -206,7 +206,7 @@ template <Dimension D> static void bounds_UpdateDescriptorSets()
 
 // NOTE(Isma): Because we create the underlying buffer to the capacity, in theory no resizes will be triggered for both
 // materials and bounds. however, when adding a new resource, the check is done still because the codepath is the same
-template <typename T> static void resource_InitializeWithHive(const u32 capacity, HiveResourceData<T> &hive)
+template <typename T> static void resource_InitializeWithHive(const u32 capacity, DeviceHive<T> &hive)
 {
     hive.Elements.Reserve(capacity);
     hive.Buffer = Graph::Buffer_Create(capacity * sizeof(T), Buffer_DeviceStorage);
@@ -274,7 +274,7 @@ void Resources_Initialize()
 
 template <typename Vertex> static void meshes_Terminate(MeshResourceData<Vertex> &meshData)
 {
-    for (MeshPoolData<Vertex> &pool : meshData.Pools)
+    for (MeshPool<Vertex> &pool : meshData.Pools)
     {
         Graph::Buffer_Destroy(pool.VertexBuffer);
         Graph::Buffer_Destroy(pool.IndexBuffer);
@@ -610,8 +610,8 @@ static void texture_Destroy(const Resource handle)
 #ifdef TKIT_ENABLE_ENSURE
 void texture_CheckNotAtlas(const Resource handle)
 {
-    for (const FontPoolData &fpool : s_FontData->Pools)
-        for (const FontDataInfo &finfo : fpool.Meshes)
+    for (const FontPool &fpool : s_FontData->Pools)
+        for (const FontMeshInfo &finfo : fpool.Meshes)
         {
             TKIT_ENSURE(finfo.AtlasTexture != handle,
                         "[ONYX][RESOURCES] Attempting to destroy texture with handle {:#010x}, which is a font atlas "
@@ -728,7 +728,7 @@ static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshR
         Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Index), Buffer_DeviceIndex);
 
     const u32 pid = data.Pools.Insert();
-    MeshPoolData<Vertex> &mpool = data.Pools[pid];
+    MeshPool<Vertex> &mpool = data.Pools[pid];
     mpool.VertexBuffer = vbuffer;
     mpool.IndexBuffer = ibuffer;
 
@@ -750,9 +750,9 @@ static void resourcePool_DestroyForMeshes(const ResourcePool pool, MeshResourceD
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying mesh pool with handle {:#010x}", pool);
     const u32 pid = Handle_GetResourcePoolId(pool);
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    MeshPool<Vertex> &mpool = meshes.Pools[pid];
     if constexpr (!std::is_same_v<Vertex, GlyphVertex>)
-        for (const MeshDataInfo<Vertex> &minfo : mpool.Meshes)
+        for (const MeshInfo<Vertex> &minfo : mpool.Meshes)
             bounds_Destroy<Vertex::Dim>(minfo.Bounds);
     Graph::Buffer_Destroy(mpool.VertexBuffer);
     Graph::Buffer_Destroy(mpool.IndexBuffer);
@@ -769,14 +769,14 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
 
     const u32 pid = Handle_GetResourcePoolId(pool);
 
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    MeshPool<Vertex> &mpool = meshes.Pools[pid];
     mpool.Flags = StatusFlag_NeedsSync;
 
     const u32 mid = mpool.Meshes.GetSize();
     const u32 vcount = mpool.Vertices.GetSize();
     const u32 icount = mpool.Indices.GetSize();
 
-    MeshDataInfo<Vertex> &minfo = mpool.Meshes.Append();
+    MeshInfo<Vertex> &minfo = mpool.Meshes.Append();
     minfo.Range.VertexStart = vcount;
     minfo.Range.VertexCount = data.Vertices.GetSize();
     minfo.Range.IndexStart = icount;
@@ -954,7 +954,7 @@ void FontPool_Destroy(const ResourcePool pool)
     CHECK_POOL_HANDLE(pool, Resource_Font);
 
     const u32 pid = Handle_GetResourcePoolId(pool);
-    for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
+    for (const FontMeshInfo &finfo : s_FontData->Pools[pid].Meshes)
         Image_Destroy(finfo.AtlasImage);
     resourcePool_DestroyForMeshes(pool, *s_FontData);
 }
@@ -969,10 +969,10 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
     CHECK_POOL_HANDLE(pool, Resource_Font);
 
     const u32 pid = Handle_GetResourcePoolId(pool);
-    FontPoolData &fpool = s_FontData->Pools[pid];
+    FontPool &fpool = s_FontData->Pools[pid];
 
     const u32 fid = fpool.Meshes.GetSize();
-    FontDataInfo &finfo = fpool.Meshes.Append();
+    FontMeshInfo &finfo = fpool.Meshes.Append();
     finfo.Info = data.Info;
 
     const ImageData &adata = data.AtlasData;
@@ -1087,10 +1087,10 @@ static void mesh_Update(const Resource handle, MeshResourceData<Vertex> &meshes,
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 mid = Handle_GetResourceId(handle);
 
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    MeshPool<Vertex> &mpool = meshes.Pools[pid];
     mpool.Flags = StatusFlag_NeedsSync;
 
-    MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
+    MeshInfo<Vertex> &minfo = mpool.Meshes[mid];
     const MeshRange &layout = minfo.Range;
     TKIT_ASSERT(data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
                 "[ONYX][RESOURCES] When updating a mesh, the vertex and index count of the previous and updated mesh "
@@ -1198,7 +1198,7 @@ template <Dimension D> ParametricShape Mesh_GetParametricShape(const Resource ha
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 mid = Handle_GetResourceId(handle);
 
-    ParametricMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
+    ParametricMeshPool<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
     return mpool.Meshes[mid].Shape;
 }
 
@@ -1236,10 +1236,10 @@ template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource h
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 mid = Handle_GetResourceId(handle);
 
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    MeshPool<Vertex> &mpool = meshes.Pools[pid];
 
     MeshData<Vertex> data{};
-    const MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
+    const MeshInfo<Vertex> &minfo = mpool.Meshes[mid];
 
     const u32 vstart = minfo.Range.VertexStart;
     const u32 vend = vstart + minfo.Range.VertexCount;
@@ -1256,21 +1256,20 @@ template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource h
 }
 
 template <typename T>
-static Resource resource_CreateWithHive(const ResourceType rtype, const T &data, HiveResourceData<T> &hive)
+static Resource resource_CreateWithHive(const ResourceType rtype, const T &data, DeviceHive<T> &hive)
 {
     hive.Flags = StatusFlag_NeedsSync;
     return Handle_CreateForResource(rtype, hive.Elements.Insert(data));
 }
 
-template <typename T>
-static void resource_UpdateWithHive(const Resource handle, const T &data, HiveResourceData<T> &hive)
+template <typename T> static void resource_UpdateWithHive(const Resource handle, const T &data, DeviceHive<T> &hive)
 {
     const u32 rid = Handle_GetResourceId(handle);
     hive.Elements[rid] = data;
     hive.Flags = StatusFlag_NeedsSync;
 }
 
-template <typename T> static void resource_DestroyWithHive(const Resource handle, HiveResourceData<T> &hive)
+template <typename T> static void resource_DestroyWithHive(const Resource handle, DeviceHive<T> &hive)
 {
     const u32 rid = Handle_GetResourceId(handle);
     hive.Elements.Remove(rid);
@@ -1372,8 +1371,8 @@ Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 fid = Handle_GetResourceId(handle);
 
-    const FontPoolData &fpool = s_FontData->Pools[pid];
-    const FontDataInfo &finfo = fpool.Meshes[fid];
+    const FontPool &fpool = s_FontData->Pools[pid];
+    const FontMeshInfo &finfo = fpool.Meshes[fid];
     const u32 gstart = finfo.Range.VertexStart / 4;
 
     const auto it = finfo.Info.GlyphMap.Find(codePoint);
@@ -1389,7 +1388,7 @@ Resource Glyph_GetFont(const Resource handle)
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 gid = Handle_GetResourceId(handle);
 
-    const FontPoolData &fpool = s_FontData->Pools[pid];
+    const FontPool &fpool = s_FontData->Pools[pid];
     const u32 fid = fpool.GlyphIdToFontId[gid];
     return Handle_CreateForResource(Resource_Font, fid, pid);
 }
@@ -1401,8 +1400,8 @@ const GlyphData &Glyph_GetData(const Resource handle)
     const u32 pid = Handle_GetResourcePoolId(handle);
     const u32 gid = Handle_GetResourceId(handle);
 
-    const FontPoolData &fpool = s_FontData->Pools[pid];
-    const FontDataInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
+    const FontPool &fpool = s_FontData->Pools[pid];
+    const FontMeshInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
     const u32 gstart = finfo.Range.VertexStart / 4;
     return finfo.Info.Glyphs[gid - gstart];
 }
@@ -1481,7 +1480,7 @@ const DefaultResources &Resources_GetDefault()
 template <typename Vertex> static u32 mesh_GetBatchCount(const MeshResourceData<Vertex> &meshes)
 {
     u32 count = 0;
-    for (const MeshPoolData<Vertex> &mpool : meshes.Pools)
+    for (const MeshPool<Vertex> &mpool : meshes.Pools)
         count += mpool.Meshes.GetSize();
     return count;
 }
@@ -1489,7 +1488,7 @@ template <typename Vertex> static u32 mesh_GetBatchCount(const MeshResourceData<
 static u32 glyph_GetBatchCount()
 {
     u32 count = 0;
-    for (const FontPoolData &fpool : s_FontData->Pools)
+    for (const FontPool &fpool : s_FontData->Pools)
         count += fpool.GlyphIdToFontId.GetSize();
 
     return count;
@@ -1655,7 +1654,7 @@ template <typename T> static bool uploadFromHost(Graph::Buffer &buffer, const TK
     return grow;
 }
 
-template <typename Vertex> static void uploadMeshPool(MeshPoolData<Vertex> &mpool)
+template <typename Vertex> static void uploadMeshPool(MeshPool<Vertex> &mpool)
 {
     uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices);
     uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices);
@@ -1673,12 +1672,12 @@ template <typename Vertex> static void uploadMeshes(MeshResourceData<Vertex> &me
 
     meshes.ToDestroy.Clear();
 
-    for (MeshPoolData<Vertex> &mpool : meshes.Pools)
+    for (MeshPool<Vertex> &mpool : meshes.Pools)
         if (mpool.Flags & StatusFlag_NeedsSync)
             uploadMeshPool(mpool);
 }
 
-template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive, const TKit::ArenaHive<T> &elements)
+template <typename T> static bool uploadHiveResources(DeviceHive<T> &hive, const TKit::ArenaHive<T> &elements)
 {
     if (!(hive.Flags & StatusFlag_NeedsSync))
         return false;
@@ -1692,7 +1691,7 @@ template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive,
     hive.Flags = 0;
     return uploadFromHost<T>(hive.Buffer, sparse);
 }
-template <typename T> static bool uploadHiveResources(HiveResourceData<T> &hive)
+template <typename T> static bool uploadHiveResources(DeviceHive<T> &hive)
 {
     return uploadHiveResources(hive, hive.Elements);
 }
@@ -1790,7 +1789,7 @@ template <Dimension D> static void uploadBounds()
 #ifdef TKIT_ENABLE_DEBUG_LOGS
 template <typename Vertex> static bool anyMeshUploads(const MeshResourceData<Vertex> &data)
 {
-    for (const MeshPoolData<Vertex> &mpool : data.Pools)
+    for (const MeshPool<Vertex> &mpool : data.Pools)
         if (mpool.Flags & StatusFlag_NeedsSync)
             return true;
     return false;
