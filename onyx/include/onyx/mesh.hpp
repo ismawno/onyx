@@ -48,9 +48,9 @@ template <Dimension D> using ParametricMeshData = MeshData<ParametricVertex<D>>;
 
 struct MeshRange
 {
-    u32 VertexStart = 0;
+    u32 VertexOffset = 0;
     u32 VertexCount = 0;
-    u32 IndexStart = 0;
+    u32 IndexOffset = 0;
     u32 IndexCount = 0;
 };
 

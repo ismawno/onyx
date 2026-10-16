@@ -3024,9 +3024,9 @@ static Graph::DrawIndexedIndirectCommand createMeshCommand(const Resource mesh, 
     Graph::DrawIndexedIndirectCommand cmd;
     cmd.FirstInstance = firstInstance;
     cmd.InstanceCount = instanceCount;
-    cmd.FirstIndex = range.IndexStart;
+    cmd.FirstIndex = range.IndexOffset;
     cmd.IndexCount = range.IndexCount;
-    cmd.VertexOffset = i32(range.VertexStart);
+    cmd.VertexOffset = i32(range.VertexOffset);
     return cmd;
 }
 

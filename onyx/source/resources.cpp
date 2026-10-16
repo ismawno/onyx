@@ -777,9 +777,9 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
     const u32 icount = mpool.Indices.GetSize();
 
     MeshInfo<Vertex> &minfo = mpool.Meshes.Append();
-    minfo.Range.VertexStart = vcount;
+    minfo.Range.VertexOffset = vcount;
     minfo.Range.VertexCount = data.Vertices.GetSize();
-    minfo.Range.IndexStart = icount;
+    minfo.Range.IndexOffset = icount;
     minfo.Range.IndexCount = data.Indices.GetSize();
     minfo.Bounds = bounds_Create(Bounds_CreateData(data));
     minfo.Flags = data.Flags;
@@ -986,9 +986,9 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
     finfo.AtlasTexture = Texture_Create(finfo.AtlasImage);
 
     const u32 gsize = data.Info.Glyphs.GetSize();
-    finfo.Range.VertexStart = fpool.Vertices.GetSize();
+    finfo.Range.VertexOffset = fpool.Vertices.GetSize();
     finfo.Range.VertexCount = gsize * 4;
-    finfo.Range.IndexStart = fpool.Indices.GetSize();
+    finfo.Range.IndexOffset = fpool.Indices.GetSize();
     finfo.Range.IndexCount = gsize * 6;
     fpool.Flags = StatusFlag_NeedsSync;
 
@@ -996,7 +996,7 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
         fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
     };
     const auto addIndex = [&fpool, &finfo](const u32 idx) {
-        fpool.Indices.Append(Index(idx + finfo.Range.VertexStart));
+        fpool.Indices.Append(Index(idx + finfo.Range.VertexOffset));
     };
 
     for (u32 i = 0; i < data.Info.Glyphs.GetSize(); ++i)
@@ -1099,8 +1099,8 @@ static void mesh_Update(const Resource handle, MeshResourceData<Vertex> &meshes,
 
     bounds_Update(minfo.Bounds, Bounds_CreateData(data));
 
-    TKit::ForwardCopy(mpool.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
-    TKit::ForwardCopy(mpool.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
+    TKit::ForwardCopy(mpool.Vertices.begin() + layout.VertexOffset, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(mpool.Indices.begin() + layout.IndexOffset, data.Indices.begin(), data.Indices.end());
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
         minfo.Shape = data.Shape;
@@ -1241,10 +1241,10 @@ template <typename Vertex> static MeshData<Vertex> mesh_GetData(const Resource h
     MeshData<Vertex> data{};
     const MeshInfo<Vertex> &minfo = mpool.Meshes[mid];
 
-    const u32 vstart = minfo.Range.VertexStart;
+    const u32 vstart = minfo.Range.VertexOffset;
     const u32 vend = vstart + minfo.Range.VertexCount;
 
-    const u32 istart = minfo.Range.IndexStart;
+    const u32 istart = minfo.Range.IndexOffset;
     const u32 iend = istart + minfo.Range.IndexCount;
 
     data.Vertices.Insert(data.Vertices.end(), mpool.Vertices.begin() + vstart, mpool.Vertices.begin() + vend);
@@ -1373,7 +1373,7 @@ Resource Font_GetGlyph(const Resource handle, const CodePoint codePoint)
 
     const FontPool &fpool = s_FontData->Pools[pid];
     const FontMeshInfo &finfo = fpool.Meshes[fid];
-    const u32 gstart = finfo.Range.VertexStart / 4;
+    const u32 gstart = finfo.Range.VertexOffset / 4;
 
     const auto it = finfo.Info.GlyphMap.Find(codePoint);
     if (it == finfo.Info.GlyphMap.end())
@@ -1402,14 +1402,14 @@ const GlyphData &Glyph_GetData(const Resource handle)
 
     const FontPool &fpool = s_FontData->Pools[pid];
     const FontMeshInfo &finfo = fpool.Meshes[fpool.GlyphIdToFontId[gid]];
-    const u32 gstart = finfo.Range.VertexStart / 4;
+    const u32 gstart = finfo.Range.VertexOffset / 4;
     return finfo.Info.Glyphs[gid - gstart];
 }
 
 MeshRange Glyph_GetRange(const Resource handle)
 {
     const u32 gid = Handle_GetResourceId(handle);
-    return MeshRange{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 0, .IndexCount = 6};
+    return MeshRange{.VertexOffset = 4 * gid, .VertexCount = 4, .IndexOffset = 0, .IndexCount = 6};
 }
 
 const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
