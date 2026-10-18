@@ -1224,49 +1224,30 @@ template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &
     Graph::Buffer_Destroy(group.IndexedDrawBuffer.Buffer);
 }
 
-// template <Dimension D>
-// static void resizeResourceGroup(ResourceGroup<D> &group, const TKit::FixedArray<u32, Geometry_Count> &instanceCounts,
-//                                 const TKit::FixedArray<u32, LightTypeCount<D>> &lightCounts, const u32 vertexCounts,
-//                                 const u32 indexCounts)
-// {
-//     for (u32 i = 0; i < Geometry_Count; ++i)
-//     {
-//         const Geometry geo = Geometry(i);
-//         if (GrowBufferIfNeeded(group.InstanceBuffers[geo].Buffer, instanceCounts[geo], GetInstanceSize<D>(geo),
-//                                s_InstanceBufferFlags))
-//             updateInstanceDescriptorSets(group, geo);
-//     }
-//     for (u32 i = 0; i < LightTypeCount<D>; ++i)
-//     {
-//         const LightType ltype = LightType(i);
-//         if (GrowBufferIfNeeded(group.LightBuffers[ltype], lightCounts[ltype], getLightSize<D>(ltype),
-//                                s_LightBufferFlags))
-//             updateLightDescriptorSets(group, ltype);
-//     }
-//
-//     GrowBufferIfNeeded<DynamicVertex<D>>(group.VertexBuffer, vertexCounts);
-//     GrowBufferIfNeeded<Index>(group.IndexBuffer, indexCounts);
-// }
-
 template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
 {
     RendererData<D> &rdata = getRendererData<D>();
     ResourceGroup<D> *smallest = nullptr;
 
+    const auto reset = [](ResourceGroup<D> &group) {
+        for (InstanceBuffer &buff : group.InstanceBuffers)
+            buff.Ranges.Clear();
+        group.LightData.Reset();
+        group.DrawBuffer.Offset = 0;
+        group.IndexedDrawBuffer.Offset = 0;
+    };
+
     for (ResourceGroup<D> &group : rdata.ResourceGroups)
         if (!group.Tracker.InUse())
         {
-            for (InstanceBuffer &buff : group.InstanceBuffers)
-                buff.Ranges.Clear();
-            group.LightData.Reset();
-            group.DrawBuffer.Offset = 0;
-            group.IndexedDrawBuffer.Offset = 0;
+            reset(group);
             return &group;
         }
         else if (!smallest || smallest->Tracker.InFlightValue > group.Tracker.InFlightValue)
             smallest = &group;
 
     TKIT_ASSERT(smallest, "[ONYX][RENDERER] Failed to find an available resource group");
+    reset(*smallest);
     Graph::Queue_WaitForTracker(smallest->Tracker);
     return smallest;
 }
@@ -1786,6 +1767,9 @@ template <Dimension D> static void transfer()
         {
             const auto copyInstanceData = [&](const Geometry geo, const InstanceDataBuffer &idata, const ViewMask vmask,
                                               const Resource handle = NullHandle) {
+                if (idata.Instances == 0)
+                    return;
+
                 InstanceBuffer &buff = group->InstanceBuffers[geo];
                 InstanceRange &range = buff.Ranges.Append();
                 range.Blend = BlendPass(bpass);
@@ -1851,9 +1835,9 @@ template <Dimension D> static void transfer()
     for (RenderContext<D> *ctx : contexts)
     {
         const ViewMask vmask = ctx->ViewMask;
-        const auto copyLights = [&]<typename LightParams>(const LightType ltype,
-                                                          const TKit::TierArray<LightParams> &lightParams,
-                                                          ContextLights<LightParams> &clights) {
+        const auto gatherLights = [&]<typename LightParams>(const LightType ltype,
+                                                            const TKit::TierArray<LightParams> &lightParams,
+                                                            ContextLights<LightParams> &clights) {
             for (const LightParams &params : lightParams)
             {
                 u32 shadowMapOffset = TKIT_U32_MAX;
@@ -1876,15 +1860,21 @@ template <Dimension D> static void transfer()
                 clights.Parameters.Append(params);
                 clights.Data.Append(createLightData(vmask, shadowMapOffset, params));
             }
-
-            Graph::Buffer_Write(group->LightData.Buffers[ltype], clights.Data.GetData(), clights.Data.GetBytes());
         };
 
-        copyLights(Light_Point, ctx->GetPointLightParams(), ldata.Points);
-        copyLights(Light_Directional, ctx->GetDirectionalLightParams(), ldata.Directionals);
+        gatherLights(Light_Point, ctx->GetPointLightParams(), ldata.Points);
+        gatherLights(Light_Directional, ctx->GetDirectionalLightParams(), ldata.Directionals);
         if constexpr (D == D3)
-            copyLights(Light_Spot, ctx->GetSpotLightParams(), ldata.Spots);
+            gatherLights(Light_Spot, ctx->GetSpotLightParams(), ldata.Spots);
     }
+    const auto copyLights = [&]<typename LightParams>(const LightType ltype,
+                                                      const ContextLights<LightParams> &clights) {
+        Graph::Buffer_Write(group->LightData.Buffers[ltype], clights.Data.GetData(), clights.Data.GetBytes());
+    };
+    copyLights(Light_Point, ldata.Points);
+    copyLights(Light_Directional, ldata.Directionals);
+    if constexpr (D == D3)
+        copyLights(Light_Spot, ldata.Spots);
 }
 
 void Renderer_Transfer()
