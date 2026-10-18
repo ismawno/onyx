@@ -1251,6 +1251,8 @@ template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &
 template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
 {
     RendererData<D> &rdata = getRendererData<D>();
+    ResourceGroup<D> *smallest = nullptr;
+
     for (ResourceGroup<D> &group : rdata.ResourceGroups)
         if (!group.Tracker.InUse())
         {
@@ -1261,8 +1263,12 @@ template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
             group.IndexedDrawBuffer.Offset = 0;
             return &group;
         }
-    TKIT_FATAL("[ONYX][RENDERER] Failed to find an available resource group");
-    return nullptr;
+        else if (!smallest || smallest->Tracker.InFlightValue > group.Tracker.InFlightValue)
+            smallest = &group;
+
+    TKIT_ASSERT(smallest, "[ONYX][RENDERER] Failed to find an available resource group");
+    Graph::Queue_WaitForTracker(smallest->Tracker);
+    return smallest;
 }
 
 template <Dimension D> static void initialize()
