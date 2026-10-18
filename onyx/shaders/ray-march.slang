@@ -18,11 +18,11 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_Push;
 
-[[vk::binding(ONYX_OCCLUSION_MAP_BINDING_POINT)]]
-RWTexture2D<f32> g_OcclusionMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
+[[vk::binding(ONYX_2D_RAY_MARCH_PASS_OCCLUSION_MAP_BINDING_POINT)]]
+RWTexture2D<f32> g_OcclusionMaps[ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS];
 
-[[vk::binding(ONYX_RAY_MARCH_MAP_BINDING_POINT)]]
-RWTexture1D<f32> g_ShadowMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
+[[vk::binding(ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT)]]
+RWTexture1D<f32> g_ShadowMaps[ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS];
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -35,7 +35,7 @@ void main(const u32v3 id : SV_DispatchThreadID)
     f32 maxSteps;
     f32v2 dir;
     f32v2 origin;
-    if (g_Push.Mode == ONYX_MARCH_MODE_POINT_LIGHT)
+    if (g_Push.Mode == ONYX_2D_MARCH_MODE_POINT_LIGHT)
     {
         const f32 tt = f32(id.x) / f32(g_Push.ShadowResolution);
 

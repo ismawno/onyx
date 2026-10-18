@@ -138,7 +138,7 @@ template <> struct PointLightData<D2>
     LightFlags Flags;
 };
 
-#define ONYX_MAX_CASCADES 4
+#define ONYX_3D_MAX_CASCADES 4
 
 template <Dimension D> struct DirectionalLightData;
 template <> struct DirectionalLightData<D2>
@@ -167,7 +167,7 @@ struct CascadeData
 
 template <> struct DirectionalLightData<D3>
 {
-    TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> Cascades;
+    TKit::FixedArray<CascadeData, ONYX_3D_MAX_CASCADES> Cascades;
     f32v3 Direction;
     f32v3 Offset;
     f32v2 Extent;
@@ -214,7 +214,7 @@ enum ShadedFlagBit : ShadedFlags
 template <> struct ShadedPushConstantData<D2>
 {
     f32m4 ProjectionView;
-    TKit::FixedArray<u32, LightTypeCount<D2>> LightRanges{};
+    TKit::FixedArray<u32, LightTypeCount<D2>> LightCounts{};
     TKit::FixedArray<f32, LightTypeCount<D2>> TexelSizes{};
     u32 AmbientColor;
     ShadedFlags Flags;
@@ -226,7 +226,7 @@ template <> struct ShadedPushConstantData<D3>
     f32m4 ProjectionView;
     f32v3 ViewPosition;
     f32v3 ViewForward;
-    TKit::FixedArray<u32, LightTypeCount<D3>> LightRanges{};
+    TKit::FixedArray<u32, LightTypeCount<D3>> LightCounts{};
     TKit::FixedArray<f32, LightTypeCount<D3>> TexelSizes{};
     u32 AmbientColor;
     ShadedFlags Flags;

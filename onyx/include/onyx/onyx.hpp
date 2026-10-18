@@ -62,16 +62,11 @@ void DestroyRenderTexture(const RenderTexture *rtex);
 bool Running();
 void Quit(QuitFlags flags = 0);
 
-struct TransferInfo
-{
-    u32 CoalescePeriod = 1;
-};
-
 struct RenderInfo
 {
     u64 AcquireImageTimeout = Block;
 };
 
-void Transfer(const TransferInfo &info = {});
+void Transfer();
 void Render(const RenderInfo &info = {});
 } // namespace Onyx

@@ -141,9 +141,9 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
             Graph::Image_GetView(fb.Attachments[Attachment_Revealage]), layout, near);
 
         Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
-        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
                                          m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, revealage,
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, revealage,
                                          m_AttachmentIndex);
         Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
     }
@@ -160,11 +160,11 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
             Graph::Image_GetView(fb.Attachments[Attachment_DepthStencil], 1), layout);
 
         Graph::DescriptorSet_BeginRecordWrite(m_PostProcessSet);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color,
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, color,
                                          m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline,
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING, outline,
                                          m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil,
+        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING, stencil,
                                          m_AttachmentIndex);
         Graph::DescriptorSet_EndRecordWrite(m_PostProcessSet);
     }
@@ -174,7 +174,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
         Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Final], 1), layout, near);
 
     Graph::DescriptorSet_BeginRecordWrite(m_CompositorSet);
-    Graph::DescriptorSet_RecordWrite(m_CompositorSet, ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, comp,
+    Graph::DescriptorSet_RecordWrite(m_CompositorSet, ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, comp,
                                      m_AttachmentIndex);
     Graph::DescriptorSet_EndRecordWrite(m_CompositorSet);
 

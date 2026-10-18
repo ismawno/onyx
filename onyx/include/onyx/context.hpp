@@ -43,11 +43,11 @@ template <> struct PointLightParameters<D2>
     LightFlags Flags = 0;
 };
 
-constexpr TKit::FixedArray<f32, ONYX_MAX_CASCADES> CreateDepthBias(const f32 minBias, const f32 maxBias)
+constexpr TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> CreateDepthBias(const f32 minBias, const f32 maxBias)
 {
-    const f32 dbias = (maxBias - minBias) / (ONYX_MAX_CASCADES > 1 ? (ONYX_MAX_CASCADES - 1) : ONYX_MAX_CASCADES);
-    TKit::FixedArray<f32, ONYX_MAX_CASCADES> bias;
-    for (u32 i = 0; i < ONYX_MAX_CASCADES; ++i)
+    const f32 dbias = (maxBias - minBias) / (ONYX_3D_MAX_CASCADES > 1 ? (ONYX_3D_MAX_CASCADES - 1) : ONYX_3D_MAX_CASCADES);
+    TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> bias;
+    for (u32 i = 0; i < ONYX_3D_MAX_CASCADES; ++i)
         bias[i] = minBias + dbias * i;
     return bias;
 }
@@ -69,12 +69,12 @@ struct FittedCascadeParameters
 struct ShadowCascadeParameters
 {
     const RenderView<D3> *View = nullptr; // if null, will use fixed cascades. if populated, will use fitted
-    TKit::FixedArray<f32, ONYX_MAX_CASCADES> DepthBias = CreateDepthBias(0.001f, 0.007f);
+    TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> DepthBias = CreateDepthBias(0.001f, 0.007f);
     FixedCascadeParameters FixedParameters{};
     FittedCascadeParameters FittedParameters{};
     f32 Overlap = 0.f;
     f32 Lambda = 0.8f;
-    u32 Count = ONYX_MAX_CASCADES;
+    u32 Count = ONYX_3D_MAX_CASCADES;
 };
 
 template <Dimension D> struct DirectionalLightParameters;
@@ -709,34 +709,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_InstanceData;
     }
 
-    const TKit::TierArray<PointLightParameters<D>> &GetPointLightData() const
+    const TKit::TierArray<PointLightParameters<D>> &GetPointLightParams() const
     {
         return m_PointLightData;
     }
-    const TKit::TierArray<DirectionalLightParameters<D>> &GetDirectionalLightData() const
+    const TKit::TierArray<DirectionalLightParameters<D>> &GetDirectionalLightParams() const
     {
         return m_DirectionalLightData;
-    }
-
-    u64 GetGeneration() const
-    {
-        return m_Generation;
-    }
-
-    bool IsDirty(const u64 generation) const
-    {
-        return m_Generation > generation;
     }
 
     void AddTarget(const ViewMask viewMask)
     {
         ViewMask |= viewMask;
-        ++m_Generation;
     }
     void RemoveTarget(const ViewMask viewMask)
     {
         ViewMask &= ~viewMask;
-        ++m_Generation;
     }
 
     void AddTarget(const RenderView<D> *view)
@@ -828,7 +816,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
     TKit::TierArray<Resource> m_ImmediateDynamicMeshes{};
 
-    u64 m_Generation = 0;
     Color m_AmbientLight = Color{Color_White, 0.4f};
     u32 m_DynamicMeshCounter = 0;
 };
@@ -999,7 +986,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         addSpotLightData(m_State.Transform, params);
     }
 
-    const TKit::TierArray<SpotLightParameters> &GetSpotLightData() const
+    const TKit::TierArray<SpotLightParameters> &GetSpotLightParams() const
     {
         return m_SpotLightData;
     }

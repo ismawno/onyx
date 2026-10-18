@@ -28,8 +28,6 @@ int main()
         ctx->Rotate(time);
         ctx->Triangle();
 
-        ctx->RoundedLine(0.f, 1.f);
-
         Onyx::Transfer();
         Onyx::Render();
     }

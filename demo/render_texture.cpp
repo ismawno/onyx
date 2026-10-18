@@ -42,19 +42,6 @@ int main()
     const Onyx::NativeWindow *nw = ui->GetMainNativeWindow();
     nw->Context->AddTarget(rview2);
 
-    ctx->Flush();
-
-    ctx->FillColor(Onyx::Color_Green);
-    ctx->Quad();
-
-    ctx->TranslateX(-1.5f);
-    ctx->FillColor(Onyx::Color_Red);
-    ctx->Triangle();
-
-    ctx->TranslateX(3.f);
-    ctx->FillColor(Onyx::Color_Blue);
-    ctx->Circle();
-
     win->BringToTop(nw->View);
     const auto editDimensions = [&](Onyx::RenderTexture *rt, u32v2 &dims) {
         static bool useHor = false;
@@ -87,6 +74,19 @@ int main()
     };
     while (Onyx::Running())
     {
+        ctx->Flush();
+
+        ctx->FillColor(Onyx::Color_Green);
+        ctx->Quad();
+
+        ctx->TranslateX(-1.5f);
+        ctx->FillColor(Onyx::Color_Red);
+        ctx->Triangle();
+
+        ctx->TranslateX(3.f);
+        ctx->FillColor(Onyx::Color_Blue);
+        ctx->Circle();
+
         if (ui->BeginWindow("Main viewport", Onyx::OverlayWindowFlag_AutoResize))
         {
             editDimensions(rt1, rdims1);

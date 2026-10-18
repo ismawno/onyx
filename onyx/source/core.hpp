@@ -19,6 +19,5 @@ Graph::CommandPool FindAvailableCommandPool(Graph::QueueType queue);
 void MarkCommandPoolInUse(Graph::CommandPool pool, u64 inFlightValue);
 
 Graph::CommandPool GetTransientGraphicsCommandPool();
-Graph::CommandPool GetTransientTransferCommandPool();
 
 }; // namespace Onyx

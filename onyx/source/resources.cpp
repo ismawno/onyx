@@ -184,24 +184,24 @@ template <Dimension D> static ResourceData<D> &getData()
         return *s_ResourceData3;
 }
 
-template <Dimension D> static void materials_UpdateDescriptorSet()
+template <Dimension D> static void materials_WriteDescriptorSets()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
 
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(materials.Buffer);
-    Renderer_BindBuffer<D>(ONYX_MATERIALS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, info, RenderPass_Shaded);
     if constexpr (D == D2)
-        Renderer_BindBuffer<D>(ONYX_MATERIALS_BINDING_POINT, info, RenderPass_Shadow);
+        Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, info, RenderPass_Shadow);
 }
 
-template <Dimension D> static void bounds_UpdateDescriptorSets()
+template <Dimension D> static void bounds_WriteDescriptorSets()
 {
     BoundsResourceData<D> &bounds = getData<D>().BoundingBoxes;
 
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(bounds.Buffer);
-    Renderer_BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, info, RenderPass_Shaded);
-    Renderer_BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, info, RenderPass_Flat);
-    Renderer_BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, info, RenderPass_Shadow);
+    Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, info, RenderPass_Flat);
+    Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, info, RenderPass_Shadow);
 }
 
 // NOTE(Isma): Because we create the underlying buffer to the capacity, in theory no resizes will be triggered for both
@@ -209,28 +209,28 @@ template <Dimension D> static void bounds_UpdateDescriptorSets()
 template <typename T> static void resource_InitializeWithHive(const u32 capacity, DeviceHive<T> &hive)
 {
     hive.Elements.Reserve(capacity);
-    hive.Buffer = Graph::Buffer_Create(capacity * sizeof(T), Buffer_DeviceStorage);
+    hive.Buffer = Graph::Buffer_Create(capacity * sizeof(T), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
 }
 
 template <Dimension D> static void materials_Initialize(const u32 capacity)
 {
     resource_InitializeWithHive(capacity, getData<D>().Materials);
-    materials_UpdateDescriptorSet<D>();
+    materials_WriteDescriptorSets<D>();
 }
 
 template <Dimension D> static void bounds_Initialize(const u32 capacity)
 {
     resource_InitializeWithHive(capacity, getData<D>().BoundingBoxes);
-    bounds_UpdateDescriptorSets<D>();
+    bounds_WriteDescriptorSets<D>();
 }
 
 static void texture_UpdateOffsetDescriptorSet()
 {
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(s_Textures->OffsetBuffer);
-    Renderer_BindBuffer<D2>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
-    Renderer_BindBuffer<D2>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
-    Renderer_BindBuffer<D3>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
-    Renderer_BindBuffer<D3>(ONYX_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
+    Renderer_WriteBufferDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer_WriteBufferDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
+    Renderer_WriteBufferDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
+    Renderer_WriteBufferDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
 }
 
 // TODO(Isma): If there is a max bounds and material... why allow resizes on its buffer. Remove the resize path,
@@ -253,7 +253,8 @@ void Resources_Initialize()
     // the amount of offsets is capped by ONYX_MAX_TEXTURE_OFFSET_IDS and is only relevant for render textures. only one
     // of these ids is used for regular textures, meaning there can only be ONYX_MAX_TEXTURE_OFFSET_IDS - 1 render
     // textures at a time
-    s_Textures->OffsetBuffer = Graph::Buffer_Create(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32), Buffer_DeviceStorage);
+    s_Textures->OffsetBuffer = Graph::Buffer_Create(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32),
+                                                    Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
     texture_UpdateOffsetDescriptorSet();
 
     s_Textures->DefaultOffsetId = s_Textures->Offsets.Insert(0);
@@ -338,19 +339,19 @@ static Graph::Sampler sampler_Get(const Resource handle)
     return s_Samplers->Resources[sid];
 }
 
-static void sampler_Bind(const Resource handle)
+static void sampler_WriteDescriptors(const Resource handle)
 {
     const Graph::Sampler sampler = sampler_Get(handle);
     if (Graph::IsValidationEnabled())
         Graph::Sampler_SetName(sampler, TKit::StackString::Format("onyx-resources-sampler-{:#010x}", handle).CString());
 
     const u32 sid = Handle_GetResourceId(handle);
-    Renderer_BindSampler<D2>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shaded, sid);
-    Renderer_BindSampler<D2>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Flat, sid);
-    Renderer_BindSampler<D2>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shadow, sid);
-    Renderer_BindSampler<D3>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shaded, sid);
-    Renderer_BindSampler<D3>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Flat, sid);
-    Renderer_BindSampler<D3>(ONYX_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shadow, sid);
+    Renderer_WriteSamplerDescriptor<D2>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shaded, sid);
+    Renderer_WriteSamplerDescriptor<D2>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Flat, sid);
+    Renderer_WriteSamplerDescriptor<D2>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shadow, sid);
+    Renderer_WriteSamplerDescriptor<D3>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shaded, sid);
+    Renderer_WriteSamplerDescriptor<D3>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Flat, sid);
+    Renderer_WriteSamplerDescriptor<D3>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shadow, sid);
 }
 
 template <Dimension D> static void sampler_RemoveReferences(const Resource handle)
@@ -377,7 +378,7 @@ Resource Sampler_Create(const SamplerData &data)
 {
     const u32 sid = s_Samplers->Resources.Insert(sampler_Create(data));
     const Resource handle = Handle_CreateForResource(Resource_Sampler, sid);
-    sampler_Bind(handle);
+    sampler_WriteDescriptors(handle);
     return handle;
 }
 
@@ -388,7 +389,7 @@ void Sampler_Update(const Resource handle, const SamplerData &data)
     const u32 sid = Handle_GetResourceId(handle);
     Graph::Sampler_Destroy(s_Samplers->Resources[sid]);
     s_Samplers->Resources[sid] = sampler_Create(data);
-    sampler_Bind(handle);
+    sampler_WriteDescriptors(handle);
 }
 
 void Sampler_Destroy(const Resource handle)
@@ -516,15 +517,15 @@ void Image_Update(const Resource handle, const ImageData &data)
     img.Image = image_Create(data);
 }
 
-static void texture_Bind(const Graph::ImageView view, const u32 tid)
+static void texture_WriteDescriptors(const Graph::ImageView view, const u32 tid)
 {
     const Graph::DescriptorImageInfo info = Graph::DescriptorImageInfo::Create(view, Graph::ImageLayout_ShaderReadOnly);
-    Renderer_BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
-    Renderer_BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
-    Renderer_BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
-    Renderer_BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
-    Renderer_BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
-    Renderer_BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
+    Renderer_WriteImageDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
+    Renderer_WriteImageDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
+    Renderer_WriteImageDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
+    Renderer_WriteImageDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
+    Renderer_WriteImageDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
+    Renderer_WriteImageDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
 }
 
 static Resource texture_Create(const Graph::ImageView imageView, const u32 offsetId, const Resource image = NullHandle)
@@ -535,7 +536,7 @@ static Resource texture_Create(const Graph::ImageView imageView, const u32 offse
     tex.View = imageView;
     tex.OffsetId = offsetId;
 
-    texture_Bind(imageView, tid);
+    texture_WriteDescriptors(imageView, tid);
 
     const Resource handle = Handle_CreateForResource(Resource_Texture, tid);
     if (image != NullHandle)
@@ -644,7 +645,7 @@ static void texture_Update(const Resource handle, const Graph::ImageView view, c
     tex.Image = image;
     tex.View = view;
 
-    texture_Bind(view, tid);
+    texture_WriteDescriptors(view, tid);
 
     if (image != NullHandle)
     {
@@ -722,10 +723,10 @@ template <Dimension D> const BoundsData<D> &Bounds_GetData(const Resource handle
 template <typename Vertex>
 static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data)
 {
-    const Graph::Buffer vbuffer =
-        Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Vertex), Buffer_DeviceVertex);
-    const Graph::Buffer ibuffer =
-        Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Index), Buffer_DeviceIndex);
+    const Graph::Buffer vbuffer = Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Vertex),
+                                                       Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
+    const Graph::Buffer ibuffer = Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Index),
+                                                       Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Index);
 
     const u32 pid = data.Pools.Insert();
     MeshPool<Vertex> &mpool = data.Pools[pid];
@@ -1763,7 +1764,7 @@ template <Dimension D> static void uploadMaterials()
     materials.Flags = 0;
     // NOTE(Isma): A resize here should not trigger
     if (uploadFromHost<MaterialPackedData<D>>(materials.Buffer, sparse))
-        materials_UpdateDescriptorSet<D>();
+        materials_WriteDescriptorSets<D>();
 }
 
 template <Dimension D> static void uploadBounds()
@@ -1783,7 +1784,7 @@ template <Dimension D> static void uploadBounds()
 
     bounds.Flags = 0;
     if (uploadFromHost<BoundsData<D>>(bounds.Buffer, sparse))
-        bounds_UpdateDescriptorSets<D>();
+        bounds_WriteDescriptorSets<D>();
 }
 
 #ifdef TKIT_ENABLE_DEBUG_LOGS

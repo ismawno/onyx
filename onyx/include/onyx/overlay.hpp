@@ -2275,7 +2275,6 @@ class Overlay
 
     void ShowDemo(bool *enabled = nullptr);
     void ShowStyleEditor();
-    void ShowRendererStatistics();
 #ifdef TKIT_ENABLE_ENSURE
     void ShowTierAllocatorStatistics();
 #endif

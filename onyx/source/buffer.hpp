@@ -8,18 +8,6 @@
 
 namespace Onyx
 {
-using enum Graph::BufferFlagBit;
-
-enum BufferType : Graph::BufferFlags
-{
-    Buffer_DeviceVertex = Graph::BufferFlag_Vertex | Graph::BufferFlag_DeviceLocal,
-    Buffer_DeviceIndex = Graph::BufferFlag_Index | Graph::BufferFlag_DeviceLocal,
-    Buffer_DeviceStorage = Graph::BufferFlag_Storage | Graph::BufferFlag_DeviceLocal,
-    Buffer_Staging = Graph::BufferFlag_Staging | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
-    Buffer_HostVertex = Graph::BufferFlag_Vertex | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
-    Buffer_HostIndex = Graph::BufferFlag_Index | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess,
-};
-
 inline u32 GrowCapacity(const u32 instances, const f32 factor = 1.5f)
 {
     return u32(factor * f32(instances));

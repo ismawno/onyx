@@ -95,7 +95,6 @@ template <Dimension D> void IRenderContext<D>::Flush()
     });
 
     resizeInstanceData();
-    ++m_Generation;
     DepthCounter = 0;
     m_DynamicMeshCounter = 0;
     m_PointLightData.Clear();

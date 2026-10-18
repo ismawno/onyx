@@ -216,12 +216,12 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-[[vk::binding(ONYX_INSTANCES_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT)]]
 Instances g_Instances;
 
 #ifdef ONYX_USES_BOUNDS
 
-[[vk::binding(ONYX_BOUNDS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT)]]
 BoundsArray g_Bounds;
 
 #endif
@@ -337,54 +337,54 @@ FragInput mainVS(
     return finput;
 }
 
-[[vk::binding(ONYX_SAMPLERS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(ONYX_TEXTURES_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 #ifndef ONYX_SHADOW_PASS
-[[vk::binding(ONYX_TEXTURE_OFFSETS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT)]]
 TextureOffsets g_TextureOffsets;
 #endif
 
 #ifdef ONYX_USES_MATERIALS
-[[vk::binding(ONYX_MATERIALS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT)]]
 MaterialBuffer g_Materials;
 #endif
 
 #ifdef ONYX_PASS_SHADED
-[[vk::binding(ONYX_POINT_LIGHTS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_POINT_LIGHTS_BINDING_POINT)]]
 PointLightBuffer g_PointLights;
 
-[[vk::binding(ONYX_DIRECTIONAL_LIGHTS_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_DIRECTIONAL_LIGHTS_BINDING_POINT)]]
 DirectionalLightBuffer g_DirLights;
 
 #    ifdef ONYX_DIMENSION_3D
 
-[[vk::binding(ONYX_SPOT_LIGHTS_BINDING_POINT)]]
+[[vk::binding(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT)]]
 SpotLights g_SpotLights;
 
-[[vk::binding(ONYX_POINT_MAPS_BINDING_POINT)]]
+[[vk::binding(ONYX_3D_GEOMETRY_PASS_POINT_MAPS_BINDING_POINT)]]
 TextureCube<f32> g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 
-[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING_POINT)]]
+[[vk::binding(ONYX_3D_GEOMETRY_PASS_DIRECTIONAL_MAPS_BINDING_POINT)]]
 Texture2DArray<f32> g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
-[[vk::binding(ONYX_SPOT_MAPS_BINDING_POINT)]]
+[[vk::binding(ONYX_3D_GEOMETRY_PASS_SPOT_MAPS_BINDING_POINT)]]
 Texture2D<f32> g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    else
 
-[[vk::binding(ONYX_SHADOW_MAPS_BINDING_POINT)]]
-Texture1D<f32> g_ShadowMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
+[[vk::binding(ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT)]]
+Texture1D<f32> g_ShadowMaps[ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS];
 
 #    endif
 
-[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT)]]
 SamplerState g_ShadowSampler;
 
-[[vk::binding(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT)]]
+[[vk::binding(ONYX_GEOMETRY_PASS_SHADOW_COMPARE_SAMPLER_BINDING_POINT)]]
 SamplerComparisonState g_ShadowCompareSampler;
 
 #endif

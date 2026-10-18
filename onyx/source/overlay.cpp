@@ -7963,11 +7963,6 @@ void Overlay::ShowDemo(bool *enabled)
         editDemoWindowFlags(ov, &wflags);
         ov->EndWindow();
     }
-    if (ov->BeginWindow("Renderer statistics", &s_EnableRenderer, wflags))
-    {
-        ov->ShowRendererStatistics();
-        ov->EndWindow();
-    }
     if (ov->BeginWindow("Style editor", &s_EnableStyleEditor, wflags))
     {
         ov->ShowStyleEditor();
@@ -8002,24 +7997,6 @@ void Overlay::ShowDemo(bool *enabled)
 template <typename... Args> static TKit::StackString fmt(const fmt::format_string<Args...> str, Args &&...args)
 {
     return TKit::StackString::Format(str, std::forward<Args>(args)...);
-}
-
-void Overlay::ShowRendererStatistics()
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Overlay::RendererStatistics");
-    BeginTabBar("Dimension");
-    if (BeginTab("2D", OverlayTabFlag_StartOpen))
-    {
-        Renderer_DisplayMemoryLayout<D2>(this);
-        EndTab();
-    }
-    if (BeginTab("3D"))
-    {
-        Renderer_DisplayMemoryLayout<D3>(this);
-        EndTab();
-    }
-
-    EndTabBar();
 }
 
 #ifdef TKIT_ENABLE_ENSURE

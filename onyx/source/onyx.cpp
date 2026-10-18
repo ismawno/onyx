@@ -302,23 +302,11 @@ void Quit(const QuitFlags flags)
     s_Data->Quit = flags | QuitFlag_Quit;
 }
 
-void Transfer(const TransferInfo &info)
+void Transfer()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Transfer");
     Graph::UpdateCompletedTimelineValuesForAllQueues();
-
-    static u64 transferCount = 0;
-    if (info.CoalescePeriod != 0 && (transferCount++ % info.CoalescePeriod) == 0)
-        Renderer_Coalesce();
-
-    const Graph::CommandPool tpool = FindAvailableCommandPool(Graph::Queue_Transfer);
-    const Graph::CommandBuffer cmd = Graph::CommandPool_NextCommandBuffer(tpool);
-
-    Graph::CommandBuffer_Begin(cmd);
-    const TransferSubmitInfo tinfo = Renderer_Transfer(cmd);
-    Graph::CommandBuffer_End(cmd);
-    if (tinfo)
-        Renderer_SubmitTransfer(tpool, tinfo);
+    Renderer_Transfer();
 }
 void Render(const RenderInfo &info)
 {
@@ -370,7 +358,6 @@ void Render(const RenderInfo &info)
         const Graph::CommandPool gpool = FindAvailableCommandPool(Graph::Queue_Graphics);
 
         TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
-        Renderer_PrepareRender();
 
         bool once = true;
         for (RenderTexture *rtex : s_Data->RenderTextures)
@@ -381,7 +368,6 @@ void Render(const RenderInfo &info)
             if (once)
             {
                 Resources_UpdateTextureIdOffsetBuffer(cmd);
-                Renderer_ApplyAcquireBarriers(cmd);
                 once = false;
             }
             const RenderSubmitInfo rinfo = Renderer_Render(cmd, rtex);
@@ -405,7 +391,6 @@ void Render(const RenderInfo &info)
             if (once)
             {
                 Resources_UpdateTextureIdOffsetBuffer(cmd);
-                Renderer_ApplyAcquireBarriers(cmd);
                 once = false;
             }
 

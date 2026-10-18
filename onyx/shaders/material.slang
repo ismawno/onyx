@@ -69,7 +69,7 @@ enum ShadedFlagBit : ShadedFlags
 
 struct LightData2D
 {
-    u32 LightRanges[Light_Count2D];
+    u32 LightCounts[Light_Count2D];
     f32 TexelSizes[Light_Count2D];
     u32 AmbientColor;
     ShadedFlags Flags;
@@ -86,7 +86,7 @@ struct LightData3D
     f32 ViewForwardY;
     f32 ViewForwardZ;
 
-    u32 LightRanges[Light_Count3D];
+    u32 LightCounts[Light_Count3D];
     f32 TexelSizes[Light_Count3D];
 
     u32 AmbientColor;
@@ -176,7 +176,7 @@ struct CascadeData
 
 struct DirectionalLight3D
 {
-    CascadeData Cascades[ONYX_MAX_CASCADES];
+    CascadeData Cascades[ONYX_3D_MAX_CASCADES];
 
     f32 DirX;
     f32 DirY;
@@ -276,7 +276,7 @@ struct ResourceTable2D
 
     SamplerState ShadowSampler;
     SamplerComparisonState ShadowCompareSampler;
-    Texture1D<f32> ShadowMaps[ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE];
+    Texture1D<f32> ShadowMaps[ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS];
 }
 
 struct ResourceTable3D
@@ -345,20 +345,6 @@ static const f32 poissonLine[POISSON_LINE_SAMPLES] = {
     -0.932, -0.687, -0.451, -0.178, 0.094, 0.358, 0.612, 0.876,
 };
 
-struct LightRange
-{
-    u32 Offset;
-    u32 Count;
-};
-
-LightRange GetRange(const u32 range)
-{
-    LightRange r;
-    r.Offset = range >> 16;
-    r.Count = range & 0xFFFF;
-    return r;
-}
-
 #define ONYX_MAX_SEARCH_RADIUS_TEXELS 16.f
 
 [vk::constant_id(0)]
@@ -377,10 +363,9 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
 
-    const LightRange prg = GetRange(data.LightRanges[Light_Point]);
-    for (u32 i = 0; i < prg.Count; ++i)
+    for (u32 i = 0; i < data.LightCounts[Light_Point]; ++i)
     {
-        const PointLight2D plight = resources.PointLights[i + prg.Offset];
+        const PointLight2D plight = resources.PointLights[i];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
@@ -474,10 +459,9 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
         diffuseColor += intensity * lightColor * shadow;
     }
 
-    const LightRange drg = GetRange(data.LightRanges[Light_Directional]);
-    for (u32 i = 0; i < drg.Count; ++i)
+    for (u32 i = 0; i < data.LightCounts[Light_Directional]; ++i)
     {
-        const DirectionalLight2D dlight = resources.DirLights[i + drg.Offset];
+        const DirectionalLight2D dlight = resources.DirLights[i];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
@@ -615,10 +599,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
 
     f32v3 Lo = f32v3(0.0);
 
-    const LightRange prg = GetRange(data.LightRanges[Light_Point]);
-    for (u32 i = 0; i < prg.Count; ++i)
+    for (u32 i = 0; i < data.LightCounts[Light_Point]; ++i)
     {
-        const PointLight3D plight = resources.PointLights[i + prg.Offset];
+        const PointLight3D plight = resources.PointLights[i];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
@@ -704,10 +687,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
         Lo += contrib * intensity * shadow;
     }
 
-    const LightRange drg = GetRange(data.LightRanges[Light_Directional]);
-    for (u32 i = 0; i < drg.Count; ++i)
+    for (u32 i = 0; i < data.LightCounts[Light_Directional]; ++i)
     {
-        const DirectionalLight3D dlight = resources.DirLights[i + drg.Offset];
+        const DirectionalLight3D dlight = resources.DirLights[i];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
@@ -806,10 +788,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
         Lo += contrib * intensity * shadow;
     }
 
-    const LightRange srg = GetRange(data.LightRanges[Light_Spot]);
-    for (u32 i = 0; i < srg.Count; ++i)
+    for (u32 i = 0; i < data.LightCounts[Light_Spot]; ++i)
     {
-        const SpotLight slight = resources.SpLights[i + srg.Offset];
+        const SpotLight slight = resources.SpLights[i];
         if (!bool(slight.ViewMask & data.ViewBit))
             continue;
 

@@ -210,7 +210,7 @@ struct InstanceDataBuffer
 struct LocalResourceRegistry
 {
     // NOTE(Isma): Is this enough?
-    TKit::TierArray<Resource> ResourceIds{};
+    TKit::TierArray<u32> ResourceIds{};
     TKit::StaticBitSet2048 UsedResourceIds{2048};
 
     void Clear()

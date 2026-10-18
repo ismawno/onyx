@@ -11,22 +11,10 @@ namespace Onyx
 {
 template <Dimension D> class RenderContext;
 
-struct TransferSubmitInfo
-{
-    Graph::CommandBuffer Command = Graph::NullHandle;
-    u64 InFlightValue = 0;
-
-    operator bool() const
-    {
-        return Command != Graph::NullHandle;
-    }
-};
-
 struct RenderSubmitInfo
 {
     Graph::CommandBuffer Command = Graph::NullHandle;
     Graph::Swapchain Swapchain = Graph::NullHandle;
-    TKit::TierArray<Graph::WaitInfo> WaitValues{};
     u64 InFlightValue = 0;
 };
 
@@ -52,11 +40,13 @@ void Renderer_RemoveTarget(const ViewMask vmask);
 
 // TODO(Isma): Add a bit more clearance on what these do. They essentially write into the renderer's descriptor sets
 template <Dimension D>
-void Renderer_BindBuffer(u32 binding, const Graph::DescriptorBufferInfo &info, RenderPass pass, u32 dstElement = 0);
+void Renderer_WriteBufferDescriptor(u32 binding, const Graph::DescriptorBufferInfo &info, RenderPass pass,
+                                    u32 dstElement = 0);
 template <Dimension D>
-void Renderer_BindImage(u32 binding, const Graph::DescriptorImageInfo &info, RenderPass pass, u32 dstElement = 0);
+void Renderer_WriteImageDescriptor(u32 binding, const Graph::DescriptorImageInfo &info, RenderPass pass,
+                                   u32 dstElement = 0);
 template <Dimension D>
-void Renderer_BindSampler(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement = 0);
+void Renderer_WriteSamplerDescriptor(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement = 0);
 
 Graph::Sampler Renderer_GetNearSampler();
 
@@ -64,13 +54,9 @@ Graph::Sampler Renderer_GetNearSampler();
 
 // NOTE(Isma): Same family index multi queue support was dropped. passing queues around is in theory no longer needed
 // anymore
-TransferSubmitInfo Renderer_Transfer(Graph::CommandBuffer command, u32 maxLights = 1024, u32 maxReleaseBarriers = 256);
-void Renderer_SubmitTransfer(Graph::CommandPool pool, TKit::Span<const TransferSubmitInfo> info);
+void Renderer_Transfer();
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)
-void Renderer_PrepareRender();
-void Renderer_ApplyAcquireBarriers(Graph::CommandBuffer graphicsCommand);
-
 RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, Window *window, RenderFlags flags = 0);
 RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, RenderTexture *rtex);
 

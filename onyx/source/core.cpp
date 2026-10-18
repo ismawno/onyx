@@ -85,20 +85,7 @@ struct CommandPool
     Graph::Tracker Tracker{};
 };
 static Graph::CommandPool s_Graphics = NullHandle;
-static Graph::CommandPool s_Transfer = NullHandle;
 static TKit::Storage<TKit::ArenaArray<CommandPool>> s_CommandPools{};
-
-static void createTransientCommandPools()
-{
-    s_Graphics = Graph::CommandPool_Create(Graph::Queue_Graphics, Graph::CommandPoolFlag_CreateTransient);
-    s_Transfer = Graph::CommandPool_Create(Graph::Queue_Transfer, Graph::CommandPoolFlag_CreateTransient);
-
-    if (Graph::IsValidationEnabled())
-    {
-        Graph::CommandPool_SetName(s_Graphics, "onyx-transient-graphics-command-pool");
-        Graph::CommandPool_SetName(s_Transfer, "onyx-transient-transfer-command-pool");
-    }
-}
 
 Graph::CommandPool FindAvailableCommandPool(const Graph::QueueType queue)
 {
@@ -137,14 +124,14 @@ static void execution_Initialize()
     TKIT_LOG_INFO("[ONYX][EXECUTION] Initializing");
     s_CommandPools.Construct();
     s_CommandPools->Reserve(Graph::GetSpecs().MaxCommandPools);
-    createTransientCommandPools();
+    s_Graphics = Graph::CommandPool_Create(Graph::Queue_Graphics, Graph::CommandPoolFlag_CreateTransient);
+    if (Graph::IsValidationEnabled())
+        Graph::CommandPool_SetName(s_Graphics, "onyx-transient-graphics-command-pool");
 }
 static void execution_Terminate()
 {
     Graph::CommandPool_Destroy(s_Graphics);
-    Graph::CommandPool_Destroy(s_Transfer);
     s_Graphics = Graph::NullHandle;
-    s_Transfer = Graph::NullHandle;
     for (const CommandPool &pool : *s_CommandPools)
         Graph::CommandPool_Destroy(pool.Pool);
 
@@ -154,10 +141,6 @@ static void execution_Terminate()
 Graph::CommandPool GetTransientGraphicsCommandPool()
 {
     return s_Graphics;
-}
-Graph::CommandPool GetTransientTransferCommandPool()
-{
-    return s_Transfer;
 }
 
 /////////////////////////////////////////////
@@ -196,79 +179,82 @@ static void createDescriptorData()
     constexpr Graph::DescriptorBindingFlags updateAfterBind = Graph::DescriptorBindingFlag_UpdateUnusedWhilePending;
 
     BindingArray flat{};
-    flat.Append(Binding::Create(ONYX_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
-    flat.Append(
-        Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound | updateAfterBind));
-    flat.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS,
                                 pbound | updateAfterBind));
-    flat.Append(Binding::Create(ONYX_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
-    flat.Append(Binding::Create(ONYX_BOUNDS_BINDING_POINT, buffer, vertex));
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
+                                pbound | updateAfterBind));
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex));
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
     s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
 
     // flat is also the common prefix of the shaded bindings
     BindingArray shaded = flat;
-    shaded.Append(Binding::Create(ONYX_MATERIALS_BINDING_POINT, buffer, fragment));
-    shaded.Append(Binding::Create(ONYX_POINT_LIGHTS_BINDING_POINT, buffer, fragment));
-    shaded.Append(Binding::Create(ONYX_DIRECTIONAL_LIGHTS_BINDING_POINT, buffer, fragment));
-    shaded.Append(Binding::Create(ONYX_SHADOW_SAMPLER_BINDING_POINT, sampler, fragment));
-    shaded.Append(Binding::Create(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT, sampler, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_POINT_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_DIRECTIONAL_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT, sampler, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_COMPARE_SAMPLER_BINDING_POINT, sampler, fragment));
 
     // we perform a copy to not modify shaded
     BindingArray shaded2 = shaded;
-    shaded2.Append(Binding::Create(ONYX_SHADOW_MAPS_BINDING_POINT, sampledImage, fragment,
-                                   ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind));
+    shaded2.Append(Binding::Create(ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT, sampledImage, fragment,
+                                   ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind));
     s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded2);
 
-    shaded.Append(
-        Binding::Create(ONYX_POINT_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(
-        Binding::Create(ONYX_DIRECTIONAL_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_SPOT_MAPS_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_SPOT_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_POINT_MAPS_BINDING_POINT, sampledImage, fragment,
+                                  ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_DIRECTIONAL_MAPS_BINDING_POINT, sampledImage, fragment,
+                                  ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_MAPS_BINDING_POINT, sampledImage, fragment,
+                                  ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT, buffer, fragment));
     s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded);
 
     BindingArray shadow{};
-    shadow.Append(Binding::Create(ONYX_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
-    shadow.Append(Binding::Create(ONYX_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
-    shadow.Append(Binding::Create(ONYX_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
-    shadow.Append(Binding::Create(ONYX_BOUNDS_BINDING_POINT, buffer, vertex));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    shadow.Append(
+        Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
+    shadow.Append(
+        Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex));
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
 
-    shadow.Append(Binding::Create(ONYX_MATERIALS_BINDING_POINT, buffer, fragment));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment));
     s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
 
     // NOTE(Isma): Removed bind unused here
     const Binding rayMarch[] = {
-        Binding::Create(ONYX_OCCLUSION_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind),
-        Binding::Create(ONYX_RAY_MARCH_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_MAX_RAY_MARCH_AND_OCCLUSION_MAP_SIZE, pbound | updateAfterBind),
+        Binding::Create(ONYX_2D_RAY_MARCH_PASS_OCCLUSION_MAP_BINDING_POINT, storageImage, compute,
+                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind),
+        Binding::Create(ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT, storageImage, compute,
+                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch] = Graph::DescriptorSetLayout_Create(rayMarch);
 
     constexpr Binding blend[] = {
-        Binding::Create(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
-        Binding::Create(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] = Graph::DescriptorSetLayout_Create(blend);
 
     constexpr Binding postProcess[] = {
-        Binding::Create(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
-        Binding::Create(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
-        Binding::Create(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+        Binding::Create(ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment,
+                        ONYX_MAX_ATTACHMENTS, pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess] = Graph::DescriptorSetLayout_Create(postProcess);
 
     constexpr Binding compositor[] = {
-        Binding::Create(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor] = Graph::DescriptorSetLayout_Create(compositor);
@@ -440,7 +426,7 @@ static void core_Initialize(const Specs &specs)
     gspecs.EnabledCapabilities = Graph::Capability_IndependentBlend | Graph::Capability_MultiDrawIndirect |
                                  Graph::Capability_ShaderDrawParameters | Graph::Capability_ExtendedDynamicState |
                                  Graph::Capability_BindlessDescriptors | Graph::Capability_ImageMultiFormat |
-                                 Graph::Capability_RequireGraphicsQueue | Graph::Capability_RequireTransferQueue;
+                                 Graph::Capability_RequireGraphicsQueue;
     if (specs.Flags & InitializationFlag_EnableDebugUtils)
         gspecs.EnabledCapabilities |= Graph::Capability_DebugUtils;
     if (specs.Flags & InitializationFlag_EnablePrintfDebugFeature)

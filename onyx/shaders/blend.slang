@@ -8,10 +8,10 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-[[vk::binding(ONYX_BLEND_TRANSPARENT_ATTACHMENTS_BINDING)]]
+[[vk::binding(ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING)]]
 Sampler2D g_Transparent[ONYX_MAX_ATTACHMENTS];
 
-[[vk::binding(ONYX_BLEND_REVEALAGE_ATTACHMENTS_BINDING)]]
+[[vk::binding(ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING)]]
 Sampler2D<f32> g_Revealage[ONYX_MAX_ATTACHMENTS];
 
 [shader("fragment")]

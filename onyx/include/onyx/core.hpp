@@ -172,7 +172,4 @@ void PushTier(u32 threadIndex);
 // NOTE(Isma): Should implement Pop for consistency
 
 TKit::ITaskManager *GetTaskManager();
-
-class Overlay;
-template <Dimension D> void Renderer_DisplayMemoryLayout(Overlay *ov);
 }; // namespace Onyx

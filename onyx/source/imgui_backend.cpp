@@ -1133,8 +1133,10 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();
-        buffers.VertexBuffer = Graph::Buffer_Create<ImDrawVert>(ONYX_BUFFER_INITIAL_CAPACITY, Buffer_HostVertex);
-        buffers.IndexBuffer = Graph::Buffer_Create<ImDrawIdx>(ONYX_BUFFER_INITIAL_CAPACITY, Buffer_HostIndex);
+        buffers.VertexBuffer = Graph::Buffer_Create<ImDrawVert>(
+            ONYX_BUFFER_INITIAL_CAPACITY, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Vertex);
+        buffers.IndexBuffer = Graph::Buffer_Create<ImDrawIdx>(ONYX_BUFFER_INITIAL_CAPACITY,
+                                                              Graph::BufferFlag_HostMapped | Graph::BufferFlag_Index);
 
         if (Graph::IsValidationEnabled())
         {
@@ -1373,8 +1375,10 @@ static void renderer_Render(const ImDrawData *ddata, const Graph::CommandBuffer 
         const u32 vcount = u32(ddata->TotalVtxCount);
         const u32 icount = u32(ddata->TotalIdxCount);
 
-        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount, Buffer_HostVertex);
-        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount, Buffer_HostIndex);
+        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount,
+                                       Graph::BufferFlag_HostMapped | Graph::BufferFlag_Vertex);
+        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount,
+                                      Graph::BufferFlag_HostMapped | Graph::BufferFlag_Index);
 
         usz voffset = 0;
         usz ioffset = 0;
