@@ -77,6 +77,8 @@ template <> struct LightResources<D2>
     TextureMapPool ShadowMaps{};
     TextureMapPool OcclusionMaps{};
 
+    Graph::DescriptorSet RayMarchDescriptor = Graph::NullHandle;
+
     void Reset()
     {
         ShadowMaps.Cursor = 0;
@@ -193,7 +195,6 @@ template <> struct ShadowData<D2>
     Graph::Pipeline RayMarchPipeline{};
     //
     Graph::Format ShadowFormat = Graph::Format_Undefined;
-    Graph::DescriptorSet RayMarchSet = Graph::NullHandle;
 
     constexpr u32 GetShadowResolution(const u32) const
     {
@@ -1061,6 +1062,11 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
     {
         ShadowData<D2> &sdata = getRendererData<D2>().Shadows;
         LightResources<D2> &l2 = lres;
+        const Graph::DescriptorSet set = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_RayMarch));
+        if (Graph::IsValidationEnabled())
+            Graph::DescriptorSet_SetName(set, "onyx-renderer-descriptor-set-ray-march");
+
+        l2.RayMarchDescriptor = set;
         const Graph::ImageFlags flags = Graph::ImageFlag_Sampled | Graph::ImageFlag_Storage |
                                         (isDepth2DSupported() ? Graph::ImageFlag_Depth : Graph::ImageFlag_Color);
 
@@ -1079,17 +1085,23 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
                 Graph::Image_SetViewNames(
                     img, TKit::StackString::Format("onyx-texture-map-view-2D-{}", dstElement).CString());
             }
-            const Graph::DescriptorImageInfo info =
+            Graph::DescriptorImageInfo info =
                 Graph::DescriptorImageInfo::Create(Graph::Image_GetView(img), Graph::ImageLayout_ShaderReadOnly);
+
             writeDescriptor<D>(group, ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT, info, RenderPass_Shaded,
-                               dstElement++);
+                               dstElement);
+
+            info.Layout = Graph::ImageLayout_General;
+            Graph::DescriptorSet_Write(l2.RayMarchDescriptor, ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT, info,
+                                       dstElement++);
         }
 
+        specs.Type = Graph::ImageType_2D;
         specs.Formats = sdata.OcclusionFormat;
         dstElement = 0;
         for (Graph::Image &img : l2.OcclusionMaps.Maps)
         {
-            img = Graph::Image_Create(u32v2{sdata.OcclusionResolution, 1}, specs,
+            img = Graph::Image_Create(u32v2{sdata.OcclusionResolution}, specs,
                                       Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Storage);
             Graph::Image_AddView(img);
             if (Graph::IsValidationEnabled())
@@ -1101,7 +1113,7 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
 
             const Graph::DescriptorImageInfo info =
                 Graph::DescriptorImageInfo::Create(Graph::Image_GetView(img), Graph::ImageLayout_General);
-            Graph::DescriptorSet_Write(sdata.RayMarchSet, ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT, info,
+            Graph::DescriptorSet_Write(l2.RayMarchDescriptor, ONYX_2D_RAY_MARCH_PASS_OCCLUSION_MAP_BINDING_POINT, info,
                                        dstElement++);
         }
     }
@@ -1257,8 +1269,6 @@ template <Dimension D> static void initialize()
     if constexpr (D == D2)
     {
         ShadowData<D2> &sdata = getRendererData<D>().Shadows;
-        sdata.RayMarchSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_RayMarch));
-
         if (Graph::Format_IsSupported(sdata.PrimaryShadowFormat, Graph::ImageType_1D,
                                       Graph::ImageFlag_Sampled | Graph::ImageFlag_Storage))
             sdata.ShadowFormat = ShadowData<D2>::PrimaryShadowFormat;
@@ -2290,7 +2300,7 @@ template <Dimension D> static void renderShadows(const Graph::CommandBuffer cmd,
                                  Graph::AccessFlag_ShaderWrite, Graph::PipelineStageFlag_FragmentShader,
                                  Graph::PipelineStageFlag_ComputeShader);
 
-                const Graph::DescriptorSet set = sdata.RayMarchSet;
+                const Graph::DescriptorSet set = l2.RayMarchDescriptor;
 
                 Graph::Command_BindPipeline(cmd, sdata.RayMarchPipeline);
                 const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_RayMarch);
