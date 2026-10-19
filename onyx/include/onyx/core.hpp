@@ -2,6 +2,7 @@
 
 #include "onyx/alias.hpp"
 #include "onyx/dimension.hpp"
+#include "onyx/instance.hpp"
 #include "graph/core.hpp"
 #include "graph/input.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
@@ -134,6 +135,56 @@ struct Allocation
     TKit::TierAllocator *Tier = nullptr;
 };
 
+template <Dimension D> struct SpecificSpecs;
+
+template <> struct SpecificSpecs<D2>
+{
+    u32 MaxResourceGroups = 4;
+    u32 MaxInstances = 10000;
+    u32 MaxLightInstances = 100;
+    u32 MaxDrawCommands = 500;
+
+    u32 MaxVerticesPerResourcePool = 15000;
+    u32 MaxIndicesPerResourcePool = 30000;
+
+    u32 MaxDynamicVertices = 15000;
+    u32 MaxDynamicIndices = 30000;
+
+    u32 MaxShadowMaps = 4;
+    u32 MaxOcclusionMaps = 4;
+    u32 ShadowResolution = 1024;
+    u32 OcclusionResolution = 1024;
+
+    u32 MaxDynamicMeshes = 1024;
+    u32 MaxMaterials = 256;
+    u32 MaxBounds = 1024;
+
+    u32 MaxFramebuffers = 3;
+};
+template <> struct SpecificSpecs<D3>
+{
+    u32 MaxResourceGroups = 4;
+    u32 MaxInstances = 10000;
+    u32 MaxLightInstances = 100;
+    u32 MaxDrawCommands = 500;
+
+    u32 MaxVerticesPerResourcePool = 15000;
+    u32 MaxIndicesPerResourcePool = 30000;
+
+    u32 MaxDynamicVertices = 15000;
+    u32 MaxDynamicIndices = 30000;
+
+    u32 MaxShadowMaps = 4;
+
+    u32 MaxDynamicMeshes = 1024;
+    u32 MaxMaterials = 256;
+    u32 MaxBounds = 1024;
+
+    u32 MaxFramebuffers = 3;
+
+    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
+};
+
 struct Specs
 {
     const char *LoaderPath = nullptr;
@@ -141,6 +192,29 @@ struct Specs
     // null uses tmp dir. only relevant when device fault extension is enabled
     const char *DeviceFaultCrashDump = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
+
+    // execution
+    u32 MaxCommandPools = 8;
+    u32 MaxCommandBuffers = 32;
+    u32 MaxDescriptorSets = 512;
+
+    // resources
+    u32 MaxBuffers = 256;
+    u32 MaxImages = 256;
+    u32 MaxSamplers = 16;
+    u32 MaxImageViews = 1024;
+    u32 MaxImGuiVertices = 8000;
+    u32 MaxImGuiIndices = 12000;
+
+    // pipeline
+    u32 MaxShaders = 128;
+    u32 MaxCompilations = 4;
+    u32 MaxReflections = 4;
+    u32 MaxPipelineLayouts = 32;
+    u32 MaxPipelines = 256;
+
+    SpecificSpecs<D2> Specs2{};
+    SpecificSpecs<D3> Specs3{};
 
     TKit::FixedArray<Allocation, TKit::MaxThreads> Allocators{};
 #ifdef TKIT_ENABLE_ENSURE
@@ -153,6 +227,20 @@ struct Specs
 #else
     InitializationFlags Flags = 0;
 #endif
+    template <Dimension D> const SpecificSpecs<D> &GetSpecific() const
+    {
+        if constexpr (D == D2)
+            return Specs2;
+        else
+            return Specs3;
+    }
+    template <Dimension D> SpecificSpecs<D> &GetSpecific()
+    {
+        if constexpr (D == D2)
+            return Specs2;
+        else
+            return Specs3;
+    }
 };
 
 void Initialize(const Specs &specs = {});
@@ -167,6 +255,8 @@ TKit::TierAllocator *GetTier(u32 threadIndex);
 void PushArena(u32 threadIndex);
 void PushStack(u32 threadIndex);
 void PushTier(u32 threadIndex);
+
+const Specs &GetSpecs();
 
 // for Pop, you use TKit::Pop.
 // NOTE(Isma): Should implement Pop for consistency

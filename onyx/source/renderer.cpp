@@ -57,8 +57,7 @@ struct InstanceBuffer
 
 struct TextureMapPool
 {
-    // NOTE(Isma): ONYX_MAX_TEXTURE_MAPS is too much. convert to arena, pass a size, assert if it exceeds max
-    TKit::FixedArray<Graph::Image, ONYX_MAX_TEXTURE_MAPS> Maps{};
+    TKit::ArenaArray<Graph::Image> Maps{};
     u32 Cursor = 0;
 
     void Destroy() const
@@ -196,7 +195,10 @@ template <> struct ShadowData<D2>
     //
     Graph::Format ShadowFormat = Graph::Format_Undefined;
 
-    constexpr u32 GetShadowResolution(const u32) const
+    u32 ShadowResolution;
+    u32 OcclusionResolution;
+
+    u32 GetShadowResolution(const u32) const
     {
         return ShadowResolution;
     }
@@ -206,8 +208,6 @@ template <> struct ShadowData<D2>
         Graph::Format_D16_UNORM; // not usually supported when used as 1D
                                  // storage. thats why a fallback is provided
     static constexpr Graph::Format FallbackShadowFormat = Graph::Format_R16_UNORM;
-    static constexpr u32 ShadowResolution = 1024;
-    static constexpr u32 OcclusionResolution = 1024;
 };
 
 using ShadowMapId = u32;
@@ -215,21 +215,20 @@ using ShadowMapId = u32;
 template <> struct ShadowData<D3>
 {
     ten<Graph::Pipeline, Geometry_Count> Pipelines{};
+    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions;
 
-    constexpr u32 GetShadowResolution(const u32 ltype) const
+    u32 GetShadowResolution(const u32 ltype) const
     {
         return ShadowResolutions[ltype];
     }
 
     static constexpr Graph::Format ShadowFormat = Graph::Format_D32_SFLOAT;
-    static constexpr TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 
 template <Dimension D> struct RendererData
 {
     TKit::TierArray<RenderContext<D> *> Contexts{};
-    // NOTE(Isma): make it an arena array and pass the maximum?
-    TKit::FixedArray4<ResourceGroup<D>> ResourceGroups{};
+    TKit::ArenaArray<ResourceGroup<D>> ResourceGroups{};
     ten<Graph::Pipeline, BlendPass_Count, PipelinePass_Count, Geometry_Count> Pipelines{};
     ResourceGroup<D> *ActiveResourceGroup = nullptr;
 
@@ -1048,13 +1047,14 @@ static void destroyPipelines()
     Graph::Pipeline_Destroy(s_CompositorPipeline);
 }
 
-template <Dimension D> static void createLightResources(ResourceGroup<D> &group, const u32 maxInstances)
+template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
 {
     LightResources<D> &lres = group.LightData;
+    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     for (u32 i = 0; i < LightTypeCount<D>; ++i)
     {
         const LightType ltype = LightType(i);
-        lres.Buffers[ltype] = createLightBuffer<D>(ltype, maxInstances);
+        lres.Buffers[ltype] = createLightBuffer<D>(ltype, specs.MaxLightInstances);
         updateLightDescriptorSets(group, ltype);
     }
 
@@ -1070,51 +1070,52 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
         const Graph::ImageFlags flags = Graph::ImageFlag_Sampled | Graph::ImageFlag_Storage |
                                         (isDepth2DSupported() ? Graph::ImageFlag_Depth : Graph::ImageFlag_Color);
 
-        Graph::ImageSpecs specs{};
-        specs.Type = Graph::ImageType_1D;
-        specs.Formats = sdata.ShadowFormat;
+        Graph::ImageSpecs ispecs{};
+        ispecs.Type = Graph::ImageType_1D;
+        ispecs.Formats = sdata.ShadowFormat;
 
-        u32 dstElement = 0;
-        for (Graph::Image &img : l2.ShadowMaps.Maps)
+        u32 maxMaps = specs.MaxShadowMaps;
+        l2.ShadowMaps.Maps.Reserve(maxMaps);
+        for (u32 i = 0; i < maxMaps; ++i)
         {
-            img = Graph::Image_Create(u32v2{sdata.ShadowResolution, 1}, specs, flags);
+            const Graph::Image img =
+                l2.ShadowMaps.Maps.Append(Graph::Image_Create(u32v2{sdata.ShadowResolution, 1}, ispecs, flags));
             Graph::Image_AddView(img);
             if (Graph::IsValidationEnabled())
             {
-                Graph::Image_SetName(img, TKit::StackString::Format("onyx-texture-map-2D-{}", dstElement).CString());
-                Graph::Image_SetViewNames(
-                    img, TKit::StackString::Format("onyx-texture-map-view-2D-{}", dstElement).CString());
+                Graph::Image_SetName(img, TKit::StackString::Format("onyx-texture-map-2D-{}", i).CString());
+                Graph::Image_SetViewNames(img, TKit::StackString::Format("onyx-texture-map-view-2D-{}", i).CString());
             }
             Graph::DescriptorImageInfo info =
                 Graph::DescriptorImageInfo::Create(Graph::Image_GetView(img), Graph::ImageLayout_ShaderReadOnly);
 
-            writeDescriptor<D>(group, ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT, info, RenderPass_Shaded,
-                               dstElement);
+            writeDescriptor<D>(group, ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT, info, RenderPass_Shaded, i);
 
             info.Layout = Graph::ImageLayout_General;
             Graph::DescriptorSet_Write(l2.RayMarchDescriptor, ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT, info,
-                                       dstElement++);
+                                       i);
         }
 
-        specs.Type = Graph::ImageType_2D;
-        specs.Formats = sdata.OcclusionFormat;
-        dstElement = 0;
-        for (Graph::Image &img : l2.OcclusionMaps.Maps)
+        maxMaps = specs.MaxOcclusionMaps;
+        l2.OcclusionMaps.Maps.Reserve(maxMaps);
+        ispecs.Type = Graph::ImageType_2D;
+        ispecs.Formats = sdata.OcclusionFormat;
+        for (u32 i = 0; i < maxMaps; ++i)
         {
-            img = Graph::Image_Create(u32v2{sdata.OcclusionResolution}, specs,
-                                      Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Storage);
+            const Graph::Image img = l2.OcclusionMaps.Maps.Append(Graph::Image_Create(
+                u32v2{sdata.OcclusionResolution}, ispecs, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Storage));
+
             Graph::Image_AddView(img);
             if (Graph::IsValidationEnabled())
             {
-                Graph::Image_SetName(img, TKit::StackString::Format("onyx-occlusion-map-{}", dstElement).CString());
-                Graph::Image_SetViewNames(
-                    img, TKit::StackString::Format("onyx-occlusion-map-view-{}", dstElement).CString());
+                Graph::Image_SetName(img, TKit::StackString::Format("onyx-occlusion-map-{}", i).CString());
+                Graph::Image_SetViewNames(img, TKit::StackString::Format("onyx-occlusion-map-view-{}", i).CString());
             }
 
             const Graph::DescriptorImageInfo info =
                 Graph::DescriptorImageInfo::Create(Graph::Image_GetView(img), Graph::ImageLayout_General);
             Graph::DescriptorSet_Write(l2.RayMarchDescriptor, ONYX_2D_RAY_MARCH_PASS_OCCLUSION_MAP_BINDING_POINT, info,
-                                       dstElement++);
+                                       i);
         }
     }
     else
@@ -1132,8 +1133,8 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
             const LightType ltype = LightType(i);
             const u32 lcount = lcounts[ltype];
 
-            Graph::ImageSpecs specs{};
-            specs.Formats = sdata.ShadowFormat;
+            Graph::ImageSpecs ispecs{};
+            ispecs.Formats = sdata.ShadowFormat;
             for (u32 j = 0; j < lcount; ++j)
             {
                 Graph::ImageViewSpecs &layer = views.Append();
@@ -1149,13 +1150,13 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
                 flags |= Graph::ImageFlag_CubeCompatible;
                 views.Append().Type = Graph::ImageViewType_Cube;
                 binding = ONYX_3D_GEOMETRY_PASS_POINT_MAPS_BINDING_POINT;
-                specs.ArrayLayers = lcount;
+                ispecs.ArrayLayers = lcount;
             }
             else if (ltype == Light_Directional)
             {
                 views.Append().Type = Graph::ImageViewType_2DArray;
                 binding = ONYX_3D_GEOMETRY_PASS_DIRECTIONAL_MAPS_BINDING_POINT;
-                specs.ArrayLayers = lcount;
+                ispecs.ArrayLayers = lcount;
             }
             else
             {
@@ -1164,23 +1165,26 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
             }
             const u32 mainViewIndex = lcount;
 
-            specs.ImageViews = views;
-            u32 dstElement = 0;
-            for (Graph::Image &img : l3.ShadowMaps[ltype].Maps)
+            ispecs.ImageViews = views;
+
+            const u32 maxMaps = specs.MaxShadowMaps;
+            l3.ShadowMaps[ltype].Maps.Reserve(maxMaps);
+            for (u32 i = 0; i < maxMaps; ++i)
             {
-                img = Graph::Image_Create(u32v2{sdata.ShadowResolutions[ltype]}, specs, flags);
+                const Graph::Image img = l3.ShadowMaps[ltype].Maps.Append(
+                    Graph::Image_Create(u32v2{sdata.ShadowResolutions[ltype]}, ispecs, flags));
+
                 if (Graph::IsValidationEnabled())
                 {
                     Graph::Image_SetName(
-                        img, TKit::StackString::Format("onyx-texture-map-3D-'{}'-{}", ToString(ltype), dstElement)
-                                 .CString());
+                        img, TKit::StackString::Format("onyx-texture-map-3D-'{}'-{}", ToString(ltype), i).CString());
                     Graph::Image_SetViewNames(
-                        img, TKit::StackString::Format("onyx-texture-map-view-3D-'{}'-{}", ToString(ltype), dstElement)
-                                 .CString());
+                        img,
+                        TKit::StackString::Format("onyx-texture-map-view-3D-'{}'-{}", ToString(ltype), i).CString());
                 }
                 const Graph::DescriptorImageInfo info = Graph::DescriptorImageInfo::Create(
                     Graph::Image_GetView(img, mainViewIndex), Graph::ImageLayout_ShaderReadOnly);
-                writeDescriptor<D>(group, binding, info, RenderPass_Shaded, dstElement++);
+                writeDescriptor<D>(group, binding, info, RenderPass_Shaded, i);
             }
         }
     }
@@ -1189,11 +1193,11 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group,
 template <Dimension D> static ResourceGroup<D> createResourceGroup()
 {
     ResourceGroup<D> group;
-    constexpr u32 maxInstances = 1000;
+    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
-        group.InstanceBuffers[geo] = {.Buffer = createInstanceBuffer<D>(geo, maxInstances)};
+        group.InstanceBuffers[geo] = {.Buffer = createInstanceBuffer<D>(geo, specs.MaxInstances)};
         for (u32 j = 0; j < RenderPass_Count; ++j)
         {
             const RenderPass pass = RenderPass(j);
@@ -1209,16 +1213,15 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
         updateInstanceDescriptorSets(group, geo);
     }
 
-    createLightResources(group, maxInstances);
+    createLightResources(group);
     // TODO(Isma): Define maximum vertices/indices, not instances alone
-    group.VertexBuffer = createVertexBuffer<D>(maxInstances);
-    group.IndexBuffer = createIndexBuffer<D>(maxInstances);
+    group.VertexBuffer = createVertexBuffer<D>(specs.MaxDynamicVertices);
+    group.IndexBuffer = createIndexBuffer<D>(specs.MaxDynamicIndices);
 
-    constexpr u32 maxDraws = 10000;
     group.DrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndirectCommand>(
-        maxDraws, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
+        specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
     group.IndexedDrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndexedIndirectCommand>(
-        maxDraws, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
+        specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
 
     return group;
 }
@@ -1239,7 +1242,7 @@ template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &
 template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    ResourceGroup<D> *smallest = nullptr;
+    ResourceGroup<D> *pending = nullptr;
 
     const auto reset = [](ResourceGroup<D> &group) {
         for (InstanceBuffer &buff : group.InstanceBuffers)
@@ -1255,30 +1258,37 @@ template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
             reset(group);
             return &group;
         }
-        else if (!smallest || smallest->Tracker.InFlightValue > group.Tracker.InFlightValue)
-            smallest = &group;
+        else if (!pending || pending->Tracker.InFlightValue > group.Tracker.InFlightValue)
+            pending = &group;
 
-    TKIT_ASSERT(smallest, "[ONYX][RENDERER] Failed to find an available resource group");
-    reset(*smallest);
-    Graph::Queue_WaitForTracker(smallest->Tracker);
-    return smallest;
+    TKIT_ASSERT(pending, "[ONYX][RENDERER] Failed to find an available resource group");
+    reset(*pending);
+    Graph::Queue_WaitForTracker(pending->Tracker);
+    return pending;
 }
 
 template <Dimension D> static void initialize()
 {
+    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     if constexpr (D == D2)
     {
-        ShadowData<D2> &sdata = getRendererData<D>().Shadows;
+        ShadowData<D2> &sdata = getRendererData<D2>().Shadows;
+        sdata.ShadowResolution = specs.ShadowResolution;
+        sdata.OcclusionResolution = specs.OcclusionResolution;
+
         if (Graph::Format_IsSupported(sdata.PrimaryShadowFormat, Graph::ImageType_1D,
                                       Graph::ImageFlag_Sampled | Graph::ImageFlag_Storage))
             sdata.ShadowFormat = ShadowData<D2>::PrimaryShadowFormat;
         else
             sdata.ShadowFormat = ShadowData<D2>::FallbackShadowFormat;
     }
+    else
+        getRendererData<D3>().Shadows.ShadowResolutions = specs.ShadowResolutions;
 
     RendererData<D> &rdata = getRendererData<D>();
-    for (ResourceGroup<D> &group : rdata.ResourceGroups)
-        group = createResourceGroup<D>();
+    rdata.ResourceGroups.Reserve(specs.MaxResourceGroups);
+    for (u32 i = 0; i < specs.MaxResourceGroups; ++i)
+        rdata.ResourceGroups.Append(createResourceGroup<D>());
 
     Renderer_WriteSamplerDescriptor<D>(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT, s_LinearSampler,
                                        RenderPass_Shaded);
@@ -1362,12 +1372,12 @@ void Renderer_Terminate()
     s_LayoutData.Destruct();
 }
 
-template <Dimension D> RenderContext<D> *Renderer_CreateContext(const u32 immediateDynamicMeshCapacity)
+template <Dimension D> RenderContext<D> *Renderer_CreateContext(const RenderContextSpecs &specs)
 {
     RendererData<D> &rdata = getRendererData<D>();
 
     TKit::TierAllocator *tier = TKit::GetTier();
-    return rdata.Contexts.Append(tier->Create<RenderContext<D>>(immediateDynamicMeshCapacity));
+    return rdata.Contexts.Append(tier->Create<RenderContext<D>>(specs));
 }
 
 template <Dimension D> static u32 getContextIndex(const RenderContext<D> *context)
@@ -2721,8 +2731,8 @@ void Renderer_SubmitRender(const Graph::CommandPool pool, const TKit::Span<const
     s_RendererData3->ActiveResourceGroup = nullptr;
 }
 
-template RenderContext<D2> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
-template RenderContext<D3> *Renderer_CreateContext(u32 immediateDynamicMeshCapacity);
+template RenderContext<D2> *Renderer_CreateContext(const RenderContextSpecs &specs);
+template RenderContext<D3> *Renderer_CreateContext(const RenderContextSpecs &specs);
 
 template void Renderer_DestroyContext(const RenderContext<D2> *context);
 template void Renderer_DestroyContext(const RenderContext<D3> *context);

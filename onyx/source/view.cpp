@@ -89,6 +89,7 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 
     SetNormalizedViewport(Viewport{});
     SetNormalizedScissor(Scissor{});
+    createFrameBuffers();
     findAvailableFramebuffer();
 }
 template <Dimension D> RenderView<D>::~RenderView()
@@ -106,94 +107,102 @@ template <Dimension D> RenderView<D>::~RenderView()
     deallocateViewBit(m_ViewBit);
 }
 
-template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
+template <Dimension D> void RenderView<D>::createFrameBuffers()
 {
-    for (u32 i = 0; i < m_Framebuffers.GetSize(); ++i)
-        if (!m_Framebuffers[i].Tracker.InUse())
-        {
-            m_AttachmentIndex = i;
-            return;
-        }
-
-    m_AttachmentIndex = m_Framebuffers.GetSize();
-    TKIT_LOG_DEBUG("[ONYX][VIEW] Failed to find an available frame buffer. Increasing frame buffer pool to {} for "
-                   "this particular view",
-                   m_AttachmentIndex + 1);
-
+    const u32 maxFbs = GetSpecs().GetSpecific<D>().MaxFramebuffers;
     const u32v2 extent = GetRenderExtent();
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
     TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
 
-    Framebuffer &fb = m_Framebuffers.Append();
-    for (u32 att = 0; att < Attachment_Count; ++att)
-        fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : Graph::NullHandle;
-
-    const Graph::Sampler near = Renderer_GetNearSampler();
-    constexpr Graph::ImageLayout layout = Graph::ImageLayout_ShaderReadOnly;
-
-    if (transparency)
+    for (u32 i = 0; i < maxFbs; ++i)
     {
-        const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
-            Graph::Image_GetView(fb.Attachments[Attachment_Transparent]), layout, near);
-        const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
-            Graph::Image_GetView(fb.Attachments[Attachment_Revealage]), layout, near);
+        Framebuffer &fb = m_Framebuffers.Append();
+        for (u32 att = 0; att < Attachment_Count; ++att)
+            fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentType(att)) : Graph::NullHandle;
 
-        Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
-        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
-                                         m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, revealage,
-                                         m_AttachmentIndex);
-        Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
+        const Graph::Sampler near = Renderer_GetNearSampler();
+        constexpr Graph::ImageLayout layout = Graph::ImageLayout_ShaderReadOnly;
+
+        if (transparency)
+        {
+            const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
+                Graph::Image_GetView(fb.Attachments[Attachment_Transparent]), layout, near);
+            const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
+                Graph::Image_GetView(fb.Attachments[Attachment_Revealage]), layout, near);
+
+            Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
+            Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
+                                             i);
+            Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
+            Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
+        }
+
+        if (pprocess)
+        {
+            const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
+                Graph::Image_GetView(fb.Attachments[Attachment_Intermediate]), layout, near);
+
+            const Graph::DescriptorImageInfo outline = Graph::DescriptorImageInfo::Create(
+                Graph::Image_GetView(fb.Attachments[Attachment_Outline]), layout, near);
+            // view 1 is the stencil-only view, created in createAttachment()
+            const Graph::DescriptorImageInfo stencil = Graph::DescriptorImageInfo::Create(
+                Graph::Image_GetView(fb.Attachments[Attachment_DepthStencil], 1), layout);
+
+            Graph::DescriptorSet_BeginRecordWrite(m_PostProcessSet);
+            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, color,
+                                             i);
+            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING,
+                                             outline, i);
+            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING,
+                                             stencil, i);
+            Graph::DescriptorSet_EndRecordWrite(m_PostProcessSet);
+        }
+
+        // view 1 is the surface format view, created in createAttachment()
+        const Graph::DescriptorImageInfo comp =
+            Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Final], 1), layout, near);
+
+        Graph::DescriptorSet_BeginRecordWrite(m_CompositorSet);
+        Graph::DescriptorSet_RecordWrite(m_CompositorSet, ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, comp, i);
+        Graph::DescriptorSet_EndRecordWrite(m_CompositorSet);
+
+        if (Graph::IsValidationEnabled())
+        {
+            TKit::FixedArray<TKit::StackString, Attachment_Count> names{};
+            names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", i);
+            names[Attachment_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", i);
+            names[Attachment_Intermediate] = TKit::StackString::Format("onyx-intermediate-att-{}", i);
+            names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", i);
+            names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", i);
+            names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", i);
+            for (u32 j = 0; j < Attachment_Count; ++j)
+                if (fb.Attachments[j] != Graph::NullHandle)
+                {
+                    Graph::Image_SetName(fb.Attachments[j], names[j].CString());
+                    Graph::Image_SetViewNames(fb.Attachments[j], names[j].CString());
+                }
+        }
     }
+}
 
-    if (pprocess)
-    {
-        const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
-            Graph::Image_GetView(fb.Attachments[Attachment_Intermediate]), layout, near);
+template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
+{
+    u32 pending = TKIT_U32_MAX;
+    for (u32 i = 0; i < m_Framebuffers.GetSize(); ++i)
+        if (!m_Framebuffers[i].Tracker.InUse())
+        {
+            m_AttachmentIndex = i;
+            return;
+        }
+        else if (pending == TKIT_U32_MAX ||
+                 m_Framebuffers[pending].Tracker.InFlightValue > m_Framebuffers[i].Tracker.InFlightValue)
+            pending = i;
 
-        const Graph::DescriptorImageInfo outline =
-            Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Outline]), layout, near);
-        // view 1 is the stencil-only view, created in createAttachment()
-        const Graph::DescriptorImageInfo stencil = Graph::DescriptorImageInfo::Create(
-            Graph::Image_GetView(fb.Attachments[Attachment_DepthStencil], 1), layout);
-
-        Graph::DescriptorSet_BeginRecordWrite(m_PostProcessSet);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, color,
-                                         m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING, outline,
-                                         m_AttachmentIndex);
-        Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING, stencil,
-                                         m_AttachmentIndex);
-        Graph::DescriptorSet_EndRecordWrite(m_PostProcessSet);
-    }
-
-    // view 1 is the surface format view, created in createAttachment()
-    const Graph::DescriptorImageInfo comp =
-        Graph::DescriptorImageInfo::Create(Graph::Image_GetView(fb.Attachments[Attachment_Final], 1), layout, near);
-
-    Graph::DescriptorSet_BeginRecordWrite(m_CompositorSet);
-    Graph::DescriptorSet_RecordWrite(m_CompositorSet, ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, comp,
-                                     m_AttachmentIndex);
-    Graph::DescriptorSet_EndRecordWrite(m_CompositorSet);
-
-    if (Graph::IsValidationEnabled())
-    {
-        TKit::FixedArray<TKit::StackString, Attachment_Count> names{};
-        names[Attachment_Transparent] = TKit::StackString::Format("onyx-transparent-att-{}", m_AttachmentIndex);
-        names[Attachment_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", m_AttachmentIndex);
-        names[Attachment_Intermediate] = TKit::StackString::Format("onyx-intermediate-att-{}", m_AttachmentIndex);
-        names[Attachment_Outline] = TKit::StackString::Format("onyx-outline-att-{}", m_AttachmentIndex);
-        names[Attachment_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", m_AttachmentIndex);
-        names[Attachment_Final] = TKit::StackString::Format("onyx-final-att-{}", m_AttachmentIndex);
-        for (u32 j = 0; j < Attachment_Count; ++j)
-            if (fb.Attachments[j] != Graph::NullHandle)
-            {
-                Graph::Image_SetName(fb.Attachments[j], names[j].CString());
-                Graph::Image_SetViewNames(fb.Attachments[j], names[j].CString());
-            }
-    }
+    TKIT_ASSERT(pending != TKIT_U32_MAX, "[ONYX][VIEW] Failed to find an available frame buffer");
+    Graph::Queue_WaitForTracker(m_Framebuffers[pending].Tracker);
+    m_AttachmentIndex = pending;
 }
 
 template <Dimension D> void RenderView<D>::drainWork() const

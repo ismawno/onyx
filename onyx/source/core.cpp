@@ -86,26 +86,23 @@ struct CommandPool
 };
 static Graph::CommandPool s_Graphics = NullHandle;
 static TKit::Storage<TKit::ArenaArray<CommandPool>> s_CommandPools{};
+static Specs s_Specs{};
 
-Graph::CommandPool FindAvailableCommandPool(const Graph::QueueType queue)
+Graph::CommandPool FindAvailableCommandPool()
 {
+    const CommandPool *pending = nullptr;
     for (CommandPool &pool : *s_CommandPools)
-        if (pool.Tracker.Queue == queue && !pool.Tracker.InUse())
+        if (!pool.Tracker.InUse())
         {
             Graph::CommandPool_Reset(pool.Pool);
             return pool.Pool;
         }
+        else if (!pending || pending->Tracker.InFlightValue > pool.Tracker.InFlightValue)
+            pending = &pool;
 
-    CommandPool &pool = s_CommandPools->Append();
-    pool.Pool = Graph::CommandPool_Create(queue, Graph::CommandPoolFlag_CreateTransient);
-    pool.Tracker.Queue = queue;
-    if (Graph::IsValidationEnabled())
-    {
-        const TKit::StackString name = TKit::StackString::Format("onyx-ring-command-pool-index-{}-type-{}",
-                                                                 s_CommandPools->GetSize() - 1, u32(queue));
-        Graph::CommandPool_SetName(pool.Pool, name.CString());
-    }
-    return pool.Pool;
+    TKIT_ASSERT(pending, "[ONYX][EXECUTION] Failed to find an available command pool");
+    Graph::Queue_WaitForTracker(pending->Tracker);
+    return pending->Pool;
 }
 
 void MarkCommandPoolInUse(const Graph::CommandPool pool, const u64 inFlightValue)
@@ -123,7 +120,22 @@ static void execution_Initialize()
 {
     TKIT_LOG_INFO("[ONYX][EXECUTION] Initializing");
     s_CommandPools.Construct();
-    s_CommandPools->Reserve(Graph::GetSpecs().MaxCommandPools);
+    // divided by two so we dont exhaust graph pool
+    const u32 maxPools = Graph::GetSpecs().MaxCommandPools / 2;
+
+    s_CommandPools->Reserve(maxPools);
+    for (u32 i = 0; i < maxPools; ++i)
+    {
+        CommandPool &pool = s_CommandPools->Append();
+        pool.Pool = Graph::CommandPool_Create(Graph::Queue_Graphics, Graph::CommandPoolFlag_CreateTransient);
+        pool.Tracker.Queue = Graph::Queue_Graphics;
+        if (Graph::IsValidationEnabled())
+        {
+            const TKit::StackString name = TKit::StackString::Format("onyx-ring-graphics-command-pool-index-{}", i);
+            Graph::CommandPool_SetName(pool.Pool, name.CString());
+        }
+    }
+
     s_Graphics = Graph::CommandPool_Create(Graph::Queue_Graphics, Graph::CommandPoolFlag_CreateTransient);
     if (Graph::IsValidationEnabled())
         Graph::CommandPool_SetName(s_Graphics, "onyx-transient-graphics-command-pool");
@@ -434,18 +446,28 @@ static void core_Initialize(const Specs &specs)
     if (specs.Flags & InitializationFlag_EnableDeviceFaultExtension)
         gspecs.EnabledCapabilities |= Graph::Capability_FaultDump;
 
-    gspecs.MaxCommandPools = 1024;
-    gspecs.MaxCommandBuffers = 1024;
-    gspecs.MaxBuffers = 1024;
-    gspecs.MaxImages = 512;
-    gspecs.MaxShaders = 256;
-    gspecs.MaxDescriptorSets = 1024;
-    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageBuffer] = 16384;
-    gspecs.DescriptorPoolSizes[Graph::Descriptor_Sampler] = 1024;
-    gspecs.DescriptorPoolSizes[Graph::Descriptor_SampledImage] = 131072;
-    gspecs.DescriptorPoolSizes[Graph::Descriptor_CombinedImageSampler] = 1024;
-    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageImage] = 512;
+    // execution
+    gspecs.MaxCommandPools = specs.MaxCommandPools;
+    gspecs.MaxCommandBuffers = specs.MaxCommandBuffers;
+    gspecs.MaxDescriptorSets = specs.MaxDescriptorSets;
 
+    // resources
+    gspecs.MaxBuffers = specs.MaxBuffers;
+    gspecs.MaxImages = specs.MaxImages;
+    gspecs.MaxSamplers = specs.MaxSamplers;
+    gspecs.MaxImageViews = specs.MaxImageViews;
+
+    // pipeline
+    gspecs.MaxShaders = specs.MaxShaders;
+    gspecs.MaxCompilations = specs.MaxCompilations;
+    gspecs.MaxReflections = specs.MaxReflections;
+    gspecs.MaxPipelineLayouts = specs.MaxPipelineLayouts;
+    gspecs.MaxPipelines = specs.MaxPipelines;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageBuffer] = 1024;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_Sampler] = 2048;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_SampledImage] = 16384;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_CombinedImageSampler] = 2048;
+    gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageImage] = 512;
     Graph::Initialize(gspecs);
 
     if (specs.TaskManager)
@@ -471,6 +493,7 @@ void Frontend_Terminate();
 void Initialize(const Specs &specs)
 {
     TKIT_BEGIN_INFO_CLOCK();
+    s_Specs = specs;
 
     core_Initialize(specs);
     platform_Initialize();
@@ -536,6 +559,11 @@ void PushStack(const u32 threadIndex)
 void PushTier(const u32 threadIndex)
 {
     TKit::PushTier(s_Allocation[threadIndex].Tier);
+}
+
+const Specs &GetSpecs()
+{
+    return s_Specs;
 }
 
 /////////////////////////////////////////////

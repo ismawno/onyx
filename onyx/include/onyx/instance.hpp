@@ -204,7 +204,6 @@ struct InstanceDataBuffer
     Buffer Data{};
     u32 InstanceSize = 0;
     u32 Instances = 0;
-    u32 Capacity = 0;
 };
 
 struct LocalResourceRegistry

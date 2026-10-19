@@ -1,7 +1,6 @@
 #include "pch.hpp"
 #include "resources.hpp"
 #include "renderer.hpp"
-#include "buffer.hpp"
 #include "core.hpp"
 #include "tkit/container/hive.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -184,7 +183,7 @@ template <Dimension D> static ResourceData<D> &getData()
         return *s_ResourceData3;
 }
 
-template <Dimension D> static void materials_WriteDescriptorSets()
+template <Dimension D> static void materials_WriteDescriptors()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
 
@@ -194,7 +193,7 @@ template <Dimension D> static void materials_WriteDescriptorSets()
         Renderer_WriteBufferDescriptor<D>(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, info, RenderPass_Shadow);
 }
 
-template <Dimension D> static void bounds_WriteDescriptorSets()
+template <Dimension D> static void bounds_WriteDescriptors()
 {
     BoundsResourceData<D> &bounds = getData<D>().BoundingBoxes;
 
@@ -212,19 +211,19 @@ template <typename T> static void resource_InitializeWithHive(const u32 capacity
     hive.Buffer = Graph::Buffer_Create(capacity * sizeof(T), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
 }
 
-template <Dimension D> static void materials_Initialize(const u32 capacity)
+template <Dimension D> static void materials_Initialize()
 {
-    resource_InitializeWithHive(capacity, getData<D>().Materials);
-    materials_WriteDescriptorSets<D>();
+    resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxMaterials, getData<D>().Materials);
+    materials_WriteDescriptors<D>();
 }
 
-template <Dimension D> static void bounds_Initialize(const u32 capacity)
+template <Dimension D> static void bounds_Initialize()
 {
-    resource_InitializeWithHive(capacity, getData<D>().BoundingBoxes);
-    bounds_WriteDescriptorSets<D>();
+    resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxBounds, getData<D>().BoundingBoxes);
+    bounds_WriteDescriptors<D>();
 }
 
-static void texture_UpdateOffsetDescriptorSet()
+static void texture_WriteOffsetDescriptors()
 {
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(s_Textures->OffsetBuffer);
     Renderer_WriteBufferDescriptor<D2>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Shaded);
@@ -255,22 +254,17 @@ void Resources_Initialize()
     // textures at a time
     s_Textures->OffsetBuffer = Graph::Buffer_Create(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32),
                                                     Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
-    texture_UpdateOffsetDescriptorSet();
+    texture_WriteOffsetDescriptors();
 
     s_Textures->DefaultOffsetId = s_Textures->Offsets.Insert(0);
 
-    // TODO(Isma): Expose this, if needed
-    constexpr u32 maxDynMeshes = 1024;
-    constexpr u32 maxMaterials = 256;
-    constexpr u32 maxBounds = 1024;
+    s_ResourceData2->DynamicMeshes.Reserve(GetSpecs().GetSpecific<D2>().MaxDynamicMeshes);
+    s_ResourceData3->DynamicMeshes.Reserve(GetSpecs().GetSpecific<D3>().MaxDynamicMeshes);
 
-    s_ResourceData2->DynamicMeshes.Reserve(maxDynMeshes);
-    s_ResourceData3->DynamicMeshes.Reserve(maxDynMeshes);
-
-    materials_Initialize<D2>(maxMaterials);
-    materials_Initialize<D3>(maxMaterials);
-    bounds_Initialize<D2>(maxBounds);
-    return bounds_Initialize<D3>(maxBounds);
+    materials_Initialize<D2>();
+    materials_Initialize<D3>();
+    bounds_Initialize<D2>();
+    bounds_Initialize<D3>();
 }
 
 template <typename Vertex> static void meshes_Terminate(MeshResourceData<Vertex> &meshData)
@@ -723,9 +717,11 @@ template <Dimension D> const BoundsData<D> &Bounds_GetData(const Resource handle
 template <typename Vertex>
 static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data)
 {
-    const Graph::Buffer vbuffer = Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Vertex),
+    constexpr Dimension D = Vertex::Dim;
+    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
+    const Graph::Buffer vbuffer = Graph::Buffer_Create(specs.MaxVerticesPerResourcePool * sizeof(Vertex),
                                                        Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
-    const Graph::Buffer ibuffer = Graph::Buffer_Create(ONYX_BUFFER_INITIAL_CAPACITY * sizeof(Index),
+    const Graph::Buffer ibuffer = Graph::Buffer_Create(specs.MaxIndicesPerResourcePool * sizeof(Index),
                                                        Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Index);
 
     const u32 pid = data.Pools.Insert();
@@ -1636,23 +1632,19 @@ bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
     return IsResourcePoolValid<D2>(handle, rtype) || IsResourcePoolValid<D3>(handle, rtype);
 }
 
-template <typename T> static bool uploadFromHost(Graph::Buffer &buffer, const TKit::Span<const T> data)
+template <typename T> static void uploadFromHost(Graph::Buffer &buffer, const TKit::Span<const T> data)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Uploading buffer of {:L} bytes to device", data.GetBytes());
-
-    const bool grow = GrowBufferIfNeeded<T>(buffer, data.GetSize(), Graph::Buffer_GetFlags(buffer));
 
     const usz size = data.GetBytes();
     const Graph::Buffer staging = Graph::Buffer_Create(size, Graph::BufferFlag_Staging | Graph::BufferFlag_HostMapped);
     Graph::Buffer_Write(staging, data.GetData(), size);
-    Graph::Buffer_Flush(staging);
 
     Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
         Graph::Command_CopyBuffer(cmd, staging, buffer);
     });
 
     Graph::Buffer_Destroy(staging);
-    return grow;
 }
 
 template <typename Vertex> static void uploadMeshPool(MeshPool<Vertex> &mpool)
@@ -1763,8 +1755,7 @@ template <Dimension D> static void uploadMaterials()
 
     materials.Flags = 0;
     // NOTE(Isma): A resize here should not trigger
-    if (uploadFromHost<MaterialPackedData<D>>(materials.Buffer, sparse))
-        materials_WriteDescriptorSets<D>();
+    uploadFromHost<MaterialPackedData<D>>(materials.Buffer, sparse);
 }
 
 template <Dimension D> static void uploadBounds()
@@ -1783,8 +1774,7 @@ template <Dimension D> static void uploadBounds()
         sparse[id] = bounds.Elements[id];
 
     bounds.Flags = 0;
-    if (uploadFromHost<BoundsData<D>>(bounds.Buffer, sparse))
-        bounds_WriteDescriptorSets<D>();
+    uploadFromHost<BoundsData<D>>(bounds.Buffer, sparse);
 }
 
 #ifdef TKIT_ENABLE_DEBUG_LOGS

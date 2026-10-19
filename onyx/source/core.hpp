@@ -14,7 +14,7 @@ void DestroyWindows();
 template <Dimension D> Graph::DescriptorSetLayout GetDescriptorLayout(RenderPass pass);
 Graph::DescriptorSetLayout GetDescriptorLayout(StandalonePass pass);
 
-Graph::CommandPool FindAvailableCommandPool(Graph::QueueType queue);
+Graph::CommandPool FindAvailableCommandPool();
 
 void MarkCommandPoolInUse(Graph::CommandPool pool, u64 inFlightValue);
 

@@ -294,10 +294,12 @@ template <Dimension D> class RenderView
 
   private:
     void findAvailableFramebuffer();
+    void createFrameBuffers();
     void destroyFramebuffers();
     void recreateFramebuffers()
     {
         destroyFramebuffers();
+        createFrameBuffers();
         findAvailableFramebuffer();
     }
     void drainWork() const;

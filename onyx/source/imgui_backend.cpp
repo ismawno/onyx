@@ -1,6 +1,5 @@
 #include "pch.hpp"
 #include "imgui_backend.hpp"
-#include "buffer.hpp"
 #include "core.hpp"
 #include "graph/execution.hpp"
 #include "graph/descriptor.hpp"
@@ -1130,12 +1129,13 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
     vdata->Window = window;
 
     const u32 imageCount = window->GetSwapchainImageCount();
+    const Specs &specs = GetSpecs();
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();
-        buffers.VertexBuffer = Graph::Buffer_Create<ImDrawVert>(
-            ONYX_BUFFER_INITIAL_CAPACITY, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Vertex);
-        buffers.IndexBuffer = Graph::Buffer_Create<ImDrawIdx>(ONYX_BUFFER_INITIAL_CAPACITY,
+        buffers.VertexBuffer = Graph::Buffer_Create<ImDrawVert>(specs.MaxImGuiVertices, Graph::BufferFlag_HostMapped |
+                                                                                            Graph::BufferFlag_Vertex);
+        buffers.IndexBuffer = Graph::Buffer_Create<ImDrawIdx>(specs.MaxImGuiIndices,
                                                               Graph::BufferFlag_HostMapped | Graph::BufferFlag_Index);
 
         if (Graph::IsValidationEnabled())
@@ -1375,10 +1375,12 @@ static void renderer_Render(const ImDrawData *ddata, const Graph::CommandBuffer 
         const u32 vcount = u32(ddata->TotalVtxCount);
         const u32 icount = u32(ddata->TotalIdxCount);
 
-        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount,
-                                       Graph::BufferFlag_HostMapped | Graph::BufferFlag_Vertex);
-        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount,
-                                      Graph::BufferFlag_HostMapped | Graph::BufferFlag_Index);
+        TKIT_ASSERT(vcount <= GetSpecs().MaxImGuiVertices,
+                    "[ONYX][IMGUI] Maximum vertices exceeded ({} > {})! Increase the specs .MaxImGuiVertices field",
+                    vcount, GetSpecs().MaxImGuiVertices);
+        TKIT_ASSERT(icount <= GetSpecs().MaxImGuiIndices,
+                    "[ONYX][IMGUI] Maximum indices exceeded ({} > {})! Increase the specs .MaxImGuiIndices field",
+                    vcount, GetSpecs().MaxImGuiIndices);
 
         usz voffset = 0;
         usz ioffset = 0;

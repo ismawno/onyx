@@ -1,7 +1,6 @@
 #include "pch.hpp"
 #include "onyx/context.hpp"
 #include "instance.hpp"
-#include "buffer.hpp"
 #include "resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/profiling/macros.hpp"
@@ -11,27 +10,26 @@ namespace Onyx
 {
 using namespace Detail;
 
-template <Dimension D> IRenderContext<D>::IRenderContext(const u32 immediateDynamicMeshCapacity)
+template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpecs &specs) : m_Specs(specs)
 {
     for (InstanceDataBuffer &buffer : m_InstanceData.Circles)
     {
-        buffer.Data = Buffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+        buffer.Data = Buffer::Create<CircleInstanceData<D>>(specs.MaxInstances[Geometry_Circle]);
         buffer.InstanceSize = sizeof(CircleInstanceData<D>);
     }
 
-    resizeInstanceData();
+    acommodateResourceIds();
     m_DefaultResources = Resources_GetDefault();
 
     m_State.Font = m_DefaultResources.Font;
     m_State.Sampler = m_DefaultResources.Sampler;
 
-    m_ImmediateDynamicMeshes.Reserve(immediateDynamicMeshCapacity);
+    m_ImmediateDynamicMeshes.Reserve(specs.ImmediateDynamicMeshCapacity);
 
-    for (u32 i = 0; i < immediateDynamicMeshCapacity; ++i)
+    for (u32 i = 0; i < specs.ImmediateDynamicMeshCapacity; ++i)
         m_ImmediateDynamicMeshes.Append(DynamicMesh_Register<D>());
 
-    if (immediateDynamicMeshCapacity != 0)
+    if (specs.ImmediateDynamicMeshCapacity != 0)
         Resources_Sync(SyncFlag_DynamicMeshes); // have a close look at this. idk why i feel it may cause issues
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
@@ -94,7 +92,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
         }
     });
 
-    resizeInstanceData();
+    acommodateResourceIds();
     DepthCounter = 0;
     m_DynamicMeshCounter = 0;
     m_PointLightData.Clear();
@@ -351,16 +349,6 @@ static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> &state
     return instanceData;
 }
 
-template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &buffer)
-{
-    if (buffer.Instances > buffer.Capacity)
-    {
-        const u32 ninst = GrowCapacity(buffer.Instances);
-        buffer.Data.Resize(ninst * buffer.InstanceSize);
-        buffer.Capacity = ninst;
-    }
-}
-
 static Geometry getGeometry(const ResourceType rtype)
 {
     switch (rtype)
@@ -381,16 +369,17 @@ static Geometry getGeometry(const ResourceType rtype)
 
 // NOTE(Isma): For vertex geometry it is important that *creating new vertex/index arrays* triggers this function
 // through a FlushAllContexts. meaning creating them requires a Sync() call.
-template <Dimension D> void IRenderContext<D>::resizeInstanceData()
+template <Dimension D> void IRenderContext<D>::acommodateResourceIds()
 {
-    const auto resize = [](const ResourceType rtype, InstanceResourceGroup &group, const u32 count, const u32 ncount) {
+    const auto resize = [this](const ResourceType rtype, InstanceResourceGroup &group, const u32 ncount) {
+        const u32 count = group.Buffers.GetSize();
         group.Registry.ResourceIds.Reserve(ncount);
         for (u32 k = count; k < ncount; ++k)
         {
             InstanceDataBuffer &buffer = group.Buffers.Append();
-            const u32 isize = GetInstanceSize<D>(getGeometry(rtype));
-            buffer.Data = Buffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
-            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+            const Geometry geo = getGeometry(rtype);
+            const u32 isize = GetInstanceSize<D>(geo);
+            buffer.Data = Buffer{isize * m_Specs.MaxInstances[geo]};
             buffer.InstanceSize = isize;
             buffer.Instances = 0;
         }
@@ -400,16 +389,14 @@ template <Dimension D> void IRenderContext<D>::resizeInstanceData()
         InstanceResourceGroup &group = m_InstanceData.Meshes[bpass][rmode][mtype][pid];
         const ResourceType rtype = ResourceType(mtype);
 
-        const u32 count = group.Buffers.GetSize();
         const u32 ncount = ResourcePool_GetResourceCount<D>(Handle_CreateForResourcePool(rtype, pid));
-        resize(rtype, group, count, ncount);
+        resize(rtype, group, ncount);
     });
 
     m_InstanceData.DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
         InstanceResourceGroup &group = m_InstanceData.DynamicMeshes[bpass][rmode];
-        const u32 count = group.Buffers.GetSize();
         const u32 ncount = DynamicMesh_GetCount<D>();
-        resize(Resource_DynamicMesh, group, count, ncount);
+        resize(Resource_DynamicMesh, group, ncount);
     });
 }
 
@@ -484,13 +471,9 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
     return ClipRect<D>{mn, mx};
 }
 
-template <Dimension D>
-template <typename T>
-void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
+template <typename T> static void addInstanceData(InstanceDataBuffer &buffer, const T &data)
 {
-    const u32 index = buffer.Instances++;
-    resizeBuffer(buffer);
-    buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = index * sizeof(T)});
+    buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = buffer.Instances++ * sizeof(T)});
 }
 
 template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params)

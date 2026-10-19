@@ -45,7 +45,8 @@ template <> struct PointLightParameters<D2>
 
 constexpr TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> CreateDepthBias(const f32 minBias, const f32 maxBias)
 {
-    const f32 dbias = (maxBias - minBias) / (ONYX_3D_MAX_CASCADES > 1 ? (ONYX_3D_MAX_CASCADES - 1) : ONYX_3D_MAX_CASCADES);
+    const f32 dbias =
+        (maxBias - minBias) / (ONYX_3D_MAX_CASCADES > 1 ? (ONYX_3D_MAX_CASCADES - 1) : ONYX_3D_MAX_CASCADES);
     TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> bias;
     for (u32 i = 0; i < ONYX_3D_MAX_CASCADES; ++i)
         bias[i] = minBias + dbias * i;
@@ -185,12 +186,9 @@ template <Dimension D> struct ContextState
     BlendPass Blend = BlendPass_Opaque;
 };
 
-// contexts must always be created by the same thread
-template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
+struct RenderContextSpecs
 {
-    TKIT_NON_COPYABLE(IRenderContext)
-
-  public:
+    TKit::FixedArray<u32, Geometry_Count> MaxInstances{};
     // parameter specifying how many dynamic mesh slots to preallocate. by default zero. if users
     // exceed (or the value was zero) when calling dynamic mesh, trigger an assert warning them. this is only a concern
     // for the most immediate API that lets the user to just provide some vertices/indices, because it requires a fresh
@@ -198,7 +196,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     // allocate more bc contexts must remain independent, and that operation is not thread safe. if users provide their
     // own handles, that is just fine and wont interfere with anything. for the immediate approach, store a counter that
     // increases that picks a different dynamic mesh
-    IRenderContext(u32 immediateDynamicMeshCapacity);
+    u32 ImmediateDynamicMeshCapacity = 0;
+
+    RenderContextSpecs()
+    {
+        for (u32 &mi : MaxInstances)
+            mi = 1000;
+    }
+};
+
+// contexts must always be created by the same thread
+template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
+{
+    TKIT_NON_COPYABLE(IRenderContext)
+
+  public:
+    IRenderContext(const RenderContextSpecs &specs);
     ~IRenderContext();
 
     // Must always be called from the same thread
@@ -757,12 +770,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     DefaultResources m_DefaultResources{};
 
   private:
-    void resizeBuffer(InstanceDataBuffer &buffer);
-    void resizeInstanceData();
+    void acommodateResourceIds();
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
     ClipRect<D> computeClipRect(const f32v<D> &position, const f32v<D> &dimensions);
-
-    template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
     void addStaticData(Resource mesh, const f32m<D> &transform);
@@ -816,6 +826,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
     TKit::TierArray<Resource> m_ImmediateDynamicMeshes{};
 
+    RenderContextSpecs m_Specs;
     Color m_AmbientLight = Color{Color_White, 0.4f};
     u32 m_DynamicMeshCounter = 0;
 };

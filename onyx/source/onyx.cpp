@@ -241,9 +241,9 @@ void DestroyFloatingOverlay(const Overlay *ov)
     destroyOverlay(idx);
 }
 
-template <Dimension D> RenderContext<D> *CreateRenderContext(const u32 immediateDynamicMeshCapacity)
+template <Dimension D> RenderContext<D> *CreateRenderContext(const RenderContextSpecs &specs)
 {
-    return Renderer_CreateContext<D>(immediateDynamicMeshCapacity);
+    return Renderer_CreateContext<D>(specs);
 }
 template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx)
 {
@@ -355,7 +355,7 @@ void Render(const RenderInfo &info)
         for (RenderTexture *rtex : s_Data->RenderTextures)
             rtex->FindAvailableImages();
 
-        const Graph::CommandPool gpool = FindAvailableCommandPool(Graph::Queue_Graphics);
+        const Graph::CommandPool gpool = FindAvailableCommandPool();
 
         TKit::StaticArray<RenderSubmitInfo, ONYX_MAX_VIEWS> rinfos{};
 
@@ -514,8 +514,8 @@ void Frontend_Terminate()
     s_Data.Destruct();
 }
 
-template RenderContext<D2> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
-template RenderContext<D3> *CreateRenderContext(u32 immediateDynamicMeshCapacity);
+template RenderContext<D2> *CreateRenderContext(const RenderContextSpecs &specs);
+template RenderContext<D3> *CreateRenderContext(const RenderContextSpecs &specs);
 
 template void DestroyRenderContext(const RenderContext<D2> *ctx);
 template void DestroyRenderContext(const RenderContext<D3> *ctx);

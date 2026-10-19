@@ -130,6 +130,7 @@ struct GlyphVertex
 {
     static constexpr Geometry Geo = Geometry_Glyph;
     static constexpr ResourceType Resource = Resource_Font;
+    static constexpr Dimension Dim = D2;
 
     f32v2 Position;
     f32v2 AtlasCoord;
