@@ -11,13 +11,13 @@ RenderTarget::~RenderTarget()
     for (const RenderView<D3> *rv : m_RenderViews3)
         tier->Destroy(rv);
 }
-template <Dimension D> RenderView<D> *RenderTarget::CreateRenderView(Camera<D> *camera, RenderViewFlags flags)
+template <Dimension D> RenderView<D> *RenderTarget::CreateRenderView(Camera<D> *camera, const RenderViewSpecs &specs)
 {
     TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views = getRenderViews<D>();
 
     TKit::TierAllocator *tier = TKit::GetTier();
     const u32v2 extent = getExtent();
-    RenderView<D> *rv = tier->Create<RenderView<D>>(extent, camera, flags);
+    RenderView<D> *rv = tier->Create<RenderView<D>>(extent, camera, specs);
     views.Append(rv);
 
     rv->Layer = m_LayerAssign.ToTop();
@@ -53,9 +53,8 @@ void RenderTarget::findAvailableFramebuffers()
         rv->findAvailableFramebuffer();
 }
 
-template RenderView<D2> *RenderTarget::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags);
-
-template RenderView<D3> *RenderTarget::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags);
+template RenderView<D2> *RenderTarget::CreateRenderView<D2>(Camera<D2> *camera, const RenderViewSpecs &specs);
+template RenderView<D3> *RenderTarget::CreateRenderView<D3>(Camera<D3> *camera, const RenderViewSpecs &specs);
 
 template void RenderTarget::DestroyRenderView<D2>(const RenderView<D2> *view);
 template void RenderTarget::DestroyRenderView<D3>(const RenderView<D3> *view);

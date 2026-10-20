@@ -139,7 +139,7 @@ template <Dimension D> struct SpecificSpecs;
 
 template <> struct SpecificSpecs<D2>
 {
-    u32 MaxResourceGroups = 4;
+    u32 ResourceGroupCount = 4;
     u32 MaxInstances = 10000;
     u32 MaxLightInstances = 100;
     u32 MaxDrawCommands = 500;
@@ -158,12 +158,10 @@ template <> struct SpecificSpecs<D2>
     u32 MaxDynamicMeshes = 1024;
     u32 MaxMaterials = 256;
     u32 MaxBounds = 1024;
-
-    u32 MaxFramebuffers = 3;
 };
 template <> struct SpecificSpecs<D3>
 {
-    u32 MaxResourceGroups = 4;
+    u32 ResourceGroupCount = 4;
     u32 MaxInstances = 10000;
     u32 MaxLightInstances = 100;
     u32 MaxDrawCommands = 500;
@@ -179,8 +177,6 @@ template <> struct SpecificSpecs<D3>
     u32 MaxDynamicMeshes = 1024;
     u32 MaxMaterials = 256;
     u32 MaxBounds = 1024;
-
-    u32 MaxFramebuffers = 3;
 
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };

@@ -1372,15 +1372,12 @@ static void renderer_Render(const ImDrawData *ddata, const Graph::CommandBuffer 
     Renderer_Buffers &buffers = vdata->Buffers[vdata->Index];
     if (ddata->TotalVtxCount > 0)
     {
-        const u32 vcount = u32(ddata->TotalVtxCount);
-        const u32 icount = u32(ddata->TotalIdxCount);
-
-        TKIT_ASSERT(vcount <= GetSpecs().MaxImGuiVertices,
+        TKIT_ASSERT(u32(ddata->TotalVtxCount) <= GetSpecs().MaxImGuiVertices,
                     "[ONYX][IMGUI] Maximum vertices exceeded ({} > {})! Increase the specs .MaxImGuiVertices field",
-                    vcount, GetSpecs().MaxImGuiVertices);
-        TKIT_ASSERT(icount <= GetSpecs().MaxImGuiIndices,
+                    u32(ddata->TotalVtxCount), GetSpecs().MaxImGuiVertices);
+        TKIT_ASSERT(u32(ddata->TotalIdxCount) <= GetSpecs().MaxImGuiIndices,
                     "[ONYX][IMGUI] Maximum indices exceeded ({} > {})! Increase the specs .MaxImGuiIndices field",
-                    vcount, GetSpecs().MaxImGuiIndices);
+                    u32(ddata->TotalIdxCount), GetSpecs().MaxImGuiIndices);
 
         usz voffset = 0;
         usz ioffset = 0;

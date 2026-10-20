@@ -101,7 +101,9 @@ Graph::CommandPool FindAvailableCommandPool()
             pending = &pool;
 
     TKIT_ASSERT(pending, "[ONYX][EXECUTION] Failed to find an available command pool");
+    TKIT_BEGIN_INFO_CLOCK();
     Graph::Queue_WaitForTracker(pending->Tracker);
+    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][EXECUTION] Waited {:.2f} ms for a new command pool");
     return pending->Pool;
 }
 

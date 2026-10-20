@@ -16,7 +16,7 @@ struct FrontEndImage
 class RenderTexture final : public RenderTarget
 {
   public:
-    RenderTexture(const u32v2 &dimensions);
+    RenderTexture(const u32v2 &dimensions, u32 imageCount = 3);
     ~RenderTexture();
 
     void FindAvailableImages();
@@ -38,6 +38,7 @@ class RenderTexture final : public RenderTarget
     }
 
   private:
+    void createSecondaryImages();
     u32v2 getExtent() const override
     {
         return m_Dimensions;
@@ -50,6 +51,7 @@ class RenderTexture final : public RenderTarget
 
     u32 m_Writable = 0;
     u32 m_Readable = 0;
+    u32 m_ImageCount;
 
     TKit::TierArray<FrontEndImage> m_Images{};
 };

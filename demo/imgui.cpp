@@ -20,6 +20,7 @@ int main()
             ImGui::Begin("Im a test window");
             ImGui::End();
         }
+        Onyx::Transfer();
         Onyx::Render();
     }
     Onyx::Terminate();

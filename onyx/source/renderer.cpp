@@ -1262,8 +1262,10 @@ template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
             pending = &group;
 
     TKIT_ASSERT(pending, "[ONYX][RENDERER] Failed to find an available resource group");
-    reset(*pending);
+    TKIT_BEGIN_INFO_CLOCK();
     Graph::Queue_WaitForTracker(pending->Tracker);
+    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][RENDERER] Waited {:.2f} ms for a new resource group");
+    reset(*pending);
     return pending;
 }
 
@@ -1286,8 +1288,8 @@ template <Dimension D> static void initialize()
         getRendererData<D3>().Shadows.ShadowResolutions = specs.ShadowResolutions;
 
     RendererData<D> &rdata = getRendererData<D>();
-    rdata.ResourceGroups.Reserve(specs.MaxResourceGroups);
-    for (u32 i = 0; i < specs.MaxResourceGroups; ++i)
+    rdata.ResourceGroups.Reserve(specs.ResourceGroupCount);
+    for (u32 i = 0; i < specs.ResourceGroupCount; ++i)
         rdata.ResourceGroups.Append(createResourceGroup<D>());
 
     Renderer_WriteSamplerDescriptor<D>(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT, s_LinearSampler,

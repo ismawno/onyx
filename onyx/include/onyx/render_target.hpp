@@ -35,7 +35,7 @@ class RenderTarget
     RenderTarget() = default;
     virtual ~RenderTarget();
 
-    template <Dimension D> RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0);
+    template <Dimension D> RenderView<D> *CreateRenderView(Camera<D> *camera, const RenderViewSpecs &specs = {});
 
     template <Dimension D> void DestroyRenderView(const RenderView<D> *rv);
 

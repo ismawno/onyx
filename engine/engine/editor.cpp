@@ -554,7 +554,8 @@ static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport
     rview.Id = rv;
     rview.ParentViewport = viewport.Id;
     rview.Name = utils_CreateDefaultName("View", rv);
-    rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle, Onyx::RenderViewFlag_NormalizedCoordinates);
+    rview.Handle =
+        viewport.Target->CreateRenderView<D>(cam.Handle, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
     rview.EditorCameraIndex = editorCamIdx;
 
     return rv;
@@ -898,7 +899,7 @@ static void deserialize_Views(const char *name, const ConstYamlNode root, const 
             rview.ParentViewport = node["Viewport"].Read<Viewport>();
             rview.EditorCameraIndex = node["Editor camera"].Read<u32>();
             rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[rview.EditorCameraIndex].Handle,
-                                                                node["Flags"].Read<Onyx::RenderViewFlags>());
+                                                                {.Flags = node["Flags"].Read<Onyx::RenderViewFlags>()});
             rview.Handle->ViewportData = node["Viewport data"].Read<Onyx::Viewport>();
             rview.Handle->ScissorData = node["Scissor data"].Read<Onyx::Scissor>();
             rview.Handle->ClearColor = node["Clear color"].Read<Onyx::Color>();

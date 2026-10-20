@@ -8,7 +8,6 @@ namespace Onyx
 {
 static Graph::Image createImage(const u32v2 &dimensions)
 {
-
     const Graph::Format format = GetAttachmentFormat(Attachment_Intermediate);
     const TKit::FixedArray<Graph::Format, 2> formats{format, SurfaceFormat};
     const TKit::FixedArray<Graph::ImageViewSpecs, 2> views{{.Format = format}, {.Format = SurfaceFormat}};
@@ -30,8 +29,10 @@ static void nameImage(const Graph::Image img, const u32 idx)
     Graph::Image_SetViewNames(img, nview.CString());
 }
 
-RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
+RenderTexture::RenderTexture(const u32v2 &dimensions, const u32 imageCount)
+    : m_Dimensions(dimensions), m_ImageCount(imageCount)
 {
+    TKIT_ASSERT(imageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
     FrontEndImage &img = m_Images.Append();
 
     img.Image = createImage(dimensions);
@@ -41,6 +42,7 @@ RenderTexture::RenderTexture(const u32v2 &dimensions) : m_Dimensions(dimensions)
         nameImage(img.Image, m_Images.GetSize() - 1);
 
     m_Handle = img.Texture;
+    createSecondaryImages();
 }
 RenderTexture::~RenderTexture()
 {
@@ -114,6 +116,7 @@ void RenderTexture::Resize(const u32v2 &dims)
     Texture_UpdateRenderTexture(main.Texture, Graph::Image_GetView(main.Image, 0));
     m_Dimensions = dims;
     updateRenderViews();
+    createSecondaryImages();
 }
 
 void RenderTexture::FindAvailableImages()
@@ -121,24 +124,25 @@ void RenderTexture::FindAvailableImages()
     m_Readable = m_Writable; // the one we just wrote to (most updated one)
     Texture_UpdateHandleOffset(m_Handle, m_Images[m_Readable].Texture);
 
+    u32 pending = TKIT_U32_MAX;
     for (u32 i = 0; i < m_Images.GetSize(); ++i)
-        if (i != m_Readable && !m_Images[i].Tracker.InUse())
+    {
+        if (i == m_Readable)
+            continue;
+        if (!m_Images[i].Tracker.InUse())
         {
             m_Writable = i;
             return;
         }
+        else if (pending == TKIT_U32_MAX || m_Images[pending].Tracker.InFlightValue > m_Images[i].Tracker.InFlightValue)
+            pending = i;
+    }
 
-    m_Writable = m_Images.GetSize();
-    TKIT_LOG_DEBUG("[ONYX][RENDER-TEXTURE] Failed to find an available writable image. Increasing image pool to {} for "
-                   "this particular render texture",
-                   m_Writable + 1);
-
-    FrontEndImage &img = m_Images.Append();
-
-    img.Image = createImage(m_Dimensions);
-    img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
-    if (Graph::IsValidationEnabled())
-        nameImage(img.Image, m_Writable);
+    TKIT_ASSERT(pending != TKIT_U32_MAX, "[ONYX][RENDER-TEXTURE] Failed to find an available image");
+    TKIT_BEGIN_INFO_CLOCK();
+    Graph::Queue_WaitForTracker(m_Images[pending].Tracker);
+    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][RENDER-TEXTURE] Waited {:.2f} ms for a new image");
+    m_Writable = pending;
 }
 
 void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
@@ -150,23 +154,29 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     const FrontEndImage &read = m_Images[m_Readable];
     const FrontEndImage &write = m_Images[m_Writable];
 
-    Graph::ImageMemoryBarrierInfo barriers[2]{};
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 2> barriers{};
 
-    barriers[0].Image = read.Image;
-    barriers[0].NewLayout = Graph::ImageLayout_ShaderReadOnly;
-    barriers[0].SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
-    barriers[0].SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
-    barriers[0].DstStages = Graph::PipelineStageFlag_FragmentShader;
-    barriers[0].DstAccess = Graph::AccessFlag_ShaderRead;
+    // the readable image is only in attachment layout if it was rendered to last frame. after a resize (or on the
+    // first frame) it is already shader read only, and the transition would be a no-op with a wrong src access
+    if (Graph::Image_GetLayout(read.Image) == Graph::ImageLayout_ColorAttachment)
+    {
+        Graph::ImageMemoryBarrierInfo &rb = barriers.Append();
+        rb.Image = read.Image;
+        rb.NewLayout = Graph::ImageLayout_ShaderReadOnly;
+        rb.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+        rb.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+        rb.DstStages = Graph::PipelineStageFlag_FragmentShader;
+        rb.DstAccess = Graph::AccessFlag_ShaderRead;
+    }
 
-    barriers[1].Image = write.Image;
-    barriers[1].NewLayout = Graph::ImageLayout_ColorAttachment;
-    barriers[1].SrcStages = Graph::PipelineStageFlag_FragmentShader;
-    barriers[1].DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
-    barriers[1].DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    Graph::ImageMemoryBarrierInfo &wb = barriers.Append();
+    wb.Image = write.Image;
+    wb.NewLayout = Graph::ImageLayout_ColorAttachment;
+    wb.SrcStages = Graph::PipelineStageFlag_FragmentShader;
+    wb.DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    wb.DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
 
     Graph::Command_ImageBarrier(cmd, barriers);
-
     Graph::AttachmentInfo target{};
     target.View = Graph::Image_GetView(write.Image, 1);
     target.Layout = Graph::ImageLayout_ColorAttachment;
@@ -196,15 +206,24 @@ void RenderTexture::MarkReadImageInUse(const Graph::Tracker &tracker)
     m_Images[m_Readable].Tracker = tracker;
 }
 
+void RenderTexture::createSecondaryImages()
+{
+    TKIT_ASSERT(m_Images.GetSize() == 1,
+                "[ONYX][RENDER-TEXTURE] When creating secondary images, the image array size must be one, but is {}",
+                m_Images.GetSize());
+
+    for (u32 i = 1; i < m_ImageCount; ++i)
+    {
+        FrontEndImage &img = m_Images.Append();
+        img.Image = createImage(m_Dimensions);
+        img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
+        if (Graph::IsValidationEnabled())
+            nameImage(img.Image, i);
+    }
+}
+
 void RenderTexture::drainWork() const
 {
-    // NOTE(Isma, 06/07/26): This sync step is just not enough and right now, im not sure why as the tracker waits
-    // should ensure all work with the images is done. there is something here im definitely missing, so ill just stick
-    // a device wait idle here. resize operations are supposed to be expensive and not frequent anyways
-    //
-    // NOTE(Isma, 09/07/26): Turns out i think i know what it is. i was not assigning a tracker to readable images, so
-    // gpu would read them while resizing. this is fixed now, but if errors still happen, revert do device wait idle
-    //
     for (const FrontEndImage &img : m_Images)
         Graph::Queue_WaitForTracker(img.Tracker);
     // Graph::DeviceWaitIdle();

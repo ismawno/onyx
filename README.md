@@ -46,7 +46,7 @@ A render view is a viewport into the window with its own camera, scissor region,
 
 ```cpp
 Onyx::Camera<D2> cam{};
-Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
+Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
 ```
 
 Views can be configured with flags to enable features like shadows (`RenderViewFlag_Shadows`) or order-independent transparency (`RenderViewFlag_Transparency`). Each view also has a configurable viewport that controls what portion of the window it occupies and can operate in both normalized or absolute coordinates:
@@ -145,7 +145,7 @@ int main()
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
     Onyx::Camera<D2> cam{};
-    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
@@ -199,7 +199,7 @@ int main()
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
     cam2.OrthoParameters.Size = 10.f;
     view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
@@ -207,7 +207,7 @@ int main()
 
     // 3D view on the right half
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, vflags);
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
     cam3.View.Translation[2] = 5.f;
     view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});
@@ -305,7 +305,7 @@ int main()
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
     cam2.OrthoParameters.Size = 10.f;
     view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
@@ -313,7 +313,7 @@ int main()
 
     // 3D view on the right half
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, vflags);
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
     cam3.View.Translation[2] = 5.f;
     view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});

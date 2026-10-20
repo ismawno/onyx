@@ -2500,7 +2500,7 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
 
     m_NativeWindows.Append(nw);
     nw->Window = win;
-    nw->View = win->CreateRenderView<D2>(&m_Camera, GetRenderViewFlags());
+    nw->View = win->CreateRenderView<D2>(&m_Camera, {.Flags = GetRenderViewFlags()});
     nw->View->ClearColor.rgba[3] = 0.f;
 
     nw->Context = CreateRenderContext<D2>();

@@ -70,10 +70,11 @@ template <Dimension D> static void applyCoordinateSystemExtrinsic(f32m<D> &trans
 }
 
 template <Dimension D>
-RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewFlags flags)
-    : m_Camera(camera), m_ParentExtent(extent), m_Flags(flags)
+RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewSpecs &specs)
+    : m_Camera(camera), m_ParentExtent(extent), m_FrameBufferCount(specs.FrameBufferCount), m_Flags(specs.Flags)
 
 {
+    TKIT_ASSERT(specs.FrameBufferCount != 0, "[ONYX][VIEW] At least one framebuffer is required for a render view");
     m_ViewBit = allocateViewBit();
 
     m_BlendSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Blend));
@@ -89,8 +90,11 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
 
     SetNormalizedViewport(Viewport{});
     SetNormalizedScissor(Scissor{});
-    createFrameBuffers();
-    findAvailableFramebuffer();
+    if (m_Framebuffers.IsEmpty())
+    {
+        createFrameBuffers();
+        findAvailableFramebuffer();
+    }
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
@@ -109,7 +113,10 @@ template <Dimension D> RenderView<D>::~RenderView()
 
 template <Dimension D> void RenderView<D>::createFrameBuffers()
 {
-    const u32 maxFbs = GetSpecs().GetSpecific<D>().MaxFramebuffers;
+    TKIT_ASSERT(m_Framebuffers.IsEmpty(),
+                "[ONYX][VIEW] Cannot create framebuffers on a non-empty frame buffer array with {} elements",
+                m_Framebuffers.GetSize());
+    const u32 maxFbs = m_FrameBufferCount;
     const u32v2 extent = GetRenderExtent();
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
@@ -201,7 +208,11 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
             pending = i;
 
     TKIT_ASSERT(pending != TKIT_U32_MAX, "[ONYX][VIEW] Failed to find an available frame buffer");
+
+    TKIT_BEGIN_INFO_CLOCK();
     Graph::Queue_WaitForTracker(m_Framebuffers[pending].Tracker);
+    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][RENDER-VIEW] Waited {:.2f} ms for a new framebuffer");
+
     m_AttachmentIndex = pending;
 }
 

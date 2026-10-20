@@ -60,13 +60,19 @@ struct Framebuffer
     TKit::FixedArray<Graph::Image, Attachment_Count> Attachments{};
 };
 
+struct RenderViewSpecs
+{
+    u32 FrameBufferCount = 3;
+    RenderViewFlags Flags = 0;
+};
+
 // TODO(Isma): Thoroughly test absolute viewport and scissor coordinate usage here
 template <Dimension D> class RenderView
 {
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const u32v2 &extent, Camera<D> *camera, RenderViewFlags flags = 0);
+    RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewSpecs &specs);
     ~RenderView();
 
     // depending on flags, these will expect and return normalized or absolute coordinates!
@@ -355,7 +361,8 @@ template <Dimension D> class RenderView
     Graph::DescriptorSet m_CompositorSet;
 
     u32 m_AttachmentIndex = TKIT_U32_MAX;
-    RenderViewFlags m_Flags = 0;
+    u32 m_FrameBufferCount;
+    RenderViewFlags m_Flags;
 
     friend class Window;
     friend class RenderTarget;

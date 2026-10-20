@@ -14,7 +14,8 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpec
 {
     for (InstanceDataBuffer &buffer : m_InstanceData.Circles)
     {
-        buffer.Data = Buffer::Create<CircleInstanceData<D>>(specs.MaxInstances[Geometry_Circle]);
+        if (specs.MaxInstances[Geometry_Circle] != 0)
+            buffer.Data = Buffer::Create<CircleInstanceData<D>>(specs.MaxInstances[Geometry_Circle]);
         buffer.InstanceSize = sizeof(CircleInstanceData<D>);
     }
 
@@ -379,7 +380,8 @@ template <Dimension D> void IRenderContext<D>::acommodateResourceIds()
             InstanceDataBuffer &buffer = group.Buffers.Append();
             const Geometry geo = getGeometry(rtype);
             const u32 isize = GetInstanceSize<D>(geo);
-            buffer.Data = Buffer{isize * m_Specs.MaxInstances[geo]};
+            if (m_Specs.MaxInstances[geo] != 0)
+                buffer.Data = Buffer{isize * m_Specs.MaxInstances[geo]};
             buffer.InstanceSize = isize;
             buffer.Instances = 0;
         }
@@ -473,6 +475,9 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
 
 template <typename T> static void addInstanceData(InstanceDataBuffer &buffer, const T &data)
 {
+    TKIT_ASSERT(
+        buffer.Data.GetData(),
+        "[ONYX][CONTEXT] Attempting to add instance data for an instance type that had .MaxInstances = 0 in the specs");
     buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = buffer.Instances++ * sizeof(T)});
 }
 

@@ -25,7 +25,7 @@ int main()
     const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Shadows;
 
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, vflags);
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
 
     cam2.OrthoParameters.Size = 10.f;
@@ -33,7 +33,7 @@ int main()
     ctx2->AddTarget(view2);
 
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, vflags);
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
 
     cam3.View.Translation[2] = 5.f;

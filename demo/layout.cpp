@@ -149,9 +149,9 @@ int main()
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    Onyx::RenderView<D2> *view =
-        win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_PostProcess |
-                                            Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency);
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(
+        &cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_PostProcess |
+                        Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
 
     ctx->AddTarget(view);
 

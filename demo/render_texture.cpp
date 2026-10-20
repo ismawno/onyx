@@ -23,11 +23,13 @@ int main()
 
     Onyx::Camera<D2> cam{};
 
-    Onyx::RenderView<D2> *wview = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
-    Onyx::RenderView<D2> *rview1 = rt1->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
+    Onyx::RenderView<D2> *wview =
+        win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
+    Onyx::RenderView<D2> *rview1 =
+        rt1->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
 
     Onyx::RenderView<D2> *rview2 =
-        rt2->CreateRenderView<D2>(&ui->GetCamera(), Onyx::RenderViewFlag_NormalizedCoordinates);
+        rt2->CreateRenderView<D2>(&ui->GetCamera(), {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
 
     // main context targets window view -> sample shapes will render to main window
     // main context targets render texture view -> sample shapes will render to render texture
