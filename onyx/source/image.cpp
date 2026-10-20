@@ -5,9 +5,11 @@
 #ifdef ONYX_ENABLE_IMAGE_LOAD
 #    include <stb_image.h>
 #endif
+#include <filesystem>
 
 namespace Onyx
 {
+namespace fs = std::filesystem;
 static void flipX(const u32 bpp, std::byte *data, const u32 width, const u32 height)
 {
     const u32 stride = width * bpp;
@@ -134,6 +136,11 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
     if (args.Path)
     {
         const char *path = args.Path;
+        if (!fs::exists(path) || fs::is_directory(path))
+            return Result<>::Error(
+                Error_FileNotFound,
+                TKit::TierString::Format("[ONYX][IMAGE] File at {} does not exist or is a directory", path));
+
         if (stbi_is_hdr(path))
         {
             type = ImageComponent_Float;

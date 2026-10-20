@@ -6,7 +6,9 @@
 #include "onyx/gltf.hpp"
 #include "onyx/font.hpp"
 #include "onyx/material.hpp"
-#include "graph/core.hpp"
+#ifdef ONYX_ENABLE_AUDIO
+#    include "onyx/audio.hpp"
+#endif
 
 namespace Onyx
 {

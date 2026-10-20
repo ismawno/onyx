@@ -75,6 +75,8 @@ enum ErrorCode : u8
     Error_FileNotFound,
     Error_EntryPointNotFound,
     Error_ShaderCompilationFailed,
+    Error_PlayFailed,
+    Error_AudioFail,
     Error_Unknown,
     Error_Count
 };

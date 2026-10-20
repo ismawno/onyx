@@ -17,9 +17,11 @@ TKIT_COMPILER_WARNING_IGNORE_POP()
 #        include "ttf.hpp"
 #    endif
 #endif
+#include <filesystem>
 
 namespace Onyx
 {
+namespace fs = std::filesystem;
 #ifdef ONYX_ENABLE_FONT_LOAD
 ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, msdfgen::FontHandle *font,
                                                   const FontLoadOptions &opts)
@@ -169,6 +171,11 @@ Result<FontData> Font_LoadDataFromFile(const char *path, const FontLoadOptions &
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft)
         return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+
+    if (!fs::exists(path) || fs::is_directory(path))
+        return Result<>::Error(
+            Error_FileNotFound,
+            TKit::TierString::Format("[ONYX][FONT] File at {} does not exist or is a directory", path));
 
     msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
     if (!font)

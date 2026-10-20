@@ -5,9 +5,11 @@
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    include <tiny_obj_loader.h>
 #endif
+#include <filesystem>
 
 namespace Onyx
 {
+namespace fs = std::filesystem;
 template <typename Vertex> static void mesh_TidyData(MeshData<Vertex> &data, const u32 offset = 0)
 {
     TKit::StackArray<u32> counts{};
@@ -56,6 +58,11 @@ template <typename Vertex> static void mesh_ValidateData(MeshData<Vertex> &data,
 
 template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, const u32 maxVertices)
 {
+    if (!fs::exists(path) || fs::is_directory(path))
+        return Result<>::Error(
+            Error_FileNotFound,
+            TKit::TierString::Format("[ONYX][MESH] File at {} does not exist or is a directory", path));
+
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;

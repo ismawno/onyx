@@ -30,6 +30,9 @@ endif()
 if(ONYX_ENABLE_GLTF_LOAD)
   list(APPEND SOURCES source/gltf.cpp)
 endif()
+if(ONYX_ENABLE_AUDIO)
+  list(APPEND SOURCES source/audio.cpp)
+endif()
 
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.11.x\")
@@ -329,6 +332,49 @@ if(ONYX_ENABLE_NFD)
 
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
+endif()
+
+if(ONYX_ENABLE_AUDIO)
+  FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.25
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+
+  set(MINIAUDIO_INSTALL
+      OFF
+      CACHE BOOL "")
+  set(MINIAUDIO_INSTALL
+      OFF
+      CACHE BOOL "")
+
+  set(MINIAUDIO_NO_ENCODING
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_NO_GENERATION
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_NO_EXTRA_NODES
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_NO_LIBVORBIS
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_NO_LIBOPUS
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_NO_MP3
+      ON
+      CACHE BOOL "")
+  set(MINIAUDIO_ENABLE_NULL
+      ON
+      CACHE BOOL "")
+
+  FetchContent_MakeAvailable(miniaudio)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_AUDIO)
+  target_link_libraries(onyx PRIVATE miniaudio)
+
 endif()
 
 target_link_libraries(onyx PUBLIC toolkit graphite)

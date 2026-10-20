@@ -232,6 +232,12 @@ static void texture_WriteOffsetDescriptors()
     Renderer_WriteBufferDescriptor<D3>(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, info, RenderPass_Flat);
 }
 
+// lets write this magically into existence
+#ifdef ONYX_ENABLE_AUDIO
+void audio_Initialize();
+void audio_Terminate();
+#endif
+
 // TODO(Isma): If there is a max bounds and material... why allow resizes on its buffer. Remove the resize path,
 // allocate enough memory from the beginning. Remove the flags from the descriptor, the update after bind thing. Update
 // only ONCE the descriptors here, in initialize
@@ -265,6 +271,9 @@ void Resources_Initialize()
     materials_Initialize<D3>();
     bounds_Initialize<D2>();
     bounds_Initialize<D3>();
+#ifdef ONYX_ENABLE_AUDIO
+    audio_Initialize();
+#endif
 }
 
 template <typename Vertex> static void meshes_Terminate(MeshResourceData<Vertex> &meshData)
@@ -298,6 +307,9 @@ template <Dimension D> static void terminate()
 
 void Resources_Terminate()
 {
+#ifdef ONYX_ENABLE_AUDIO
+    audio_Terminate();
+#endif
     terminate<D2>();
     terminate<D3>();
     meshes_Terminate(*s_FontData);
@@ -1564,6 +1576,8 @@ bool Resources_IsBackCulled(const Resource handle)
     return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshFlag_BackCulled;
 }
 
+bool audio_IsResourceIdValid(const u32 id);
+
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
 {
     const u32 itype = Handle_GetResourceTypeAsInteger(handle);
@@ -1598,6 +1612,8 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
         return Handle_IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
     case Resource_Image:
         return Handle_IsResourcePoolNull(handle) && s_Images->Resources.Contains(rid);
+    case Resource_Audio:
+        return audio_IsResourceIdValid(Handle_GetResourceId(handle));
     default:
         return false;
     }

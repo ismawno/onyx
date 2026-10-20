@@ -106,6 +106,7 @@ enum ResourceType : u8
     Resource_Sampler,
     Resource_Image,
     Resource_Texture,
+    Resource_Audio,
     Resource_Count,
 
     // not ideal to have them here but idc too much
