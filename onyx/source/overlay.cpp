@@ -1844,7 +1844,9 @@ u32 Overlay::processWindows()
             continue;
         }
 
-        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
+        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition() *
+                                                f32v2(nw->Window->GetPixelDimensions()) /
+                                                f32v2(nw->Window->GetScreenDimensions());
         nw->ScreenMouseDelta = smpos - nw->ScreenMousePos;
         nw->ScreenMousePos = smpos;
 
