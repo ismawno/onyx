@@ -152,9 +152,9 @@ class Buffer
     void Write(const void *data, const Graph::BufferCopy &copy)
     {
         TKIT_ASSERT(m_Size >= copy.Size + copy.DstOffset,
-                    "[ONYX][BUFFER] Copy size ({}) must be smaller or equal than the buffer size ({}) minus "
-                    "destination offset ({})",
-                    copy.Size, m_Size, copy.DstOffset);
+                    "[ONYX][BUFFER] Copy range with size {:L} bytes and dst offset {:L} bytes exceeds buffer bounds by "
+                    "{:L} bytes on this buffer with a size of {:L} bytes",
+                    copy.Size, copy.DstOffset, copy.Size + copy.DstOffset - m_Size, m_Size);
 
         std::byte *dst = scast<std::byte *>(m_Data) + copy.DstOffset;
         const std::byte *src = scast<const std::byte *>(data) + copy.SrcOffset;
