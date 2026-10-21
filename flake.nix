@@ -52,6 +52,9 @@
 
           fontconfig
           expat
+
+          alsa-lib
+          libpulseaudio
         ];
         shellHook = ''
           export SHELL=${pkgs.zsh}/bin/zsh
@@ -62,6 +65,14 @@
           export CC=clang
           export CXX=clang++
           export CLANGD_FLAGS="$CLANGD_FLAGS --query-driver=/nix/store/*-clang-wrapper-*/bin/clang++"
+
+          export LD_LIBRARY_PATH=${
+            pkgs.lib.makeLibraryPath [
+              pkgs.vulkan-loader
+              pkgs.alsa-lib
+              pkgs.libpulseaudio
+            ]
+          }:$LD_LIBRARY_PATH
         '';
       };
     };

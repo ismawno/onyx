@@ -211,6 +211,9 @@ struct Specs
     u32 MaxPipelineLayouts = 32;
     u32 MaxPipelines = 256;
 
+    // audio
+    u32 ListenerCount = 2;
+
     SpecificSpecs<D2> Specs2{};
     SpecificSpecs<D3> Specs3{};
 

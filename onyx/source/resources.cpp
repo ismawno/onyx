@@ -234,7 +234,7 @@ static void texture_WriteOffsetDescriptors()
 
 // lets write this magically into existence
 #ifdef ONYX_ENABLE_AUDIO
-void audio_Initialize();
+void audio_Initialize(u32 listenerCount);
 void audio_Terminate();
 #endif
 
@@ -272,7 +272,7 @@ void Resources_Initialize()
     bounds_Initialize<D2>();
     bounds_Initialize<D3>();
 #ifdef ONYX_ENABLE_AUDIO
-    audio_Initialize();
+    audio_Initialize(GetSpecs().ListenerCount);
 #endif
 }
 
