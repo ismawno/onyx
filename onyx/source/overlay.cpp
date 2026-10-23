@@ -7188,11 +7188,11 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBox("Disable other sections", &disableGlobal);
         ov->CheckBox("Disable items below", &disableLocal);
 
-        ov->BeginReadOnly(disableLocal);
+        ov->BeginDisabled(disableLocal);
         ov->TextRaw("I can be disabled");
         ov->CheckBox("I can be disabled##CB", &dummy);
         ov->Button("I can be disabled##ov->Button");
-        ov->EndReadOnly();
+        ov->EndDisabled();
 
         ov->PopTree();
     }
