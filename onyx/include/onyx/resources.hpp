@@ -234,6 +234,10 @@ template <Dimension D> GltfHandles Gltf_Register(ResourcePool meshPool, GltfData
 const FontInfo &Font_GetInfo(Resource font);
 Resource Font_GetAtlas(Resource font);
 Resource Font_GetGlyph(Resource font, CodePoint codePoint);
+inline bool Font_HasGlyph(const Resource font, const CodePoint codePoint)
+{
+    return Font_GetGlyph(font, codePoint) != NullHandle;
+}
 MeshRange Font_GetRange(Resource font);
 
 Resource Glyph_GetFont(Resource glyph);

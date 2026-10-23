@@ -833,10 +833,6 @@ struct OverlayWindow
     {
         return DockParent;
     }
-    bool IsCollapsed() const
-    {
-        return HeaderIcon == CodePoint_ArrowRight;
-    }
 
     OverlayWindow *GetRoot()
     {
@@ -2963,7 +2959,36 @@ class Overlay
     /// HELPERS PRIVATE
     /////////////////////////////////////////////
 
-    const FontInfo &getFontInfo() const;
+    Resource getFont() const;
+    const FontInfo &getFontInfo() const
+    {
+        return Font_GetInfo(getFont());
+    }
+
+    CodePoint getCodePoint(const CodePoint cp, const CodePoint fallback) const
+    {
+        if (Font_HasGlyph(getFont(), cp))
+            return cp;
+        return fallback;
+    }
+
+    CodePoint getArrowDownCodePoint() const
+    {
+        return getCodePoint(CodePoint_ArrowDown, 0x76);
+    }
+    CodePoint getArrowRightCodePoint() const
+    {
+        return getCodePoint(CodePoint_ArrowRight, 0x3E);
+    }
+    CodePoint getBulletCodePoint() const
+    {
+        return getCodePoint(CodePoint_Bullet, 0x2A);
+    }
+    CodePoint getCrossCodePoint() const
+    {
+        return getCodePoint(CodePoint_Cross, 0x78);
+    }
+
     f32 getLineHeight() const;
 
     OverlayFocusFlags standardHoverAllowance() const;
