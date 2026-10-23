@@ -52,6 +52,9 @@ struct CustomAudioSpecs
     AudioFlags Flags = 0;
 };
 
+u32 Audio_GetChannels();
+u32 Audio_GetSampleRate();
+
 bool Audio_IsAvailable();
 void Audio_SetDeviceCallback(AudioDeviceCallback &&cbk);
 void Audio_SetMasterProcessor(AudioProcessorCallback &&cbk);

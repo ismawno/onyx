@@ -359,6 +359,15 @@ static bool setupNode(AudioProcessorCallback &&cbk, ProcessorNode &node, ma_node
     return true;
 }
 
+u32 Audio_GetChannels()
+{
+    return ma_engine_get_channels(&s_Data->Engine);
+}
+u32 Audio_GetSampleRate()
+{
+    return ma_engine_get_sample_rate(&s_Data->Engine);
+}
+
 bool Audio_IsAvailable()
 {
     return s_Available;
@@ -435,16 +444,17 @@ Result<Resource> Audio_Create(const char *path, const AudioFlags flags)
     ma_uint32 f = 0;
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
-    const ma_result res = ma_sound_init_from_file(&s_Data->Engine, path, MA_SOUND_FLAG_STREAM | f, &s_Data->Group,
-                                                  nullptr, &audio->Sound);
 
-    CHECK_ERROR(res, Resource, Error_LoadFailed, "[ONYX][AUDIO] Sound initialization failed with error code {}");
+    ENSURE_SUCCESS(ma_sound_init_from_file(&s_Data->Engine, path, MA_SOUND_FLAG_STREAM | f, &s_Data->Group, nullptr,
+                                           &audio->Sound),
+                   "[ONYX][AUDIO] Sound initialization failed with error code {}");
 
     ma_uint64 fcount;
     if (ma_sound_get_length_in_pcm_frames(&audio->Sound, &fcount) != MA_SUCCESS)
         fcount = 0;
     audio->FrameCount = u64(fcount);
 
+    ma_sound_set_looping(&audio->Sound, bool(flags & AudioFlag_Loop));
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
