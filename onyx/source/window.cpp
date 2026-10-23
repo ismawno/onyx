@@ -153,13 +153,16 @@ Window::~Window()
     Graph::Window_Destroy(m_Window);
 }
 
-bool Window::handlePresentOrAcquireResult(const Graph::SwapchainStatus status)
+bool Window::handlePresentOrAcquireResult(const Graph::SwapchainStatus status, const bool imageAcquired)
 {
     if (status == Graph::SwapchainStatus_SurfaceLost)
     {
         recreateSurface();
         return false;
     }
+
+    if (imageAcquired && status != Graph::SwapchainStatus_OutOfDate)
+        return true;
 
     if (m_MustRecreateSwapchain || status == Graph::SwapchainStatus_OutOfDate ||
         (status == Graph::SwapchainStatus_Suboptimal &&
@@ -181,7 +184,7 @@ void Window::Present()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::Present");
     const Graph::SwapchainStatus status = Graph::Swapchain_Present(m_Swapchain);
-    handlePresentOrAcquireResult(status);
+    handlePresentOrAcquireResult(status, false);
 }
 
 bool Window::AcquireNextImage(const u64 timeout)
@@ -189,7 +192,7 @@ bool Window::AcquireNextImage(const u64 timeout)
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
 
     const Graph::SwapchainStatus status = Graph::Swapchain_AcquireNextImage(m_Swapchain, timeout);
-    if (status != Graph::SwapchainStatus_NotReady && handlePresentOrAcquireResult(status))
+    if (status != Graph::SwapchainStatus_NotReady && handlePresentOrAcquireResult(status, true))
     {
         findAvailableFramebuffers();
         return true;

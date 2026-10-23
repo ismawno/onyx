@@ -317,7 +317,7 @@ class Window final : public RenderTarget
     void createSwapchain();
     void recreateSwapchain();
     void recreateSurface();
-    bool handlePresentOrAcquireResult(Graph::SwapchainStatus status);
+    bool handlePresentOrAcquireResult(Graph::SwapchainStatus status, bool imageAcquired);
 
     void waitForValidExtent() const;
 
