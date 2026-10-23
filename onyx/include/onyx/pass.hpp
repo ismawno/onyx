@@ -33,6 +33,9 @@ enum BlendPass : u8
 };
 constexpr RenderMode GetRenderMode(const RenderModeFlags flags)
 {
+    TKIT_ASSERT(!((flags & RenderModeFlag_Shaded) && (flags & RenderModeFlag_Flat)),
+                "[ONYX][PASS] Shaded and flat render mode flags are exclusive. RenderModeFlag_Flat | "
+                "RenderModeFlag_Shaded is not allowed");
     switch (flags)
     {
     case RenderModeFlag_Shaded:

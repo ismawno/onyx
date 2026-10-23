@@ -172,7 +172,6 @@ template <Dimension D> struct ContextState
     WorldRect<D> Rect{};
 
     f32 OutlineWidth = 0.1f;
-    f32 AmbientIntensity = 0.4f;
 
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};

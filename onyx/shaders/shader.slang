@@ -343,7 +343,7 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-#ifndef ONYX_SHADOW_PASS
+#ifndef ONYX_PASS_SHADOW
 [[vk::binding(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT)]]
 TextureOffsets g_TextureOffsets;
 #endif

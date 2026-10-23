@@ -2,6 +2,7 @@
 
 #include "onyx/handle.hpp"
 #include "onyx/math.hpp"
+#include "onyx/color.hpp"
 
 namespace Onyx
 {
@@ -10,12 +11,12 @@ template <Dimension D> struct MaterialData;
 template <> struct MaterialData<D2>
 {
     static constexpr Dimension Dim = D2;
-    u32 ColorFactor = 0xFFFFFFFF;
-    u32 Occluder = 0;
+    Color ColorFactor = Color_White;
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
     Resource Sampler = NullHandle;
     Resource Texture = NullHandle;
+    bool Occluder = false;
 };
 
 enum TextureSlot : u8
@@ -31,7 +32,7 @@ enum TextureSlot : u8
 template <> struct MaterialData<D3>
 {
     static constexpr Dimension Dim = D3;
-    f32v3 EmissiveFactor{0.f};
+    Color EmissiveFactor{0.f};
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
     u32 AlbedoFactor = 0xFFFFFFFF;

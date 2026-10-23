@@ -169,11 +169,7 @@ template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::stri
             MaterialData<D2> matData{};
             const auto &pbr = mat.pbrMetallicRoughness;
             const auto &color = pbr.baseColorFactor;
-            const u8 r = u8(color[0] * 255.f);
-            const u8 g = u8(color[1] * 255.f);
-            const u8 b = u8(color[2] * 255.f);
-            const u8 a = u8(color[3] * 255.f);
-            matData.ColorFactor = (a << 24) | (b << 16) | (g << 8) | r; // ABGR packed
+            matData.ColorFactor = Color{f32(color[0]), f32(color[1]), f32(color[2]), f32(color[3])};
 
             if (albedoIdx >= 0)
             {

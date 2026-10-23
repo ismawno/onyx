@@ -602,12 +602,9 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
         const CodePoint code = DecodeUTF8(&text[i], &byteCount);
         if (code == '\n')
         {
-            if (line.Start < line.End)
-            {
-                lines.Append(line);
-                line.Start = line.End;
-                line.Width = 0.f;
-            }
+            lines.Append(line);
+            line.Start = line.End;
+            line.Width = 0.f;
             i += byteCount;
             continue;
         }

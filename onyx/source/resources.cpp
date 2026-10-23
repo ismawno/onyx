@@ -1746,15 +1746,15 @@ template <Dimension D> static void uploadMaterials()
         MaterialPackedData<D> pdata;
         if constexpr (D == D2)
         {
-            pdata.ColorFactor = data.ColorFactor;
-            pdata.Occluder = data.Occluder;
+            pdata.ColorFactor = data.ColorFactor.ToLinear().Pack();
+            pdata.Occluder = u32(data.Occluder);
             pdata.TexOffset = data.TexOffset;
             pdata.TexScale = data.TexScale;
             pdata.SamplerTex = Resources_CombineSamplerTexIntoId(data.Sampler, data.Texture);
         }
         else
         {
-            pdata.EmissiveFactor = data.EmissiveFactor;
+            pdata.EmissiveFactor = data.EmissiveFactor.ToLinear().Pack();
             pdata.TexOffset = data.TexOffset;
             pdata.TexScale = data.TexScale;
             pdata.AlbedoFactor = data.AlbedoFactor;
