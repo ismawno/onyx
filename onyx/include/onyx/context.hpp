@@ -685,9 +685,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_State.OutlineWidth = width;
     }
 
-    void SetAmbientLight(const Color &color)
+    void SetAmbientLight(const Color &colorAndIntensity)
     {
-        m_AmbientLight = color;
+        m_AmbientLight = colorAndIntensity;
     }
     void SetAmbientIntensity(const f32 intensity)
     {
