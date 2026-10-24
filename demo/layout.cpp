@@ -23,8 +23,7 @@ template <typename T> bool Combo(const char *label, T *index, const char *items)
 
 struct PanelInfo
 {
-    Onyx::LayoutPanelParameters PanelParams{.FillColor = Onyx::Color_White,
-                                            .Sizing = Onyx::LayoutSizing::Absolute(1.f)};
+    Onyx::LayoutPanelParameters PanelParams{.FillColor = Onyx::Color_White, .Sizing = Onyx::LayoutSizing::Fixed(1.f)};
     Onyx::LayoutTextParameters TextParams{.FontSize = 0.1f};
     Onyx::LayoutElementType Type = Onyx::LayoutElement_Panel;
     std::string Text;
@@ -61,14 +60,14 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
         Combo("Y Alignment", &p.Alignment[1], "Bottom\0Center\0Top\0\0");
 
         ImGui::Spacing();
-        Combo("X Sizing", &p.Sizing[0].Type, "Absolute\0Normalized\0Fit\0Grow\0\0");
-        if (p.Sizing[0].Type == Onyx::LayoutSizing_Absolute || p.Sizing[0].Type == Onyx::LayoutSizing_Normalized)
+        Combo("X Sizing", &p.Sizing[0].Type, "Fixed\0Proportional\0Fit\0Grow\0\0");
+        if (p.Sizing[0].Type == Onyx::LayoutSizing_Fixed || p.Sizing[0].Type == Onyx::LayoutSizing_Proportional)
             ImGui::DragFloat("X Size", &p.Sizing[0].Size, 0.05f, 0.f, TKIT_F32_MAX);
         else
             ImGui::DragFloat2("X Limits", &p.Sizing[0].Min, 0.05f, 0.f, TKIT_F32_MAX);
 
-        Combo("Y Sizing", &p.Sizing[1].Type, "Absolute\0Normalized\0Fit\0Grow\0\0");
-        if (p.Sizing[1].Type == Onyx::LayoutSizing_Absolute || p.Sizing[1].Type == Onyx::LayoutSizing_Normalized)
+        Combo("Y Sizing", &p.Sizing[1].Type, "Fixed\0Proportional\0Fit\0Grow\0\0");
+        if (p.Sizing[1].Type == Onyx::LayoutSizing_Fixed || p.Sizing[1].Type == Onyx::LayoutSizing_Proportional)
             ImGui::DragFloat("Y Size", &p.Sizing[1].Size, 0.05f, 0.f, TKIT_F32_MAX);
         else
             ImGui::DragFloat2("Y Limits", &p.Sizing[1].Min, 0.05f, 0.f, TKIT_F32_MAX);
@@ -79,14 +78,14 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
 
         ImGui::DragFloat("Child gap", &p.ChildGap, 0.01f, 0.f, TKIT_F32_MAX);
 
-        Combo("X Child offset type", &p.ChildOffset[0].Type, "Absolute\0Normalized\0Relative\0\0");
+        Combo("X Child offset type", &p.ChildOffset[0].Type, "Fixed\0Proportional\0Relative\0\0");
         ImGui::DragFloat("X Child offset", &p.ChildOffset[0].Offset, 0.01f);
-        Combo("Y Child offset type", &p.ChildOffset[1].Type, "Absolute\0Normalized\0Relative\0\0");
+        Combo("Y Child offset type", &p.ChildOffset[1].Type, "Fixed\0Proportional\0Relative\0\0");
         ImGui::DragFloat("Y Child offset", &p.ChildOffset[1].Offset, 0.01f);
 
-        Combo("X Self offset type", &p.SelfOffset[0].Type, "Absolute\0Normalized\0Relative\0\0");
+        Combo("X Self offset type", &p.SelfOffset[0].Type, "Fixed\0Proportional\0Relative\0\0");
         ImGui::DragFloat("X Self offset", &p.SelfOffset[0].Offset, 0.01f);
-        Combo("Y Self offset type", &p.SelfOffset[1].Type, "Absolute\0Normalized\0Relative\0\0");
+        Combo("Y Self offset type", &p.SelfOffset[1].Type, "Fixed\0Proportional\0Relative\0\0");
         ImGui::DragFloat("Y Self offset", &p.SelfOffset[1].Offset, 0.01f);
 
         Combo("Child overflow", &p.ChildOverflow, "Spill\0Clip\0\0");
@@ -149,16 +148,16 @@ int main()
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(
-        &cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_PostProcess |
-                        Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
+    Onyx::RenderView<D2> *view =
+        win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_PostProcess | Onyx::RenderViewFlag_Outlines |
+                                                  Onyx::RenderViewFlag_Transparency});
 
     ctx->AddTarget(view);
 
     {
         Onyx::Layout layout{};
         PanelInfo root{};
-        root.PanelParams.Sizing = Onyx::LayoutSizing::Absolute(2.f);
+        root.PanelParams.Sizing = Onyx::LayoutSizing::Fixed(2.f);
 
         TKit::StackArray<PanelInfo> panels{};
         panels.Reserve(64);
@@ -180,7 +179,7 @@ int main()
                 if (!ImGui::GetIO().WantCaptureMouse && ev.Type == Onyx::Event_Scrolled)
                 {
                     const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
-                    view->ZoomScroll(win->GetNormalizedMousePosition(), factor * ev.ScrollOffset[1]);
+                    view->ZoomScroll(win->GetAbsoluteMousePosition(), factor * ev.ScrollOffset[1]);
                 }
 
 #ifdef ONYX_ENABLE_IMGUI

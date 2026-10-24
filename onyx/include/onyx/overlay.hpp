@@ -716,19 +716,19 @@ struct NativeWindow
 
     f32v2 ToScreen(const f32v2 &world) const
     {
-        return ScreenPos + View->ToAbsolute(View->WorldToScreen(world));
+        return ScreenPos + View->WorldToScreen(world);
     }
     f32v2 ToWorld(const f32v2 &screen) const
     {
-        return View->ScreenToWorld(View->ToNormalized(screen - ScreenPos));
+        return View->ScreenToWorld(screen - ScreenPos);
     }
     f32v2 ToLocalScreen(const f32v2 &world) const
     {
-        return View->ToAbsolute(View->WorldToScreen(world));
+        return View->WorldToScreen(world);
     }
     f32v2 ToLocalWorld(const f32v2 &screen) const
     {
-        return View->ScreenToWorld(View->ToNormalized(screen));
+        return View->ScreenToWorld(screen);
     }
 
     f32v2 GetWorldTopLeft() const
@@ -1581,7 +1581,7 @@ class Overlay
         Layout *ly = m_Active->GetActiveLayout();
         const LayoutId id = PushId(label.Id);
         ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalSliderHeight])},
+                                   .Sizing = {fit(), sfix(m_Style[OverlayStyle_VerticalSliderHeight])},
                                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
@@ -1639,7 +1639,7 @@ class Overlay
 
         m_LastItem = {};
         m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.Direction = LayoutDirection_TopToBottom,
-                                                   .Sizing = {fit(), sabs(m_Style[OverlayStyle_VerticalDragHeight])},
+                                                   .Sizing = {fit(), sfix(m_Style[OverlayStyle_VerticalDragHeight])},
                                                    .ChildGap = m_Style[OverlayStyle_ChildGap]});
         bool changed = false;
         for (u32 i = 0; i < count; ++i)
@@ -1791,12 +1791,12 @@ class Overlay
     void Image(const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
                const f32v2 &scale = f32v2{1.f})
     {
-        Image(texture, sabs(size), offset, scale);
+        Image(texture, sfix(size), offset, scale);
     }
     LayoutId Image(const LayoutId id, const Resource texture, const f32v2 &size, const f32v2 &offset = f32v2{0.f},
                    const f32v2 &scale = f32v2{1.f})
     {
-        return Image(id, texture, sabs(size), offset, scale);
+        return Image(id, texture, sfix(size), offset, scale);
     }
 
     void BeginDisabled(bool enabled = true);
@@ -1948,13 +1948,13 @@ class Overlay
     void HorizontalLine()
     {
         m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
-                                                   .Sizing = {grow(), sabs(m_Style[OverlayStyle_LineWidth])},
+                                                   .Sizing = {grow(), sfix(m_Style[OverlayStyle_LineWidth])},
                                                    .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
     void VerticalLine()
     {
         m_Active->GetActiveLayout()->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_Line],
-                                                   .Sizing = {sabs(m_Style[OverlayStyle_LineWidth]), grow()},
+                                                   .Sizing = {sfix(m_Style[OverlayStyle_LineWidth]), grow()},
                                                    .Shape = rect(m_Style[OverlayStyle_LineRadius])});
     }
 
@@ -2031,7 +2031,7 @@ class Overlay
 
         BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom,
                            .Alignment = Center,
-                           .Sizing = {sabs(m_Style[OverlayStyle_IndentWidth]), flex()}});
+                           .Sizing = {sfix(m_Style[OverlayStyle_IndentWidth]), flex()}});
 
         if (vline)
             VerticalLine();
@@ -2257,8 +2257,7 @@ class Overlay
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
-        return RenderViewFlag_NormalizedCoordinates | RenderViewFlag_Transparency | RenderViewFlag_PostProcess |
-               RenderViewFlag_Outlines;
+        return RenderViewFlag_Transparency | RenderViewFlag_PostProcess | RenderViewFlag_Outlines;
     }
 
     /////////////////////////////////////////////
@@ -2330,14 +2329,14 @@ class Overlay
     void removeOverlayWindow(const OverlayWindow *win);
 
     NativeWindow *createNativeWindow(Window *win);
-    NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &dims, WindowFlags flags = 0);
+    NativeWindow *createNativeWindow(const f32v2 &pos, const f32v2 &size, WindowFlags flags = 0);
 
     void cleanupWindowState();
 
     void destroyNativeWindow(const NativeWindow *win);
     void removeNativeWindow(const NativeWindow *win);
 
-    NativeWindow *promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims);
+    NativeWindow *promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &size);
     void demoteWindow(OverlayWindow *win);
 
     void demoteAllWindows();
@@ -2447,7 +2446,7 @@ class Overlay
     void endTab(TabBarData *data);
 
     void beginHorizontalWidget(LayoutId id, const LySz2 &outerSizing, const LySz2 &innerSizing);
-    void beginHorizontalWidget(LayoutId id, f32 normSize = 0.7f);
+    void beginHorizontalWidget(LayoutId id, f32 propSize = 0.7f);
     void endHorizontalWidget(const OverlayTitle &title = {});
 
     bool inputTextBox(char *buf, u32 size, TKit::StringView hint, OverlayInputFlags flags,
@@ -2573,8 +2572,8 @@ class Overlay
         ly->BeginPanel(LyPnPar{.Alignment = Center, .Sizing = {srel(1.f), grow()}});
 
         ly->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                          .Sizing = {sabs(sinfo.InnerWidth), grow()},
-                          .SelfOffset = oabs({sinfo.Offset, 0.f}),
+                          .Sizing = {sfix(sinfo.InnerWidth), grow()},
+                          .SelfOffset = ofix({sinfo.Offset, 0.f}),
                           .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
         const LayoutId txtId = IdFromStack("__onyx_id_Text_slot");
@@ -2585,7 +2584,7 @@ class Overlay
         ly->EndPanel();
         ly->BeginPanel(txtId, LyPnPar{.Alignment = Center,
                                       .Sizing = {hasAccurateFlex ? flex() : srel(1.f), fit()},
-                                      .SelfOffset = hasAccurateFlex ? oabs({txtOffset, 0.f}) : onorm({-1.0f, 0.f})});
+                                      .SelfOffset = hasAccurateFlex ? ofix({txtOffset, 0.f}) : oprop({-1.0f, 0.f})});
 
         const TKit::StackString text = TKit::StackString::Format(TKit::RuntimeFormatString(sinfo.Format), *value);
         ly->Text(text, getTextParams());
@@ -2608,13 +2607,13 @@ class Overlay
         const f32 padding = m_Style[OverlayStyle_WidgetPadding];
         ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[sinfo.Color],
                                    .Alignment = Center,
-                                   .Sizing = {sabs(m_Style[OverlayStyle_VerticalSliderWidth]), grow()},
+                                   .Sizing = {sfix(m_Style[OverlayStyle_VerticalSliderWidth]), grow()},
                                    .Shape = rect(m_Style[OverlayStyle_SliderRadius]),
                                    .Padding = padding});
 
         ly->Panel(LyPnPar{.FillColor = m_Style[OverlayColor_SliderInner],
-                          .Sizing = {grow(), sabs(sinfo.InnerWidth)},
-                          .SelfOffset = oabs({0.f, sinfo.Offset}),
+                          .Sizing = {grow(), sfix(sinfo.InnerWidth)},
+                          .SelfOffset = ofix({0.f, sinfo.Offset}),
                           .Shape = rect(m_Style[OverlayStyle_SliderInnerRadius])});
 
         ly->EndPanel();
@@ -2733,7 +2732,7 @@ class Overlay
         const DragBoxInfo dinfo = getDragBoxInfo(1, value, speed, mn, mx, format, elm, flags);
 
         ly->Panel(id, LyPnPar{.FillColor = m_Style[dinfo.Color],
-                              .Sizing = {sabs(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
+                              .Sizing = {sfix(m_Style[OverlayStyle_VerticalDragWidth]), grow()},
                               .Shape = rect(m_Style[OverlayStyle_DragRadius])});
 
         if (dinfo.Flags & (OverlayInteractionQueryFlag_Hovered | OverlayInteractionQueryFlag_Pressed))
@@ -3051,21 +3050,21 @@ class Overlay
     {
         return LySz::Flex(min, max);
     }
-    static constexpr LySz sabs(const f32 size)
+    static constexpr LySz sfix(const f32 size)
     {
-        return LySz::Absolute(size);
+        return LySz::Fixed(size);
     }
-    static constexpr LySz2 sabs(const f32v2 &size)
+    static constexpr LySz2 sfix(const f32v2 &size)
     {
-        return LySz::Absolute(size);
+        return LySz::Fixed(size);
     }
-    static constexpr LySz snorm(const f32 size)
+    static constexpr LySz sprop(const f32 size)
     {
-        return LySz::Normalized(size);
+        return LySz::Proportional(size);
     }
-    static constexpr LySz2 snorm(const f32v2 &size)
+    static constexpr LySz2 sprop(const f32v2 &size)
     {
-        return LySz::Normalized(size);
+        return LySz::Proportional(size);
     }
     static constexpr LySz srel(const f32 size)
     {
@@ -3075,21 +3074,21 @@ class Overlay
     {
         return LySz::Relative(size);
     }
-    static constexpr LyOf oabs(const f32 size)
+    static constexpr LyOf ofix(const f32 size)
     {
-        return LyOf::Absolute(size);
+        return LyOf::Fixed(size);
     }
-    static constexpr LyOf2 oabs(const f32v2 &size)
+    static constexpr LyOf2 ofix(const f32v2 &size)
     {
-        return LyOf::Absolute(size);
+        return LyOf::Fixed(size);
     }
-    static constexpr LyOf onorm(const f32 size)
+    static constexpr LyOf oprop(const f32 size)
     {
-        return LyOf::Normalized(size);
+        return LyOf::Proportional(size);
     }
-    static constexpr LyOf2 onorm(const f32v2 &size)
+    static constexpr LyOf2 oprop(const f32v2 &size)
     {
-        return LyOf::Normalized(size);
+        return LyOf::Proportional(size);
     }
     static constexpr LyOf orel(const f32 size)
     {

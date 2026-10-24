@@ -70,9 +70,9 @@ template <Dimension D> static void applyCoordinateSystemExtrinsic(f32m<D> &trans
 }
 
 template <Dimension D>
-RenderView<D>::RenderView(const u32v2 &dimensions, const u32v2 &extent, const f32v2 &contentScale, Camera<D> *camera,
-                          const RenderViewSpecs &specs)
-    : m_Camera(camera), m_ParentDimensions(dimensions), m_ParentExtent(extent), m_ParentContentScale(contentScale),
+RenderView<D>::RenderView(const u32v2 &size, const f32v2 &contentScale, Camera<D> *camera, const RenderViewSpecs &specs)
+    : m_Camera(camera), m_ViewportSizing(specs.ViewportSizing), m_ScissorSizing(specs.ScissorSizing),
+      m_ImageSizing(specs.ImageSizing), m_ParentSize(size), m_ContentScale(contentScale),
       m_FrameBufferCount(specs.FrameBufferCount), m_Flags(specs.Flags)
 
 {
@@ -90,13 +90,12 @@ RenderView<D>::RenderView(const u32v2 &dimensions, const u32v2 &extent, const f3
         Graph::DescriptorSet_SetName(m_CompositorSet, "onyx-compositor-set-window");
     }
 
-    SetNormalizedViewport(Viewport{});
-    SetNormalizedScissor(Scissor{});
-    if (m_Framebuffers.IsEmpty())
-    {
-        createFrameBuffers();
-        findAvailableFramebuffer();
-    }
+    m_Viewport.Size = size;
+    m_Scissor.Size = size;
+    m_ImageSize = size;
+
+    createFrameBuffers();
+    findAvailableFramebuffer();
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
@@ -119,7 +118,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
                 "[ONYX][VIEW] Cannot create framebuffers on a non-empty frame buffer array with {} elements",
                 m_Framebuffers.GetSize());
     const u32 maxFbs = m_FrameBufferCount;
-    const u32v2 extent = GetRenderExtent();
+    const u32v2 extent = GetImageExtent();
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
@@ -233,27 +232,10 @@ template <Dimension D> void RenderView<D>::destroyFramebuffers()
     m_Framebuffers.Clear();
 }
 
-template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screenPos) const
-{
-    const f32v2 dif = screenPos - ViewportData.Position;
-    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return dif / ViewportData.Dimensions;
-    return dif;
-}
-template <Dimension D> f32v2 RenderView<D>::ViewportToScreen(const f32v2 &viewportPos) const
-{
-    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return viewportPos * ViewportData.Dimensions + ViewportData.Position;
-    return viewportPos + ViewportData.Position;
-}
-
 template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &viewportPos) const
 {
     const f32m<D> pv = Math::Inverse(m_ProjectionView);
-    const f32v2 remapped = 2.f * ((m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-                                      ? f32v2{viewportPos}
-                                      : (f32v2{viewportPos} / f32v2{ViewportData.Dimensions})) -
-                           1.f;
+    const f32v2 remapped = 2.f * (f32v2{viewportPos} / m_Viewport.Size) - 1.f;
 
     if constexpr (D == D2)
         return pv * f32v3{remapped, 1.f};
@@ -271,14 +253,14 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
     {
         const f32v2 ndc = f32v2{m_ProjectionView * f32v3{worldPos, 1.f}};
         const f32v2 vpos = 0.5f * (ndc + 1.f);
-        return (m_Flags & RenderViewFlag_NormalizedViewportCoordinates) ? vpos : (vpos * f32v2{m_ParentDimensions});
+        return vpos * f32v2{m_Viewport.Size};
     }
     else
     {
         const f32v4 clip = m_ProjectionView * f32v4{worldPos, 1.f};
         const f32v2 ndc = f32v2{clip} / clip[3];
         const f32v2 vpos = 0.5f * (ndc + 1.f);
-        return (m_Flags & RenderViewFlag_NormalizedViewportCoordinates) ? vpos : (vpos * f32v2{m_ParentDimensions});
+        return vpos * f32v2{m_Viewport.Size};
     }
 }
 
@@ -333,7 +315,7 @@ static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Gra
 }
 
 static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
-                           const Graph::AttachmentInfo *depth, const u32v2 &ext, const Scissor normScissor)
+                           const Graph::AttachmentInfo *depth, const u32v2 &ext, const Scissor &normScissor)
 {
     Graph::RenderPassInfo info{};
     info.RenderArea = {{0, 0}, ext};
@@ -342,11 +324,9 @@ static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<cons
     info.StencilAttachment = depth;
 
     const f32v2 fext = f32v2{ext};
-    const f32v2 scPos = normScissor.Position * fext;
-    const f32v2 scExtent = normScissor.Dimensions * fext;
 
     Graph::Command_SetViewport(cmd, f32v2{0.f}, fext);
-    Graph::Command_SetScissor(cmd, i32v2{scPos}, u32v2{scExtent});
+    Graph::Command_SetScissor(cmd, i32v2{normScissor.Position}, u32v2{normScissor.Size});
     Graph::Command_BeginRenderPass(cmd, info);
 }
 
@@ -406,7 +386,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     depth.LoadOp = Graph::LoadOp_Clear;
     depth.StoreOp = keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
-    beginRendering(cmd, atts, &depth, GetRenderExtent(), GetNormalizedScissor());
+    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor);
 }
 
 template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd)
@@ -462,7 +442,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     depth.LoadOp = Graph::LoadOp_Load;
     depth.StoreOp = hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
-    beginRendering(cmd, atts, &depth, GetRenderExtent(), GetNormalizedScissor());
+    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor);
 }
 
 template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::CommandBuffer cmd)
@@ -488,7 +468,7 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const Graph::CommandBu
         hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
     const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_Load, Graph::StoreOp_Store);
-    beginRendering(cmd, color, nullptr, GetRenderExtent(), GetNormalizedScissor());
+    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor);
 }
 template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuffer cmd)
 {
@@ -523,7 +503,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const Graph::Command
 
     const Graph::AttachmentInfo color = colorAttachment(finalImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
 
-    beginRendering(cmd, color, nullptr, GetRenderExtent(), GetNormalizedScissor());
+    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor);
 }
 
 template <Dimension D> void RenderView<D>::EndPostProcess(const Graph::CommandBuffer cmd)
@@ -540,63 +520,22 @@ template <Dimension D> void RenderView<D>::EndPostProcess(const Graph::CommandBu
 template <Dimension D> bool RenderView<D>::IsWithinViewport(const f32v2 &screenPos) const
 {
     const f32v2 viewportPos = ScreenToViewport(screenPos);
-    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return viewportPos[0] > 0.f && viewportPos[0] < 1.f && viewportPos[1] > 0.f && viewportPos[1] < 1.f;
 
-    return viewportPos[0] > 0.f && viewportPos[0] < ViewportData.Dimensions[0] && viewportPos[1] > 0.f &&
-           viewportPos[1] < ViewportData.Dimensions[1];
+    return viewportPos[0] > 0.f && viewportPos[0] < m_Viewport.Size[0] && viewportPos[1] > 0.f &&
+           viewportPos[1] < m_Viewport.Size[1];
 }
 
-template <Dimension D> void RenderView<D>::SetNormalizedViewport(const Viewport &vp)
+template <Dimension D> void RenderView<D>::setViewport(const Viewport &vp)
 {
-    const f32v2 ip = 1.f / f32v2{m_ParentDimensions};
-    ViewportData.Position = Math::Clamp(vp.Position, 0.f, 1.f);
-    ViewportData.Dimensions = Math::Clamp(vp.Dimensions, ip, f32v2{1.f});
-
-    if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
-        ViewportData = asAbsoluteViewport();
-
-    CacheMatrices();
-    if (!(m_Flags & RenderViewFlag_DynamicViewport))
+    if (m_ScissorSizing == SizingPolicy_Proportional)
     {
-        drainWork();
-        recreateFramebuffers();
+        m_Scissor.Position = vp.Position * m_ScissorPosRatio;
+        m_Scissor.Size = vp.Size * m_ScissorSizeRatio;
     }
-}
-template <Dimension D> void RenderView<D>::SetAbsoluteViewport(const Viewport &vp)
-{
-    ViewportData.Position = Math::Clamp(vp.Position, f32v2{0.f}, f32v2{m_ParentDimensions});
-    ViewportData.Dimensions = Math::Clamp(vp.Dimensions, f32v2{1.f}, f32v2{m_ParentDimensions});
+    if (m_ImageSizing == SizingPolicy_Proportional)
+        setImageSize(vp.Size * m_ImageSizeRatio);
 
-    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        ViewportData = asNormalizedViewport();
-
-    CacheMatrices();
-    if (!(m_Flags & RenderViewFlag_DynamicViewport))
-    {
-        drainWork();
-        recreateFramebuffers();
-    }
-}
-
-template <Dimension D> void RenderView<D>::SetNormalizedScissor(const Scissor &sc)
-{
-    const u32v2 dims = GetDimensions();
-    const f32v2 ip = 1.f / f32v2{dims};
-    ScissorData.Position = Math::Clamp(sc.Position, 0.f, 1.f);
-    ScissorData.Dimensions = Math::Clamp(sc.Dimensions, ip, f32v2{1.f});
-
-    if (!(m_Flags & RenderViewFlag_NormalizedScissorCoordinates))
-        ScissorData = asAbsoluteScissor();
-}
-template <Dimension D> void RenderView<D>::SetAbsoluteScissor(const Scissor &sc)
-{
-    const u32v2 dims = GetDimensions();
-    ScissorData.Position = Math::Clamp(sc.Position, f32v2{0.f}, f32v2{dims});
-    ScissorData.Dimensions = Math::Clamp(sc.Dimensions, f32v2{1.f}, f32v2{dims});
-
-    if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
-        ScissorData = asNormalizedScissor();
+    m_Viewport = vp;
 }
 
 template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
@@ -604,22 +543,9 @@ template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
     CacheMatrices();
     const RenderViewFlags f = m_Flags;
 
-    const RenderViewFlags nvc = RenderViewFlag_NormalizedViewportCoordinates;
-    const RenderViewFlags nsc = RenderViewFlag_NormalizedScissorCoordinates;
-
-    if ((f & nsc) && !(flags & nsc))
-        ScissorData = asAbsoluteScissor();
-    else if (!(f & nsc) && (flags & nsc))
-        ScissorData = asNormalizedScissor();
-
-    if ((f & nvc) && !(flags & nvc))
-        ViewportData = asAbsoluteViewport();
-    else if (!(f & nvc) && (flags & nvc))
-        ViewportData = asNormalizedViewport();
     m_Flags = flags;
 
-    const RenderViewFlags fbFlags =
-        RenderViewFlag_DynamicViewport | RenderViewFlag_Transparency | RenderViewFlag_PostProcess;
+    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_PostProcess;
     if ((flags & fbFlags) != (f & fbFlags))
     {
         drainWork();
@@ -639,9 +565,9 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeView() const
     // {
     //     const Viewport vp = GetAbsoluteViewport();
     //     if constexpr (D == D2)
-    //         t.Translation += 0.5f * vp.Dimensions;
+    //         t.Translation += 0.5f * vp.Size;
     //     else
-    //         t.Translation += 0.5f * f32v3{vp.Dimensions, 0.f};
+    //         t.Translation += 0.5f * f32v3{vp.Size, 0.f};
     // }
     //
     // f32m<D> view = t.ComputeInverseTransform();
@@ -655,15 +581,14 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeProjection() const
     if (m_Flags & RenderViewFlag_ManualProjectionView)
         return m_Projection;
 
-    const Viewport viewport = GetAbsoluteViewport();
-    const f32 aspect = viewport.Dimensions[0] / viewport.Dimensions[1];
+    const f32 aspect = m_Viewport.Size[0] / m_Viewport.Size[1];
 
     if constexpr (D == D2)
     {
         TKIT_ASSERT(m_Camera->Mode != CameraMode_Perspective, "[ONYX][VIEW] 2D does not support perspective cameras");
         return m_Camera->Mode == CameraMode_Orthographic
                    ? Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect)
-                   : Transform<D2>::Orthographic(viewport.Dimensions[1], aspect);
+                   : Transform<D2>::Orthographic(m_Viewport.Size[1], aspect);
     }
     else
     {
@@ -674,7 +599,7 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeProjection() const
             return Transform<D3>::Perspective(pparams.FieldOfView, pparams.Near, pparams.Far, aspect);
         if (m_Camera->Mode == CameraMode_Orthographic)
             return Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
-        return Transform<D3>::Orthographic(viewport.Dimensions[1], aspect, oparams.Near, oparams.Far);
+        return Transform<D3>::Orthographic(m_Viewport.Size[1], aspect, oparams.Near, oparams.Far);
     }
 }
 

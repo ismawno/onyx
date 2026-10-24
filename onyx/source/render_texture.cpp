@@ -6,7 +6,7 @@
 
 namespace Onyx
 {
-static Graph::Image createImage(const u32v2 &dimensions, const f32v2 contentScale)
+static Graph::Image createImage(const u32v2 &size, const f32v2 contentScale)
 {
     const Graph::Format format = GetAttachmentFormat(Attachment_Intermediate);
     const TKit::FixedArray<Graph::Format, 2> formats{format, SurfaceFormat};
@@ -16,7 +16,7 @@ static Graph::Image createImage(const u32v2 &dimensions, const f32v2 contentScal
     specs.Formats = formats;
     specs.ImageViews = views;
 
-    return Graph::Image_Create(ComputeExtent(dimensions, contentScale), specs,
+    return Graph::Image_Create(ApplyScale(size, contentScale), specs,
                                Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | Graph::ImageFlag_Source |
                                    Graph::ImageFlag_Destination);
 }
@@ -29,13 +29,13 @@ static void nameImage(const Graph::Image img, const u32 idx)
     Graph::Image_SetViewNames(img, nview.CString());
 }
 
-RenderTexture::RenderTexture(const u32v2 &dimensions, const RenderTextureSpecs &specs)
-    : m_Dimensions(dimensions), m_ContentScale(specs.ContentScale), m_ImageCount(specs.ImageCount)
+RenderTexture::RenderTexture(const u32v2 &size, const RenderTextureSpecs &specs)
+    : m_Size(size), m_ContentScale(specs.ContentScale), m_ImageCount(specs.ImageCount)
 {
     TKIT_ASSERT(specs.ImageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
     FrontEndImage &img = m_Images.Append();
 
-    img.Image = createImage(dimensions, specs.ContentScale);
+    img.Image = createImage(size, specs.ContentScale);
     img.Texture = Texture_CreateMainRenderTexture(Graph::Image_GetView(img.Image, 0));
 
     if (Graph::IsValidationEnabled())
@@ -114,7 +114,7 @@ void RenderTexture::Resize(const u32v2 &dims, const f32v2 &contentScale)
         nameImage(newImage, 0);
 
     Texture_UpdateRenderTexture(main.Texture, Graph::Image_GetView(main.Image, 0));
-    m_Dimensions = dims;
+    m_Size = dims;
     m_ContentScale = contentScale;
     updateRenderViews();
     createSecondaryImages();
@@ -186,7 +186,7 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     target.ClearValue.Color = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, ComputeExtent(m_Dimensions, m_ContentScale)};
+    info.RenderArea = {{0, 0}, ApplyScale(m_Size, m_ContentScale)};
     info.ColorAttachments = target;
     Graph::Command_BeginRenderPass(cmd, info);
 }
@@ -216,7 +216,7 @@ void RenderTexture::createSecondaryImages()
     for (u32 i = 1; i < m_ImageCount; ++i)
     {
         FrontEndImage &img = m_Images.Append();
-        img.Image = createImage(m_Dimensions, m_ContentScale);
+        img.Image = createImage(m_Size, m_ContentScale);
         img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
         if (Graph::IsValidationEnabled())
             nameImage(img.Image, i);

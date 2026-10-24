@@ -28,8 +28,8 @@ enum LayoutAxis : u8
 
 enum LayoutSizingType : u8
 {
-    LayoutSizing_Absolute,
-    LayoutSizing_Normalized,
+    LayoutSizing_Fixed,
+    LayoutSizing_Proportional,
     LayoutSizing_Relative,
     LayoutSizing_Fit,
     LayoutSizing_Grow,
@@ -42,13 +42,13 @@ struct LayoutSizing
     f32 Max;
     LayoutSizingType Type;
 
-    static constexpr LayoutSizing Absolute(const f32 size)
+    static constexpr LayoutSizing Fixed(const f32 size)
     {
-        return {size, size, size, LayoutSizing_Absolute};
+        return {size, size, size, LayoutSizing_Fixed};
     }
-    static constexpr LayoutSizing Normalized(const f32 size)
+    static constexpr LayoutSizing Proportional(const f32 size)
     {
-        return {size, size, size, LayoutSizing_Normalized};
+        return {size, size, size, LayoutSizing_Proportional};
     }
     static constexpr LayoutSizing Relative(const f32 size)
     {
@@ -67,13 +67,13 @@ struct LayoutSizing
         return {0.f, min, max, LayoutSizing_Flex};
     }
 
-    static constexpr vec2<LayoutSizing> Absolute(const f32v2 &size)
+    static constexpr vec2<LayoutSizing> Fixed(const f32v2 &size)
     {
-        return {Absolute(size[0]), Absolute(size[1])};
+        return {Fixed(size[0]), Fixed(size[1])};
     }
-    static constexpr vec2<LayoutSizing> Normalized(const f32v2 &size)
+    static constexpr vec2<LayoutSizing> Proportional(const f32v2 &size)
     {
-        return {Normalized(size[0]), Normalized(size[1])};
+        return {Proportional(size[0]), Proportional(size[1])};
     }
     static constexpr vec2<LayoutSizing> Relative(const f32v2 &size)
     {
@@ -91,8 +91,8 @@ struct LayoutSizing
 
 enum LayoutOffsetType : u8
 {
-    LayoutOffset_Absolute,
-    LayoutOffset_Normalized,
+    LayoutOffset_Fixed,
+    LayoutOffset_Proportional,
     LayoutOffset_Relative
 };
 
@@ -101,25 +101,25 @@ struct LayoutOffset
     f32 Offset;
     LayoutOffsetType Type;
 
-    static constexpr LayoutOffset Absolute(const f32 offset)
+    static constexpr LayoutOffset Fixed(const f32 offset)
     {
-        return {offset, LayoutOffset_Absolute};
+        return {offset, LayoutOffset_Fixed};
     }
-    static constexpr LayoutOffset Normalized(const f32 offset)
+    static constexpr LayoutOffset Proportional(const f32 offset)
     {
-        return {offset, LayoutOffset_Normalized};
+        return {offset, LayoutOffset_Proportional};
     }
     static constexpr LayoutOffset Relative(const f32 offset)
     {
         return {offset, LayoutOffset_Relative};
     }
-    static constexpr vec2<LayoutOffset> Absolute(const f32v2 &offset)
+    static constexpr vec2<LayoutOffset> Fixed(const f32v2 &offset)
     {
-        return {Absolute(offset[0]), Absolute(offset[1])};
+        return {Fixed(offset[0]), Fixed(offset[1])};
     }
-    static constexpr vec2<LayoutOffset> Normalized(const f32v2 &offset)
+    static constexpr vec2<LayoutOffset> Proportional(const f32v2 &offset)
     {
-        return {Normalized(offset[0]), Normalized(offset[1])};
+        return {Proportional(offset[0]), Proportional(offset[1])};
     }
     static constexpr vec2<LayoutOffset> Relative(const f32v2 &offset)
     {
@@ -362,8 +362,8 @@ struct LayoutPanelParameters
 
     vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutSizing> Sizing{LayoutSizing::Fit()};
-    vec2<LayoutOffset> ChildOffset{LayoutOffset::Absolute(0.f)};
-    vec2<LayoutOffset> SelfOffset{LayoutOffset::Absolute(0.f)};
+    vec2<LayoutOffset> ChildOffset{LayoutOffset::Fixed(0.f)};
+    vec2<LayoutOffset> SelfOffset{LayoutOffset::Fixed(0.f)};
 
     LayoutShape Shape = LayoutShape::Rectangle();
     LayoutFloatingParameters Floating{};
@@ -388,7 +388,7 @@ struct LayoutTextParameters
     f32 FontSize = 1.f;
     f32 OutlineWidth = 0.f;
     f32v2 MinSize{0.f};
-    vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
+    vec2<LayoutOffset> Offset{LayoutOffset::Fixed(0.f)};
     Resource Font = NullHandle;
     Resource Texture = NullHandle;
     Resource Material = NullHandle;

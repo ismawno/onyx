@@ -78,12 +78,12 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         else
         {
             TKIT_ASSERT(c == 0, "[ONYX][LAYOUT] Can only have one root per layout");
-            TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Normalized &&
-                            params.Sizing[1].Type != LayoutSizing_Normalized,
-                        "[ONYX][LAYOUT] The root layout element cannot have normalized sizing");
-            TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Normalized &&
-                            params.SelfOffset[1].Type != LayoutOffset_Normalized,
-                        "[ONYX][LAYOUT] The root layout element cannot have normalized offsets");
+            TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Proportional &&
+                            params.Sizing[1].Type != LayoutSizing_Proportional,
+                        "[ONYX][LAYOUT] The root layout element cannot have proportional sizing");
+            TKIT_ASSERT(params.SelfOffset[0].Type != LayoutOffset_Proportional &&
+                            params.SelfOffset[1].Type != LayoutOffset_Proportional,
+                        "[ONYX][LAYOUT] The root layout element cannot have proportional offsets");
 
             TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Relative &&
                             params.Sizing[1].Type != LayoutSizing_Relative,
@@ -126,7 +126,7 @@ template <typename T> LayoutElement &Layout::insertElement(const LayoutId id, co
         {
             // NOTE(Isma): This could be removed and hope the user sets the sizing correctly with the static methods
             current.Sizing[i] = params.Sizing[i].Type;
-            if (params.Sizing[i].Type == LayoutSizing_Absolute || params.Sizing[i].Type == LayoutSizing_Normalized ||
+            if (params.Sizing[i].Type == LayoutSizing_Fixed || params.Sizing[i].Type == LayoutSizing_Proportional ||
                 params.Sizing[i].Type == LayoutSizing_Relative)
             {
                 current.Size[i] = params.Sizing[i].Size;
@@ -322,7 +322,7 @@ void Layout::fitPass(const TKit::StackArray<u16> &fits, const LayoutAxis axis)
         for (const u16 c : parent.Children)
         {
             const LayoutElement &child = m_Elements[c];
-            if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative ||
+            if (child.Sizing[axis] == LayoutSizing_Proportional || child.Sizing[axis] == LayoutSizing_Relative ||
                 child.Type == LayoutElement_Floating)
                 continue;
 
@@ -367,9 +367,9 @@ void Layout::growShrinkPass(const TKit::StackArray<u16> &breadth, const LayoutAx
         for (const u16 c : parent.Children)
         {
             LayoutElement &child = m_Elements[c];
-            if (child.Sizing[axis] == LayoutSizing_Normalized || child.Sizing[axis] == LayoutSizing_Relative)
+            if (child.Sizing[axis] == LayoutSizing_Proportional || child.Sizing[axis] == LayoutSizing_Relative)
             {
-                const f32 factor = child.Sizing[axis] == LayoutSizing_Normalized ? normFactor : relFactor;
+                const f32 factor = child.Sizing[axis] == LayoutSizing_Proportional ? normFactor : relFactor;
                 child.Size[axis] *= factor;
                 child.MinSize[axis] *= factor;
                 child.MaxSize[axis] *= factor;
@@ -576,14 +576,14 @@ void Layout::positionPass(const TKit::StackArray<u16> &breadth)
                 return paxis != axis ? computeAlignOffset(size) : 0.f;
             };
 
-            const f32 offsetNormFactor = psize;
+            const f32 offsetPropFactor = psize;
             const f32 offsetRelFactor = Math::Max(psize - p0 - p1, 0.f);
 
             f32 coffset = parent.ChildOffset[axis];
-            if (parent.ChildOffsetType[axis] != LayoutOffset_Absolute)
+            if (parent.ChildOffsetType[axis] != LayoutOffset_Fixed)
             {
                 const f32 factor =
-                    parent.ChildOffsetType[axis] == LayoutOffset_Normalized ? offsetNormFactor : offsetRelFactor;
+                    parent.ChildOffsetType[axis] == LayoutOffset_Proportional ? offsetPropFactor : offsetRelFactor;
 
                 coffset *= Math::Absolute(factor);
             }
@@ -620,11 +620,11 @@ void Layout::positionPass(const TKit::StackArray<u16> &breadth)
                 f32 &cpos = child.Position[axis];
 
                 f32 soffset = child.SelfOffset[axis];
-                if (child.SelfOffsetType[axis] != LayoutOffset_Absolute)
+                if (child.SelfOffsetType[axis] != LayoutOffset_Fixed)
                 {
-                    const f32 relFactor = offsetNormFactor - csize;
+                    const f32 relFactor = offsetPropFactor - csize;
                     const f32 factor =
-                        child.SelfOffsetType[axis] == LayoutOffset_Normalized ? offsetNormFactor : relFactor;
+                        child.SelfOffsetType[axis] == LayoutOffset_Proportional ? offsetPropFactor : relFactor;
                     soffset *= Math::Absolute(factor);
                 }
 

@@ -88,7 +88,7 @@ struct WindowSpecs
 {
     const char *Title = "Onyx window";
     i32v2 Position{TKIT_I32_MAX}; // i32 max means let it be decided automatically
-    u32v2 Dimensions{800, 600};
+    u32v2 ScreenSize{800, 600};
     Graph::PresentMode PresentMode = Graph::PresentMode_Immediate;
     WindowFlags Flags = 0;
 };
@@ -132,9 +132,9 @@ class Window final : public RenderTarget
     {
         return Graph::Window_GetPosition(m_Window);
     }
-    u32v2 GetDimensions() const
+    u32v2 GetSize() const
     {
-        const f32v2 pixels = f32v2{Graph::Window_GetPixelDimensions(m_Window)};
+        const f32v2 pixels = f32v2{Graph::Window_GetPixelSize(m_Window)};
         return u32v2{pixels / Graph::Window_GetContentScale(m_Window)};
     }
     f32 GetAspect() const
@@ -154,9 +154,14 @@ class Window final : public RenderTarget
     {
         Graph::Window_SetPosition(m_Window, pos);
     }
-    void SetScreenDimensions(const u32v2 &dim)
+    void SetSize(const u32v2 &size)
     {
-        Graph::Window_SetScreenDimensions(m_Window, dim);
+        // we convert to logical. parameter "size" is also logical. in different OS, screen size can be logical or
+        // pixel (physical). this factor is 1 when the former, and bigger than one in case screen is pixel, and size
+        // must transition from logical to physical pixels
+        const f32v2 factor = GetContentScale() * f32v2{Graph::Window_GetScreenSize(m_Window)} /
+                             f32v2{Graph::Window_GetPixelSize(m_Window)};
+        Graph::Window_SetScreenSize(m_Window, ApplyScale(size, factor));
     }
     void SetAspect(const u32 numer, const u32 denom)
     {
@@ -175,11 +180,11 @@ class Window final : public RenderTarget
     f32v2 GetAbsoluteMousePosition() const
     {
         const f32v2 normalized = GetNormalizedMousePosition();
-        return normalized * f32v2{GetDimensions()};
+        return normalized * f32v2{GetSize()};
     }
     f32v2 GetNormalizedMousePosition() const
     {
-        return Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenDimensions(m_Window)};
+        return Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenSize(m_Window)};
     }
 
     bool IsKeyPressed(const Graph::Key key) const
@@ -309,13 +314,9 @@ class Window final : public RenderTarget
     }
 
   private:
-    u32v2 getDimensions() const override
+    u32v2 getSize() const override
     {
-        return GetDimensions();
-    }
-    u32v2 getExtent() const override
-    {
-        return Graph::Swapchain_GetExtent(m_Swapchain);
+        return GetSize();
     }
     f32v2 getContentScale() const override
     {

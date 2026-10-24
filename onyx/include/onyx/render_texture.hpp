@@ -32,9 +32,9 @@ class RenderTexture final : public RenderTarget
 
     void MarkWriteImageInUse(const Graph::Tracker &tracker);
     void MarkReadImageInUse(const Graph::Tracker &tracker);
-    const u32v2 &GetDimensions() const
+    const u32v2 &GetSize() const
     {
-        return m_Dimensions;
+        return m_Size;
     }
     void Resize(const u32v2 &dims, const f32v2 &contentScale);
     void Resize(const u32v2 &dims)
@@ -44,7 +44,7 @@ class RenderTexture final : public RenderTarget
 
     void SetContentScale(const f32v2 &contentScale)
     {
-        Resize(m_Dimensions, contentScale);
+        Resize(m_Size, contentScale);
     }
     const f32v2 &GetContentScale() const
     {
@@ -58,13 +58,9 @@ class RenderTexture final : public RenderTarget
 
   private:
     void createSecondaryImages();
-    u32v2 getDimensions() const override
+    u32v2 getSize() const override
     {
-        return m_Dimensions;
-    }
-    u32v2 getExtent() const override
-    {
-        return ComputeExtent(m_Dimensions, m_ContentScale);
+        return m_Size;
     }
     f32v2 getContentScale() const override
     {
@@ -74,7 +70,7 @@ class RenderTexture final : public RenderTarget
     void drainWork() const;
 
     Resource m_Handle;
-    u32v2 m_Dimensions;
+    u32v2 m_Size;
     f32v2 m_ContentScale;
 
     u32 m_Writable = 0;

@@ -41,17 +41,17 @@ bool Window::IsFullScreen() const
     const Graph::VideoMode mode = Graph::Monitor_GetVideoMode(monitor);
     const i32v2 mpos = Graph::Monitor_GetPosition(monitor);
 
-    const u32v2 dims = Graph::Window_GetScreenDimensions(m_Window);
+    const u32v2 size = Graph::Window_GetScreenSize(m_Window);
     const i32v2 pos = GetPosition();
 
-    return pos[0] == mpos[0] && pos[1] == mpos[1] && dims[0] == mode.Dimensions[0] && dims[1] == mode.Dimensions[1];
+    return pos[0] == mpos[0] && pos[1] == mpos[1] && size[0] == mode.Size[0] && size[1] == mode.Size[1];
 }
 bool Window::IsHovered() const
 {
     const f32v2 mpos = GetAbsoluteMousePosition();
-    const f32v2 dims = f32v2{GetDimensions()};
+    const f32v2 size = f32v2{GetSize()};
 
-    return mpos[0] >= 0.f && mpos[0] < dims[0] && mpos[1] >= 0.f && mpos[1] < dims[1];
+    return mpos[0] >= 0.f && mpos[0] < size[0] && mpos[1] >= 0.f && mpos[1] < size[1];
 }
 
 static Graph::WindowFlags toGraph(const WindowFlags flags)
@@ -114,24 +114,24 @@ void Window::RemoveFlags(const WindowFlags flags)
 void Window::waitForValidExtent() const
 {
     Graph::PollEvents();
-    u32v2 size = Graph::Window_GetPixelDimensions(m_Window);
+    u32v2 size = Graph::Window_GetPixelSize(m_Window);
     while (size[0] == 0 || size[1] == 0)
     {
         Graph::WaitEvents();
-        size = Graph::Window_GetPixelDimensions(m_Window);
+        size = Graph::Window_GetPixelSize(m_Window);
     }
 }
 Window::Window(const WindowSpecs &specs)
 {
-    TKIT_ASSERT(specs.Dimensions[0] != 0 && specs.Dimensions[1] != 0,
-                "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", specs.Dimensions[0],
-                specs.Dimensions[1]);
+    TKIT_ASSERT(specs.ScreenSize[0] != 0 && specs.ScreenSize[1] != 0,
+                "[ONYX][WINDOW] Cannot have window size of zero! Passed size: {}", specs.ScreenSize);
 
     const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi |
                                       Graph::WindowFlag_ScaleToMonitor | Graph::WindowFlag_ScaleFramebuffer;
+
     m_Window = Graph::Window_Create({.Title = specs.Title,
                                      .Position = specs.Position,
-                                     .Dimensions = specs.Dimensions,
+                                     .ScreenSize = specs.ScreenSize,
                                      .Flags = wflags,
                                      .UserData = this});
 

@@ -738,7 +738,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
     {
         NativeWindow *nw = createNativeWindow(win);
         nw->ScreenPos = f32v2{nw->Window->GetPosition()};
-        nw->Size = f32v2{nw->Window->GetDimensions()};
+        nw->Size = f32v2{nw->Window->GetSize()};
     }
     else
         Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
@@ -971,10 +971,10 @@ void OverlayWindow::ClampToNative()
 {
     // only works if window does not own native. we may adapt this if we want to clamp per monitor
     const NativeWindow *nw = GetNative();
-    const f32v2 dims = nw->GetDimensions();
+    const f32v2 size = nw->GetDimensions();
 
     const f32v2 mnlim = MinSize - Size;
-    const f32v2 mxlim = dims - MinSize;
+    const f32v2 mxlim = size - MinSize;
 
     ScreenPos = Math::Clamp(ScreenPos, mnlim, mxlim);
 }
@@ -1148,8 +1148,8 @@ bool Overlay::BeginMainMenuBar()
 
     ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBackgroundExpanded],
                                .Alignment = TopLeft,
-                               .Sizing = {sabs(xsize), fit()},
-                               .SelfOffset = oabs(tl),
+                               .Sizing = {sfix(xsize), fit()},
+                               .SelfOffset = ofix(tl),
                                .Padding = m_Style[OverlayStyle_MainMenuBarPadding]});
 
     const LayoutElementQueryInfo *elm = ly->QueryElement(id);
@@ -1274,7 +1274,7 @@ bool Overlay::BeginMenu(const OverlayLabel label)
                                     .Direction = LayoutDirection_TopToBottom,
                                     .Alignment = TopLeft,
                                     .Sizing = {fit(m_Style[OverlayStyle_MinimumMenuWidth]), fit()},
-                                    .SelfOffset = oabs(offset),
+                                    .SelfOffset = ofix(offset),
                                     .Floating = {.Enable = true, .Attachment = att, .Alignment = alg},
                                     .Padding = padding});
 
@@ -1535,19 +1535,19 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
         LySz2 sizing;
         if (autoResize)
-            sizing = {fit(), collapsed ? sabs(active->Size[1]) : fit()};
+            sizing = {fit(), collapsed ? sfix(active->Size[1]) : fit()};
         else if (!isRoot && (active->Flags & OverlayWindowFlag_ChildGrow))
         {
             const bool gw = active->Flags & OverlayWindowFlag_ChildGrowWidth;
             const bool gh = active->Flags & OverlayWindowFlag_ChildGrowHeight;
-            sizing = {gw ? grow() : sabs(active->Size[0]), gh ? grow(active->MinSize[1]) : sabs(active->Size[1])};
+            sizing = {gw ? grow() : sfix(active->Size[0]), gh ? grow(active->MinSize[1]) : sfix(active->Size[1])};
             if (elm && gw)
                 active->Size[0] = elm->Size[0];
             if (elm && gh)
                 active->Size[1] = elm->Size[1];
         }
         else
-            sizing = sabs(active->Size);
+            sizing = sfix(active->Size);
 
         NativeWindow *nw = active->GetNative();
         f32v2 pos;
@@ -1575,7 +1575,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
                                            .Direction = LayoutDirection_TopToBottom,
                                            .Alignment = TopLeft,
                                            .Sizing = sizing,
-                                           .SelfOffset = oabs(pos),
+                                           .SelfOffset = ofix(pos),
                                            .ChildOverflow = isRoot ? LayoutOverflow_Clip : LayoutOverflow_Spill,
                                            // .SelfOverflow = isRoot ? LayoutOverflow_None : LayoutOverflow_Spill,
                                            .Padding = active->IsDockHost() ? 0.f : wpadding,
@@ -1747,8 +1747,8 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     const bool b = ginfo.Flags & ResizeFlag_Bottom;
     const bool t = ginfo.Flags & ResizeFlag_Top;
 
-    const LySz2 hsizing = {sabs(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
-    const LySz2 vsizing = {grow(), sabs(m_Style[OverlayStyle_WindowBorderWidth])};
+    const LySz2 hsizing = {sfix(m_Style[OverlayStyle_WindowBorderWidth]), grow()};
+    const LySz2 vsizing = {grow(), sfix(m_Style[OverlayStyle_WindowBorderWidth])};
 
     const ResizeEdge left = ResizeEdge_Left;
     const ResizeEdge right = ResizeEdge_Right;
@@ -1765,7 +1765,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     const bool gh = !isRoot && (win->Flags & OverlayWindowFlag_ChildGrowHeight);
     const auto drawLeftBorder = [&] {
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
-                               .Sizing = snorm(1.f),
+                               .Sizing = sprop(1.f),
                                .Floating = fparams,
                                // removed because it doesnt seem to have an effect and tampers with popup resize
                                // announcements (see processWindows() function)
@@ -1780,7 +1780,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     };
     const auto drawRightBorder = [&] {
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_LeftToRight,
-                               .Sizing = snorm(1.f),
+                               .Sizing = sprop(1.f),
                                .Floating = fparams,
                                // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
@@ -1792,7 +1792,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     };
     const auto drawBottomBorder = [&] {
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop,
-                               .Sizing = snorm(1.f),
+                               .Sizing = sprop(1.f),
                                .Floating = fparams,
                                // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
@@ -1804,7 +1804,7 @@ void Overlay::drawWindowBorders(OverlayWindow *win)
     };
     const auto drawTopBorder = [&] {
         ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_BottomToTop,
-                               .Sizing = snorm(1.f),
+                               .Sizing = sprop(1.f),
                                .Floating = fparams,
                                // .ChildOverflow = LayoutOverflow_Spill,
                                .SelfOverflow = LayoutOverflow_Spill});
@@ -1845,7 +1845,7 @@ OverlayInteractionQueryFlags Overlay::iconButtonWithInteraction(const LayoutId i
 
     m_LastItem.Id = ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[col],
                                                .Alignment = Center,
-                                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), ysizing}});
+                                               .Sizing = {sfix(m_Style[OverlayStyle_IconWidth]), ysizing}});
 
     ly->Unicode(NullLayoutId, code, getUnicodeParams());
     ly->EndPanel();
@@ -2375,7 +2375,7 @@ u32 Overlay::processWindows()
             else
             {
                 nw->Window->SetPosition(i32v2{gpos});
-                nw->Window->SetScreenDimensions(u32v2{m_Grabbed->Size});
+                nw->Window->SetSize(u32v2{m_Grabbed->Size});
                 nw->UpdateBorders();
             }
         }
@@ -2509,11 +2509,11 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
 
     return nw;
 }
-NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims, const WindowFlags flags)
+NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &size, const WindowFlags flags)
 {
     WindowSpecs specs{};
     specs.Position = i32v2{pos};
-    specs.Dimensions = u32v2{dims};
+    specs.ScreenSize = u32v2{size};
 
     const NativeWindow *mainNative = GetMainNativeWindow();
     specs.PresentMode = mainNative ? mainNative->Window->GetPresentMode() : Graph::PresentMode_Immediate;
@@ -2570,7 +2570,7 @@ void Overlay::removeNativeWindow(const NativeWindow *nw)
     TKIT_FATAL("[ONYX][OVERLAY] Native window to remove was not found!");
 }
 
-NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &dims)
+NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const f32v2 &size)
 {
     ASSERT_WITH_WINDOW(win, !(win->Flags & WindowInternalFlag_OwnsNative),
                        "[ONYX][OVERLAY] Cannot promote a window that owns a native");
@@ -2580,7 +2580,7 @@ NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const
     WindowFlags wflags = 0;
     if (win->Flags & WindowInternalFlag_Popup)
         wflags |= WindowFlag_Floating;
-    win->Native = createNativeWindow(pos, dims, wflags);
+    win->Native = createNativeWindow(pos, size, wflags);
     win->Native->Parent = parent;
     win->Native->Owner = win;
     // win->Layer = toTop();
@@ -2636,12 +2636,12 @@ void Overlay::removeAllFloatWindows()
 
 static bool isOutsideNative(const NativeWindow *nw, const f32v2 &pos, const f32v2 &size)
 {
-    const f32v2 dims = nw->GetDimensions();
+    const f32v2 wsize = nw->GetDimensions();
     const f32 l = nw->ScreenPos[0];
     const f32 t = nw->ScreenPos[1];
 
-    const f32 r = l + dims[0];
-    const f32 b = t + dims[1];
+    const f32 r = l + wsize[0];
+    const f32 b = t + wsize[1];
 
     const f32 wl = pos[0];
     const f32 wr = pos[0] + size[0];
@@ -2713,7 +2713,7 @@ void Overlay::manageWindowPromotions()
                 win->Size = nw->Size;
             else if (childWants)
             {
-                nw->Window->SetScreenDimensions(u32v2{win->Size});
+                nw->Window->SetSize(u32v2{win->Size});
                 nw->Size = win->Size;
             }
         }
@@ -3171,7 +3171,7 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
     // invisible header bar
     dockHost->HeaderId = ly->Panel(
         IdFromStack("__onyx_id_Invisible_header_bar"),
-        LyPnPar{.Sizing = sabs({dockHost->Size[0], dockHost->MinSize[1]}),
+        LyPnPar{.Sizing = sfix({dockHost->Size[0], dockHost->MinSize[1]}),
                 .Floating = {.Enable = true, .DrawOnTop = false, .Attachment = TopLeft, .Alignment = TopLeft}});
 
     // this is the first time the dock host (the window that host all docked windows) is getting appended to.
@@ -3268,20 +3268,20 @@ void Overlay::buildDockHostHierarchy(OverlayWindow *dockHost)
             if (node->Axis == LayoutAxis_Horizontal)
             {
                 dir = LayoutDirection_TopToBottom;
-                borderSize = sabs({size[0] - boffset, bwidth});
-                borderOffset = oabs({p ? -0.25f * bwidth : 0.f, size[1] * (0.5f - ratio)});
+                borderSize = sfix({size[0] - boffset, bwidth});
+                borderOffset = ofix({p ? -0.25f * bwidth : 0.f, size[1] * (0.5f - ratio)});
                 resizing &= bool(dockHost->Grab.Flags & ResizeFlag_DockHorizontal);
             }
             else
             {
                 dir = LayoutDirection_LeftToRight;
-                borderSize = sabs({bwidth, size[1] - boffset});
-                borderOffset = oabs({size[0] * (ratio - 0.5f), p ? 0.25f * bwidth : 0.f});
+                borderSize = sfix({bwidth, size[1] - boffset});
+                borderOffset = ofix({size[0] * (ratio - 0.5f), p ? 0.25f * bwidth : 0.f});
                 resizing &= bool(dockHost->Grab.Flags & ResizeFlag_DockVertical);
             }
 
             node->ContentId =
-                ly->BeginPanel(nodeId, LyPnPar{.Direction = dir, .Alignment = TopLeft, .Sizing = sabs(size)});
+                ly->BeginPanel(nodeId, LyPnPar{.Direction = dir, .Alignment = TopLeft, .Sizing = sfix(size)});
 
             if (ratio != 1.f && ratio != 0.f)
                 borderData.Append(node, borderSize, borderOffset,
@@ -3769,15 +3769,15 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *target, RenderContext<D2> 
         {
             canDrawPreview = false;
             f32v2 offset = f32v2{0.f};
-            f32v2 dims = 0.5f * regionSize;
+            f32v2 size = 0.5f * regionSize;
 
             if (loc[s_Axis] != s_Horizontal)
-                dims[0] = regionSize[0];
+                size[0] = regionSize[0];
             else
                 offset[0] = 0.25f * sign * regionSize[0];
 
             if (loc[s_Axis] != s_Vertical)
-                dims[1] = regionSize[1];
+                size[1] = regionSize[1];
             else
                 offset[1] = 0.25f * sign * regionSize[1];
 
@@ -3785,7 +3785,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *target, RenderContext<D2> 
 
             ctx->SetTranslation(0.f);
             f32m3 t = f32m3::Identity();
-            Transform<D2>::ScaleExtrinsic(t, dims);
+            Transform<D2>::ScaleExtrinsic(t, size);
             Transform<D2>::TranslateExtrinsic(t, previewPos);
             ctx->Quad(t);
 
@@ -3972,7 +3972,7 @@ bool Overlay::RadioButton(const OverlayLabel label, const bool active)
 
     ly->BeginPanel(LyPnPar{.FillColor = m_Style[col],
                            .Alignment = Center,
-                           .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
+                           .Sizing = sfix(m_Style[OverlayStyle_WidgetSize]),
                            .Shape = circle(),
                            .Padding = 6.f});
 
@@ -4010,7 +4010,7 @@ bool Overlay::CheckBox(const OverlayLabel label, bool *enable)
 
     ly->BeginPanel(LyPnPar{.FillColor = m_Style[col],
                            .Alignment = Center,
-                           .Sizing = sabs(m_Style[OverlayStyle_WidgetSize]),
+                           .Sizing = sfix(m_Style[OverlayStyle_WidgetSize]),
                            .Shape = rect(m_Style[OverlayStyle_CheckBoxRadius]),
                            .Padding = 6.f});
 
@@ -4064,7 +4064,7 @@ bool Overlay::BeginSelectable(LayoutId id, const bool enabled, const OverlaySele
     {
         ly->BeginPanel(LyPnPar{.FillColor = m_Style[col],
                                .Alignment = Center,
-                               .Sizing = {sabs(m_Style[OverlayStyle_WidgetSize]), flex()},
+                               .Sizing = {sfix(m_Style[OverlayStyle_WidgetSize]), flex()},
                                .Shape = rect(m_Style[OverlayStyle_SelectableCheckBoxRadius]),
                                .Padding = padding});
 
@@ -4139,8 +4139,8 @@ void Overlay::ProgressBar(const OverlayLabel label, const TKit::StringView text,
     const f32 idetSize = 0.4f;
     ly->Panel(
         LyPnPar{.FillColor = m_Style[OverlayColor_ProgressBarInner],
-                .Sizing = snorm({isIndeterminate ? idetSize : Math::Clamp(pct, 0.f, 1.f), 1.f}),
-                .SelfOffset = onorm({isIndeterminate ? (Math::Modulo(-pct, 1.f + idetSize) - idetSize) : 0.f, 0.f}),
+                .Sizing = sprop({isIndeterminate ? idetSize : Math::Clamp(pct, 0.f, 1.f), 1.f}),
+                .SelfOffset = oprop({isIndeterminate ? (Math::Modulo(-pct, 1.f + idetSize) - idetSize) : 0.f, 0.f}),
                 .Floating = {.Enable = true,
                              .DrawOnTop = false,
                              .Clip = true,
@@ -4485,7 +4485,7 @@ bool Overlay::colorDrag(f32 *colPtr, const Color &col, const OverlayColorFlags f
         if (markers)
         {
             ly->BeginPanel(LyPnPar{.Alignment = CenterLeft, .Sizing = {flex(), fit()}});
-            ly->Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sabs(2.f), grow()}});
+            ly->Panel(LyPnPar{.FillColor = colors[i % 4], .Sizing = {sfix(2.f), grow()}});
         }
         if (flags & OverlayColorFlag_Float)
             changed |= horizontalDragBox(&colVals[i], 0.01f, 0.f, 1.f, formats->At(i), OverlaySliderFlag_ClampOnInput);
@@ -4727,16 +4727,16 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
 
     ly->BeginPanel(pickerId, LyPnPar{.FillColor = Color_White,
                                      .Alignment = Center,
-                                     .Sizing = {inferPickerSize ? grow() : sabs(pickerSize), sabs(pickerSize)},
+                                     .Sizing = {inferPickerSize ? grow() : sfix(pickerSize), sfix(pickerSize)},
                                      .Shape = dynamic(pdata->PickerQuadDynMesh)});
 
     ly->BeginPanel(LyPnPar{.FillColor = Color_White,
                            .Alignment = Center,
-                           .Sizing = sabs(circleSize),
-                           .SelfOffset = oabs(pdata->CirclePos),
+                           .Sizing = sfix(circleSize),
+                           .SelfOffset = ofix(pdata->CirclePos),
                            .Shape = circle()});
 
-    ly->Panel(LyPnPar{.FillColor = Color{col, 1.f}, .Sizing = sabs(circleSize - 4.f), .Shape = circle()});
+    ly->Panel(LyPnPar{.FillColor = Color{col, 1.f}, .Sizing = sfix(circleSize - 4.f), .Shape = circle()});
 
     ly->EndPanel();
 
@@ -4744,13 +4744,13 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
 
     ly->BeginPanel(hueBarId, LyPnPar{.FillColor = Color_White,
                                      .Alignment = Center,
-                                     .Sizing = sabs({barWidth, pickerSize}),
+                                     .Sizing = sfix({barWidth, pickerSize}),
                                      .Shape = dynamic(pdata->HueBarDynMesh),
                                      .ChildOverflow = LayoutOverflow_Spill});
 
     ly->Panel(LyPnPar{.FillColor = Color_White,
-                      .Sizing = {srel(1.2f), sabs(rodHeight)},
-                      .SelfOffset = oabs({0.f, pdata->HueRodPos})});
+                      .Sizing = {srel(1.2f), sfix(rodHeight)},
+                      .SelfOffset = ofix({0.f, pdata->HueRodPos})});
 
     ly->EndPanel();
 
@@ -4760,9 +4760,9 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
         const f32 hsize = 0.5f * barWidth;
         const f32 vsize = pickerSize / f32(tileCount);
 
-        const LySz2 barSizing = sabs({barWidth, pickerSize});
-        const LySz2 stripSizing = sabs({hsize, pickerSize});
-        const LySz2 tileSizing = sabs({hsize, vsize});
+        const LySz2 barSizing = sfix({barWidth, pickerSize});
+        const LySz2 stripSizing = sfix({hsize, pickerSize});
+        const LySz2 tileSizing = sfix({hsize, vsize});
 
         constexpr TKit::FixedArray<f32, 2> checkboard = {s_CheckboardLight, s_CheckboardDark};
 
@@ -4788,14 +4788,14 @@ bool Overlay::colorPicker(const OverlayLabel label, f32 *colPtr, const Color &co
         ly->BeginPanel(alphaBarId, LyPnPar{.FillColor = Color_White,
                                            .Alignment = Center,
                                            .Sizing = barSizing,
-                                           .SelfOffset = oabs({-barWidth, 0.f}),
+                                           .SelfOffset = ofix({-barWidth, 0.f}),
                                            .Shape = dynamic(pdata->AlphaBarDynMesh),
                                            .ChildOverflow = LayoutOverflow_Spill,
                                            .ForceBlend = true});
 
         ly->Panel(LyPnPar{.FillColor = Color_White,
-                          .Sizing = {srel(1.2f), sabs(rodHeight)},
-                          .SelfOffset = oabs({0.f, pdata->AlphaRodPos})});
+                          .Sizing = {srel(1.2f), sfix(rodHeight)},
+                          .SelfOffset = ofix({0.f, pdata->AlphaRodPos})});
 
         ly->EndPanel();
         ly->EndPanel();
@@ -4842,31 +4842,31 @@ LayoutId Overlay::drawColorPreview(const Color &col, const f32 size, bool alpha)
     if (alpha)
     {
         const f32 hsize = 0.5f * size;
-        ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sabs(size)});
+        ly->BeginPanel(LyPnPar{.Direction = LayoutDirection_TopToBottom, .Alignment = TopLeft, .Sizing = sfix(size)});
 
         // top horizontal checkboard strip
-        ly->BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+        ly->BeginPanel(LyPnPar{.Sizing = sfix({size, hsize})});
 
-        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
-        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
+        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sfix(hsize)});
+        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sfix(hsize)});
 
         ly->EndPanel();
 
         // bottom horizontal checkboard strip
-        ly->BeginPanel(LyPnPar{.Sizing = sabs({size, hsize})});
+        ly->BeginPanel(LyPnPar{.Sizing = sfix({size, hsize})});
 
-        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sabs(hsize)});
-        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sabs(hsize)});
+        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardDark}, .Sizing = sfix(hsize)});
+        ly->Panel(LyPnPar{.FillColor = Color{s_CheckboardLight}, .Sizing = sfix(hsize)});
 
         ly->EndPanel();
 
         const LayoutId id = ly->Panel(IdFromStack("__onyx_id_Preview"),
-                                      {.FillColor = col, .Sizing = sabs(size), .SelfOffset = oabs({0.f, size})});
+                                      {.FillColor = col, .Sizing = sfix(size), .SelfOffset = ofix({0.f, size})});
 
         ly->EndPanel();
         return id;
     }
-    return ly->Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sabs(size)});
+    return ly->Panel(IdFromStack("__onyx_id_Preview"), {.FillColor = Color{col, 1.f}, .Sizing = sfix(size)});
 }
 
 void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabBarFlags flags)
@@ -4922,7 +4922,7 @@ void Overlay::beginTabBar(TabBarData *data, const LayoutId id, const OverlayTabB
         endScroll();
     }
 
-    ly->Panel(hideId, LyPnPar{.FillColor = m_Style[col], .Sizing = {grow(), sabs(m_Style[OverlayStyle_TabBarWidth])}});
+    ly->Panel(hideId, LyPnPar{.FillColor = m_Style[col], .Sizing = {grow(), sfix(m_Style[OverlayStyle_TabBarWidth])}});
 
     ly->EndPanel();
 }
@@ -5458,7 +5458,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const f32 textOffset =
             noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
 
-        tparams.Offset[0] = oabs(textOffset);
+        tparams.Offset[0] = ofix(textOffset);
         const bool useHint = str.IsEmpty() && !hint.IsEmpty();
         if (useHint)
         {
@@ -5482,14 +5482,14 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
         ly->Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]},
-                          .Sizing = {sabs(cwidth), grow()},
-                          .SelfOffset = oabs({offset, 0.f})});
+                          .Sizing = {sfix(cwidth), grow()},
+                          .SelfOffset = ofix({offset, 0.f})});
         if (hasHighlight)
         {
             const f32 hoffset = negSel ? offset : (offset - hLength);
             ly->Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputHighlight], 0.4f},
-                              .Sizing = {sabs(hLength), grow()},
-                              .SelfOffset = oabs({hoffset - cwidth, 0.f})});
+                              .Sizing = {sfix(hLength), grow()},
+                              .SelfOffset = ofix({hoffset - cwidth, 0.f})});
         }
 
         const u32 toRemoveBegin = hasHighlight ? selStart : (selStart - 1);
@@ -5569,7 +5569,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * finfo.ComputeTextWidth(buf)) : 0.f;
         const bool useHint = bufSize == 0 && !hint.IsEmpty();
 
-        tparams.Offset[0] = oabs(textOffset);
+        tparams.Offset[0] = ofix(textOffset);
         if (useHint)
         {
             tparams.FillColor.rgba[3] = m_Style[OverlayStyle_HintOpacity];
@@ -5734,7 +5734,7 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
     ly->BeginPanel(id,
                    LyPnPar{.FillColor = m_Style[boxCol],
                            .Alignment = CenterLeft,
-                           .Sizing = {flex(0.f, maxWidth), hasPreview ? fit() : sabs(getLineHeight() + 2.f * padding)},
+                           .Sizing = {flex(0.f, maxWidth), hasPreview ? fit() : sfix(getLineHeight() + 2.f * padding)},
                            .Shape = rect(m_Style[OverlayStyle_DropDownRadius])});
 
     if (hasPreview)
@@ -5754,7 +5754,7 @@ bool Overlay::BeginDropDown(const OverlayLabel label, const TKit::StringView pre
         OverlayColor buttonCol = dropDownActive ? OverlayColor_DropDownButton : OverlayColor_DropDownHovered;
         ly->BeginPanel(LyPnPar{.FillColor = m_Style[buttonCol],
                                .Alignment = Center,
-                               .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), flex()}});
+                               .Sizing = {sfix(m_Style[OverlayStyle_IconWidth]), flex()}});
         ly->Unicode(NullLayoutId, getArrowDownCodePoint(), getUnicodeParams());
         ly->EndPanel();
     }
@@ -5831,7 +5831,7 @@ void Overlay::requestCollapsePopups()
 }
 static f32v2 getMonitorDimensions()
 {
-    return f32v2{Graph::Monitor_GetVideoMode(Graph::Monitor_GetPrimary()).Dimensions};
+    return f32v2{Graph::Monitor_GetVideoMode(Graph::Monitor_GetPrimary()).Size};
 }
 f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 &size, const bool allowPromotions) const
 {
@@ -5921,7 +5921,7 @@ void Overlay::BeginTooltip(const OverlayTooltipFlags flags)
 
     ly->BeginPanel(id, LyPnPar{.FillColor = m_Style[OverlayColor_WindowBorderIdle],
                                .Sizing = fit(),
-                               .SelfOffset = oabs(ownsNative ? m_Active->GetNative()->GetWorldTopLeft() : pos),
+                               .SelfOffset = ofix(ownsNative ? m_Active->GetNative()->GetWorldTopLeft() : pos),
                                .Shape = rect(m_Style[OverlayStyle_TooltipRadius]),
                                .Padding = m_Style[OverlayStyle_TooltipPadding]});
 
@@ -6048,11 +6048,11 @@ void Overlay::HorizontalSeparator(const TKit::StringView title)
     const f32 width = m_Style[OverlayStyle_LineWidth];
 
     ly->Panel(
-        LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sabs({textOffset, width}), .Shape = rect(width)});
+        LyPnPar{.FillColor = m_Style[OverlayColor_Line], .Sizing = sfix({textOffset, width}), .Shape = rect(width)});
 
     ly->Text(title, getTextParams());
     ly->Panel(LyPnPar{
-        .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sabs(width)}, .Shape = rect(width)});
+        .FillColor = m_Style[OverlayColor_Line], .Sizing = {grow(textOffset), sfix(width)}, .Shape = rect(width)});
     ly->EndPanel();
 }
 
@@ -6089,7 +6089,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
 
     const LayoutId buttonId =
         ly->BeginPanel(IdFromStack("__onyx_id_Tree_collapse"),
-                       LyPnPar{.Alignment = Center, .Sizing = {sabs(m_Style[OverlayStyle_IconWidth]), fit()}});
+                       LyPnPar{.Alignment = Center, .Sizing = {sfix(m_Style[OverlayStyle_IconWidth]), fit()}});
 
     bool toggleOpen = iflags & OverlayInteractionQueryFlag_LeftClicked;
     if (toggleOpen)
@@ -6135,7 +6135,7 @@ bool Overlay::PushTree(const OverlayLabel label, const OverlayTreeFlags flags)
         const f32 treeIndent = iconWidth + 2.f * m_Style[OverlayStyle_HeaderPadding];
 
         ly->BeginPanel(LyPnPar{
-            .Direction = LayoutDirection_TopToBottom, .Alignment = Center, .Sizing = {sabs(treeIndent), flex()}});
+            .Direction = LayoutDirection_TopToBottom, .Alignment = Center, .Sizing = {sfix(treeIndent), flex()}});
 
         if (flags & OverlayTreeFlag_DrawLines)
             VerticalLine();
@@ -6188,7 +6188,7 @@ LayoutId Overlay::beginScroll(const ScrollParameterSpecs &specs)
     ly->BeginPanel(contentId, LyPnPar{.Direction = specs.Direction,
                                       .Alignment = TopLeft,
                                       .Sizing = specs.ContentSizing,
-                                      .ChildOffset = oabs({-sinfo.Horizontal.ElementOffset,
+                                      .ChildOffset = ofix({-sinfo.Horizontal.ElementOffset,
                                                            -sinfo.Vertical.ElementOffset + specs.VerticalOffset}),
                                       .Padding = specs.ContentPadding,
                                       .ChildGap = specs.ChildGap});
@@ -6275,12 +6275,12 @@ bool Overlay::performScroll(const LayoutId contentAreaId, ScrollBarInfo &sinfo, 
         if (drawBar)
         {
             LySz2 sizing;
-            sizing[axis] = sabs(barSize);
-            sizing[1 - axis] = sabs(sw);
+            sizing[axis] = sfix(barSize);
+            sizing[1 - axis] = sfix(sw);
 
             LyOf2 offset;
-            offset[axis] = oabs(sinfo.BarOffset);
-            offset[1 - axis] = oabs(0.f);
+            offset[axis] = ofix(sinfo.BarOffset);
+            offset[1 - axis] = ofix(0.f);
 
             ly->Panel(scrollId, LyPnPar{.FillColor = m_Style[col],
                                         .Sizing = sizing,

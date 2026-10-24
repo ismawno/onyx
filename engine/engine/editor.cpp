@@ -554,8 +554,7 @@ static RenderView viewport_CreateRenderView(Editor_Scene &scene, Editor_Viewport
     rview.Id = rv;
     rview.ParentViewport = viewport.Id;
     rview.Name = utils_CreateDefaultName("View", rv);
-    rview.Handle =
-        viewport.Target->CreateRenderView<D>(cam.Handle, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
+    rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle);
     rview.EditorCameraIndex = editorCamIdx;
 
     return rv;
@@ -741,8 +740,8 @@ template <Dimension D> static void serialize_Views(const char *name, YamlNode ro
         YamlNode node = views["Views"].Append();
         node["Name"] << rv.Name;
         node["Viewport"] << rv.ParentViewport;
-        node["Viewport data"] << rv.Handle->ViewportData;
-        node["Scissor data"] << rv.Handle->ScissorData;
+        node["Viewport data"] << rv.Handle->GetViewport();
+        node["Scissor data"] << rv.Handle->GetScissor();
         node["Editor camera"] << rv.EditorCameraIndex;
         node["Clear color"] << rv.Handle->ClearColor;
         node["Flags"] << rv.Handle->GetFlags();
@@ -900,8 +899,8 @@ static void deserialize_Views(const char *name, const ConstYamlNode root, const 
             rview.EditorCameraIndex = node["Editor camera"].Read<u32>();
             rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[rview.EditorCameraIndex].Handle,
                                                                 {.Flags = node["Flags"].Read<Onyx::RenderViewFlags>()});
-            rview.Handle->ViewportData = node["Viewport data"].Read<Onyx::Viewport>();
-            rview.Handle->ScissorData = node["Scissor data"].Read<Onyx::Scissor>();
+            rview.Handle->SetFixedViewport(node["Viewport data"].Read<Onyx::Viewport>());
+            rview.Handle->SetFixedScissor(node["Scissor data"].Read<Onyx::Scissor>());
             rview.Handle->ClearColor = node["Clear color"].Read<Onyx::Color>();
         }
 
@@ -2118,18 +2117,15 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     Onyx::RenderViewFlags flags = rv->GetFlags();
     ov->HorizontalSeparator("Viewport");
 
-    const bool nv = flags & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
-    const auto getVp = nv ? &Onyx::RenderView<D>::GetNormalizedViewport : &Onyx::RenderView<D>::GetAbsoluteViewport;
-    const auto setVp = nv ? &Onyx::RenderView<D>::SetNormalizedViewport : &Onyx::RenderView<D>::SetAbsoluteViewport;
+    using View = Onyx::RenderView<D>;
 
-    const bool ns = flags & Onyx::RenderViewFlag_NormalizedScissorCoordinates;
-    const auto getSc = ns ? &Onyx::RenderView<D>::GetNormalizedScissor : &Onyx::RenderView<D>::GetAbsoluteScissor;
-    const auto setSc = ns ? &Onyx::RenderView<D>::SetNormalizedScissor : &Onyx::RenderView<D>::SetAbsoluteScissor;
+    const auto getVp = &View::GetViewport;
+    void (View::*setVp)(const Onyx::Viewport &) = &View::SetFixedViewport;
 
-    const f32 aspeed = 1.f;
-    const f32 nspeed = 0.001f;
-    const f32 vspeed = nv ? nspeed : aspeed;
-    const f32 sspeed = ns ? nspeed : aspeed;
+    const auto getSc = &View::GetScissor;
+    void (View::*setSc)(const Onyx::Scissor &) = &View::SetFixedScissor;
+
+    const f32 speed = 1.f;
 
     Onyx::Viewport viewport = (rv->*getVp)();
     Onyx::Scissor scissor = (rv->*getSc)();
@@ -2149,10 +2145,10 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
         });
     };
 
-    bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
+    bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, speed);
     undoRedo_Viewport();
 
-    changed |= ov->HorizontalDrag("Dimensions##Viewport", &viewport.Dimensions, vspeed);
+    changed |= ov->HorizontalDrag("Size##Viewport", &viewport.Size, speed);
     undoRedo_Viewport();
 
     if (changed)
@@ -2160,10 +2156,10 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
 
     ov->HorizontalSeparator("Scissor");
 
-    changed = ov->HorizontalDrag("Position##Scissor", &scissor.Position, sspeed);
+    changed = ov->HorizontalDrag("Position##Scissor", &scissor.Position, speed);
     undoRedo_Scissor();
 
-    changed |= ov->HorizontalDrag("Dimensions##Scissor", &scissor.Dimensions, sspeed);
+    changed |= ov->HorizontalDrag("Size##Scissor", &scissor.Size, speed);
     undoRedo_Scissor();
 
     if (changed)
@@ -2185,8 +2181,7 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
         return false;
     };
 
-    changed = undoRedo_Flags("Normalized coordinates", Onyx::RenderViewFlag_NormalizedCoordinates);
-    changed |= undoRedo_Flags("Shadows", Onyx::RenderViewFlag_Shadows);
+    changed = undoRedo_Flags("Shadows", Onyx::RenderViewFlag_Shadows);
 
     if (undoRedo_Flags("Post-process", Onyx::RenderViewFlag_PostProcess))
     {
@@ -2449,12 +2444,9 @@ static Onyx::RenderView<D> *editor_GetHoveredView(const Editor_Viewport &viewpor
     const f32v2 vpScreenPos =
         s_Editor->Overlay->GetMainNativeWindow()->ToLocalScreen(viewport.Position + f32v2{0.f, viewport.Size[1]});
 
-    const f32v2 ampos = win->GetAbsoluteMousePosition() - vpScreenPos;
-    const f32v2 nmpos = ampos / viewport.Size;
+    const f32v2 mpos = win->GetAbsoluteMousePosition() - vpScreenPos;
     for (Onyx::RenderView<D> *rv : views)
     {
-        const bool normalized = rv->GetFlags() & Onyx::RenderViewFlag_NormalizedViewportCoordinates;
-        const f32v2 mpos = normalized ? nmpos : ampos;
         if (rv->IsWithinViewport(mpos))
         {
             if (outMpos)

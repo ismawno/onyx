@@ -1997,7 +1997,7 @@ static void beginShadowPass(const Graph::CommandBuffer cmd, const Graph::Image i
         D == D3 ? Graph::ImageLayout_DepthStencilAttachment : Graph::ImageLayout_ColorAttachment;
 
     Graph::AttachmentInfo att{};
-    const u32v2 extent = Graph::Image_GetDimensions(img);
+    const u32v2 extent = Graph::Image_GetSize(img);
     att.View = Graph::Image_GetView(img, imageViewIndex);
     att.Layout = attLayout;
     att.LoadOp = Graph::LoadOp_Clear;
@@ -2594,8 +2594,8 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
                         "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
                         pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
 
-            pdata.Extent = rv->GetRenderExtent();
-            pdata.MaxOutlineWidth = u32(f32(rv->MaxOutlineWidth) * rv->GetParentContentScale()[0]);
+            pdata.Extent = rv->GetImageExtent();
+            pdata.MaxOutlineWidth = u32(f32(rv->MaxOutlineWidth) * rv->GetContentScale()[0]);
             pdata.Flags = rv->GetFlags();
 
             Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);
@@ -2619,24 +2619,13 @@ static void renderCompositor(const Graph::CommandBuffer cmd,
         const Graph::DescriptorSet set = rv->GetCompositorSet();
         Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
-        // TODO(Isma): Here, you must get the scissor normalized wrt viewport, re-normalize to screen with the viewport
-        // coordinates, and multiply by the parent extent
-        const f32v2 pext = f32v2{rv->GetParentExtent()};
-        const Viewport nvp = rv->GetNormalizedViewport();
-        const Viewport vp = {nvp.Position * pext, nvp.Dimensions * pext, nvp.Depth};
-
-        // the +2 here adds a very small offset that prevents some (rounding??) error that causes a bit of undefined
-        // texture to be rendered, clipped from the view's attachment
-        // EDIT: removed, causes the render target not to cover the whole screen
-        // const f32 padding = 2.f;
-        Scissor sc = rv->GetNormalizedScissor();
-        sc.Position = (sc.Position * nvp.Dimensions + nvp.Position) * pext; // (pext + padding);
-        sc.Dimensions *= nvp.Dimensions * pext;                             // (pext - padding);
+        const Viewport &vp = rv->GetViewport();
+        const Scissor &sc = rv->GetScissor();
 
         const u32 idx = rv->GetAttachmentIndex();
 
-        Graph::Command_SetViewport(cmd, vp.Position, vp.Dimensions, vp.Depth);
-        Graph::Command_SetScissor(cmd, i32v2{sc.Position}, u32v2{sc.Dimensions});
+        Graph::Command_SetViewport(cmd, vp.Position, vp.Size, vp.Depth);
+        Graph::Command_SetScissor(cmd, i32v2{vp.Position + sc.Position}, u32v2{sc.Size});
         Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
         Graph::Command_Draw(cmd, 6);
     }

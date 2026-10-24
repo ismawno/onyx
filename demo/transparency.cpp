@@ -15,14 +15,14 @@ int main()
 
     Onyx::Window *win = Onyx::OpenWindow();
 
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Transparency;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Transparency;
 
     Onyx::Camera<D2> cam2{};
     Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
 
     cam2.OrthoParameters.Size = 10.f;
-    view2->SetNormalizedViewport({.Position = 0.f, .Dimensions = {0.5f, 1.f}});
+    view2->SetProportionalViewport({.Position = 0.f, .Size = {0.5f, 1.f}});
     ctx2->AddTarget(view2);
 
     Onyx::Camera<D3> cam3{};
@@ -30,7 +30,7 @@ int main()
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
 
     cam3.View.Translation[2] = 5.f;
-    view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Dimensions = {0.5f, 1.f}});
+    view3->SetProportionalViewport({.Position = {0.5f, 0.f}, .Size = {0.5f, 1.f}});
     ctx3->AddTarget(view3);
 
     f32 time = 0.f;

@@ -8,16 +8,29 @@
 
 namespace Onyx
 {
-constexpr u32v2 ComputeExtent(const u32v2 &dimensions, const f32v2 &contentScale)
+constexpr u32v2 ApplyScale(const u32v2 &size, const f32v2 &contentScale)
 {
-    return u32v2{Math::Round(f32v2{dimensions} * contentScale)};
+    return u32v2{Math::Round(f32v2{size} * contentScale)};
 }
+constexpr u32v2 UnapplyScale(const u32v2 &size, const f32v2 &contentScale)
+{
+    return u32v2{Math::Round(f32v2{size} / contentScale)};
+}
+
+TKIT_REFLECT_DECLARE_ENUM(SizingPolicy)
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(SizingPolicy)
+enum SizingPolicy : u8
+{
+    SizingPolicy_Proportional,
+    SizingPolicy_Fixed,
+};
+
 struct Viewport
 {
     TKIT_REFLECT_DECLARE(Viewport)
     TKIT_YAML_SERIALIZE_DECLARE(Viewport)
     f32v2 Position{0.f};
-    f32v2 Dimensions{1.f};
+    f32v2 Size{0.f};
     f32v2 Depth{0.f, 1.f};
 };
 
@@ -26,7 +39,7 @@ struct Scissor
     TKIT_REFLECT_DECLARE(Scissor)
     TKIT_YAML_SERIALIZE_DECLARE(Scissor)
     f32v2 Position{0.f};
-    f32v2 Dimensions{1.f};
+    f32v2 Size{0.f};
 };
 
 template <Dimension D> struct ViewInfo
@@ -50,12 +63,7 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Outlines = 1U << 2,
     RenderViewFlag_Transparency = 1U << 3,
     RenderViewFlag_ManualProjectionView = 1U << 4,
-    RenderViewFlag_NormalizedViewportCoordinates = 1U << 5,
-    RenderViewFlag_NormalizedScissorCoordinates = 1U << 6,
-    RenderViewFlag_NormalizedCoordinates =
-        RenderViewFlag_NormalizedViewportCoordinates | RenderViewFlag_NormalizedScissorCoordinates,
-    RenderViewFlag_DynamicViewport = 1U << 7,
-    RenderViewFlag_Hidden = 1U << 8,
+    RenderViewFlag_Hidden = 1U << 5,
 };
 
 struct Framebuffer
@@ -67,6 +75,9 @@ struct Framebuffer
 struct RenderViewSpecs
 {
     u32 FrameBufferCount = 3;
+    SizingPolicy ViewportSizing = SizingPolicy_Proportional;
+    SizingPolicy ScissorSizing = SizingPolicy_Proportional;
+    SizingPolicy ImageSizing = SizingPolicy_Proportional;
     RenderViewFlags Flags = 0;
 };
 
@@ -76,13 +87,17 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const u32v2 &dimensions, const u32v2 &extent, const f32v2 &contentScale, Camera<D> *camera,
-               const RenderViewSpecs &specs);
+    RenderView(const u32v2 &size, const f32v2 &contentScale, Camera<D> *camera, const RenderViewSpecs &specs);
     ~RenderView();
 
-    // depending on flags, these will expect and return normalized or absolute coordinates!
-    f32v2 ScreenToViewport(const f32v2 &screenPos) const;
-    f32v2 ViewportToScreen(const f32v2 &viewportPos) const;
+    f32v2 ScreenToViewport(const f32v2 &screenPos) const
+    {
+        return screenPos - m_Viewport.Position;
+    }
+    f32v2 ViewportToScreen(const f32v2 &viewportPos) const
+    {
+        return viewportPos + m_Viewport.Position;
+    }
 
     f32v<D> ViewportToWorld(const f32v<D> &viewportPos) const;
     f32v2 WorldToViewport(const f32v<D> &worldPos) const;
@@ -100,17 +115,6 @@ template <Dimension D> class RenderView
     f32v2 WorldToScreen(const f32v<D> &worldPos) const
     {
         return ViewportToScreen(WorldToViewport(worldPos));
-    }
-
-    f32v2 ToAbsolute(const f32v2 &normalized) const
-    {
-        const f32v2 dims = f32v2{m_ParentDimensions};
-        return normalized * dims;
-    }
-    f32v2 ToNormalized(const f32v2 &absolute) const
-    {
-        const f32v2 dims = f32v2{m_ParentDimensions};
-        return absolute / dims;
     }
 
     void MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker);
@@ -158,6 +162,102 @@ template <Dimension D> class RenderView
         return m_ProjectionView;
     }
 
+    const Viewport &GetViewport() const
+    {
+        return m_Viewport;
+    }
+    const Scissor &GetScissor() const
+    {
+        return m_Scissor;
+    }
+    const u32v2 &GetImageSize() const
+    {
+        return m_ImageSize;
+    }
+
+    SizingPolicy GetViewportSizing() const
+    {
+        return m_ViewportSizing;
+    }
+    SizingPolicy GetScissorSizing() const
+    {
+        return m_ScissorSizing;
+    }
+    SizingPolicy GetImageSizing() const
+    {
+        return m_ImageSizing;
+    }
+
+    void SetFixedViewport()
+    {
+        m_ViewportSizing = SizingPolicy_Fixed;
+    }
+    void SetFixedScissor()
+    {
+        m_ScissorSizing = SizingPolicy_Fixed;
+    }
+    void SetFixedImage()
+    {
+        m_ImageSizing = SizingPolicy_Fixed;
+    }
+
+    void SetProportionalViewport()
+    {
+        m_ViewportSizing = SizingPolicy_Proportional;
+        const f32v2 psize = f32v2{m_ParentSize};
+        m_ViewportPosRatio = m_Viewport.Position / psize;
+        m_ViewportSizeRatio = m_Viewport.Size / psize;
+    }
+    void SetProportionalScissor()
+    {
+        m_ScissorSizing = SizingPolicy_Proportional;
+        m_ScissorPosRatio = m_Scissor.Position / m_Viewport.Size;
+        m_ScissorSizeRatio = m_Scissor.Size / m_Viewport.Size;
+    }
+    void SetProportionalImageSize()
+    {
+        m_ImageSizing = SizingPolicy_Proportional;
+        m_ImageSizeRatio = f32v2{m_ImageSize} / m_Viewport.Size;
+    }
+
+    void SetFixedViewport(const Viewport &vp)
+    {
+        setViewport(vp);
+        m_ViewportSizing = SizingPolicy_Fixed;
+    }
+    void SetProportionalViewport(const Viewport &vp)
+    {
+        m_ViewportPosRatio = vp.Position;
+        m_ViewportSizeRatio = vp.Size;
+        m_ViewportSizing = SizingPolicy_Proportional;
+        setViewportBasedOnParent();
+    }
+    void SetFixedScissor(const Scissor &sc)
+    {
+        m_Scissor = sc;
+        m_ScissorSizing = SizingPolicy_Fixed;
+    }
+    void SetProportionalScissor(const Scissor &sc)
+    {
+        m_ScissorPosRatio = sc.Position;
+        m_ScissorSizeRatio = sc.Size;
+        m_Scissor = {sc.Position * m_Viewport.Size, sc.Size * m_Viewport.Size};
+        m_ScissorSizing = SizingPolicy_Proportional;
+    }
+    void SetFixedImageSize(const u32v2 &size)
+    {
+        setImageSize(size);
+        recreateFramebuffers();
+        m_ImageSizing = SizingPolicy_Fixed;
+    }
+    void SetProportionalImageSize(const f32v2 &size)
+    {
+        m_ImageSizeRatio = size;
+        setImageSize(ApplyScale(GetImageSize(), size));
+        m_ImageSizing = SizingPolicy_Proportional;
+        recreateFramebuffers();
+    }
+
     RenderViewFlags GetFlags() const
     {
         return m_Flags;
@@ -190,79 +290,13 @@ template <Dimension D> class RenderView
         return m_ViewBit;
     }
 
-    Viewport GetNormalizedViewport() const
+    const u32v2 &GetParentSize() const
     {
-        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-            return ViewportData;
-        return asNormalizedViewport();
+        return m_ParentSize;
     }
-    Viewport GetAbsoluteViewport() const
+    const f32v2 &GetContentScale() const
     {
-        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-            return asAbsoluteViewport();
-        return ViewportData;
-    }
-
-    void SetNormalizedViewport(const Viewport &vp);
-    void SetAbsoluteViewport(const Viewport &vp);
-    void SetNormalizedViewportPosition(const f32v2 &pos)
-    {
-        ViewportData.Position = Math::Clamp(pos, 0.f, 1.f);
-        if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
-            ViewportData = asAbsoluteViewport();
-    }
-    void SetAbsoluteViewportPosition(const f32v2 &pos)
-    {
-        ViewportData.Position = Math::Clamp(pos, f32v2{0.f}, f32v2{m_ParentDimensions});
-        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-            ViewportData = asNormalizedViewport();
-    }
-
-    Scissor GetNormalizedScissor() const
-    {
-        if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
-            return ScissorData;
-        return asNormalizedScissor();
-    }
-    Scissor GetAbsoluteScissor() const
-    {
-        if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
-            return asAbsoluteScissor();
-        return ScissorData;
-    }
-
-    void SetNormalizedScissor(const Scissor &sc);
-    void SetAbsoluteScissor(const Scissor &sc);
-
-    u32v2 GetDimensions() const
-    {
-        return u32v2{GetAbsoluteViewport().Dimensions};
-    }
-    u32v2 GetRenderDimensions() const
-    {
-        if (m_Flags & RenderViewFlag_DynamicViewport)
-            return m_ParentDimensions;
-
-        return GetDimensions();
-    }
-    u32v2 GetRenderExtent() const
-    {
-        if (m_Flags & RenderViewFlag_DynamicViewport)
-            return m_ParentExtent;
-
-        return ComputeExtent(GetDimensions(), m_ParentContentScale);
-    }
-    const u32v2 &GetParentDimensions() const
-    {
-        return m_ParentDimensions;
-    }
-    const f32v2 &GetParentContentScale() const
-    {
-        return m_ParentContentScale;
-    }
-    u32v2 GetParentExtent() const
-    {
-        return m_ParentExtent;
+        return m_ContentScale;
     }
 
     Camera<D> *GetCamera() const
@@ -311,14 +345,31 @@ template <Dimension D> class RenderView
         return info;
     }
 
+    u32v2 GetImageExtent() const
+    {
+        return ApplyScale(m_ImageSize, m_ContentScale);
+    }
+
     Color ClearColor{Color_Black};
     // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
     u64 Layer = 0;
-    Viewport ViewportData;
-    Scissor ScissorData;
 
   private:
+    void setImageSize(const u32v2 &size)
+    {
+        m_ImageSize = size;
+        recreateFramebuffers();
+    }
+    void setViewport(const Viewport &vp);
+    void setViewportBasedOnParent()
+    {
+        TKIT_ASSERT(m_ViewportSizing == SizingPolicy_Proportional,
+                    "[ONYX][VIEW] To set a viewport based on parent, the viewport sizing policy must be proportional");
+
+        const f32v2 psize = f32v2{m_ParentSize};
+        setViewport({m_ViewportPosRatio * psize, m_ViewportSizeRatio * psize, m_Viewport.Depth});
+    }
     void findAvailableFramebuffer();
     void createFrameBuffers();
     void destroyFramebuffers();
@@ -330,51 +381,36 @@ template <Dimension D> class RenderView
     }
     void drainWork() const;
 
-    Viewport asNormalizedViewport() const
+    void update(const u32v2 &parentSize, const f32v2 &contentScale)
     {
-        const f32v2 pdims = f32v2{m_ParentDimensions};
-        const f32v2 pos = ViewportData.Position / pdims;
-        const f32v2 dims = ViewportData.Dimensions / pdims;
-        return {pos, dims, ViewportData.Depth};
-    }
-    Scissor asNormalizedScissor() const
-    {
-        const f32v2 pdims = GetAbsoluteViewport().Dimensions;
-        const f32v2 pos = ScissorData.Position / pdims;
-        const f32v2 dims = ScissorData.Dimensions / pdims;
-        return {pos, dims};
-    }
-
-    Viewport asAbsoluteViewport() const
-    {
-        const f32v2 pdims = f32v2{m_ParentDimensions};
-        const f32v2 pos = ViewportData.Position * pdims;
-        const f32v2 dims = ViewportData.Dimensions * pdims;
-        return {pos, dims, ViewportData.Depth};
-    }
-    Scissor asAbsoluteScissor() const
-    {
-        const f32v2 pdims = GetAbsoluteViewport().Dimensions;
-        const f32v2 pos = ScissorData.Position * pdims;
-        const f32v2 dims = ScissorData.Dimensions * pdims;
-        return {pos, dims};
-    }
-
-    void update(const u32v2 &parentDims, const u32v2 &parentExtent, const f32v2 &contentScale)
-    {
-        m_ParentDimensions = parentDims;
-        m_ParentContentScale = contentScale;
-        m_ParentExtent = parentExtent;
-        if (m_Flags & (RenderViewFlag_DynamicViewport | RenderViewFlag_NormalizedViewportCoordinates))
-            recreateFramebuffers();
+        m_ParentSize = parentSize;
+        m_ContentScale = contentScale;
+        if (m_ViewportSizing == SizingPolicy_Proportional)
+            setViewportBasedOnParent();
     }
 
     Camera<D> *m_Camera;
     ViewMask m_ViewBit;
 
-    u32v2 m_ParentDimensions{};
-    u32v2 m_ParentExtent{};
-    f32v2 m_ParentContentScale;
+    Viewport m_Viewport;
+    Scissor m_Scissor;
+
+    SizingPolicy m_ViewportSizing;
+    SizingPolicy m_ScissorSizing;
+    SizingPolicy m_ImageSizing;
+
+    f32v2 m_ViewportPosRatio{1.f};
+    f32v2 m_ViewportSizeRatio{1.f};
+
+    f32v2 m_ScissorPosRatio{1.f};
+    f32v2 m_ScissorSizeRatio{1.f};
+
+    f32v2 m_ImageSizeRatio{1.f};
+
+    u32v2 m_ParentSize{};
+    u32v2 m_ImageSize{};
+    f32v2 m_ContentScale;
+
     f32m<D> m_View = f32m<D>::Identity();
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();

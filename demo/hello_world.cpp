@@ -15,7 +15,7 @@ int main()
     Onyx::Window *win = Onyx::OpenWindow();
 
     Onyx::Camera<D2> cam{};
-    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam);
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);

@@ -597,17 +597,17 @@ static void platform_UpdateMonitors()
         ImGuiPlatformMonitor monitor;
         const i32v2 pos = Graph::Monitor_GetPosition(mon);
         const Graph::VideoMode vmode = Graph::Monitor_GetVideoMode(mon);
-        if (vmode.Dimensions[0] == 0 || vmode.Dimensions[1] == 0)
+        if (vmode.Size[0] == 0 || vmode.Size[1] == 0)
             continue;
 
         monitor.MainPos = monitor.WorkPos = ImVec2(f32(pos[0]), f32(pos[1]));
-        monitor.MainSize = monitor.WorkSize = ImVec2(f32(vmode.Dimensions[0]), f32(vmode.Dimensions[1]));
+        monitor.MainSize = monitor.WorkSize = ImVec2(f32(vmode.Size[0]), f32(vmode.Size[1]));
 
         const Graph::MonitorArea work = Graph::Monitor_GetWorkArea(mon);
-        if (work.Dimensions[0] > 0 && work.Dimensions[1] > 0)
+        if (work.Size[0] > 0 && work.Size[1] > 0)
         {
             monitor.WorkPos = ImVec2(f32(work.Position[0]), f32(work.Position[1]));
-            monitor.WorkSize = ImVec2(f32(work.Dimensions[0]), f32(work.Dimensions[1]));
+            monitor.WorkSize = ImVec2(f32(work.Size[0]), f32(work.Size[1]));
         }
         const f32 scale = platform_GetContentScaleForMonitor(mon);
         if (Math::ApproachesZero(scale))
@@ -624,8 +624,8 @@ static void platform_UpdateMonitors()
 
 static void platform_GetWindowSizeAndFramebufferScale(const Graph::Window window, ImVec2 *size, ImVec2 *fbscale)
 {
-    const u32v2 wdim = Graph::Window_GetScreenDimensions(window);
-    const u32v2 fdim = Graph::Window_GetPixelDimensions(window);
+    const u32v2 wdim = Graph::Window_GetScreenSize(window);
+    const u32v2 fdim = Graph::Window_GetPixelSize(window);
 
     f32 fbscx = (wdim[0] > 0) ? f32(fdim[0]) / f32(wdim[0]) : 1.f;
     f32 fbscy = (wdim[1] > 0) ? f32(fdim[1]) / f32(wdim[1]) : 1.f;
@@ -672,7 +672,7 @@ static void platform_CreateWindow(ImGuiViewport *viewport)
         specs.Flags |= WindowFlag_Floating;
 
     specs.PresentMode = pdata->Window->GetPresentMode();
-    specs.Dimensions = u32v2{viewport->Size.x, viewport->Size.y};
+    specs.ScreenSize = u32v2{viewport->Size.x, viewport->Size.y};
 
     Platform_ViewportData *vdata = platform_CreateViewportData(CreateWindow(specs));
     TKIT_LOG_DEBUG("[ONYX][IMGUI] Creating platform window '{}'", vdata->Window->GetTitle());
@@ -738,15 +738,15 @@ static void platform_SetWindowPos(const ImGuiViewport *viewport, const f32v2 &po
 static u32v2 platform_GetWindowSize(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return Graph::Window_GetScreenDimensions(vdata->Window->GetHandle());
-    // return vdata->Window->GetDimensions();
+    return Graph::Window_GetScreenSize(vdata->Window->GetHandle());
+    // return vdata->Window->GetSize();
 }
 
-static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &pos)
+static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &size)
 {
     Platform_ViewportData *vdata = platform_GetViewportData(viewport);
     vdata->IgnoreWindowSizeEventFrame = u32(ImGui::GetFrameCount());
-    vdata->Window->SetScreenDimensions(pos);
+    Graph::Window_SetScreenSize(vdata->Window->GetHandle(), size);
 }
 
 static ImVec2 platform_GetWindowFramebufferScale(const ImGuiViewport *viewport)

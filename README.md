@@ -46,7 +46,7 @@ A render view is a viewport into the window with its own camera, scissor region,
 
 ```cpp
 Onyx::Camera<D2> cam{};
-Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
+Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam);
 ```
 
 Views can be configured with flags to enable features like shadows (`RenderViewFlag_Shadows`) or order-independent transparency (`RenderViewFlag_Transparency`). Each view also has a configurable viewport that controls what portion of the window it occupies and can operate in both normalized or absolute coordinates:
@@ -145,7 +145,7 @@ int main()
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
     Onyx::Camera<D2> cam{};
-    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_NormalizedCoordinates});
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam);
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
@@ -194,8 +194,7 @@ int main()
     Onyx::Resources_Sync(Onyx::SyncFlag_Materials);
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
-    const Onyx::RenderViewFlags vflags =
-        Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Shadows;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Shadows;
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
@@ -300,8 +299,7 @@ int main()
     Onyx::Resources_CreateDefault();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
-    const Onyx::RenderViewFlags vflags =
-        Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_Transparency;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Transparency;
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
