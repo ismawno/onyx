@@ -31,6 +31,7 @@ static bool runDemo(const bool floating)
     // ui->SubmitDockTree("Dock tree", root);
 
     bool restart = false;
+    const Graph::PlatformBackendInfo binfo = Graph::GetPlatformBackendInfo();
     while (Onyx::Running())
     {
         ui->ShowDemo();
@@ -39,7 +40,8 @@ static bool runDemo(const bool floating)
             ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
             if (ui->Button("Quit"))
                 Onyx::Quit(Onyx::QuitFlag_DestroyWindows | Onyx::QuitFlag_DestroyFloatingOverlays);
-            if (ui->Button(floating ? "Restart using a main window" : "Restart using floating mode"))
+            if (binfo.Platform != Graph::Platform_Wayland &&
+                ui->Button(floating ? "Restart using a main window" : "Restart using floating mode"))
             {
                 restart = true;
                 Onyx::Quit(Onyx::QuitFlag_DestroyWindows | Onyx::QuitFlag_DestroyFloatingOverlays);

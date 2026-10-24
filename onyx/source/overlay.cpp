@@ -130,7 +130,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_VerticalSliderHeight] = 160.f;
 
     vars[OverlayStyle_Alpha] = 1.f;
-    vars[OverlayStyle_DisabledAlpha] = 0.8f;
+    vars[OverlayStyle_DisabledAlpha] = 0.6f;
 
     vars[OverlayStyle_ListBoxMaxHeight] = 140.f;
 
@@ -734,6 +734,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
 
     m_Camera.Mode = CameraMode_Viewport;
+    const Graph::PlatformBackendInfo binfo = Graph::GetPlatformBackendInfo();
     if (win)
     {
         NativeWindow *nw = createNativeWindow(win);
@@ -741,7 +742,18 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         nw->Size = f32v2{nw->Window->GetSize()};
     }
     else
+    {
+        TKIT_ASSERT(binfo.Platform != Graph::Platform_Wayland,
+                    "[ONYX][OVERLAY] Window promotions are not supported on wayland, and thus floating overlays cannot "
+                    "be used");
         Flags |= OverlayFlag_WindowPromotions | OverlayFlag_FloatingMode;
+    }
+    if (binfo.Platform == Graph::Platform_Wayland)
+    {
+        TKIT_LOG_ERROR_IF(Flags & OverlayFlag_WindowPromotions,
+                          "[ONYX][OVERLAY] Window promotions are not supported on wayland. Disabling...");
+        Flags &= ~OverlayFlag_WindowPromotions;
+    }
 
     for (u32 i = 0; i < m_DynamicMeshes.GetSize(); ++i)
         m_DynamicMeshes[i] = DynamicMesh_Register<D2>();
@@ -7145,11 +7157,18 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
     static bool disableGlobal = false;
     if (ov->PushTree("Configuration"))
     {
-        ov->BeginDisabled(flags & Onyx::OverlayFlag_FloatingMode);
+        const Graph::PlatformBackendInfo binfo = Graph::GetPlatformBackendInfo();
+        ov->BeginDisabled((flags & Onyx::OverlayFlag_FloatingMode) || binfo.Platform == Graph::Platform_Wayland);
         ov->CheckBoxFlags("OverlayFlag_WindowPromotions", &flags, Onyx::OverlayFlag_WindowPromotions);
         ov->EndDisabled();
+
         if (flags & Onyx::OverlayFlag_FloatingMode)
-            ov->SetItemTooltipRaw("When in floating mode, window promotions must be on or terrible things will happen");
+            ov->SetItemTooltipRaw("When in floating mode, window promotions must be on or terrible things will happen",
+                                  Onyx::OverlayFocusQueryFlag_BlockedByDisabled);
+
+        if (binfo.Platform == Graph::Platform_Wayland)
+            ov->SetItemTooltipRaw("Window promotions are not supported on wayland",
+                                  Onyx::OverlayFocusQueryFlag_BlockedByDisabled);
 
         ov->CheckBoxFlags("OverlayFlag_Docking", &flags, Onyx::OverlayFlag_Docking);
         ov->PopTree();
