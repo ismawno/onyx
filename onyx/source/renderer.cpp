@@ -2595,7 +2595,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
                         pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
 
             pdata.Extent = rv->GetRenderExtent();
-            pdata.MaxOutlineWidth = u32(f32(rv->MaxOutlineWidth) * Math::Norm(rv->GetParentContentScale()));
+            pdata.MaxOutlineWidth = u32(f32(rv->MaxOutlineWidth) * rv->GetParentContentScale()[0]);
             pdata.Flags = rv->GetFlags();
 
             Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);

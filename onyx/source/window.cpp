@@ -127,7 +127,8 @@ Window::Window(const WindowSpecs &specs)
                 "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", specs.Dimensions[0],
                 specs.Dimensions[1]);
 
-    const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi;
+    const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi |
+                                      Graph::WindowFlag_ScaleToMonitor | Graph::WindowFlag_ScaleFramebuffer;
     m_Window = Graph::Window_Create({.Title = specs.Title,
                                      .Position = specs.Position,
                                      .Dimensions = specs.Dimensions,

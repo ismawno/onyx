@@ -10,7 +10,7 @@ namespace Onyx
 {
 constexpr u32v2 ComputeExtent(const u32v2 &dimensions, const f32v2 &contentScale)
 {
-    return u32v2{f32v2{dimensions} * contentScale};
+    return u32v2{Math::Round(f32v2{dimensions} * contentScale)};
 }
 struct Viewport
 {
