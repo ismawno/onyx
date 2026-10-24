@@ -54,12 +54,12 @@ struct Platform_ContextData
     f32v2 LastValidMousePos{0.f};
 
     Graph::WindowFocusCallback UserCbkWindowFocus;
-    Graph::CursorPosCallback UserCbkCursorPos;
-    Graph::CursorEnterCallback UserCbkCursorEnter;
-    Graph::MouseButtonCallback UserCbkMousebutton;
-    Graph::ScrollCallback UserCbkScroll;
-    Graph::KeyCallback UserCbkKey;
-    Graph::CharCallback UserCbkChar;
+    Graph::WindowCursorPosCallback UserCbkCursorPos;
+    Graph::WindowCursorEnterCallback UserCbkCursorEnter;
+    Graph::WindowMouseButtonCallback UserCbkMousebutton;
+    Graph::WindowScrollCallback UserCbkScroll;
+    Graph::WindowKeyCallback UserCbkKey;
+    Graph::WindowCharCallback UserCbkChar;
 };
 
 struct Platform_ViewportData
@@ -379,22 +379,21 @@ static void platform_WindowFocusCallback(const Graph::Window window, const bool 
     io.AddFocusEvent(focused);
 }
 
-static void platform_CursorPosCallback(const Graph::Window window, f64 x, f64 y)
+static void platform_CursorPosCallback(const Graph::Window window, f32v2 pos)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkCursorPos && window == pdata->Window->GetHandle())
-        pdata->UserCbkCursorPos(window, x, y);
+        pdata->UserCbkCursorPos(window, pos);
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         const i32v2 wpos = Graph::Window_GetPosition(window);
-        x += f64(wpos[0]);
-        y += f64(wpos[1]);
+        pos += f32v2{wpos};
     }
 
-    io.AddMousePosEvent(f32(x), f32(y));
-    pdata->LastValidMousePos = f32v2{f32(x), f32(y)};
+    io.AddMousePosEvent(pos[0], pos[1]);
+    pdata->LastValidMousePos = pos;
 }
 
 // Workaround: X11 seems to send spurious Leave/Enter events which would make us lose our position,
@@ -448,14 +447,14 @@ static void platform_MouseButtonCallback(const Graph::Window window, const Graph
         io.AddMouseButtonEvent(i32(button), action == Graph::InputAction_Press);
 }
 
-static void platform_ScrollCallback(const Graph::Window window, const f64 xoffset, const f64 yoffset)
+static void platform_ScrollCallback(const Graph::Window window, const f32v2 offset)
 {
     Platform_ContextData *pdata = platform_GetContextData(window);
     if (pdata->UserCbkScroll && window == pdata->Window->GetHandle())
-        pdata->UserCbkScroll(window, xoffset, yoffset);
+        pdata->UserCbkScroll(window, offset);
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
-    io.AddMouseWheelEvent(f32(xoffset), f32(yoffset));
+    io.AddMouseWheelEvent(offset[0], offset[1]);
 }
 
 static Graph::Key platform_TranslateUntranslatedKey(Graph::Key key, const i32 scancode)
@@ -534,7 +533,7 @@ static void platform_WindowCloseCallback(const Graph::Window window)
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
         viewport->PlatformRequestClose = true;
 }
-static void platform_WindowPosCallback(const Graph::Window window, const i32, const i32)
+static void platform_WindowPosCallback(const Graph::Window window, const i32v2)
 {
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
     {
@@ -546,7 +545,7 @@ static void platform_WindowPosCallback(const Graph::Window window, const i32, co
             viewport->PlatformRequestMove = true;
     }
 }
-static void platform_WindowSizeCallback(const Graph::Window window, const u32, const u32)
+static void platform_WindowSizeCallback(const Graph::Window window, const u32v2)
 {
     if (ImGuiViewport *viewport = platform_FindViewportByPlatformHandle(window))
     {

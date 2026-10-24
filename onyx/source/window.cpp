@@ -342,37 +342,37 @@ void Window::DestroyOverlay(const Overlay *overlay)
                "CreateOverlay() window function");
 }
 
-static void windowMoveCallback(const Graph::Window win, const i32 x, const i32 y)
+static void windowMoveCallback(const Graph::Window win, const i32v2 pos)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_WindowMoved;
 
-    event.WindowPos = i32v2{x, y};
+    event.WindowPos = pos;
 
     window->PushEvent(event);
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
 }
 
-static void windowSizeCallback(const Graph::Window win, const u32 width, const u32 height)
+static void windowSizeCallback(const Graph::Window win, const u32v2 size)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_WindowResized;
 
-    event.WindowSize = u32v2{width, height};
+    event.WindowSize = size;
 
     window->ResetResizeClock();
     window->PushEvent(event);
 }
 
-static void framebufferSizeCallback(const Graph::Window win, const u32 width, const u32 height)
+static void framebufferSizeCallback(const Graph::Window win, const u32v2 size)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_FramebufferResized;
 
-    event.WindowSize = u32v2{width, height};
+    event.WindowSize = size;
 
     window->ResetResizeClock();
     window->PushEvent(event);
@@ -436,12 +436,12 @@ static void charCallback(const Graph::Window win, const u32 code)
     window->PushEvent(event);
 }
 
-static void cursorPositionCallback(const Graph::Window win, const f64 xpos, const f64 ypos)
+static void cursorPositionCallback(const Graph::Window win, const f32v2 pos)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_MouseMoved;
-    event.Mouse.Position = f32v2{f32(xpos), f32(ypos)};
+    event.Mouse.Position = pos;
     window->PushEvent(event);
 }
 
@@ -463,12 +463,12 @@ static void mouseButtonCallback(const Graph::Window win, const Graph::Mouse butt
     window->PushEvent(event);
 }
 
-static void scrollCallback(const Graph::Window win, const f64 xoffset, const f64 yoffset)
+static void scrollCallback(const Graph::Window win, const f32v2 offset)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_Scrolled;
-    event.ScrollOffset = f32v2{f32(xoffset), f32(yoffset)};
+    event.ScrollOffset = offset;
     window->PushEvent(event);
 }
 
