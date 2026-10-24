@@ -666,8 +666,8 @@ static void platform_CreateWindow(ImGuiViewport *viewport)
 
     WindowSpecs specs{};
     specs.Flags = 0;
-    if (!(viewport->Flags & ImGuiViewportFlags_NoDecoration))
-        specs.Flags |= WindowFlag_Decorated;
+    if (viewport->Flags & ImGuiViewportFlags_NoDecoration)
+        specs.Flags |= WindowFlag_NoDecoration;
     if (viewport->Flags & ImGuiViewportFlags_TopMost)
         specs.Flags |= WindowFlag_Floating;
 
@@ -777,7 +777,7 @@ static void platform_SetWindowFocus(const ImGuiViewport *viewport)
 static bool platform_GetWindowFocus(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return (vdata->Window->GetFlags() & WindowFlag_Focused) != 0;
+    return (vdata->Window->GetFlags() & WindowFlag_NotFocused) == 0;
 }
 
 static bool platform_GetWindowIconified(const ImGuiViewport *viewport)
@@ -891,7 +891,7 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
         ImGuiViewport *viewport = pio.Viewports[n];
         Window *window = scast<Window *>(viewport->PlatformHandle);
 
-        const bool windowFocused = (window->GetFlags() & WindowFlag_Focused) != 0;
+        const bool windowFocused = (window->GetFlags() & WindowFlag_NotFocused) == 0;
         if (windowFocused)
         {
             // (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when

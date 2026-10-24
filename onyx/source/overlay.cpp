@@ -2517,7 +2517,8 @@ NativeWindow *Overlay::createNativeWindow(const f32v2 &pos, const f32v2 &dims, c
 
     const NativeWindow *mainNative = GetMainNativeWindow();
     specs.PresentMode = mainNative ? mainNative->Window->GetPresentMode() : Graph::PresentMode_Immediate;
-    specs.Flags = flags | WindowFlag_InstallCallbacks | WindowFlag_Visible | WindowFlag_FocusOnShow;
+    specs.Flags =
+        flags | WindowFlag_FocusOnShow | WindowFlag_NoResize | WindowFlag_NotFocused | WindowFlag_NoDecoration;
 
     Window *win = OpenWindow(
         {.Window = specs, .Flags = OpenWindowFlag_DoNotDestroyOnQuit | OpenWindowFlag_DoNotDestroyOnShouldClose});

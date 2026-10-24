@@ -57,14 +57,14 @@ bool Window::IsHovered() const
 static Graph::WindowFlags toGraph(const WindowFlags flags)
 {
     Graph::WindowFlags gflags = 0;
-    if (flags & WindowFlag_Resizable)
-        gflags |= Graph::WindowFlag_Resizable;
-    if (flags & WindowFlag_Visible)
-        gflags |= Graph::WindowFlag_Visible;
-    if (flags & WindowFlag_Decorated)
-        gflags |= Graph::WindowFlag_Decorated;
-    if (flags & WindowFlag_Focused)
-        gflags |= Graph::WindowFlag_Focused;
+    if (flags & WindowFlag_NoResize)
+        gflags |= Graph::WindowFlag_NoResize;
+    if (flags & WindowFlag_Invisible)
+        gflags |= Graph::WindowFlag_Invisible;
+    if (flags & WindowFlag_NoDecoration)
+        gflags |= Graph::WindowFlag_NoDecoration;
+    if (flags & WindowFlag_NotFocused)
+        gflags |= Graph::WindowFlag_NotFocused;
     if (flags & WindowFlag_Floating)
         gflags |= Graph::WindowFlag_Floating;
     if (flags & WindowFlag_FocusOnShow)
@@ -77,14 +77,14 @@ static Graph::WindowFlags toGraph(const WindowFlags flags)
 static WindowFlags fromGraph(const Graph::WindowFlags gflags)
 {
     WindowFlags flags = 0;
-    if (gflags & Graph::WindowFlag_Resizable)
-        flags |= WindowFlag_Resizable;
-    if (gflags & Graph::WindowFlag_Visible)
-        flags |= WindowFlag_Visible;
-    if (gflags & Graph::WindowFlag_Decorated)
-        flags |= WindowFlag_Decorated;
-    if (gflags & Graph::WindowFlag_Focused)
-        flags |= WindowFlag_Focused;
+    if (gflags & Graph::WindowFlag_NoResize)
+        flags |= WindowFlag_NoResize;
+    if (gflags & Graph::WindowFlag_Invisible)
+        flags |= WindowFlag_Invisible;
+    if (gflags & Graph::WindowFlag_NoDecoration)
+        flags |= WindowFlag_NoDecoration;
+    if (gflags & Graph::WindowFlag_NotFocused)
+        flags |= WindowFlag_NotFocused;
     if (gflags & Graph::WindowFlag_Floating)
         flags |= WindowFlag_Floating;
     if (gflags & Graph::WindowFlag_FocusOnShow)
@@ -127,7 +127,7 @@ Window::Window(const WindowSpecs &specs)
                 "[ONYX][WINDOW] Cannot have window dimensions of zero! Passed values: {}, {}", specs.Dimensions[0],
                 specs.Dimensions[1]);
 
-    const Graph::WindowFlags wflags = toGraph(specs.Flags);
+    const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi;
     m_Window = Graph::Window_Create({.Title = specs.Title,
                                      .Position = specs.Position,
                                      .Dimensions = specs.Dimensions,
@@ -138,7 +138,7 @@ Window::Window(const WindowSpecs &specs)
 
     createSwapchain();
     UpdateMonitorDeltaTime();
-    if (specs.Flags & WindowFlag_InstallCallbacks)
+    if (!(specs.Flags & WindowFlag_DoNotInstallCallbacks))
         InstallCallbacks();
 }
 

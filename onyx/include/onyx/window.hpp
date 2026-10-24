@@ -71,14 +71,14 @@ constexpr u64 Poll = 0;
 using WindowFlags = u16;
 enum WindowFlagBit : WindowFlags
 {
-    WindowFlag_Resizable = 1U << 0,
-    WindowFlag_Visible = 1U << 1,
-    WindowFlag_Decorated = 1U << 2,
-    WindowFlag_Focused = 1U << 3,
+    WindowFlag_NoResize = 1U << 0,
+    WindowFlag_Invisible = 1U << 1,
+    WindowFlag_NoDecoration = 1U << 2,
+    WindowFlag_NotFocused = 1U << 3,
     WindowFlag_Floating = 1U << 4,
     WindowFlag_FocusOnShow = 1U << 5,
     WindowFlag_Iconified = 1U << 6,
-    WindowFlag_InstallCallbacks = 1U << 7,
+    WindowFlag_DoNotInstallCallbacks = 1U << 7,
 };
 
 struct WindowSpecs
@@ -87,8 +87,7 @@ struct WindowSpecs
     i32v2 Position{TKIT_I32_MAX}; // i32 max means let it be decided automatically
     u32v2 Dimensions{800, 600};
     Graph::PresentMode PresentMode = Graph::PresentMode_Immediate;
-    WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
-                        WindowFlag_InstallCallbacks;
+    WindowFlags Flags = 0;
 };
 
 struct WindowSyncData;
