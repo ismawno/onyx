@@ -22,7 +22,7 @@ int main()
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
 
     cam2.OrthoParameters.Size = 10.f;
-    view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
+    view2->SetNormalizedViewport({.Position = 0.f, .Dimensions = {0.5f, 1.f}});
     ctx2->AddTarget(view2);
 
     Onyx::Camera<D3> cam3{};
@@ -30,7 +30,7 @@ int main()
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
 
     cam3.View.Translation[2] = 5.f;
-    view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});
+    view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Dimensions = {0.5f, 1.f}});
     ctx3->AddTarget(view3);
 
     f32 time = 0.f;

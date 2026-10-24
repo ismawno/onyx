@@ -738,7 +738,8 @@ static void platform_SetWindowPos(const ImGuiViewport *viewport, const f32v2 &po
 static u32v2 platform_GetWindowSize(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return vdata->Window->GetScreenDimensions();
+    return Graph::Window_GetScreenDimensions(vdata->Window->GetHandle());
+    // return vdata->Window->GetDimensions();
 }
 
 static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &pos)
@@ -899,8 +900,8 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
             // positions are same as OS positions.
 
             if (io.WantSetMousePos)
-                Graph::Window_SetCursorPosition(window->GetHandle(),
-                                                f32v2{prevmpos.x - viewport->Pos.x, prevmpos.y - viewport->Pos.y});
+                Graph::Window_SetCursorScreenPosition(
+                    window->GetHandle(), f32v2{prevmpos.x - viewport->Pos.x, prevmpos.y - viewport->Pos.y});
 
             // (Optional) Fallback to provide mouse position when focused (platform_CursorPosCallback already
             // provides this when hovered or captured)

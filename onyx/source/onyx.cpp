@@ -250,10 +250,10 @@ template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx)
     Renderer_DestroyContext<D>(ctx);
 }
 
-RenderTexture *CreateRenderTexture(const u32v2 &dimensions)
+RenderTexture *CreateRenderTexture(const u32v2 &dimensions, const RenderTextureSpecs &specs)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    RenderTexture *rtex = tier->Create<RenderTexture>(dimensions);
+    RenderTexture *rtex = tier->Create<RenderTexture>(dimensions, specs);
     return s_Data->RenderTextures.Append(rtex);
 }
 

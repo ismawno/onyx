@@ -6,7 +6,7 @@
 
 namespace Onyx
 {
-static Graph::Image createImage(const u32v2 &dimensions)
+static Graph::Image createImage(const u32v2 &dimensions, const f32v2 contentScale)
 {
     const Graph::Format format = GetAttachmentFormat(Attachment_Intermediate);
     const TKit::FixedArray<Graph::Format, 2> formats{format, SurfaceFormat};
@@ -16,7 +16,7 @@ static Graph::Image createImage(const u32v2 &dimensions)
     specs.Formats = formats;
     specs.ImageViews = views;
 
-    return Graph::Image_Create(dimensions, specs,
+    return Graph::Image_Create(ComputeExtent(dimensions, contentScale), specs,
                                Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | Graph::ImageFlag_Source |
                                    Graph::ImageFlag_Destination);
 }
@@ -29,13 +29,13 @@ static void nameImage(const Graph::Image img, const u32 idx)
     Graph::Image_SetViewNames(img, nview.CString());
 }
 
-RenderTexture::RenderTexture(const u32v2 &dimensions, const u32 imageCount)
-    : m_Dimensions(dimensions), m_ImageCount(imageCount)
+RenderTexture::RenderTexture(const u32v2 &dimensions, const RenderTextureSpecs &specs)
+    : m_Dimensions(dimensions), m_ContentScale(specs.ContentScale), m_ImageCount(specs.ImageCount)
 {
-    TKIT_ASSERT(imageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
+    TKIT_ASSERT(specs.ImageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
     FrontEndImage &img = m_Images.Append();
 
-    img.Image = createImage(dimensions);
+    img.Image = createImage(dimensions, specs.ContentScale);
     img.Texture = Texture_CreateMainRenderTexture(Graph::Image_GetView(img.Image, 0));
 
     if (Graph::IsValidationEnabled())
@@ -56,7 +56,7 @@ RenderTexture::~RenderTexture()
     }
 }
 
-void RenderTexture::Resize(const u32v2 &dims)
+void RenderTexture::Resize(const u32v2 &dims, const f32v2 &contentScale)
 {
     drainWork();
 
@@ -73,7 +73,7 @@ void RenderTexture::Resize(const u32v2 &dims)
 
     m_Images.Resize(1);
 
-    const Graph::Image newImage = createImage(dims);
+    const Graph::Image newImage = createImage(dims, contentScale);
 
     Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
         TKit::FixedArray<Graph::ImageMemoryBarrierInfo, 2> infos{};
@@ -115,6 +115,7 @@ void RenderTexture::Resize(const u32v2 &dims)
 
     Texture_UpdateRenderTexture(main.Texture, Graph::Image_GetView(main.Image, 0));
     m_Dimensions = dims;
+    m_ContentScale = contentScale;
     updateRenderViews();
     createSecondaryImages();
 }
@@ -185,7 +186,7 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     target.ClearValue.Color = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, m_Dimensions};
+    info.RenderArea = {{0, 0}, ComputeExtent(m_Dimensions, m_ContentScale)};
     info.ColorAttachments = target;
     Graph::Command_BeginRenderPass(cmd, info);
 }
@@ -215,7 +216,7 @@ void RenderTexture::createSecondaryImages()
     for (u32 i = 1; i < m_ImageCount; ++i)
     {
         FrontEndImage &img = m_Images.Append();
-        img.Image = createImage(m_Dimensions);
+        img.Image = createImage(m_Dimensions, m_ContentScale);
         img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
         if (Graph::IsValidationEnabled())
             nameImage(img.Image, i);

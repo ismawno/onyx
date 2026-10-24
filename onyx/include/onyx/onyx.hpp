@@ -56,7 +56,7 @@ void DestroyFloatingOverlay(const Overlay *ov);
 template <Dimension D> RenderContext<D> *CreateRenderContext(const RenderContextSpecs &specs = {});
 template <Dimension D> void DestroyRenderContext(const RenderContext<D> *ctx);
 
-RenderTexture *CreateRenderTexture(const u32v2 &dimensions);
+RenderTexture *CreateRenderTexture(const u32v2 &dimensions, const RenderTextureSpecs &specs = {});
 void DestroyRenderTexture(const RenderTexture *rtex);
 
 bool Running();

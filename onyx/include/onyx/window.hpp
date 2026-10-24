@@ -28,6 +28,7 @@ enum EventType : u8
     Event_WindowMinimized,
     Event_WindowRestored,
     Event_FramebufferResized,
+    Event_ContentScaleChanged,
     Event_CharInput,
     Event_SwapchainRecreated,
     Event_Count,
@@ -50,6 +51,8 @@ struct Event
     MouseState Mouse;
     CodePoint Character;
     f32v2 ScrollOffset{0.f};
+
+    f32v2 ContentScale;
 
     operator bool() const
     {
@@ -129,13 +132,10 @@ class Window final : public RenderTarget
     {
         return Graph::Window_GetPosition(m_Window);
     }
-    u32v2 GetScreenDimensions() const
+    u32v2 GetDimensions() const
     {
-        return Graph::Window_GetScreenDimensions(m_Window);
-    }
-    u32v2 GetPixelDimensions() const
-    {
-        return Graph::Window_GetPixelDimensions(m_Window);
+        const f32v2 pixels = f32v2{Graph::Window_GetPixelDimensions(m_Window)};
+        return u32v2{pixels / Graph::Window_GetContentScale(m_Window)};
     }
     f32 GetAspect() const
     {
@@ -174,11 +174,12 @@ class Window final : public RenderTarget
 
     f32v2 GetAbsoluteMousePosition() const
     {
-        return Graph::Window_GetCursorPosition(m_Window);
+        const f32v2 normalized = GetNormalizedMousePosition();
+        return normalized * f32v2{GetDimensions()};
     }
     f32v2 GetNormalizedMousePosition() const
     {
-        return GetAbsoluteMousePosition() / f32v2{GetScreenDimensions()};
+        return Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenDimensions(m_Window)};
     }
 
     bool IsKeyPressed(const Graph::Key key) const
@@ -223,11 +224,6 @@ class Window final : public RenderTarget
 
     bool IsFullScreen() const;
     bool IsHovered() const;
-
-    void ResetResizeClock()
-    {
-        m_TimeSinceResize.Restart();
-    }
 
     void InstallCallbacks();
 
@@ -307,10 +303,23 @@ class Window final : public RenderTarget
         m_PresentMode = presentMode;
     }
 
+    f32v2 GetContentScale() const
+    {
+        return Graph::Window_GetContentScale(m_Window);
+    }
+
   private:
+    u32v2 getDimensions() const override
+    {
+        return GetDimensions();
+    }
     u32v2 getExtent() const override
     {
         return Graph::Swapchain_GetExtent(m_Swapchain);
+    }
+    f32v2 getContentScale() const override
+    {
+        return GetContentScale();
     }
 
     void createSwapchain();
@@ -324,7 +333,6 @@ class Window final : public RenderTarget
     TKit::TierArray<Event> m_Events;
 
     TKit::Timespan m_MonitorDeltaTime{};
-    TKit::Clock m_TimeSinceResize{};
 
     Graph::Swapchain m_Swapchain = Graph::NullHandle;
     // NOTE(Isma, 03/07/26): Overlays create their own views so as of right now they are bound by that limit. overlays

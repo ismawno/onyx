@@ -87,7 +87,9 @@ class RenderTarget
     }
 
   private:
+    virtual u32v2 getDimensions() const = 0;
     virtual u32v2 getExtent() const = 0;
+    virtual f32v2 getContentScale() const = 0;
 
     TKit::StaticArray<RenderView<D2> *, ONYX_MAX_VIEWS> m_RenderViews2{};
     TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> m_RenderViews3{};

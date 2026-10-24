@@ -8,12 +8,16 @@
 
 namespace Onyx
 {
+constexpr u32v2 ComputeExtent(const u32v2 &dimensions, const f32v2 &contentScale)
+{
+    return u32v2{f32v2{dimensions} * contentScale};
+}
 struct Viewport
 {
     TKIT_REFLECT_DECLARE(Viewport)
     TKIT_YAML_SERIALIZE_DECLARE(Viewport)
     f32v2 Position{0.f};
-    f32v2 Extent{1.f};
+    f32v2 Dimensions{1.f};
     f32v2 Depth{0.f, 1.f};
 };
 
@@ -22,7 +26,7 @@ struct Scissor
     TKIT_REFLECT_DECLARE(Scissor)
     TKIT_YAML_SERIALIZE_DECLARE(Scissor)
     f32v2 Position{0.f};
-    f32v2 Extent{1.f};
+    f32v2 Dimensions{1.f};
 };
 
 template <Dimension D> struct ViewInfo
@@ -72,7 +76,8 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewSpecs &specs);
+    RenderView(const u32v2 &dimensions, const u32v2 &extent, const f32v2 &contentScale, Camera<D> *camera,
+               const RenderViewSpecs &specs);
     ~RenderView();
 
     // depending on flags, these will expect and return normalized or absolute coordinates!
@@ -99,13 +104,13 @@ template <Dimension D> class RenderView
 
     f32v2 ToAbsolute(const f32v2 &normalized) const
     {
-        const f32v2 extent = f32v2{m_ParentExtent};
-        return normalized * extent;
+        const f32v2 dims = f32v2{m_ParentDimensions};
+        return normalized * dims;
     }
     f32v2 ToNormalized(const f32v2 &absolute) const
     {
-        const f32v2 extent = f32v2{m_ParentExtent};
-        return absolute / extent;
+        const f32v2 dims = f32v2{m_ParentDimensions};
+        return absolute / dims;
     }
 
     void MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker);
@@ -208,7 +213,7 @@ template <Dimension D> class RenderView
     }
     void SetAbsoluteViewportPosition(const f32v2 &pos)
     {
-        ViewportData.Position = Math::Clamp(pos, f32v2{0.f}, f32v2{m_ParentExtent});
+        ViewportData.Position = Math::Clamp(pos, f32v2{0.f}, f32v2{m_ParentDimensions});
         if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
             ViewportData = asNormalizedViewport();
     }
@@ -229,18 +234,33 @@ template <Dimension D> class RenderView
     void SetNormalizedScissor(const Scissor &sc);
     void SetAbsoluteScissor(const Scissor &sc);
 
-    u32v2 GetExtent() const
+    u32v2 GetDimensions() const
     {
-        return u32v2{GetAbsoluteViewport().Extent};
+        return u32v2{GetAbsoluteViewport().Dimensions};
+    }
+    u32v2 GetRenderDimensions() const
+    {
+        if (m_Flags & RenderViewFlag_DynamicViewport)
+            return m_ParentDimensions;
+
+        return GetDimensions();
     }
     u32v2 GetRenderExtent() const
     {
         if (m_Flags & RenderViewFlag_DynamicViewport)
             return m_ParentExtent;
 
-        return GetExtent();
+        return ComputeExtent(GetDimensions(), m_ParentContentScale);
     }
-    const u32v2 &GetParentExtent() const
+    const u32v2 &GetParentDimensions() const
+    {
+        return m_ParentDimensions;
+    }
+    const f32v2 &GetParentContentScale() const
+    {
+        return m_ParentContentScale;
+    }
+    u32v2 GetParentExtent() const
     {
         return m_ParentExtent;
     }
@@ -312,36 +332,38 @@ template <Dimension D> class RenderView
 
     Viewport asNormalizedViewport() const
     {
-        const f32v2 extent = f32v2{m_ParentExtent};
-        const f32v2 pos = ViewportData.Position / extent;
-        const f32v2 ext = ViewportData.Extent / extent;
-        return {pos, ext, ViewportData.Depth};
+        const f32v2 pdims = f32v2{m_ParentDimensions};
+        const f32v2 pos = ViewportData.Position / pdims;
+        const f32v2 dims = ViewportData.Dimensions / pdims;
+        return {pos, dims, ViewportData.Depth};
     }
     Scissor asNormalizedScissor() const
     {
-        const f32v2 extent = GetAbsoluteViewport().Extent;
-        const f32v2 pos = ScissorData.Position / extent;
-        const f32v2 ext = ScissorData.Extent / extent;
-        return {pos, ext};
+        const f32v2 pdims = GetAbsoluteViewport().Dimensions;
+        const f32v2 pos = ScissorData.Position / pdims;
+        const f32v2 dims = ScissorData.Dimensions / pdims;
+        return {pos, dims};
     }
 
     Viewport asAbsoluteViewport() const
     {
-        const f32v2 extent = f32v2{m_ParentExtent};
-        const f32v2 pos = ViewportData.Position * extent;
-        const f32v2 ext = ViewportData.Extent * extent;
-        return {pos, ext, ViewportData.Depth};
+        const f32v2 pdims = f32v2{m_ParentDimensions};
+        const f32v2 pos = ViewportData.Position * pdims;
+        const f32v2 dims = ViewportData.Dimensions * pdims;
+        return {pos, dims, ViewportData.Depth};
     }
     Scissor asAbsoluteScissor() const
     {
-        const f32v2 extent = GetAbsoluteViewport().Extent;
-        const f32v2 pos = ScissorData.Position * extent;
-        const f32v2 ext = ScissorData.Extent * extent;
-        return {pos, ext};
+        const f32v2 pdims = GetAbsoluteViewport().Dimensions;
+        const f32v2 pos = ScissorData.Position * pdims;
+        const f32v2 dims = ScissorData.Dimensions * pdims;
+        return {pos, dims};
     }
 
-    void update(const u32v2 &parentExtent)
+    void update(const u32v2 &parentDims, const u32v2 &parentExtent, const f32v2 &contentScale)
     {
+        m_ParentDimensions = parentDims;
+        m_ParentContentScale = contentScale;
         m_ParentExtent = parentExtent;
         if (m_Flags & (RenderViewFlag_DynamicViewport | RenderViewFlag_NormalizedViewportCoordinates))
             recreateFramebuffers();
@@ -350,7 +372,9 @@ template <Dimension D> class RenderView
     Camera<D> *m_Camera;
     ViewMask m_ViewBit;
 
+    u32v2 m_ParentDimensions{};
     u32v2 m_ParentExtent{};
+    f32v2 m_ParentContentScale;
     f32m<D> m_View = f32m<D>::Identity();
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();

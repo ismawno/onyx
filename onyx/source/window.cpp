@@ -41,7 +41,7 @@ bool Window::IsFullScreen() const
     const Graph::VideoMode mode = Graph::Monitor_GetVideoMode(monitor);
     const i32v2 mpos = Graph::Monitor_GetPosition(monitor);
 
-    const u32v2 dims = GetScreenDimensions();
+    const u32v2 dims = Graph::Window_GetScreenDimensions(m_Window);
     const i32v2 pos = GetPosition();
 
     return pos[0] == mpos[0] && pos[1] == mpos[1] && dims[0] == mode.Dimensions[0] && dims[1] == mode.Dimensions[1];
@@ -49,7 +49,7 @@ bool Window::IsFullScreen() const
 bool Window::IsHovered() const
 {
     const f32v2 mpos = GetAbsoluteMousePosition();
-    const f32v2 dims = f32v2{GetScreenDimensions()};
+    const f32v2 dims = f32v2{GetDimensions()};
 
     return mpos[0] >= 0.f && mpos[0] < dims[0] && mpos[1] >= 0.f && mpos[1] < dims[1];
 }
@@ -113,12 +113,12 @@ void Window::RemoveFlags(const WindowFlags flags)
 
 void Window::waitForValidExtent() const
 {
-    u32v2 size = Graph::Window_GetPixelDimensions(m_Window);
-    while (size[0] == 0 || size[1] == 0)
+    u32v2 size;
+    do
     {
         Graph::WaitEvents();
         size = Graph::Window_GetPixelDimensions(m_Window);
-    }
+    } while (size[0] == 0 || size[1] == 0);
 }
 
 Window::Window(const WindowSpecs &specs)
@@ -165,8 +165,7 @@ bool Window::handlePresentOrAcquireResult(const Graph::SwapchainStatus status, c
         return true;
 
     if (m_MustRecreateSwapchain || status == Graph::SwapchainStatus_OutOfDate ||
-        (status == Graph::SwapchainStatus_Suboptimal &&
-         m_TimeSinceResize.GetElapsed().As<TKit::Timespan::Milliseconds, u64>() > 350))
+        status == Graph::SwapchainStatus_Suboptimal)
     {
         recreateSwapchain();
         return false;
@@ -275,7 +274,7 @@ void Window::BeginRendering(const Graph::CommandBuffer cmd)
     att.ClearValue.Color = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, getExtent()};
+    info.RenderArea = {{0, 0}, Graph::Swapchain_GetExtent(m_Swapchain)};
     info.ColorAttachments = att;
     Graph::Command_BeginRenderPass(cmd, info);
 }
@@ -359,10 +358,19 @@ static void windowSizeCallback(const Graph::Window win, const u32v2 size)
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_WindowResized;
-
     event.WindowSize = size;
 
-    window->ResetResizeClock();
+    window->PushEvent(event);
+}
+
+static void contentScaleCallback(const Graph::Window win, const f32v2 scale)
+{
+    Event event{};
+    Window *window = Window::FromHandle(win);
+    event.Type = Event_ContentScaleChanged;
+    event.ContentScale = scale;
+
+    window->RequestSwapchainRecreation();
     window->PushEvent(event);
 }
 
@@ -374,7 +382,6 @@ static void framebufferSizeCallback(const Graph::Window win, const u32v2 size)
 
     event.WindowSize = size;
 
-    window->ResetResizeClock();
     window->PushEvent(event);
 }
 
@@ -476,6 +483,7 @@ void Window::InstallCallbacks()
 {
     Graph::Window_Callback_Position(m_Window, windowMoveCallback);
     Graph::Window_Callback_Size(m_Window, windowSizeCallback);
+    Graph::Window_Callback_ContentScale(m_Window, contentScaleCallback);
     Graph::Window_Callback_FramebufferSize(m_Window, framebufferSizeCallback);
     Graph::Window_Callback_Focus(m_Window, windowFocusCallback);
     Graph::Window_Callback_Close(m_Window, windowCloseCallback);

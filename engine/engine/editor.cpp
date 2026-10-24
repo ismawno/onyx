@@ -2152,7 +2152,7 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     bool changed = ov->HorizontalDrag("Position##Viewport", &viewport.Position, vspeed);
     undoRedo_Viewport();
 
-    changed |= ov->HorizontalDrag("Extent##Viewport", &viewport.Extent, vspeed);
+    changed |= ov->HorizontalDrag("Dimensions##Viewport", &viewport.Dimensions, vspeed);
     undoRedo_Viewport();
 
     if (changed)
@@ -2163,7 +2163,7 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     changed = ov->HorizontalDrag("Position##Scissor", &scissor.Position, sspeed);
     undoRedo_Scissor();
 
-    changed |= ov->HorizontalDrag("Extent##Scissor", &scissor.Extent, sspeed);
+    changed |= ov->HorizontalDrag("Dimensions##Scissor", &scissor.Dimensions, sspeed);
     undoRedo_Scissor();
 
     if (changed)
