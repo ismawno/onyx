@@ -113,14 +113,14 @@ void Window::RemoveFlags(const WindowFlags flags)
 
 void Window::waitForValidExtent() const
 {
-    u32v2 size;
-    do
+    Graph::PollEvents();
+    u32v2 size = Graph::Window_GetPixelDimensions(m_Window);
+    while (size[0] == 0 || size[1] == 0)
     {
         Graph::WaitEvents();
         size = Graph::Window_GetPixelDimensions(m_Window);
-    } while (size[0] == 0 || size[1] == 0);
+    }
 }
-
 Window::Window(const WindowSpecs &specs)
 {
     TKIT_ASSERT(specs.Dimensions[0] != 0 && specs.Dimensions[1] != 0,
@@ -360,6 +360,7 @@ static void windowSizeCallback(const Graph::Window win, const u32v2 size)
     event.Type = Event_WindowResized;
     event.WindowSize = size;
 
+    window->RequestSwapchainRecreation();
     window->PushEvent(event);
 }
 
@@ -382,6 +383,7 @@ static void framebufferSizeCallback(const Graph::Window win, const u32v2 size)
 
     event.WindowSize = size;
 
+    window->RequestSwapchainRecreation();
     window->PushEvent(event);
 }
 
