@@ -1754,7 +1754,7 @@ template <Dimension D> static void uploadMaterials()
         }
         else
         {
-            pdata.EmissiveFactor = data.EmissiveFactor.ToLinear().Pack();
+            pdata.EmissiveFactor = data.EmissiveFactor.ToLinear().rgb;
             pdata.TexOffset = data.TexOffset;
             pdata.TexScale = data.TexScale;
             pdata.AlbedoFactor = data.AlbedoFactor;

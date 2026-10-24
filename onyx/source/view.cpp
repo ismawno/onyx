@@ -315,7 +315,8 @@ static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Gra
 }
 
 static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
-                           const Graph::AttachmentInfo *depth, const u32v2 &ext, const Scissor &normScissor)
+                           const Graph::AttachmentInfo *depth, const u32v2 &ext, const Scissor &sc,
+                           const f32v2 &contentScale)
 {
     Graph::RenderPassInfo info{};
     info.RenderArea = {{0, 0}, ext};
@@ -326,7 +327,8 @@ static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<cons
     const f32v2 fext = f32v2{ext};
 
     Graph::Command_SetViewport(cmd, f32v2{0.f}, fext);
-    Graph::Command_SetScissor(cmd, i32v2{normScissor.Position}, u32v2{normScissor.Size});
+    Graph::Command_SetScissor(cmd, i32v2{Math::Round(sc.Position * contentScale)},
+                              u32v2{Math::Round(sc.Size * contentScale)});
     Graph::Command_BeginRenderPass(cmd, info);
 }
 
@@ -386,7 +388,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     depth.LoadOp = Graph::LoadOp_Clear;
     depth.StoreOp = keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
-    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor);
+    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd)
@@ -442,7 +444,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     depth.LoadOp = Graph::LoadOp_Load;
     depth.StoreOp = hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
-    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor);
+    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::CommandBuffer cmd)
@@ -468,7 +470,7 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const Graph::CommandBu
         hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
     const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_Load, Graph::StoreOp_Store);
-    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor);
+    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuffer cmd)
 {
@@ -503,7 +505,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const Graph::Command
 
     const Graph::AttachmentInfo color = colorAttachment(finalImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
 
-    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor);
+    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndPostProcess(const Graph::CommandBuffer cmd)
