@@ -177,14 +177,11 @@ class Window final : public RenderTarget
         Graph::Window_SetMouseCursor(m_Window, cursor);
     }
 
-    f32v2 GetAbsoluteMousePosition() const
+    f32v2 GetMousePosition() const
     {
-        const f32v2 normalized = GetNormalizedMousePosition();
+        const f32v2 normalized =
+            Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenSize(m_Window)};
         return normalized * f32v2{GetSize()};
-    }
-    f32v2 GetNormalizedMousePosition() const
-    {
-        return Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenSize(m_Window)};
     }
 
     bool IsKeyPressed(const Graph::Key key) const
@@ -256,7 +253,7 @@ class Window final : public RenderTarget
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
         const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> rvs = GetSortedViews<D>();
-        const f32v2 mpos = GetNormalizedMousePosition();
+        const f32v2 mpos = GetMousePosition();
 
         for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
             if (rvs[i]->IsWithinViewport(mpos))

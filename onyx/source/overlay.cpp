@@ -971,7 +971,7 @@ void OverlayWindow::ClampToNative()
 {
     // only works if window does not own native. we may adapt this if we want to clamp per monitor
     const NativeWindow *nw = GetNative();
-    const f32v2 size = nw->GetDimensions();
+    const f32v2 size = nw->GetSize();
 
     const f32v2 mnlim = MinSize - Size;
     const f32v2 mxlim = size - MinSize;
@@ -1932,7 +1932,7 @@ u32 Overlay::processWindows()
             continue;
         }
 
-        const f32v2 smpos = nw->ScreenPos + nw->Window->GetAbsoluteMousePosition();
+        const f32v2 smpos = nw->ScreenPos + nw->Window->GetMousePosition();
         nw->ScreenMouseDelta = smpos - nw->ScreenMousePos;
         nw->ScreenMousePos = smpos;
 
@@ -2636,7 +2636,7 @@ void Overlay::removeAllFloatWindows()
 
 static bool isOutsideNative(const NativeWindow *nw, const f32v2 &pos, const f32v2 &size)
 {
-    const f32v2 wsize = nw->GetDimensions();
+    const f32v2 wsize = nw->GetSize();
     const f32 l = nw->ScreenPos[0];
     const f32 t = nw->ScreenPos[1];
 
@@ -5829,7 +5829,7 @@ void Overlay::requestCollapsePopups()
     m_StateFlags |= StateFlag_MustCollapsePopups;
     m_PopupCollapseDepth = 0;
 }
-static f32v2 getMonitorDimensions()
+static f32v2 getMonitorSize()
 {
     return f32v2{Graph::Monitor_GetVideoMode(Graph::Monitor_GetPrimary()).Size};
 }
@@ -5841,7 +5841,7 @@ f32v2 Overlay::computeMouseAlignedPosition(const NativeWindow *win, const f32v2 
     f32v2 pos = win->WorldMouse + offset;
     const bool windowPromotions = allowPromotions && (Flags & OverlayFlag_WindowPromotions);
 
-    const f32v2 br = windowPromotions ? win->ToWorld(getMonitorDimensions()) : win->WorldBottomRightBorder;
+    const f32v2 br = windowPromotions ? win->ToWorld(getMonitorSize()) : win->WorldBottomRightBorder;
     const f32 rt = win->WorldMouse[0] + offset[0] + size[0];
     const f32 rb = win->WorldMouse[1] + offset[1] - size[1];
     if (rt > br[0])
@@ -6790,7 +6790,7 @@ void Overlay::Draw()
             {
                 RenderContext<D2> *context = native->Context;
                 context->Push();
-                context->Scale(native->GetDimensions());
+                context->Scale(native->GetSize());
                 context->Alpha(0.2f);
                 context->Quad();
                 context->Pop();
@@ -7009,7 +7009,7 @@ f32v4 Overlay::getWorldEffectiveBorders() const
     f32v2 bottomRight;
     if (windowPromotions)
     {
-        const f32v2 mdims = getMonitorDimensions();
+        const f32v2 mdims = getMonitorSize();
         topLeft = nw->ToWorld(f32v2{0.f});
         bottomRight = nw->ToWorld(mdims);
     }

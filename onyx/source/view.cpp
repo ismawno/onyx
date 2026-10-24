@@ -529,11 +529,11 @@ template <Dimension D> void RenderView<D>::setViewport(const Viewport &vp)
 {
     if (m_ScissorSizing == SizingPolicy_Proportional)
     {
-        m_Scissor.Position = vp.Position * m_ScissorPosRatio;
+        m_Scissor.Position = vp.Size * m_ScissorPosRatio;
         m_Scissor.Size = vp.Size * m_ScissorSizeRatio;
     }
     if (m_ImageSizing == SizingPolicy_Proportional)
-        setImageSize(vp.Size * m_ImageSizeRatio);
+        setImageSize(u32v2{Math::Round(vp.Size * m_ImageSizeRatio)});
 
     m_Viewport = vp;
 }

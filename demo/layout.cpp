@@ -179,7 +179,7 @@ int main()
                 if (!ImGui::GetIO().WantCaptureMouse && ev.Type == Onyx::Event_Scrolled)
                 {
                     const f32 factor = win->IsKeyPressed(Onyx::Key_LeftShift) ? 0.05f : 0.005f;
-                    view->ZoomScroll(win->GetAbsoluteMousePosition(), factor * ev.ScrollOffset[1]);
+                    view->ZoomScroll(win->GetMousePosition(), factor * ev.ScrollOffset[1]);
                 }
 
 #ifdef ONYX_ENABLE_IMGUI

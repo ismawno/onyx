@@ -247,15 +247,13 @@ template <Dimension D> class RenderView
     void SetFixedImageSize(const u32v2 &size)
     {
         setImageSize(size);
-        recreateFramebuffers();
         m_ImageSizing = SizingPolicy_Fixed;
     }
     void SetProportionalImageSize(const f32v2 &size)
     {
         m_ImageSizeRatio = size;
-        setImageSize(ApplyScale(GetImageSize(), size));
+        setImageSize(u32v2{Math::Round(m_Viewport.Size * size)});
         m_ImageSizing = SizingPolicy_Proportional;
-        recreateFramebuffers();
     }
 
     RenderViewFlags GetFlags() const
@@ -358,7 +356,10 @@ template <Dimension D> class RenderView
   private:
     void setImageSize(const u32v2 &size)
     {
+        if (size == m_ImageSize)
+            return;
         m_ImageSize = size;
+        drainWork();
         recreateFramebuffers();
     }
     void setViewport(const Viewport &vp);
@@ -383,10 +384,16 @@ template <Dimension D> class RenderView
 
     void update(const u32v2 &parentSize, const f32v2 &contentScale)
     {
+        const u32v2 oldExtent = GetImageExtent();
         m_ParentSize = parentSize;
         m_ContentScale = contentScale;
         if (m_ViewportSizing == SizingPolicy_Proportional)
             setViewportBasedOnParent();
+        if (GetImageExtent() != oldExtent)
+        {
+            drainWork();
+            recreateFramebuffers();
+        }
     }
 
     Camera<D> *m_Camera;
@@ -399,10 +406,10 @@ template <Dimension D> class RenderView
     SizingPolicy m_ScissorSizing;
     SizingPolicy m_ImageSizing;
 
-    f32v2 m_ViewportPosRatio{1.f};
+    f32v2 m_ViewportPosRatio{0.f};
     f32v2 m_ViewportSizeRatio{1.f};
 
-    f32v2 m_ScissorPosRatio{1.f};
+    f32v2 m_ScissorPosRatio{0.f};
     f32v2 m_ScissorSizeRatio{1.f};
 
     f32v2 m_ImageSizeRatio{1.f};

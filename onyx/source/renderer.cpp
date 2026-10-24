@@ -2624,8 +2624,11 @@ static void renderCompositor(const Graph::CommandBuffer cmd,
 
         const u32 idx = rv->GetAttachmentIndex();
 
-        Graph::Command_SetViewport(cmd, vp.Position, vp.Size, vp.Depth);
-        Graph::Command_SetScissor(cmd, i32v2{vp.Position + sc.Position}, u32v2{sc.Size});
+        const f32v2 &scale = rv->GetContentScale(); // parentExtent / parentSize
+        Graph::Command_SetViewport(cmd, vp.Position * scale, vp.Size * scale, vp.Depth);
+        Graph::Command_SetScissor(cmd, i32v2{Math::Round((vp.Position + sc.Position) * scale)},
+                                  u32v2{Math::Round(sc.Size * scale)});
+
         Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
         Graph::Command_Draw(cmd, 6);
     }

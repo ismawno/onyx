@@ -2444,7 +2444,7 @@ static Onyx::RenderView<D> *editor_GetHoveredView(const Editor_Viewport &viewpor
     const f32v2 vpScreenPos =
         s_Editor->Overlay->GetMainNativeWindow()->ToLocalScreen(viewport.Position + f32v2{0.f, viewport.Size[1]});
 
-    const f32v2 mpos = win->GetAbsoluteMousePosition() - vpScreenPos;
+    const f32v2 mpos = win->GetMousePosition() - vpScreenPos;
     for (Onyx::RenderView<D> *rv : views)
     {
         if (rv->IsWithinViewport(mpos))

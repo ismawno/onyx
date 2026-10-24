@@ -907,7 +907,7 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
             // provides this when hovered or captured)
             if (pdata->MouseWindow == Graph::NullHandle)
             {
-                f32v2 mpos = window->GetAbsoluteMousePosition();
+                f32v2 mpos = window->GetMousePosition();
                 if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
                 {
                     // Single viewport mode: mouse position in client window coordinates (io.MousePos is (0,0) when the

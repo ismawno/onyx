@@ -698,7 +698,7 @@ struct NativeWindow
     void UpdateBorders()
     {
         WorldTopLeftBorder = View->ScreenToWorld(f32v2{0.f});
-        WorldBottomRightBorder = View->ScreenToWorld(f32v2{1.f});
+        WorldBottomRightBorder = View->ScreenToWorld(View->GetViewport().Size);
     }
 
     f32v2 GetWorldCenter() const
@@ -763,7 +763,7 @@ struct NativeWindow
     {
         return WorldBottomRightBorder[1];
     }
-    f32v2 GetDimensions() const
+    f32v2 GetSize() const
     {
         return {GetWorldRight() - GetWorldLeft(), GetWorldTop() - GetWorldBottom()};
     }

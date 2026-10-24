@@ -48,7 +48,7 @@ bool Window::IsFullScreen() const
 }
 bool Window::IsHovered() const
 {
-    const f32v2 mpos = GetAbsoluteMousePosition();
+    const f32v2 mpos = GetMousePosition();
     const f32v2 size = f32v2{GetSize()};
 
     return mpos[0] >= 0.f && mpos[0] < size[0] && mpos[1] >= 0.f && mpos[1] < size[1];
@@ -531,8 +531,7 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
         if (IsKeyPressed(controls.Backward))
             translation[2] += view.Scale[2] * step;
 
-        const f32v2 mpos = GetNormalizedMousePosition();
-
+        const f32v2 mpos = GetMousePosition() / f32v2{GetSize()};
         const bool lookAround = IsKeyPressed(controls.ToggleLookAround);
         const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
         m_PrevMousePos = mpos;
