@@ -1237,6 +1237,7 @@ struct OverlayDragDropPayload
 
 struct OverlaySpecs
 {
+    RenderContextSpecs Context{};
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
     OverlayStyle Style{};
     OverlayFlags Flags = 0;
@@ -2279,6 +2280,7 @@ class Overlay
     /////////////////////////////////////////////
 
     OverlayFlags Flags = 0;
+    RenderContextSpecs ContextSpecs{};
 
   private:
     StateFlags m_StateFlags = 0;

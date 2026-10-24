@@ -918,7 +918,7 @@ template <Dimension D> u32 ResourcePool_GetResourceCount(const ResourcePool pool
         return FontPool_GetFontCount(pool);
     case Resource_GlyphMesh:
         ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
-        return FontPool_GetGlyphCount(pool);
+        return s_FontData->Pools[pid].GlyphIdToFontId.GetSize();
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource of type '{}' cannot have a resource pool", ToString(rtype));
         return 0;
@@ -1051,7 +1051,7 @@ u32 FontPool_GetGlyphCount(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
 
     const u32 pid = Handle_GetResourcePoolId(pool);
     return s_FontData->Pools[pid].GlyphIdToFontId.GetSize();
@@ -1072,7 +1072,7 @@ MeshBuffers FontPool_GetGlyphBuffers(const ResourcePool pool)
 {
     ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(pool);
     ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(pool);
-    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_GlyphMesh);
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID(pool, Resource_Font);
 
     const u32 pid = Handle_GetResourcePoolId(pool);
 

@@ -727,7 +727,8 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, cons
 /////////////////////////////////////////////
 
 Overlay::Overlay(Window *win, const OverlaySpecs &specs)
-    : Flags(specs.Flags), m_LayoutSpecs(specs.Layout), m_Style(specs.Style), m_DefaultStyle(specs.Style)
+    : Flags(specs.Flags), ContextSpecs(specs.Context), m_LayoutSpecs(specs.Layout), m_Style(specs.Style),
+      m_DefaultStyle(specs.Style)
 {
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
@@ -2515,7 +2516,7 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
     nw->View = win->CreateRenderView<D2>(&m_Camera, {.Flags = GetRenderViewFlags()});
     nw->View->ClearColor.rgba[3] = 0.f;
 
-    nw->Context = CreateRenderContext<D2>();
+    nw->Context = CreateRenderContext<D2>(ContextSpecs);
     nw->Context->AddTarget(nw->View);
     nw->UpdateBorders();
 
