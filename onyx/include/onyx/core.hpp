@@ -191,6 +191,8 @@ struct Specs
     const char *DeviceFaultCrashDump = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
 
+    Graph::Platform Platform = Graph::Platform_Auto;
+
     // execution
     u32 MaxCommandPools = 8;
     u32 MaxCommandBuffers = 32;

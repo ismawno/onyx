@@ -434,6 +434,7 @@ static void core_Initialize(const Specs &specs)
 #endif
 
     Graph::Specs gspecs{};
+    gspecs.TargetPlatform = specs.Platform;
     gspecs.Allocators = s_Allocation[0];
     gspecs.LoaderPath = specs.LoaderPath;
     gspecs.DumpPath = specs.DeviceFaultCrashDump;
