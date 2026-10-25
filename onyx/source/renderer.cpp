@@ -2575,30 +2575,45 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
 }
 
 template <Dimension D>
-static void renderCompositor(const Graph::CommandBuffer cmd,
-                             const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views,
+static void compositeView(const Graph::CommandBuffer cmd, const RenderView<D> *rv, const Graph::PipelineLayout playout)
+{
+    if (rv->GetFlags() & RenderViewFlag_Hidden)
+        return;
+
+    const Graph::DescriptorSet set = rv->GetCompositorSet();
+    Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
+
+    const Viewport &vp = rv->GetViewport();
+    const Scissor &sc = rv->GetScissor();
+
+    const u32 idx = rv->GetAttachmentIndex();
+
+    const f32v2 &scale = rv->GetContentScale(); // parentExtent / parentSize
+    Graph::Command_SetViewport(cmd, vp.Position * scale, vp.Size * scale, vp.Depth);
+    Graph::Command_SetScissor(cmd, i32v2{Math::Round((vp.Position + sc.Position) * scale)},
+                              u32v2{Math::Round(sc.Size * scale)});
+
+    Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
+    Graph::Command_Draw(cmd, 6);
+}
+
+static void renderCompositor(const Graph::CommandBuffer cmd, const RenderTargetInfo &tinfo,
                              const Graph::PipelineLayout playout)
 {
-    for (const RenderView<D> *rv : views)
+    const auto &views2 = tinfo.Views2;
+    const auto &views3 = tinfo.Views3;
+
+    u32 i2 = 0;
+    u32 i3 = 0;
+
+    const u32 s2 = views2.GetSize();
+    const u32 s3 = views3.GetSize();
+    while (i2 < s2 || i3 < s3)
     {
-        if (rv->GetFlags() & RenderViewFlag_Hidden)
-            continue;
-
-        const Graph::DescriptorSet set = rv->GetCompositorSet();
-        Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
-
-        const Viewport &vp = rv->GetViewport();
-        const Scissor &sc = rv->GetScissor();
-
-        const u32 idx = rv->GetAttachmentIndex();
-
-        const f32v2 &scale = rv->GetContentScale(); // parentExtent / parentSize
-        Graph::Command_SetViewport(cmd, vp.Position * scale, vp.Size * scale, vp.Depth);
-        Graph::Command_SetScissor(cmd, i32v2{Math::Round((vp.Position + sc.Position) * scale)},
-                                  u32v2{Math::Round(sc.Size * scale)});
-
-        Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &idx);
-        Graph::Command_Draw(cmd, 6);
+        if (i3 == s3 || (i2 < s2 && views2[i2]->Layer <= views3[i3]->Layer))
+            compositeView(cmd, views2[i2++], playout);
+        else
+            compositeView(cmd, views3[i3++], playout);
     }
 }
 
@@ -2632,8 +2647,7 @@ RenderSubmitInfo render(const Graph::CommandBuffer cmd, Target *target, const Re
     Graph::Command_BindPipeline(cmd, s_CompositorPipeline);
 
     const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Compositor);
-    renderCompositor(cmd, tinfo.Views2, playout);
-    renderCompositor(cmd, tinfo.Views3, playout);
+    renderCompositor(cmd, tinfo, playout);
 
 #ifdef ONYX_ENABLE_IMGUI
     if constexpr (std::is_same_v<Target, Window>)
