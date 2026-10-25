@@ -501,9 +501,10 @@ struct OverlayDockNode
 const OverlayDockNode *DockSplit(LayoutAxis axis, f32 ratio, const OverlayDockNode *child0,
                                  const OverlayDockNode *child1, OverlayDockNodeFlags flags = 0);
 const OverlayDockNode *DockTabBar(TKit::Span<const LayoutId> windows, OverlayDockNodeFlags flags = 0);
+
 inline const OverlayDockNode *DockTabBar(const LayoutId window, const OverlayDockNodeFlags flags = 0)
 {
-    return DockTabBar(TKit::Span<const LayoutId>{window}, flags);
+    return DockTabBar(TKit::Span<const LayoutId>(&window, 1), flags);
 }
 
 struct DockTreeDescription

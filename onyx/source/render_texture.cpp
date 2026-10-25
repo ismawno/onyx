@@ -148,38 +148,41 @@ void RenderTexture::FindAvailableImages()
     m_Writable = pending;
 }
 
+void RenderTexture::PrepareReadableImage(const Graph::CommandBuffer cmd)
+{
+    const FrontEndImage &read = m_Images[m_Readable];
+    // the readable image is only in attachment layout if it was rendered to last frame. after a resize (or on the
+    // first frame) it is already shader read only, and the transition would be a no-op with a wrong src access
+    if (Graph::Image_GetLayout(read.Image) != Graph::ImageLayout_ColorAttachment)
+        return;
+
+    Graph::ImageMemoryBarrierInfo rb{};
+    rb.Image = read.Image;
+    rb.NewLayout = Graph::ImageLayout_ShaderReadOnly;
+    rb.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+    rb.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    rb.DstStages = Graph::PipelineStageFlag_FragmentShader;
+    rb.DstAccess = Graph::AccessFlag_ShaderRead;
+
+    Graph::Command_ImageBarrier(cmd, rb);
+}
+
 void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderTexture::BeginRendering");
     TKIT_ASSERT(m_Writable != m_Readable,
                 "[ONYX][RENDER-TEXTURE] Cannot have the same image as a readable and writable texture!");
 
-    const FrontEndImage &read = m_Images[m_Readable];
     const FrontEndImage &write = m_Images[m_Writable];
 
-    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 2> barriers{};
-
-    // the readable image is only in attachment layout if it was rendered to last frame. after a resize (or on the
-    // first frame) it is already shader read only, and the transition would be a no-op with a wrong src access
-    if (Graph::Image_GetLayout(read.Image) == Graph::ImageLayout_ColorAttachment)
-    {
-        Graph::ImageMemoryBarrierInfo &rb = barriers.Append();
-        rb.Image = read.Image;
-        rb.NewLayout = Graph::ImageLayout_ShaderReadOnly;
-        rb.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
-        rb.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
-        rb.DstStages = Graph::PipelineStageFlag_FragmentShader;
-        rb.DstAccess = Graph::AccessFlag_ShaderRead;
-    }
-
-    Graph::ImageMemoryBarrierInfo &wb = barriers.Append();
+    Graph::ImageMemoryBarrierInfo wb{};
     wb.Image = write.Image;
     wb.NewLayout = Graph::ImageLayout_ColorAttachment;
     wb.SrcStages = Graph::PipelineStageFlag_FragmentShader;
     wb.DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
     wb.DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
 
-    Graph::Command_ImageBarrier(cmd, barriers);
+    Graph::Command_ImageBarrier(cmd, wb);
     Graph::AttachmentInfo target{};
     target.View = Graph::Image_GetView(write.Image, 1);
     target.Layout = Graph::ImageLayout_ColorAttachment;

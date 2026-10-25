@@ -370,11 +370,12 @@ void Render(const RenderInfo &info)
         for (RenderTexture *rtex : s_Data->RenderTextures)
         {
             const Graph::CommandBuffer cmd = Graph::CommandPool_NextCommandBuffer(gpool);
-
             Graph::CommandBuffer_Begin(cmd);
             if (once)
             {
                 Resources_UpdateTextureIdOffsetBuffer(cmd);
+                for (RenderTexture *other : s_Data->RenderTextures)
+                    other->PrepareReadableImage(cmd);
                 once = false;
             }
             const RenderSubmitInfo rinfo = Renderer_Render(cmd, rtex);

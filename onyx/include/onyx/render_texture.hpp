@@ -27,6 +27,11 @@ class RenderTexture final : public RenderTarget
 
     void FindAvailableImages();
 
+    // we do this so that render texture A, created before render texture B, may sample render texture B. this happens
+    // in a loop, and A may sample texture B in the wrong layout. So we expose this method so that all textures can be
+    // transitioned once
+    void PrepareReadableImage(Graph::CommandBuffer cmd);
+
     void BeginRendering(Graph::CommandBuffer cmd);
     void EndRendering(Graph::CommandBuffer cmd);
 
