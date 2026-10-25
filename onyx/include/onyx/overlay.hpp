@@ -2258,7 +2258,7 @@ class Overlay
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
-        return RenderViewFlag_Transparency | RenderViewFlag_PostProcess | RenderViewFlag_Outlines;
+        return RenderViewFlag_Transparency | RenderViewFlag_Outlines;
     }
 
     /////////////////////////////////////////////

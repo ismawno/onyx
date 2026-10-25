@@ -281,7 +281,7 @@ static TKit::Storage<LayoutData> s_LayoutData{};
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
 static Graph::Pipeline s_BlendPipeline = Graph::NullHandle;
-static Graph::Pipeline s_PostProcessPipeline = Graph::NullHandle;
+static Graph::Pipeline s_OutlinePipeline = Graph::NullHandle;
 static Graph::Pipeline s_CompositorPipeline = Graph::NullHandle;
 
 static Graph::Sampler s_LinearSampler = Graph::NullHandle;
@@ -353,8 +353,8 @@ static void createPipelineLayouts()
     s_LayoutData->Standalone[StandalonePass_Blend].Layout =
         create(GetDescriptorLayout(StandalonePass_Blend), fragment, sizeof(BlendPushConstantData));
 
-    s_LayoutData->Standalone[StandalonePass_PostProcess].Layout =
-        create(GetDescriptorLayout(StandalonePass_PostProcess), fragment, sizeof(PostProcessPushConstantData));
+    s_LayoutData->Standalone[StandalonePass_Outline].Layout =
+        create(GetDescriptorLayout(StandalonePass_Outline), fragment, sizeof(OutlinePushConstantData));
 
     s_LayoutData->Standalone[StandalonePass_Compositor].Layout =
         create(GetDescriptorLayout(StandalonePass_Compositor), fragment, sizeof(CompositorPushConstantData));
@@ -370,8 +370,8 @@ static void createPipelineLayouts()
                                       "onyx-ray-march-pipeline-layout");
         Graph::PipelineLayout_SetName(s_LayoutData->Standalone[StandalonePass_Blend].Layout,
                                       "onyx-blend-pipeline-layout");
-        Graph::PipelineLayout_SetName(s_LayoutData->Standalone[StandalonePass_PostProcess].Layout,
-                                      "onyx-post-process-pipeline-layout");
+        Graph::PipelineLayout_SetName(s_LayoutData->Standalone[StandalonePass_Outline].Layout,
+                                      "onyx-outline-pipeline-layout");
         Graph::PipelineLayout_SetName(s_LayoutData->Standalone[StandalonePass_Compositor].Layout,
                                       "onyx-compositor-pipeline-layout");
     }
@@ -514,7 +514,7 @@ static void createShaders()
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader =
         Graph::Compilation_CreateShader(cmp, "main", "ray-march");
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "blend");
-    s_LayoutData->Standalone[StandalonePass_PostProcess].Shader =
+    s_LayoutData->Standalone[StandalonePass_Outline].Shader =
         Graph::Compilation_CreateShader(cmp, "mainFS", "post-process");
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader =
         Graph::Compilation_CreateShader(cmp, "mainFS", "compositor");
@@ -538,7 +538,7 @@ static void createShaders()
 
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = shaderFromBinary(g_ShaderBinaryData.Blend);
-    s_LayoutData->Standalone[StandalonePass_PostProcess].Shader = shaderFromBinary(g_ShaderBinaryData.PostProcess);
+    s_LayoutData->Standalone[StandalonePass_Outline].Shader = shaderFromBinary(g_ShaderBinaryData.Outline);
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader = shaderFromBinary(g_ShaderBinaryData.Compositor);
 #endif
 }
@@ -860,9 +860,9 @@ static Graph::Pipeline createBlendPipeline()
     return createFullPassPipeline(StandalonePass_Blend, attachment);
 }
 
-static Graph::Pipeline createPostProcessPipeline()
+static Graph::Pipeline createOutlinePipeline()
 {
-    return createFullPassPipeline(StandalonePass_PostProcess, {.Format = GetAttachmentFormat(Attachment_Final)});
+    return createFullPassPipeline(StandalonePass_Outline, {.Format = GetAttachmentFormat(Attachment_Final)});
 }
 
 static Graph::Pipeline createCompositorPipeline()
@@ -1007,13 +1007,13 @@ template <Dimension D> static void createPipelines()
 static void createPipelines()
 {
     s_BlendPipeline = createBlendPipeline();
-    s_PostProcessPipeline = createPostProcessPipeline();
+    s_OutlinePipeline = createOutlinePipeline();
     s_CompositorPipeline = createCompositorPipeline();
 
     if (Graph::IsValidationEnabled())
     {
         Graph::Pipeline_SetName(s_BlendPipeline, "onyx-blend-pipeline");
-        Graph::Pipeline_SetName(s_PostProcessPipeline, "onyx-post-process-pipeline");
+        Graph::Pipeline_SetName(s_OutlinePipeline, "onyx-post-process-pipeline");
         Graph::Pipeline_SetName(s_CompositorPipeline, "onyx-compositor-pipeline");
     }
 
@@ -1038,7 +1038,7 @@ static void destroyPipelines()
     destroyPipelines<D2>();
     destroyPipelines<D3>();
     Graph::Pipeline_Destroy(s_BlendPipeline);
-    Graph::Pipeline_Destroy(s_PostProcessPipeline);
+    Graph::Pipeline_Destroy(s_OutlinePipeline);
     Graph::Pipeline_Destroy(s_CompositorPipeline);
 }
 
@@ -2493,16 +2493,16 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
     RendererData<D> &rdata = getRendererData<D>();
     const Graph::Tracker &tracker = rdata.ActiveResourceGroup->Tracker;
 
-    TKit::StackArray<RenderView<D> *> ppViews{};
-    ppViews.Reserve(views.GetSize());
+    TKit::StackArray<RenderView<D> *> outlineViews{};
+    outlineViews.Reserve(views.GetSize());
 
     for (RenderView<D> *rv : views)
     {
         const RenderViewFlags flags = rv->GetFlags();
         if (flags & RenderViewFlag_Hidden)
             continue;
-        if (flags & RenderViewFlag_PostProcess)
-            ppViews.Append(rv);
+        if (flags & RenderViewFlag_Outlines)
+            outlineViews.Append(rv);
 
         const bool shadows = flags & RenderViewFlag_Shadows;
         if (shadows)
@@ -2544,18 +2544,18 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
         }
     }
 
-    if (!ppViews.IsEmpty())
+    if (!outlineViews.IsEmpty())
     {
-        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_PostProcess);
-        for (RenderView<D> *rv : ppViews)
+        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Outline);
+        for (RenderView<D> *rv : outlineViews)
         {
-            rv->BeginPostProcess(cmd);
-            Graph::Command_BindPipeline(cmd, s_PostProcessPipeline);
+            rv->BeginOutlinePass(cmd);
+            Graph::Command_BindPipeline(cmd, s_OutlinePipeline);
 
-            const Graph::DescriptorSet set = rv->GetPostProcessSet();
+            const Graph::DescriptorSet set = rv->GetOutlineSet();
             Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
-            PostProcessPushConstantData pdata;
+            OutlinePushConstantData pdata;
             pdata.AttachmentIndex = rv->GetAttachmentIndex();
 
             TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
@@ -2564,12 +2564,11 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
 
             pdata.Extent = rv->GetImageExtent();
             pdata.MaxOutlineWidth = u32(f32(rv->MaxOutlineWidth) * rv->GetContentScale()[0]);
-            pdata.Flags = rv->GetFlags();
 
             Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);
             Graph::Command_Draw(cmd, 6);
 
-            rv->EndPostProcess(cmd);
+            rv->EndOutlinePass(cmd);
         }
     }
 }

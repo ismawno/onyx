@@ -59,11 +59,10 @@ using RenderViewFlags = u16;
 enum RenderViewFlagBit : RenderViewFlags
 {
     RenderViewFlag_Shadows = 1U << 0,
-    RenderViewFlag_PostProcess = 1U << 1,
-    RenderViewFlag_Outlines = 1U << 2,
-    RenderViewFlag_Transparency = 1U << 3,
-    RenderViewFlag_ManualProjectionView = 1U << 4,
-    RenderViewFlag_Hidden = 1U << 5,
+    RenderViewFlag_Outlines = 1U << 1,
+    RenderViewFlag_Transparency = 1U << 2,
+    RenderViewFlag_ManualProjectionView = 1U << 3,
+    RenderViewFlag_Hidden = 1U << 4,
 };
 
 struct Framebuffer
@@ -128,8 +127,8 @@ template <Dimension D> class RenderView
     void BeginBlendPass(Graph::CommandBuffer cmd);
     void EndBlendPass(Graph::CommandBuffer cmd);
 
-    void BeginPostProcess(Graph::CommandBuffer cmd);
-    void EndPostProcess(Graph::CommandBuffer cmd);
+    void BeginOutlinePass(Graph::CommandBuffer cmd);
+    void EndOutlinePass(Graph::CommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const;
 
@@ -312,9 +311,9 @@ template <Dimension D> class RenderView
     {
         return m_BlendSet;
     }
-    Graph::DescriptorSet GetPostProcessSet() const
+    Graph::DescriptorSet GetOutlineSet() const
     {
-        return m_PostProcessSet;
+        return m_OutlineSet;
     }
     Graph::DescriptorSet GetCompositorSet() const
     {
@@ -424,7 +423,7 @@ template <Dimension D> class RenderView
 
     TKit::TierArray<Framebuffer> m_Framebuffers{};
     Graph::DescriptorSet m_BlendSet;
-    Graph::DescriptorSet m_PostProcessSet;
+    Graph::DescriptorSet m_OutlineSet;
     Graph::DescriptorSet m_CompositorSet;
 
     u32 m_AttachmentIndex = TKIT_U32_MAX;

@@ -702,22 +702,21 @@ void setup(App &app)
     };
 
     app.PixelCam.Mode = Onyx::CameraMode_Viewport;
-    app.PixelView = win->CreateRenderView<D2>(
-        &app.PixelCam, {.Flags = Onyx::RenderViewFlag_PostProcess | Onyx::RenderViewFlag_Outlines});
+    app.PixelView = win->CreateRenderView<D2>(&app.PixelCam, {.Flags = Onyx::RenderViewFlag_Outlines});
     app.PixelView->SetProportionalViewport(proportional(0));
     app.PixelView->ClearColor = Theme::ClearPixel;
 
     app.GalleryCam.OrthoParameters.Size = 10.f;
     app.GalleryView = win->CreateRenderView<D2>(
-        &app.GalleryCam, {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_PostProcess |
-                                   Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
+        &app.GalleryCam,
+        {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
     app.GalleryView->SetProportionalViewport(proportional(1));
     app.GalleryView->ClearColor = Theme::ClearGallery;
 
     app.Cam3.View.Translation = f32v3{0.f, 1.5f, 9.5f};
-    app.View3 = win->CreateRenderView<D3>(&app.Cam3,
-                                          {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_PostProcess |
-                                                    Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
+    app.View3 =
+        win->CreateRenderView<D3>(&app.Cam3, {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines |
+                                                       Onyx::RenderViewFlag_Transparency});
     app.View3->SetProportionalViewport(proportional(2));
     app.View3->ClearColor = Theme::ClearScene3;
 
@@ -1221,10 +1220,8 @@ void checkRendering(App &app)
         wanted |= Onyx::RenderViewFlag_Outlines;
     if (app.Render.Shadows)
         wanted |= Onyx::RenderViewFlag_Shadows;
-    if (app.Render.PostProcess)
-        wanted |= Onyx::RenderViewFlag_PostProcess;
-    const Onyx::RenderViewFlags mask = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Shadows |
-                                       Onyx::RenderViewFlag_PostProcess | Onyx::RenderViewFlag_Transparency;
+    const Onyx::RenderViewFlags mask =
+        Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Transparency;
     cat.Expect("Gallery view flags match the toggles",
                (app.GalleryView->GetFlags() & mask) == wanted && (app.View3->GetFlags() & mask) == wanted,
                "RenderView::SetFlags enables or disables whole passes. Toggling post process or transparency "
@@ -2194,8 +2191,6 @@ void panelRendering(App &app)
         Onyx::RenderViewFlags flags = Onyx::RenderViewFlag_Transparency;
         if (rs.Shadows)
             flags |= Onyx::RenderViewFlag_Shadows;
-        if (rs.PostProcess)
-            flags |= Onyx::RenderViewFlag_PostProcess;
         if (rs.Outlines)
             flags |= Onyx::RenderViewFlag_Outlines;
         app.GalleryView->SetFlags(flags);

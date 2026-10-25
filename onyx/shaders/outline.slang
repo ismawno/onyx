@@ -1,29 +1,22 @@
 #include "full-vertex.slang"
 
-[UnscopedEnum]
-enum PostProcessFlagBit : u32
-{
-    PostProcessFlag_Outlines = 1U << 2,
-};
-
 struct PushConstants
 {
     u32v2 Extent;
     u32 AttachmentIndex;
     u32 MaxOutlineWidth;
-    u32 Flags;
 }
 
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-[[vk::binding(ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING)]]
+[[vk::binding(ONYX_OUTLINE_PASS_COLOR_ATTACHMENTS_BINDING)]]
 Sampler2D g_Colors[ONYX_MAX_ATTACHMENTS];
 
-[[vk::binding(ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING)]]
+[[vk::binding(ONYX_OUTLINE_PASS_OUTLINE_ATTACHMENTS_BINDING)]]
 Sampler2D g_Outlines[ONYX_MAX_ATTACHMENTS];
 
-[[vk::binding(ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING)]]
+[[vk::binding(ONYX_OUTLINE_PASS_STENCIL_ATTACHMENTS_BINDING)]]
 Texture2D<u32> g_Stencil[ONYX_MAX_ATTACHMENTS];
 
 i32v2 ClampPixels(const i32v2 pixels)
@@ -45,10 +38,6 @@ f32v4 mainFS(const FragInput input) : SV_Target
     const u32 idx = g_PushData.AttachmentIndex;
 
     const Sampler2D colors = g_Colors[idx];
-
-    if (!bool(g_PushData.Flags & PostProcessFlag_Outlines))
-        return colors.Sample(uv);
-
     const Sampler2D outlines = g_Outlines[idx];
 
     const i32v2 center = i32v2(input.Position.xy);

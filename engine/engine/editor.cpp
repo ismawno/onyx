@@ -2182,21 +2182,7 @@ template <Dimension D> static void sceneWindow_DisplayView(Editor_RenderView<D> 
     };
 
     changed = undoRedo_Flags("Shadows", Onyx::RenderViewFlag_Shadows);
-
-    if (undoRedo_Flags("Post-process", Onyx::RenderViewFlag_PostProcess))
-    {
-        if (!(flags & Onyx::RenderViewFlag_PostProcess))
-            flags &= ~Onyx::RenderViewFlag_Outlines;
-
-        changed = true;
-    }
-
-    const bool mustDisable = !(flags & Onyx::RenderViewFlag_PostProcess);
-    ov->BeginDisabled(mustDisable);
     changed |= undoRedo_Flags("Outlines", Onyx::RenderViewFlag_Outlines);
-    ov->EndDisabled();
-    if (mustDisable)
-        ov->SetItemTooltipRaw("Outlines can only be enabled with post-processing", Onyx::OverlayFocusFlag_NormalDelay);
 
     changed |= undoRedo_Flags("Transparency", Onyx::RenderViewFlag_Transparency);
     changed |= undoRedo_Flags("Hidden", Onyx::RenderViewFlag_Hidden);

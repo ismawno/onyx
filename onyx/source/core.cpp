@@ -257,15 +257,15 @@ static void createDescriptorData()
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] = Graph::DescriptorSetLayout_Create(blend);
 
-    constexpr Binding postProcess[] = {
-        Binding::Create(ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+    constexpr Binding outlines[] = {
+        Binding::Create(ONYX_OUTLINE_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
-        Binding::Create(ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
+        Binding::Create(ONYX_OUTLINE_PASS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
                         pbound | updateAfterBind),
-        Binding::Create(ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment,
-                        ONYX_MAX_ATTACHMENTS, pbound | updateAfterBind),
+        Binding::Create(ONYX_OUTLINE_PASS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment, ONYX_MAX_ATTACHMENTS,
+                        pbound | updateAfterBind),
     };
-    s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess] = Graph::DescriptorSetLayout_Create(postProcess);
+    s_DescriptorData->StandaloneLayouts[StandalonePass_Outline] = Graph::DescriptorSetLayout_Create(outlines);
 
     constexpr Binding compositor[] = {
         Binding::Create(ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
@@ -286,8 +286,8 @@ static void createDescriptorData()
                                            "onyx-ray-march-descriptor-set-layout");
         Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Blend],
                                            "onyx-blend-descriptor-set-layout");
-        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_PostProcess],
-                                           "onyx-post-process-descriptor-set-layout");
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Outline],
+                                           "onyx-outline-descriptor-set-layout");
         Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor],
                                            "onyx-compositor-descriptor-set-layout");
     }

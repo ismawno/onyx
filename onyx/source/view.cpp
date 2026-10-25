@@ -80,13 +80,13 @@ RenderView<D>::RenderView(const u32v2 &size, const f32v2 &contentScale, Camera<D
     m_ViewBit = allocateViewBit();
 
     m_BlendSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Blend));
-    m_PostProcessSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_PostProcess));
+    m_OutlineSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Outline));
     m_CompositorSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Compositor));
 
     if (Graph::IsValidationEnabled())
     {
         Graph::DescriptorSet_SetName(m_BlendSet, "onyx-blend-set-window");
-        Graph::DescriptorSet_SetName(m_PostProcessSet, "onyx-post-process-set-window");
+        Graph::DescriptorSet_SetName(m_OutlineSet, "onyx-outline-set-window");
         Graph::DescriptorSet_SetName(m_CompositorSet, "onyx-compositor-set-window");
     }
 
@@ -102,7 +102,7 @@ template <Dimension D> RenderView<D>::~RenderView()
     drainWork();
 
     Graph::DescriptorSet_Destroy(m_BlendSet);
-    Graph::DescriptorSet_Destroy(m_PostProcessSet);
+    Graph::DescriptorSet_Destroy(m_OutlineSet);
     Graph::DescriptorSet_Destroy(m_CompositorSet);
 
     destroyFramebuffers();
@@ -121,8 +121,8 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
     const u32v2 extent = GetImageExtent();
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
-    const bool pprocess = m_Flags & RenderViewFlag_PostProcess;
-    TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, pprocess, true, true, true};
+    const bool outlines = m_Flags & RenderViewFlag_Outlines;
+    TKit::FixedArray<bool, Attachment_Count> mustCreate{transparency, transparency, outlines, true, true, true};
 
     for (u32 i = 0; i < maxFbs; ++i)
     {
@@ -147,7 +147,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
         }
 
-        if (pprocess)
+        if (outlines)
         {
             const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
                 Graph::Image_GetView(fb.Attachments[Attachment_Intermediate]), layout, near);
@@ -158,14 +158,11 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             const Graph::DescriptorImageInfo stencil = Graph::DescriptorImageInfo::Create(
                 Graph::Image_GetView(fb.Attachments[Attachment_DepthStencil], 1), layout);
 
-            Graph::DescriptorSet_BeginRecordWrite(m_PostProcessSet);
-            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_COLOR_ATTACHMENTS_BINDING, color,
-                                             i);
-            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_OUTLINE_ATTACHMENTS_BINDING,
-                                             outline, i);
-            Graph::DescriptorSet_RecordWrite(m_PostProcessSet, ONYX_POST_PROCESS_PASS_STENCIL_ATTACHMENTS_BINDING,
-                                             stencil, i);
-            Graph::DescriptorSet_EndRecordWrite(m_PostProcessSet);
+            Graph::DescriptorSet_BeginRecordWrite(m_OutlineSet);
+            Graph::DescriptorSet_RecordWrite(m_OutlineSet, ONYX_OUTLINE_PASS_COLOR_ATTACHMENTS_BINDING, color, i);
+            Graph::DescriptorSet_RecordWrite(m_OutlineSet, ONYX_OUTLINE_PASS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
+            Graph::DescriptorSet_RecordWrite(m_OutlineSet, ONYX_OUTLINE_PASS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
+            Graph::DescriptorSet_EndRecordWrite(m_OutlineSet);
         }
 
         // view 1 is the surface format view, created in createAttachment()
@@ -337,13 +334,13 @@ static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<cons
 // shadow passes are done directly in the renderer so they are not contemplated here
 //
 // first pass is the opaque pass. renders opaque geometry to either the intermediate attachment or the final attachment
-// (latter if post processing is disabled. we skip one pass this way). this pass takes srgb textures -> linearizes ->
+// (latter if outlines are disabled. we skip one pass this way). this pass takes srgb textures -> linearizes ->
 // does math with linear colors -> stores as srgb
 //
 // if transparency is enabled, transparent pass is executed. same deal as the opaque pass in terms of colorspace. the
 // blend pass merges both opaque and transparent directly into the opaque's target (either intermediate attchm or final)
 //
-// if post processing is enabled, the pass is executed with intermediate as input and final as output
+// if outlines are enabled, the pass is executed with intermediate as input and final as output
 //
 // the final image format is a bit special because it supports both: unorm and srgb. throughout all this pipeline, the
 // format (view) used is srgb however, for the final window composite pass that merges all views, the format that is
@@ -356,21 +353,20 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
-    const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
 
     const Graph::Image colorImg =
-        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
+        hasOutline ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
     const Graph::Image outlImg = fb.Attachments[Attachment_Outline];
     const Graph::Image depthImg = fb.Attachments[Attachment_DepthStencil];
 
-    const bool keepDepth = transparent || hasOutlines;
+    const bool keepDepth = transparent || hasOutline;
 
     Graph::ImageMemoryBarrierInfo barriers[3] = {toColorAttachment(colorImg), toColorAttachment(outlImg), {}};
     barriers[2].Image = depthImg;
     barriers[2].NewLayout = Graph::ImageLayout_DepthStencilAttachment;
-    barriers[2].SrcStages = hasPostProcess ? Graph::PipelineStageFlag_FragmentShader : 0;
+    barriers[2].SrcStages = hasOutline ? Graph::PipelineStageFlag_FragmentShader : 0;
     barriers[2].DstStages = Graph::PipelineStageFlag_EarlyFragmentTests;
     barriers[2].DstAccess = Graph::AccessFlag_DepthStencilAttachmentWrite;
     Graph::Command_ImageBarrier(cmd, barriers);
@@ -379,8 +375,8 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     TKit::FixedArray<Graph::AttachmentInfo, 2> atts{};
     atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store,
                               f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
-    atts[1] = colorAttachment(outlImg, hasOutlines ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare,
-                              hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    atts[1] = colorAttachment(outlImg, hasOutline ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare,
+                              hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
 
     Graph::AttachmentInfo depth{};
     depth.View = Graph::Image_GetView(depthImg);
@@ -401,13 +397,13 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuf
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     if (!transparent)
     {
-        const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+        const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
         const Graph::Image colorImg =
-            hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
+            hasOutline ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
         TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 3> barriers{};
         barriers.Append(colorToShaderRead(colorImg));
-        if (hasPostProcess)
+        if (hasOutline)
         {
             barriers.Append(colorToShaderRead(fb.Attachments[Attachment_Outline]));
             barriers.Append(depthToShaderRead(fb.Attachments[Attachment_DepthStencil]));
@@ -430,19 +426,19 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     const Graph::ImageMemoryBarrierInfo barriers[2] = {toColorAttachment(trImg), toColorAttachment(revImg)};
     Graph::Command_ImageBarrier(cmd, barriers);
 
-    const bool hasOutlines = (m_Flags & RenderViewFlag_PostProcess) && (m_Flags & RenderViewFlag_Outlines);
+    const bool hasOutline = (m_Flags & RenderViewFlag_Outlines) && (m_Flags & RenderViewFlag_Outlines);
 
     TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
     atts[0] = colorAttachment(trImg, Graph::LoadOp_Clear, Graph::StoreOp_Store);
-    atts[1] = colorAttachment(outlImg, hasOutlines ? Graph::LoadOp_Load : Graph::LoadOp_DontCare,
-                              hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    atts[1] = colorAttachment(outlImg, hasOutline ? Graph::LoadOp_Load : Graph::LoadOp_DontCare,
+                              hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
     atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, f32v4{1.f, 0.f, 0.f, 0.f});
 
     Graph::AttachmentInfo depth{};
     depth.View = Graph::Image_GetView(depthImg);
     depth.Layout = Graph::ImageLayout_DepthStencilAttachment;
     depth.LoadOp = Graph::LoadOp_Load;
-    depth.StoreOp = hasOutlines ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    depth.StoreOp = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
     beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor, m_ContentScale);
 }
@@ -465,9 +461,9 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const Graph::CommandBu
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
     const Graph::Image colorImg =
-        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
+        hasOutline ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
     const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_Load, Graph::StoreOp_Store);
     beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
@@ -479,13 +475,13 @@ template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuff
     Graph::Command_EndRenderPass(cmd);
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const bool hasPostProcess = m_Flags & RenderViewFlag_PostProcess;
+    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
     const Graph::Image colorImg =
-        hasPostProcess ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
+        hasOutline ? fb.Attachments[Attachment_Intermediate] : fb.Attachments[Attachment_Final];
 
     TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 3> barriers{};
     barriers.Append(colorToShaderRead(colorImg));
-    if (hasPostProcess)
+    if (hasOutline)
     {
         barriers.Append(colorToShaderRead(fb.Attachments[Attachment_Outline]));
         barriers.Append(depthToShaderRead(fb.Attachments[Attachment_DepthStencil]));
@@ -493,9 +489,9 @@ template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuff
     Graph::Command_ImageBarrier(cmd, barriers);
 }
 
-template <Dimension D> void RenderView<D>::BeginPostProcess(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginOutlinePass(const Graph::CommandBuffer cmd)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::View::BeginPostProcess");
+    TKIT_PROFILE_NSCOPE("Onyx::View::BeginOutlinePass");
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
     const Graph::Image finalImg = fb.Attachments[Attachment_Final];
@@ -508,9 +504,9 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const Graph::Command
     beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 
-template <Dimension D> void RenderView<D>::EndPostProcess(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndOutlinePass(const Graph::CommandBuffer cmd)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::View::EndPostProcess");
+    TKIT_PROFILE_NSCOPE("Onyx::View::EndOutlinePass");
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
@@ -547,7 +543,7 @@ template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
 
     m_Flags = flags;
 
-    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_PostProcess;
+    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_Outlines;
     if ((flags & fbFlags) != (f & fbFlags))
     {
         drainWork();

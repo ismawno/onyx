@@ -239,12 +239,11 @@ using FlatPushConstantData = f32m4;
 using CompositorPushConstantData = u32;
 using BlendPushConstantData = u32;
 
-struct PostProcessPushConstantData
+struct OutlinePushConstantData
 {
     u32v2 Extent;
     u32 AttachmentIndex;
     u32 MaxOutlineWidth;
-    u32 Flags;
 };
 
 template <Dimension D> struct ShadowPushConstantData
