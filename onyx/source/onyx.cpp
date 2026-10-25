@@ -274,10 +274,17 @@ void DestroyRenderTexture(const RenderTexture *rtex)
                "CreateRenderTexture() function");
 }
 
+#ifdef ONYX_ENABLE_AUDIO
+void audio_Update();
+#endif
+
 bool Running()
 {
     // a bit weird to have it here, but it works
     Graph::PollEvents();
+#ifdef ONYX_ENABLE_AUDIO
+    audio_Update();
+#endif
     //
     if (s_Data->Quit & QuitFlag_Quit)
     {
