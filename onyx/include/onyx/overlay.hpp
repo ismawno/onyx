@@ -2190,6 +2190,11 @@ class Overlay
     }
     bool IsItemHovered(const OverlayFocusFlags flags = 0)
     {
+        // only the element overload implements the hover delays and the stationary requirement
+        constexpr OverlayFocusFlags timing =
+            OverlayFocusFlag_ShortDelay | OverlayFocusFlag_NormalDelay | OverlayFocusFlag_Stationary;
+        if (flags & timing)
+            return isElementHovered(m_Active->GetActiveLayout()->QueryElement(m_LastItem.Id), flags);
         return isElementHovered(QueryItemFocusStatus(), flags);
     }
     bool IsItemPressed(const OverlayInteractionFlags flags = 0)
