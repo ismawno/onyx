@@ -357,6 +357,25 @@ f32 SampleShadow(const Texture1D<f32> map, const SamplerComparisonState csmp, co
     else
         return map.SampleCmp(csmp, uv, fragDepth);
 }
+// full circle point lights store a periodic map: texel 0 and texel N - 1 are neighbours. the shadow samplers clamp to an
+// opaque white (lit) border, which leaks light across the seam at 180 degrees, so filter by hand with wrapped texels
+f32 SampleShadowPoint(const Texture1D<f32> map, const SamplerComparisonState csmp, const SamplerState smp, const f32 uv,
+                      const f32 fragDepth, const bool fullCircle)
+{
+    if (!fullCircle)
+        return SampleShadow(map, csmp, smp, uv, fragDepth);
+
+    u32 width;
+    map.GetDimensions(width);
+    const i32 n = i32(width);
+    const f32 x = uv * f32(width) - 0.5f;
+    const f32 fx = floor(x);
+    const i32 i0 = ((i32(fx) % n) + n) % n;
+    const i32 i1 = (i0 + 1) % n;
+    const f32 lit0 = f32(map.Load(i32v2(i0, 0)) >= fragDepth);
+    const f32 lit1 = f32(map.Load(i32v2(i1, 0)) >= fragDepth);
+    return lerp(lit0, lit1, x - fx);
+}
 
 f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
 {
@@ -404,6 +423,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
             const Texture1D<f32> map = resources.ShadowMaps[shadowIndex];
             const SamplerState smp = resources.ShadowSampler;
             const SamplerComparisonState csmp = resources.ShadowCompareSampler;
+            const bool fullCircle = plight.Extent >= 1.f;
 
             if (bool(plight.Flags & LightFlag_PCSS))
             {
@@ -421,7 +441,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
                     const f32 offset = poissonLine[i] * searchRadius;
-                    const f32 depth = map.Sample(smp, uv + offset);
+                    const f32 depth = map.Sample(smp, fullCircle ? frac(uv + offset) : (uv + offset));
                     if (depth < fragDepth)
                     {
                         ++count;
@@ -436,7 +456,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                     for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                     {
                         const f32 offset = poissonLine[i] * penumbra;
-                        shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
+                        shadow += SampleShadowPoint(map, csmp, smp, uv + offset, fragDepth, fullCircle);
                     }
                     shadow /= POISSON_LINE_SAMPLES;
                 }
@@ -448,12 +468,12 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
                     const f32 offset = poissonLine[i] * tsize;
-                    shadow += SampleShadow(map, csmp, smp, uv + offset, fragDepth);
+                    shadow += SampleShadowPoint(map, csmp, smp, uv + offset, fragDepth, fullCircle);
                 }
                 shadow /= POISSON_LINE_SAMPLES;
             }
             else
-                shadow = SampleShadow(map, csmp, smp, uv, fragDepth);
+                shadow = SampleShadowPoint(map, csmp, smp, uv, fragDepth, fullCircle);
         }
 
         diffuseColor += intensity * lightColor * shadow;

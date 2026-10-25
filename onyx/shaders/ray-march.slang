@@ -37,7 +37,7 @@ void main(const u32v3 id : SV_DispatchThreadID)
     f32v2 origin;
     if (g_Push.Mode == ONYX_2D_MARCH_MODE_POINT_LIGHT)
     {
-        const f32 tt = f32(id.x) / f32(g_Push.ShadowResolution);
+        const f32 tt = (f32(id.x) + 0.5f) / f32(g_Push.ShadowResolution);
 
         const f32 angle = lerp(g_Push.StartAngle, g_Push.EndAngle, tt);
         dir = f32v2(cos(angle), sin(angle));
