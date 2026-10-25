@@ -24,7 +24,7 @@ template <> struct PointLightParameters<D3>
     // the light radius: how much does it reach
     f32 LightRadius = 1.f;
     // how far shadows are casted
-    f32 ShadowRadius = 4.f;
+    f32 ShadowRadius = 12.f;
     f32 Intensity = 0.8f;
     f32 DepthBias = 0.001f;
     LightFlags Flags = 0;

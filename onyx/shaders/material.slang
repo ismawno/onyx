@@ -682,6 +682,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
             }
             else
                 shadow = map.SampleCmp(csmp, dir, z);
+
+            // shadows disappear outside of ShadowRadius, so i lerp here for it to become smooth
+            shadow = lerp(shadow, 1.f, smoothstep(0.9f * plight.ShadowRadius, plight.ShadowRadius, dist));
         }
 
         Lo += contrib * intensity * shadow;
@@ -875,6 +878,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
             }
             else
                 shadow = map.SampleCmp(csmp, shadowUV, z);
+
+            const f32 axial = dot(dir, lightDir);
+            shadow = lerp(shadow, 1.f, smoothstep(0.9f * slight.Far, slight.Far, axial));
         }
         Lo += contrib * intensity * shadow;
     }
