@@ -808,7 +808,11 @@ void Layout::generateDrawInfo(u32 *depthCounter, u32 *floatDepthCounter)
     m_DrawInfo.Clear();
     m_Queries.Clear();
     if (m_Elements.IsEmpty())
+    {
+        m_QueryMap.Clear();
+        m_InsertedElements.Clear();
         return;
+    }
 
     struct DepthInfo
     {
@@ -973,6 +977,7 @@ void Layout::Reset()
     m_Elements.Clear();
     m_InsertedElements.Clear();
     m_DrawInfo.Clear();
+    m_ElementWithIdCount = 0;
 }
 
 void Layout::applySpecDefaults()
