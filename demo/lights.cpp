@@ -22,7 +22,7 @@ int main()
 
     Onyx::Window *win = Onyx::OpenWindow();
 
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_FXAA;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Shadows;
 
     Onyx::Camera<D2> cam2{};
     Onyx::RenderView<D2> *view2 =

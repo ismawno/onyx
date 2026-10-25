@@ -50,6 +50,7 @@ void Renderer_WriteSamplerDescriptor(u32 binding, Graph::Sampler sampler, Render
 
 Graph::Sampler Renderer_GetNearSampler();
 Graph::Sampler Renderer_GetLinearSampler();
+Graph::Sampler Renderer_GetEdgeSampler();
 
 // consider having arrays of semaphores to allow for some flexibility
 

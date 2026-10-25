@@ -191,6 +191,7 @@ struct Specs
     TKit::ITaskManager *TaskManager = nullptr;
 
     Graph::Platform Platform = Graph::Platform_Auto;
+    Graph::SampleCount SampleCount = Graph::SampleCount_1;
 
     // execution
     u32 MaxCommandPools = 8;

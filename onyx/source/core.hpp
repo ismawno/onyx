@@ -20,4 +20,6 @@ void MarkCommandPoolInUse(Graph::CommandPool pool, u64 inFlightValue);
 
 Graph::CommandPool GetTransientGraphicsCommandPool();
 
+bool IsMultiSampled();
+
 }; // namespace Onyx

@@ -280,6 +280,7 @@ static TKit::Storage<RendererData<D3>> s_RendererData3{};
 static TKit::FixedArray<Graph::Pipeline, StandalonePass_Count> s_StandalonePipelines{};
 
 static Graph::Sampler s_LinearSampler = Graph::NullHandle;
+static Graph::Sampler s_EdgeSampler = Graph::NullHandle;
 static Graph::Sampler s_CompareSampler = Graph::NullHandle;
 static Graph::Sampler s_NearSampler = Graph::NullHandle;
 
@@ -709,6 +710,7 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
     specs.ColorAttachments = {attachments.GetData(), u32(opaque ? 2 : 3)};
     specs.DepthFormat = GetAttachmentFormat(AttachmentKind_DepthStencil);
     specs.StencilFormat = specs.DepthFormat;
+    specs.Multisample.Samples = GetSpecs().SampleCount;
 
     const bool depth = pass == PipelinePass_Shaded || pass == PipelinePass_Flat;
     specs.DepthStencil.DepthTestEnabled = depth;
@@ -1315,6 +1317,7 @@ void Renderer_Initialize()
     linear.Wraps = Graph::Wrap_ClampToBorder;
     linear.Border = Graph::BorderColor_FloatOpaqueWhite;
     s_LinearSampler = Graph::Sampler_Create(linear);
+    s_EdgeSampler = Graph::Sampler_Create();
 
     Graph::SamplerSpecs nearest{};
     nearest.Filters = Graph::Filter_Nearest;
@@ -1329,6 +1332,7 @@ void Renderer_Initialize()
     if (Graph::IsValidationEnabled())
     {
         Graph::Sampler_SetName(s_LinearSampler, "onyx-linear-sampler");
+        Graph::Sampler_SetName(s_EdgeSampler, "onyx-edge-sampler");
         Graph::Sampler_SetName(s_NearSampler, "onyx-near-sampler");
         Graph::Sampler_SetName(s_CompareSampler, "onyx-compare-sampler");
     }
@@ -1345,6 +1349,7 @@ void Renderer_Terminate()
     destroyPipelines();
 
     Graph::Sampler_Destroy(s_LinearSampler);
+    Graph::Sampler_Destroy(s_EdgeSampler);
     Graph::Sampler_Destroy(s_NearSampler);
     Graph::Sampler_Destroy(s_CompareSampler);
 
@@ -1474,6 +1479,10 @@ Graph::Sampler Renderer_GetNearSampler()
 Graph::Sampler Renderer_GetLinearSampler()
 {
     return s_LinearSampler;
+}
+Graph::Sampler Renderer_GetEdgeSampler()
+{
+    return s_EdgeSampler;
 }
 
 static ResourceType getResourceType(const Geometry geo)

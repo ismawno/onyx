@@ -75,10 +75,21 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Hidden = 1U << 5,
 };
 
+struct ViewImage
+{
+    Graph::Image Image = Graph::NullHandle;
+    Graph::Image MultiSampled = Graph::NullHandle;
+
+    Graph::Image GetWriteImage() const
+    {
+        return MultiSampled != Graph::NullHandle ? MultiSampled : Image;
+    }
+};
+
 struct Framebuffer
 {
     Graph::Tracker Tracker{};
-    TKit::FixedArray<Graph::Image, AttachmentRole_Count> Attachments{};
+    TKit::FixedArray<ViewImage, AttachmentRole_Count> Attachments{};
 };
 
 struct RenderViewSpecs
@@ -400,6 +411,7 @@ template <Dimension D> class RenderView
     }
     void drainWork() const;
     void applyPostProcessBarriers(Graph::CommandBuffer cmd) const;
+    Scissor applyImageScissor() const;
 
     void update(const u32v2 &parentSize, const f32v2 &contentScale)
     {

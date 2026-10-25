@@ -124,6 +124,7 @@ void RenderTexture::Resize(const u32v2 &dims, const f32v2 &contentScale)
 
 void RenderTexture::FindAvailableImages()
 {
+    findAvailableFramebuffers();
     m_Readable = m_Writable; // the one we just wrote to (most updated one)
     Texture_UpdateHandleOffset(m_Handle, m_Images[m_Readable].Texture);
 

@@ -110,8 +110,8 @@ struct OverlayLabel
     }
     OverlayLabel(const TKit::StringView label)
     {
-        u32 idx = label.FindFirstOf("##");
-        if (idx != TKit::StringView::npos && label[idx + 2] == '#')
+        const usize idx = label.Find("##");
+        if (idx != TKit::StringView::npos && idx + 2 < label.GetSize() && label[idx + 2] == '#')
             Id = label.SubString(idx + 3);
         else
             Id = label;

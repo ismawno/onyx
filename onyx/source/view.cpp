@@ -9,52 +9,68 @@
 
 namespace Onyx
 {
-static Graph::Image createColorAttachment(const u32v2 &ext, const TKit::Span<const Graph::Format> formats)
+static ViewImage createColorAttachment(const u32v2 &ext, const TKit::Span<const Graph::Format> formats,
+                                       const Graph::SampleCount samples)
 {
-    Graph::ImageSpecs specs{};
-    specs.Formats = formats;
-
-    const Graph::Image img =
-        Graph::Image_Create(ext, specs, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled);
+    ViewImage img;
+    img.Image =
+        Graph::Image_Create(ext, {.Formats = formats}, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled);
 
     for (const Graph::Format fmt : formats)
-        Graph::Image_AddView(img, {.Format = fmt});
+        Graph::Image_AddView(img.Image, {.Format = fmt});
+    if (samples != Graph::SampleCount_1)
+    {
+        // here, we assume formats[0] is the writing format
+        img.MultiSampled = Graph::Image_Create(ext, {.Formats = formats[0], .Samples = samples},
+                                               Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_TransientAttachment);
+        Graph::Image_AddView(img.MultiSampled);
+    }
     return img;
 }
 
-static Graph::Image createDepthStencilAttachment(const u32v2 &ext)
+static ViewImage createDepthStencilAttachment(const u32v2 &ext, const Graph::SampleCount samples)
 {
+    ViewImage img;
     const Graph::Format fmt = GetAttachmentFormat(AttachmentKind_DepthStencil);
-    const Graph::Image img = Graph::Image_Create(ext, {.Formats = fmt},
-                                                 Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment |
-                                                     Graph::ImageFlag_Sampled);
-    Graph::Image_AddView(img);
-    Graph::Image_AddView(img, {.Range = {.Aspect = Graph::ImageAspectFlag_Stencil}});
+    img.Image = Graph::Image_Create(ext, {.Formats = fmt},
+                                    Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment |
+                                        Graph::ImageFlag_Sampled);
+    Graph::Image_AddView(img.Image);
+    Graph::Image_AddView(img.Image, {.Range = {.Aspect = Graph::ImageAspectFlag_Stencil}});
+
+    if (samples != Graph::SampleCount_1)
+    {
+        img.MultiSampled = Graph::Image_Create(ext, {.Formats = fmt, .Samples = samples},
+                                               Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment |
+                                                   Graph::ImageFlag_TransientAttachment);
+        Graph::Image_AddView(img.MultiSampled);
+    }
     return img;
 }
 
-static Graph::Image createAttachment(const u32v2 &ext, const AttachmentRole role)
+static ViewImage createAttachment(const u32v2 &ext, const AttachmentRole role)
 {
+    const Graph::SampleCount sc = GetSpecs().SampleCount;
     if (role == AttachmentRole_DepthStencil)
-        return createDepthStencilAttachment(ext);
+        return createDepthStencilAttachment(ext, sc);
     if (role == AttachmentRole_Accumulation)
     {
         const Graph::Format fmt = GetAttachmentFormat(AttachmentKind_Accumulation);
-        return createColorAttachment(ext, fmt);
+        return createColorAttachment(ext, fmt, sc);
     }
     if (role == AttachmentRole_Revealage)
     {
         const Graph::Format fmt = GetAttachmentFormat(AttachmentKind_Revealage);
-        return createColorAttachment(ext, fmt);
+        return createColorAttachment(ext, fmt, sc);
     }
 
     TKit::StaticArray<Graph::Format, 2> formats{};
     formats.Append(GetAttachmentFormat(AttachmentKind_SrgbColor));
     if (role == AttachmentRole_OutlineColor)
-        return createColorAttachment(ext, formats);
+        return createColorAttachment(ext, formats, sc);
 
     formats.Append(GetAttachmentFormat(AttachmentKind_LinearColor));
-    return createColorAttachment(ext, formats);
+    return createColorAttachment(ext, formats, sc);
 }
 
 // NOTE(Isma): Consider having 2D and 3D view sets
@@ -140,26 +156,25 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool outlines = m_Flags & RenderViewFlag_Outlines;
     const bool fxaa = m_Flags & RenderViewFlag_FXAA;
-    TKit::FixedArray<bool, AttachmentRole_Count> mustCreate{true, true, true, true, transparency, transparency, fxaa};
-
-    u32 pingPong = 0;
+    TKit::FixedArray<bool, AttachmentRole_Count> mustCreate{true, true, true, true, transparency, transparency};
 
     for (u32 i = 0; i < maxFbs; ++i)
     {
+        u32 pingPong = 0;
         Framebuffer &fb = m_Framebuffers.Append();
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
-            fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentRole(att)) : Graph::NullHandle;
+            fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentRole(att)) : ViewImage{};
 
         const Graph::Sampler nearSampler = Renderer_GetNearSampler();
-        const Graph::Sampler linearSampler = Renderer_GetLinearSampler();
+        const Graph::Sampler edgeSampler = Renderer_GetEdgeSampler();
         constexpr Graph::ImageLayout layout = Graph::ImageLayout_ShaderReadOnly;
 
         if (transparency)
         {
             const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_Accumulation]), layout, nearSampler);
+                Graph::Image_GetView(fb.Attachments[AttachmentRole_Accumulation].Image), layout, nearSampler);
             const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_Revealage]), layout, nearSampler);
+                Graph::Image_GetView(fb.Attachments[AttachmentRole_Revealage].Image), layout, nearSampler);
 
             Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
             Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
@@ -171,13 +186,13 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         if (outlines)
         {
             const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]]), layout, nearSampler);
+                Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]].Image), layout, nearSampler);
 
             const Graph::DescriptorImageInfo outline = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_OutlineColor]), layout, nearSampler);
+                Graph::Image_GetView(fb.Attachments[AttachmentRole_OutlineColor].Image), layout, nearSampler);
             // view 1 is the stencil-only view, created in createAttachment()
             const Graph::DescriptorImageInfo stencil = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_DepthStencil], 1), layout);
+                Graph::Image_GetView(fb.Attachments[AttachmentRole_DepthStencil].Image, 1), layout);
 
             Graph::DescriptorSet_BeginRecordWrite(m_OutlineSet);
             Graph::DescriptorSet_RecordWrite(m_OutlineSet, ONYX_OUTLINE_PASS_COLOR_ATTACHMENTS_BINDING, color, i);
@@ -189,14 +204,14 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         if (fxaa)
         {
             const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]], 1), layout, linearSampler);
+                Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]].Image, 1), layout, edgeSampler);
 
             Graph::DescriptorSet_Write(m_FXAASet, ONYX_FXAA_PASS_COLOR_ATTACHMENTS_BINDING, color, i);
         }
 
         // view 1 is the linear format view, created in createAttachment()
         const Graph::DescriptorImageInfo comp = Graph::DescriptorImageInfo::Create(
-            Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]], 1), layout, nearSampler);
+            Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]].Image, 1), layout, nearSampler);
 
         Graph::DescriptorSet_Write(m_CompositorSet, ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, comp, i);
 
@@ -209,12 +224,11 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             names[AttachmentRole_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", i);
             names[AttachmentRole_Accumulation] = TKit::StackString::Format("onyx-transparent-att-{}", i);
             names[AttachmentRole_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", i);
-            names[AttachmentRole_FXAA] = TKit::StackString::Format("onyx-fxaa-att-{}", i);
             for (u32 j = 0; j < AttachmentRole_Count; ++j)
-                if (fb.Attachments[j] != Graph::NullHandle)
+                if (fb.Attachments[j].Image != Graph::NullHandle)
                 {
-                    Graph::Image_SetName(fb.Attachments[j], names[j].CString());
-                    Graph::Image_SetViewNames(fb.Attachments[j], names[j].CString());
+                    Graph::Image_SetName(fb.Attachments[j].Image, names[j].CString());
+                    Graph::Image_SetViewNames(fb.Attachments[j].Image, names[j].CString());
                 }
         }
     }
@@ -252,9 +266,13 @@ template <Dimension D> void RenderView<D>::drainWork() const
 template <Dimension D> void RenderView<D>::destroyFramebuffers()
 {
     for (const Framebuffer &fb : m_Framebuffers)
-        for (const Graph::Image img : fb.Attachments)
-            if (img != Graph::NullHandle)
-                Graph::Image_Destroy(img);
+        for (const ViewImage &img : fb.Attachments)
+        {
+            if (img.Image != Graph::NullHandle)
+                Graph::Image_Destroy(img.Image);
+            if (img.MultiSampled != Graph::NullHandle)
+                Graph::Image_Destroy(img.MultiSampled);
+        }
     m_Framebuffers.Clear();
 }
 
@@ -295,14 +313,31 @@ template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Gra
     m_Framebuffers[m_AttachmentIndex].Tracker = tracker;
 }
 
-static Graph::ImageMemoryBarrierInfo toColorAttachment(const Graph::Image image)
+static Graph::ImageMemoryBarrierInfo toColorAttachment(const Graph::Image image, const bool sampledLater = true)
 {
     Graph::ImageMemoryBarrierInfo b{};
     b.Image = image;
     b.NewLayout = Graph::ImageLayout_ColorAttachment;
-    b.SrcStages = Graph::PipelineStageFlag_FragmentShader;
+    b.SrcStages =
+        sampledLater ? Graph::PipelineStageFlag_FragmentShader : Graph::PipelineStageFlag_ColorAttachmentOutput;
+    b.SrcAccess = sampledLater ? 0 : Graph::AccessFlag_ColorAttachmentWrite;
     b.DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
     b.DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
+    return b;
+}
+
+static Graph::ImageMemoryBarrierInfo toDepthAttachment(const Graph::Image image, const bool sampledLater = true)
+{
+    constexpr auto depthStages =
+        Graph::PipelineStageFlag_EarlyFragmentTests | Graph::PipelineStageFlag_LateFragmentTests;
+
+    Graph::ImageMemoryBarrierInfo b{};
+    b.Image = image;
+    b.NewLayout = Graph::ImageLayout_DepthStencilAttachment;
+    b.SrcStages = sampledLater ? Graph::PipelineStageFlag_FragmentShader : depthStages;
+    b.SrcAccess = sampledLater ? 0 : Graph::AccessFlag_DepthStencilAttachmentWrite;
+    b.DstStages = depthStages;
+    b.DstAccess = Graph::AccessFlag_DepthStencilAttachmentWrite;
     return b;
 }
 static Graph::ImageMemoryBarrierInfo colorToShaderRead(const Graph::Image image)
@@ -328,16 +363,54 @@ static Graph::ImageMemoryBarrierInfo depthToShaderRead(const Graph::Image image)
     return b;
 }
 
+static Graph::AttachmentInfo attachmentInfo(const Graph::Image image, const Graph::ImageLayout layout,
+                                            const Graph::LoadOp load, const Graph::StoreOp store, const u32 viewIdx = 0)
+{
+    Graph::AttachmentInfo att{};
+    att.View = Graph::Image_GetView(image, viewIdx);
+    att.Layout = layout;
+    att.LoadOp = load;
+    att.StoreOp = store;
+    return att;
+}
+
 static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Graph::LoadOp load,
                                              const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f},
                                              const u32 viewIdx = 0)
 {
-    Graph::AttachmentInfo att{};
-    att.View = Graph::Image_GetView(image, viewIdx);
-    att.Layout = Graph::ImageLayout_ColorAttachment;
-    att.LoadOp = load;
-    att.StoreOp = store;
+    Graph::AttachmentInfo att = attachmentInfo(image, Graph::ImageLayout_ColorAttachment, load, store, viewIdx);
     att.ClearValue.Color = clear;
+    return att;
+}
+
+static Graph::AttachmentInfo colorAttachment(const ViewImage &image, const Graph::LoadOp load,
+                                             const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f})
+{
+    const bool msaa = image.MultiSampled != Graph::NullHandle;
+    Graph::AttachmentInfo att = attachmentInfo(image.GetWriteImage(), Graph::ImageLayout_ColorAttachment, load,
+                                               msaa ? Graph::StoreOp_DontCare : store);
+    att.ClearValue.Color = clear;
+    if (msaa && store != Graph::StoreOp_DontCare)
+    {
+        att.Resolve.View = Graph::Image_GetView(image.Image);
+        att.Resolve.Layout = Graph::ImageLayout_ColorAttachment;
+        att.Resolve.Mode = Graph::Resolve_Average;
+    }
+    return att;
+}
+
+static Graph::AttachmentInfo depthAttachment(const ViewImage &image, const Graph::LoadOp load,
+                                             const Graph::StoreOp store)
+{
+    const bool msaa = image.MultiSampled != Graph::NullHandle;
+    Graph::AttachmentInfo att = attachmentInfo(image.GetWriteImage(), Graph::ImageLayout_DepthStencilAttachment, load,
+                                               msaa ? Graph::StoreOp_DontCare : store);
+    if (msaa && store != Graph::StoreOp_DontCare)
+    {
+        att.Resolve.View = Graph::Image_GetView(image.Image);
+        att.Resolve.Layout = Graph::ImageLayout_DepthStencilAttachment;
+        att.Resolve.Mode = Graph::Resolve_Average;
+    }
     return att;
 }
 
@@ -362,15 +435,23 @@ static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<cons
 template <Dimension D> void RenderView<D>::applyPostProcessBarriers(const Graph::CommandBuffer cmd) const
 {
     const Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
+    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
     TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 3> barriers{};
     barriers.Append(colorToShaderRead(colorImg));
     if (m_Flags & RenderViewFlag_Outlines)
     {
-        barriers.Append(colorToShaderRead(fb.Attachments[AttachmentRole_OutlineColor]));
-        barriers.Append(depthToShaderRead(fb.Attachments[AttachmentRole_DepthStencil]));
+        barriers.Append(colorToShaderRead(fb.Attachments[AttachmentRole_OutlineColor].Image));
+        barriers.Append(depthToShaderRead(fb.Attachments[AttachmentRole_DepthStencil].Image));
     }
     Graph::Command_ImageBarrier(cmd, barriers);
+}
+template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
+{
+    const f32v2 scale = f32v2{GetImageExtent()} / Math::Max(m_Viewport.Size, f32v2{1.f});
+    Scissor sc;
+    sc.Position = m_Scissor.Position * scale;
+    sc.Size = m_Scissor.Size * scale;
+    return sc;
 }
 
 // a bit of a pass overview
@@ -395,23 +476,30 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
 
+    const bool msaa = IsMultiSampled();
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     m_PingPong = (m_PingPong + 1) & 1;
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
-    const Graph::Image outlImg = fb.Attachments[AttachmentRole_OutlineColor];
-    const Graph::Image depthImg = fb.Attachments[AttachmentRole_DepthStencil];
+    const ViewImage &colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
+    const ViewImage &outlImg = fb.Attachments[AttachmentRole_OutlineColor];
+    const ViewImage &depthImg = fb.Attachments[AttachmentRole_DepthStencil];
 
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
     const bool transparent = m_Flags & RenderViewFlag_Transparency;
     const bool keepDepth = transparent || hasOutline;
 
-    Graph::ImageMemoryBarrierInfo barriers[3] = {toColorAttachment(colorImg), toColorAttachment(outlImg), {}};
-    barriers[2].Image = depthImg;
-    barriers[2].NewLayout = Graph::ImageLayout_DepthStencilAttachment;
-    barriers[2].SrcStages = hasOutline ? Graph::PipelineStageFlag_FragmentShader : 0;
-    barriers[2].DstStages = Graph::PipelineStageFlag_EarlyFragmentTests;
-    barriers[2].DstAccess = Graph::AccessFlag_DepthStencilAttachmentWrite;
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 6> barriers{};
+    barriers.Append(toColorAttachment(colorImg.Image));
+    barriers.Append(toColorAttachment(outlImg.Image));
+    barriers.Append(toDepthAttachment(depthImg.Image, hasOutline));
+
+    if (msaa)
+    {
+        barriers.Append(toColorAttachment(colorImg.MultiSampled, false));
+        barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
+        barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
+    }
+
     Graph::Command_ImageBarrier(cmd, barriers);
 
     const Color ccolor = ClearColor.ToLinear();
@@ -421,13 +509,9 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     atts[1] = colorAttachment(outlImg, hasOutline ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare,
                               hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
 
-    Graph::AttachmentInfo depth{};
-    depth.View = Graph::Image_GetView(depthImg);
-    depth.Layout = Graph::ImageLayout_DepthStencilAttachment;
-    depth.LoadOp = Graph::LoadOp_Clear;
-    depth.StoreOp = keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
-
-    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor, m_ContentScale);
+    const Graph::AttachmentInfo depth =
+        depthAttachment(depthImg, Graph::LoadOp_Clear, keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    beginRendering(cmd, atts, &depth, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd)
@@ -447,17 +531,29 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginTransparentPass");
 
+    const bool msaa = IsMultiSampled();
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const Graph::Image accImg = fb.Attachments[AttachmentRole_Accumulation];
-    const Graph::Image revImg = fb.Attachments[AttachmentRole_Revealage];
-    const Graph::Image outlImg = fb.Attachments[AttachmentRole_OutlineColor];
-    const Graph::Image depthImg = fb.Attachments[AttachmentRole_DepthStencil];
+    const ViewImage &accImg = fb.Attachments[AttachmentRole_Accumulation];
+    const ViewImage &revImg = fb.Attachments[AttachmentRole_Revealage];
+    const ViewImage &outlImg = fb.Attachments[AttachmentRole_OutlineColor];
+    const ViewImage &depthImg = fb.Attachments[AttachmentRole_DepthStencil];
 
-    const Graph::ImageMemoryBarrierInfo barriers[2] = {toColorAttachment(accImg), toColorAttachment(revImg)};
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 8> barriers{};
+    barriers.Append(toColorAttachment(accImg.Image));
+    barriers.Append(toColorAttachment(revImg.Image));
+    barriers.Append(toColorAttachment(outlImg.Image));
+    barriers.Append(toDepthAttachment(depthImg.Image));
+    if (msaa)
+    {
+        barriers.Append(toColorAttachment(accImg.MultiSampled, false));
+        barriers.Append(toColorAttachment(revImg.MultiSampled, false));
+        barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
+        barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
+    }
     Graph::Command_ImageBarrier(cmd, barriers);
 
-    const bool hasOutline = (m_Flags & RenderViewFlag_Outlines) && (m_Flags & RenderViewFlag_Outlines);
+    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
 
     TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
     atts[0] = colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store);
@@ -465,13 +561,9 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
                               hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
     atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, f32v4{1.f, 0.f, 0.f, 0.f});
 
-    Graph::AttachmentInfo depth{};
-    depth.View = Graph::Image_GetView(depthImg);
-    depth.Layout = Graph::ImageLayout_DepthStencilAttachment;
-    depth.LoadOp = Graph::LoadOp_Load;
-    depth.StoreOp = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
-
-    beginRendering(cmd, atts, &depth, GetImageExtent(), m_Scissor, m_ContentScale);
+    const Graph::AttachmentInfo depth =
+        depthAttachment(depthImg, Graph::LoadOp_Load, hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    beginRendering(cmd, atts, &depth, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::CommandBuffer cmd)
@@ -481,8 +573,9 @@ template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::Comma
     Graph::Command_EndRenderPass(cmd);
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const Graph::ImageMemoryBarrierInfo barriers[2] = {colorToShaderRead(fb.Attachments[AttachmentRole_Accumulation]),
-                                                       colorToShaderRead(fb.Attachments[AttachmentRole_Revealage])};
+    const Graph::ImageMemoryBarrierInfo barriers[2] = {
+        colorToShaderRead(fb.Attachments[AttachmentRole_Accumulation].Image),
+        colorToShaderRead(fb.Attachments[AttachmentRole_Revealage].Image)};
     Graph::Command_ImageBarrier(cmd, barriers);
 }
 
@@ -492,9 +585,9 @@ template <Dimension D> void RenderView<D>::BeginBlendPass(const Graph::CommandBu
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
+    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
     const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_Load, Graph::StoreOp_Store);
-    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
+    beginRendering(cmd, color, nullptr, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 template <Dimension D> void RenderView<D>::EndBlendPass(const Graph::CommandBuffer cmd)
 {
@@ -510,14 +603,13 @@ template <Dimension D> void RenderView<D>::BeginOutlinePass(const Graph::Command
 
     m_PingPong = (m_PingPong + 1) & 1;
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
+    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
 
     const Graph::ImageMemoryBarrierInfo barrier = toColorAttachment(colorImg);
     Graph::Command_ImageBarrier(cmd, barrier);
 
     const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
-
-    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
+    beginRendering(cmd, color, nullptr, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndOutlinePass(const Graph::CommandBuffer cmd)
@@ -526,7 +618,7 @@ template <Dimension D> void RenderView<D>::EndOutlinePass(const Graph::CommandBu
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
     Graph::Command_EndRenderPass(cmd);
-    const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[s_ColorAtts[m_PingPong]]);
+    const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[s_ColorAtts[m_PingPong]].Image);
     Graph::Command_ImageBarrier(cmd, barrier);
 }
 
@@ -536,7 +628,7 @@ template <Dimension D> void RenderView<D>::BeginFXAAPass(const Graph::CommandBuf
 
     m_PingPong = (m_PingPong + 1) & 1;
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]];
+    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
 
     const Graph::ImageMemoryBarrierInfo barrier = toColorAttachment(colorImg);
     Graph::Command_ImageBarrier(cmd, barrier);
@@ -545,7 +637,7 @@ template <Dimension D> void RenderView<D>::BeginFXAAPass(const Graph::CommandBuf
     const Graph::AttachmentInfo color =
         colorAttachment(colorImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store, f32v4{0.f}, 1);
 
-    beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
+    beginRendering(cmd, color, nullptr, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
 template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffer cmd)
@@ -555,7 +647,7 @@ template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffe
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     Graph::Command_EndRenderPass(cmd);
-    const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[s_ColorAtts[m_PingPong]]);
+    const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[s_ColorAtts[m_PingPong]].Image);
     Graph::Command_ImageBarrier(cmd, barrier);
 }
 
@@ -587,7 +679,7 @@ template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
 
     m_Flags = flags;
 
-    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_Outlines;
+    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_Outlines | RenderViewFlag_FXAA;
     if ((flags & fbFlags) != (f & fbFlags))
     {
         drainWork();

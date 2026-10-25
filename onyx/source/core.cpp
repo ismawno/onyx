@@ -480,6 +480,14 @@ static void core_Initialize(const Specs &specs)
     gspecs.DescriptorPoolSizes[Graph::Descriptor_StorageImage] = 512;
     Graph::Initialize(gspecs);
 
+    const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
+    if (specs.SampleCount > rinfo.Device.MaxSampleCount)
+    {
+        TKIT_LOG_WARNING("[ONYX][CORE] Specified sample ({}) exceeds maximum sample count ({}). Clamped to maximum",
+                         1U << u32(specs.SampleCount), 1U << u32(rinfo.Device.MaxSampleCount));
+        s_Specs.SampleCount = rinfo.Device.MaxSampleCount;
+    }
+
     if (specs.TaskManager)
         s_TaskManager = specs.TaskManager;
     else if (specs.Flags & InitializationFlag_DefaultTaskManagerSingleThread)
@@ -574,6 +582,11 @@ void PushTier(const u32 threadIndex)
 const Specs &GetSpecs()
 {
     return s_Specs;
+}
+
+bool IsMultiSampled()
+{
+    return s_Specs.SampleCount != Graph::SampleCount_1;
 }
 
 /////////////////////////////////////////////
