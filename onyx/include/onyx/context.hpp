@@ -683,7 +683,16 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
     void PointLight(const PointLightParameters<D> &params = {})
     {
-        addPointLightData(m_State.Transform, params);
+        if constexpr (D == D2)
+        {
+            TKIT_ASSERT(params.Decay >= 0.f && params.Decay <= 1.f,
+                        "[ONYX][CONTEXT] Point light decay must be between 0 and 1, but is {}", params.Decay);
+            TKIT_ASSERT(params.Extent >= 0.f && params.Extent <= 1.f,
+                        "[ONYX][CONTEXT] Point light extent must be between 0 and 1, but is {}", params.Extent);
+            // TKIT_ASSERT(params.Angle >= -Math::Pi() && params.Angle <= Math::Pi(),
+            //             "[ONYX][CONTEXT] Point light angle must be between -pi and pi, but is {}", params.Angle);
+        }
+        m_PointLightData.Append(params);
     }
     void DirectionalLight(const DirectionalLightParameters<D> &params = {})
     {
@@ -767,7 +776,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addGlyphData(Resource glyph, const f32m<D> &transform);
 
     void addDynamicData(Resource mesh, const f32m<D> &transform);
-    void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ENSURE
     void checkMaterial(Resource material);
 #endif
@@ -976,7 +984,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
 
     void SpotLight(const SpotLightParameters &params = {})
     {
-        addSpotLightData(m_State.Transform, params);
+        m_SpotLightData.Append(params);
     }
 
     const TKit::TierArray<SpotLightParameters> &GetSpotLightParams() const
@@ -985,8 +993,6 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     }
 
   private:
-    void addSpotLightData(const f32m4 &transform, const SpotLightParameters &params);
-
     TKit::TierArray<SpotLightParameters> m_SpotLightData{};
 };
 } // namespace Onyx

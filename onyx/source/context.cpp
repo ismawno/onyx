@@ -728,28 +728,6 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Resource glyph
 }
 
 template <Dimension D>
-void IRenderContext<D>::addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params)
-{
-    if constexpr (D == D2)
-    {
-        TKIT_ASSERT(params.Decay >= 0.f && params.Decay <= 1.f,
-                    "[ONYX][CONTEXT] Point light decay must be between 0 and 1, but is {}", params.Decay);
-        TKIT_ASSERT(params.Extent >= 0.f && params.Extent <= 1.f,
-                    "[ONYX][CONTEXT] Point light extent must be between 0 and 1, but is {}", params.Extent);
-        // TKIT_ASSERT(params.Angle >= -Math::Pi() && params.Angle <= Math::Pi(),
-        //             "[ONYX][CONTEXT] Point light angle must be between -pi and pi, but is {}", params.Angle);
-    }
-    PointLightParameters<D> &p = m_PointLightData.Append(params);
-    p.Position = f32v<D>{transform * f32v<D + 1>{p.Position, 1.f}};
-}
-
-void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLightParameters &params)
-{
-    SpotLightParameters &p = m_SpotLightData.Append(params);
-    p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
-}
-
-template <Dimension D>
 void IRenderContext<D>::translateLayoutElement(const LayoutDrawInfo &info, [[maybe_unused]] u32 *depth)
 {
     if constexpr (D == D2)
