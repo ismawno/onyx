@@ -1,43 +1,56 @@
+// This file is AI generated: it was written by Claude Code, an AI coding assistant, starting from the original control
+// center and a design brief. Review it like any other contribution before relying on it.
+//
 // =====================================================================================================================
 //  ONYX CONTROL CENTER
 // =====================================================================================================================
 //
 //  A single executable that checks, in one place, that the nominal behaviour of Onyx (and the parts of Graphite and
-//  Toolkit it stands on) holds. Run it, play with it, change the monitor scale, resize the window, move cameras around,
-//  and watch the checks.
+//  Toolkit it stands on) holds. Automatic checks run every frame. Visual checks need your eyes: the guided checks
+//  window walks through them one at a time, most important first.
 //
-//  How to read the UI
-//    PASS (green)   an automatic check that holds this frame
-//    FAIL (red)     an automatic check that does not hold. The failure log in the "Control center" window keeps it,
-//                   even if it only failed for a single frame
-//    TODO (yellow)  a visual check only you can judge. Look at what it says and mark it "Looks right" or "Broken"
-//    GOOD / BAD     a visual check you already judged
-//    INFO (blue)    a measured value with no right or wrong answer
+//  First run
+//    "Where do I start?" opens on launch and hands off to the guided checks. Verdicts are saved in the working
+//    directory (onyx-control-center-verdicts.txt), so a second session resumes where the first one stopped
 //
-//  Scene layout: the window is split in four render views
-//    top left      Pixel view    CameraMode_Viewport, 1 world unit = 1 logical pixel. DPI and rasterization
-//    top right     2D gallery    orthographic camera. Every 2D primitive, outlines, blending and 2D lights
-//    bottom left   3D gallery    perspective camera. Every 3D primitive, shading, shadows, point and spot lights
-//    bottom right  Textures      render textures drawn in the scene, plus an offset viewport for the mouse checks
+//  Badges (hover any check to read its rule or what to look at)
+//    PASS / FAIL / N/A    automatic check: holds this frame / broken, also kept in the failure log / not applicable
+//    TODO / GOOD / BAD    visual check: waiting for your verdict / judged right / judged broken
+//    SKIP                 visual check you chose to skip
 //
-//  Controls
-//    W A S D Q E          move/rotate the camera of the view under the mouse (2D gallery and 3D gallery only)
-//    Space, LCtrl, LShift 3D only: up, down, toggle look around
-//    Mouse wheel          zoom the view under the mouse (2D gallery: around the cursor, 3D gallery: field of view)
+//  Layouts, switchable at runtime from the Control center's Layout menu
+//    Direct    the four scene views render straight into window quadrants, the panels float on top
+//    Docked    every view renders into a render texture shown by its own dockable panel
+//
+//  Scene views. Each one has a tint, also used to tag the checks that concern it
+//    Pixel view    CameraMode_Viewport, 1 world unit = 1 logical pixel. DPI and rasterization
+//    2D gallery    orthographic camera. 2D primitives, outlines, blending, 2D lights and occluders
+//    3D gallery    perspective camera. 3D primitives, shading, shadows, point and spot lights
+//    Textures      render textures drawn in the scene, plus an offset viewport for the mouse checks
+//    View lab      one more view, off by default, to reconfigure from its panel (direct layout only)
+//
+//  Controls, over the 2D or the 3D gallery
+//    W A S D Q E          move/rotate the camera of the hovered gallery
+//    Space, LCtrl, LShift 3D only: up, down, hold to look around
+//    Mouse wheel          zoom the hovered gallery (2D: around the cursor, 3D: field of view)
 //
 //  DPI testing tip (Hyprland): hyprctl keyword monitor <name>,preferred,auto,1.5   (also try 1, 1.25, 2)
 //
+//  Audio is optional: it is compiled only with ONYX_ENABLE_AUDIO, and every sound is generated in code
+//
 //  File sections
 //     1. Configuration and theme
-//     2. Check bookkeeping: automatic checks, visual checks and the failure log
-//     3. UI helpers: badges, colored text, explanations
+//     2. Check bookkeeping: automatic checks, visual checks, failure log and saved verdicts
+//     3. UI helpers: text, badges, tooltips, help popups and check rows
 //     4. Application state
 //     5. Setup: resources, window, views, contexts, render textures, overlay
-//     6. Event processing and camera control
+//     6. Layouts, events and camera control
 //     7. Automatic checks, one function per category
 //     8. Scene drawing, one function per view
-//     9. Overlay panels, one function per category, plus the main "Control center" dashboard
-//    10. Main loop
+//     9. Audio: procedural sources, self test and spatial orbit
+//    10. Overlay panels: guided checks, manual, dashboard, docked galleries and category panels
+//    11. Categories: titles, help, visual checks and the functions behind each panel
+//    12. Main loop
 //
 // =====================================================================================================================
 
@@ -47,57 +60,51 @@
 #include "onyx/onyx.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/sanitizer_options.hpp"
+#ifdef ONYX_ENABLE_AUDIO
+#    include "onyx/audio.hpp"
+#    include <atomic>
+#endif
 #include "graph/platform.hpp"
 #include "graph/swap_chain.hpp"
 #include "tkit/container/hash_map.hpp"
 #include "tkit/container/static_array.hpp"
 #include "tkit/profiling/clock.hpp"
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 
 using namespace TKit::Alias;
 using Onyx::D2;
 using Onyx::D3;
 namespace Math = TKit::Math;
 
-namespace
-{
 // =====================================================================================================================
 //  1. CONFIGURATION AND THEME
 // =====================================================================================================================
 
 // force a platform backend here if you need to (Graph::Platform_Wayland, Graph::Platform_X11). it matters for DPI work,
 // because each backend reports screen coordinates differently
-constexpr Graph::Platform DemoPlatform = Graph::Platform_Auto;
+constexpr Graph::Platform DemoPlatform = Graph::Platform_Wayland;
 
 constexpr u32v2 InitialWindowSize{1600, 900};
 constexpr u32v2 RenderTextureSize{160, 160};
+// docked galleries resize their textures to their panels. this is only the size before the first panel is known
+constexpr u32v2 InitialPaneTextureSize{400, 300};
 
 // how long the swapchain may lag behind a window size or scale change before it counts as a failure. swapchains are
-// recreated lazily, so a mismatch that lasts a couple of frames is fine. one that sticks around is not
+// recreated lazily, so a mismatch that lasts a couple of frames is fine. one that sticks around is not. docked
+// textures follow their panels one frame late, for the same reason
 constexpr f32 SwapchainGracePeriod = 1.f;
+constexpr f32 DockedGracePeriod = 0.5f;
 
 constexpr f32 Epsilon = 1e-4f;
+constexpr f32 TooltipWidth = 380.f;
+constexpr f32 PopupWidth = 460.f;
 
-// proportional viewports of the four scene views (position, size), in window fractions
-struct Quadrant
-{
-    const char *Name;
-    f32 X, Y;
-};
-constexpr Quadrant Quadrants[4] = {
-    {"Pixel view", 0.f, 0.f},
-    {"2D gallery", 0.5f, 0.f},
-    {"3D gallery", 0.f, 0.5f},
-    {"Textures", 0.5f, 0.5f},
-};
-constexpr f32 QuadrantSize = 0.5f;
+constexpr const char *VerdictFile = "onyx-control-center-verdicts.txt";
 
-// check names must be unique string literals: the failure log tracks checks by name
-constexpr const char *ViewportCheckNames[4] = {"Pixel view: proportional viewport", "2D gallery: proportional viewport",
-                                               "3D gallery: proportional viewport", "Textures: proportional viewport"};
-constexpr const char *ImageCheckNames[4] = {
-    "Pixel view: image size follows viewport", "2D gallery: image size follows viewport",
-    "3D gallery: image size follows viewport", "Textures: image size follows viewport"};
+// indexed by Graph::Platform
+constexpr const char *PlatformNames[] = {"Any", "Win32", "Cocoa", "Wayland", "X11"};
 
 namespace Theme
 {
@@ -110,16 +117,10 @@ const Onyx::Color Dim{150u, 155u, 172u};
 const Onyx::Color Text{236u, 236u, 242u};
 const Onyx::Color BadgeText{24u, 24u, 32u};
 
-// each view gets a slightly different clear color, so they are easy to tell apart and any gap between them shows
-const Onyx::Color ClearPixel{16u, 18u, 28u};
-const Onyx::Color ClearGallery{20u, 24u, 36u};
-const Onyx::Color ClearScene3{26u, 22u, 34u};
-const Onyx::Color ClearTextures{18u, 28u, 28u};
 const Onyx::Color ClearRenderTexture{40u, 34u, 60u};
-
+const Onyx::Color ClearLab{30u, 26u, 46u};
 const Onyx::Color Grid{48u, 54u, 76u};
 const Onyx::Color Cursor{120u, 255u, 160u};
-const Onyx::Color Corner{255u, 140u, 80u};
 
 const Onyx::Color Shapes[6] = {
     Onyx::Color_Coral, Onyx::Color_Honey, Onyx::Color_Mint, Onyx::Color_Sky, Onyx::Color_Lavender, Onyx::Color_Peach,
@@ -129,17 +130,62 @@ const Onyx::Color Shapes[6] = {
 const Onyx::Color FrameTimeStops[3] = {Pass, Todo, Fail};
 } // namespace Theme
 
+enum PaneId : u8
+{
+    Pane_Pixel,
+    Pane_Gallery2,
+    Pane_Gallery3,
+    Pane_Textures,
+    Pane_Count,
+    Pane_None = Pane_Count, // a check that concerns no view in particular
+};
+
+// the four scene views. a dark version of each tint clears the view, the bright one draws its title and brackets and
+// tags the checks that concern it, so the eye can go from a check to the scene
+struct PaneInfo
+{
+    const char *Name;
+    const char *Title;
+    const char *Shows;
+    const char *Corner; // where it sits in the direct layout
+    f32v2 Quadrant;
+    Onyx::Color Tint;
+    Onyx::Color Clear;
+};
+const PaneInfo PaneInfos[Pane_Count] = {
+    {"Pixel view", "PIXEL VIEW  1 unit = 1 logical px", "1 world unit is 1 logical pixel: DPI and rasterization",
+     "top left", f32v2{0.f, 0.f}, Onyx::Color{96u, 156u, 255u}, Onyx::Color{14u, 20u, 38u}},
+    {"2D gallery", "2D GALLERY", "every 2D primitive, outlines, blending, 2D lights and occluders", "top right",
+     f32v2{0.5f, 0.f}, Onyx::Color{64u, 204u, 180u}, Onyx::Color{12u, 30u, 30u}},
+    {"3D gallery", "3D GALLERY", "every 3D primitive, shading, shadows, point and spot lights", "bottom left",
+     f32v2{0.f, 0.5f}, Onyx::Color{178u, 132u, 255u}, Onyx::Color{28u, 18u, 40u}},
+    {"Textures", "TEXTURES  offset viewport", "render textures drawn in the scene, in a viewport away from the origin",
+     "bottom right", f32v2{0.5f, 0.5f}, Onyx::Color{240u, 178u, 72u}, Onyx::Color{34u, 26u, 12u}},
+};
+constexpr f32 QuadrantSize = 0.5f;
+
+// check names must be unique and must outlive the app (string literals): the failure log, the guided flow and the saved
+// verdicts track checks by name
+constexpr const char *ViewportCheckNames[Pane_Count] = {
+    "Pixel view: proportional viewport", "2D gallery: proportional viewport", "3D gallery: proportional viewport",
+    "Textures: proportional viewport"};
+constexpr const char *ImageCheckNames[Pane_Count] = {
+    "Pixel view: image size follows viewport", "2D gallery: image size follows viewport",
+    "3D gallery: image size follows viewport", "Textures: image size follows viewport"};
+constexpr const char *RoundTripCheckNames[Pane_Count] = {
+    "Pixel view: screen -> world -> screen", "2D gallery: screen -> world -> screen",
+    "3D gallery: screen -> world -> screen", "Textures: screen -> world -> screen"};
+
 // =====================================================================================================================
 //  2. CHECK BOOKKEEPING
 // =====================================================================================================================
 //
 //  Two kinds of checks live here:
 //    - Automatic checks (AutoCheck): evaluated every frame, whether their panel is open or not, so the dashboard and
-//    the
-//      failure log always know the truth. Each one carries a rule (what must hold, in plain words) and a detail (what
-//      was measured this frame)
-//    - Visual checks (VisualCheck): things a program cannot judge (is it crisp? does it blend right?). They carry a
-//      description of what to look at, and you give the verdict
+//      the failure log always know the truth. Each one carries a rule (what must hold, in plain words, shown on
+//      hover) and a detail (what was measured this frame, always shown)
+//    - Visual checks (VisualCheck): things a program cannot judge (is it crisp? does it blend right?). They carry
+//      what to do, what to look at and a priority for the guided flow, and you give the verdict
 //
 //  A Category groups both kinds, and maps to one overlay panel.
 
@@ -155,7 +201,7 @@ struct Line
     }
 };
 
-template <typename... Args> Line Format(const fmt::format_string<Args...> str, Args &&...args)
+template <typename... Args> static Line formatLine(const fmt::format_string<Args...> str, Args &&...args)
 {
     Line line;
     const auto result = fmt::format_to_n(line.Data, sizeof(line.Data) - 1, str, std::forward<Args>(args)...);
@@ -164,12 +210,22 @@ template <typename... Args> Line Format(const fmt::format_string<Args...> str, A
     return line;
 }
 
+enum Outcome : u8
+{
+    Outcome_Pass,
+    Outcome_Fail,
+    Outcome_NotApplicable,
+    Outcome_Count,
+};
+
 struct AutoCheck
 {
     const char *Name;
     const char *Rule;
     Line Detail;
-    bool Passed;
+    f32 FailingSince; // when the current failure started. the guided flow shows the most recent failure first
+    PaneId Pane;
+    Outcome State;
 };
 
 enum Verdict : u8
@@ -177,13 +233,31 @@ enum Verdict : u8
     Verdict_Unseen,
     Verdict_Good,
     Verdict_Broken,
+    Verdict_Skipped,
+    Verdict_Count,
 };
+constexpr const char *VerdictNames[Verdict_Count] = {"todo", "good", "broken", "skipped"};
+
+// some visual checks only make sense in one layout, or with an audio device
+enum Requirement : u8
+{
+    Requires_Nothing,
+    Requires_DirectLayout,
+    Requires_DockedLayout,
+    Requires_Audio,
+};
+constexpr const char *RequirementNotes[] = {"", "Only in the direct layout.", "Only in the docked layout.",
+                                            "Needs an audio output device."};
 
 struct VisualCheck
 {
     const char *Name;
-    const char *WhatToLookAt;
-    Verdict Verdict = Verdict_Unseen;
+    const char *Do;   // what to do and what must hold, in one or two lines. always visible
+    const char *More; // the full explanation, on hover
+    u32 Priority;     // the guided flow walks the visual checks in increasing priority
+    PaneId Pane;
+    Requirement Needs;
+    Verdict Mark = Verdict_Unseen;
 };
 
 struct FailureRecord
@@ -194,244 +268,420 @@ struct FailureRecord
     Line Detail;
 };
 
+struct FailingCheck
+{
+    const char *Name;
+    f32 Since;
+};
+
 enum CategoryId : u8
 {
     Category_Dpi,
     Category_Views,
+    Category_Lab,
     Category_Rendering,
+    Category_Lights,
     Category_Textures,
     Category_Input,
+    Category_Audio,
     Category_Resources,
     Category_Toolkit,
     Category_Platform,
-    Category_Overlay,
     Category_Count,
 };
+
+struct App;
 
 struct Category
 {
     const char *Title = "";
     const char *Summary = "";
+    const char *Concepts = "";
+    void (*Check)(App &) = nullptr; // automatic checks, run every frame
+    void (*Panel)(App &) = nullptr; // measured values and controls, shown above the checks
     bool Open = false;
 
     TKit::StaticArray<AutoCheck, 32> Checks{};
     TKit::StaticArray<VisualCheck, 16> Visuals{};
 
-    // names that failed last frame. a check is logged only when it goes from passing to failing, so a check that stays
-    // red does not flood the log
-    TKit::StaticArray<const char *, 32> FailingLastFrame{};
+    // checks that failed last frame, and since when. a check is logged only when it goes from passing to failing, so a
+    // check that stays red does not flood the log
+    TKit::StaticArray<FailingCheck, 32> FailingLastFrame{};
     TKit::StaticArray<u32, 32> NewFailures{};
     u32 FailuresSinceStart = 0;
+    f32 Now = 0.f;
 
-    void BeginFrame()
+    void BeginFrame(const f32 time)
     {
         FailingLastFrame.Clear();
         for (const AutoCheck &check : Checks)
-            if (!check.Passed)
-                FailingLastFrame.Append(check.Name);
+            if (check.State == Outcome_Fail)
+                FailingLastFrame.Append(FailingCheck{check.Name, check.FailingSince});
         Checks.Clear();
         NewFailures.Clear();
+        Now = time;
     }
 
     // the heart of every automatic check: name, condition, rule and a formatted description of what was measured
     template <typename... Args>
-    bool Expect(const char *name, const bool passed, const char *rule, const fmt::format_string<Args...> detail,
-                Args &&...args)
+    AutoCheck &Expect(const char *name, const bool passed, const char *rule, const fmt::format_string<Args...> detail,
+                      Args &&...args)
     {
         TKIT_ASSERT(!Checks.IsFull(), "[CONTROL CENTER] Too many checks in category '{}'", Title);
-        Checks.Append(AutoCheck{name, rule, Format(detail, std::forward<Args>(args)...), passed});
-        if (!passed && !FailingLastFrame.Contains(name))
-        {
-            ++FailuresSinceStart;
-            NewFailures.Append(Checks.GetSize() - 1);
-        }
-        return passed;
+        AutoCheck &check = Checks.Append(AutoCheck{name, rule, formatLine(detail, std::forward<Args>(args)...), Now,
+                                                   Pane_None, passed ? Outcome_Pass : Outcome_Fail});
+        if (passed)
+            return check;
+        // names are compared as text: the same name can come from more than one call site, and identical literals are
+        // not always merged (MSVC debug builds)
+        for (const FailingCheck &failing : FailingLastFrame)
+            if (std::strcmp(failing.Name, name) == 0)
+            {
+                check.FailingSince = failing.Since;
+                return check;
+            }
+        ++FailuresSinceStart;
+        NewFailures.Append(Checks.GetSize() - 1);
+        return check;
     }
 
-    void AddVisual(const char *name, const char *whatToLookAt)
+    // a check that cannot be evaluated right now (wrong layout, no audio device...) shows as not applicable, instead of
+    // failing or silently disappearing
+    template <typename... Args>
+    AutoCheck &Skip(const char *name, const char *rule, const fmt::format_string<Args...> reason, Args &&...args)
     {
-        Visuals.Append(VisualCheck{name, whatToLookAt});
+        TKIT_ASSERT(!Checks.IsFull(), "[CONTROL CENTER] Too many checks in category '{}'", Title);
+        return Checks.Append(AutoCheck{name, rule, formatLine(reason, std::forward<Args>(args)...), Now, Pane_None,
+                                       Outcome_NotApplicable});
     }
 
-    u32 CountPassed() const
+    u32 Count(const Outcome outcome) const
     {
         u32 count = 0;
         for (const AutoCheck &check : Checks)
-            count += check.Passed;
-        return count;
-    }
-    u32 CountVisuals(const Verdict verdict) const
-    {
-        u32 count = 0;
-        for (const VisualCheck &check : Visuals)
-            count += check.Verdict == verdict;
+            count += check.State == outcome;
         return count;
     }
 };
+
+using CategoryArray = TKit::FixedArray<Category, Category_Count>;
+
+// verdicts survive across runs: one "verdict<tab>name" line per judged visual check
+static void saveVerdicts(const CategoryArray &categories)
+{
+    std::FILE *file = std::fopen(VerdictFile, "w");
+    if (!file)
+        return;
+    for (const Category &cat : categories)
+        for (const VisualCheck &check : cat.Visuals)
+            if (check.Mark != Verdict_Unseen)
+                std::fprintf(file, "%s\t%s\n", VerdictNames[check.Mark], check.Name);
+    std::fclose(file);
+}
+
+static u32 loadVerdicts(CategoryArray &categories)
+{
+    std::FILE *file = std::fopen(VerdictFile, "r");
+    if (!file)
+        return 0;
+    u32 loaded = 0;
+    char line[256];
+    while (std::fgets(line, sizeof(line), file))
+    {
+        char *tab = std::strchr(line, '\t');
+        if (!tab)
+            continue;
+        *tab = '\0';
+        char *name = tab + 1;
+        name[std::strcspn(name, "\r\n")] = '\0';
+
+        u32 verdict = Verdict_Count;
+        for (u32 i = 0; i < Verdict_Count; ++i)
+            if (std::strcmp(line, VerdictNames[i]) == 0)
+                verdict = i;
+        if (verdict == Verdict_Count)
+            continue;
+
+        for (Category &cat : categories)
+            for (VisualCheck &check : cat.Visuals)
+                if (std::strcmp(check.Name, name) == 0)
+                {
+                    check.Mark = Verdict(verdict);
+                    ++loaded;
+                }
+    }
+    std::fclose(file);
+    return loaded;
+}
 
 // =====================================================================================================================
 //  3. UI HELPERS
 // =====================================================================================================================
 
-void badge(Onyx::Overlay *ui, const char *text, const Onyx::Color &color)
+constexpr const char *OutcomeBadges[Outcome_Count] = {"PASS", "FAIL", "N/A"};
+const Onyx::Color OutcomeColors[Outcome_Count] = {Theme::Pass, Theme::Fail, Theme::Dim};
+constexpr const char *OutcomeMeanings[Outcome_Count] = {
+    "PASS: automatic check, holds this frame",
+    "FAIL: automatic check, broken this frame. The failure log keeps every pass-to-fail transition",
+    "N/A: automatic check, not applicable right now"};
+
+constexpr const char *VerdictBadges[Verdict_Count] = {"TODO", "GOOD", "BAD", "SKIP"};
+const Onyx::Color VerdictColors[Verdict_Count] = {Theme::Todo, Theme::Pass, Theme::Fail, Theme::Dim};
+constexpr const char *VerdictMeanings[Verdict_Count] = {
+    "TODO: visual check waiting for your verdict", "GOOD: visual check you judged right",
+    "BAD: visual check you judged broken", "SKIP: visual check you chose to skip"};
+
+static void text(Onyx::Overlay *ui, const Onyx::Color &color, const TKit::StringView str,
+                 const Onyx::LayoutTextMode mode = Onyx::TextMode_Unbounded)
+{
+    ui->PushStyleColor(Onyx::OverlayColor_Text, color);
+    ui->TextRaw(mode, str);
+    ui->PopStyleColor();
+}
+
+static void badge(Onyx::Overlay *ui, const char *label, const Onyx::Color &color)
 {
     ui->BeginPanel({.FillColor = color,
                     .Alignment = Onyx::Overlay::Center,
                     .Sizing = {Onyx::LayoutSizing::Fit(48.f), Onyx::LayoutSizing::Fit()},
                     .Shape = Onyx::LayoutShape::Rectangle(4.f),
                     .Padding = f32v4{5.f, 5.f, 1.f, 1.f}});
-    ui->PushStyleColor(Onyx::OverlayColor_Text, Theme::BadgeText);
-    ui->TextRaw(text);
-    ui->PopStyleColor();
+    text(ui, Theme::BadgeText, label);
     ui->EndPanel();
 }
 
-void coloredRaw(Onyx::Overlay *ui, const Onyx::Color &color, const TKit::StringView text,
-                const Onyx::LayoutTextMode mode = Onyx::TextMode_Unbounded)
+// a small square in the tint of the view a check concerns. checks about no view in particular keep the slot empty, so
+// names stay aligned
+static void swatch(Onyx::Overlay *ui, const PaneId pane)
 {
-    ui->PushStyleColor(Onyx::OverlayColor_Text, color);
-    ui->TextRaw(mode, text);
-    ui->PopStyleColor();
+    ui->Panel({.FillColor = pane == Pane_None ? Onyx::Color_Transparent : PaneInfos[pane].Tint,
+               .Sizing = Onyx::LayoutSizing::Fixed(f32v2{10.f}),
+               .Shape = Onyx::LayoutShape::Rectangle(2.f)});
 }
 
-template <typename... Args>
-void colored(Onyx::Overlay *ui, const Onyx::Color &color, const fmt::format_string<Args...> str, Args &&...args)
-{
-    ui->PushStyleColor(Onyx::OverlayColor_Text, color);
-    ui->Text(str, std::forward<Args>(args)...);
-    ui->PopStyleColor();
-}
-
-// a dim paragraph that wraps to the window width
-void explain(Onyx::Overlay *ui, const char *text)
-{
-    coloredRaw(ui, Theme::Dim, text, Onyx::TextMode_Wrapped);
-}
-
-// a collapsible block with background knowledge. every panel opens with one
-void concepts(Onyx::Overlay *ui, const char *title, const char *text)
-{
-    if (ui->PushTree(title, Onyx::OverlayTreeFlag_Framed | Onyx::OverlayTreeFlag_StartOpen))
-    {
-        explain(ui, text);
-        ui->PopTree();
-    }
-}
-
-// a row of: badge + label + value
-template <typename... Args>
-void info(Onyx::Overlay *ui, const char *label, const fmt::format_string<Args...> str, Args &&...args)
+// a measured value: dim label, then the value
+static void field(Onyx::Overlay *ui, const char *label, const TKit::StringView value)
 {
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    badge(ui, "INFO", Theme::Info);
-    coloredRaw(ui, Theme::Text, label);
-    colored(ui, Theme::Info, str, std::forward<Args>(args)...);
+    text(ui, Theme::Dim, label);
+    text(ui, Theme::Info, value);
     ui->PopPanel();
 }
 
-void drawAutoChecks(Onyx::Overlay *ui, const Category &cat, const bool showRules)
+// explanations live in tooltips, so they take no room from the scene. they are drawn in the main view on Wayland,
+// where windows are not promoted: NoPromotion keeps them inside the window elsewhere too, and the overlay clamps them
+// to its right and bottom edges. the fixed maximum width keeps long ones from stretching
+static void tooltip(Onyx::Overlay *ui, const Onyx::Color &color, const char *heading, const TKit::StringView body)
 {
-    ui->HorizontalSeparator("Automatic checks");
-    for (const AutoCheck &check : cat.Checks)
-    {
-        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        badge(ui, check.Passed ? "PASS" : "FAIL", check.Passed ? Theme::Pass : Theme::Fail);
-        coloredRaw(ui, Theme::Text, check.Name);
-        ui->PopPanel();
-        coloredRaw(ui, check.Passed ? Theme::Info : Theme::Fail, check.Detail.View(), Onyx::TextMode_Wrapped);
-        if (showRules)
-            explain(ui, check.Rule);
-    }
-}
-
-void drawVisualChecks(Onyx::Overlay *ui, Category &cat, const u32 idOffset)
-{
-    if (cat.Visuals.IsEmpty())
+    if (!ui->IsItemHovered(Onyx::OverlayFocusFlag_ShortDelay))
         return;
-    ui->HorizontalSeparator("Visual checks (you are the judge)");
-    for (u32 i = 0; i < cat.Visuals.GetSize(); ++i)
+    ui->BeginTooltip(Onyx::OverlayTooltipFlag_Reset | Onyx::OverlayTooltipFlag_NoPromotion);
+    ui->BeginPanel({.Direction = Onyx::LayoutDirection_TopToBottom,
+                    .Alignment = Onyx::Overlay::TopLeft,
+                    .Sizing = {Onyx::LayoutSizing::Fit(0.f, TooltipWidth), Onyx::LayoutSizing::Fit()},
+                    .ChildGap = 4.f});
+    text(ui, color, heading, Onyx::TextMode_Wrapped);
+    if (!body.IsEmpty())
+        text(ui, Theme::Text, body, Onyx::TextMode_Wrapped);
+    ui->EndPanel();
+    ui->EndTooltip();
+}
+
+// long explanations go behind a small help button that opens a popup, read at leisure and closed. the popup id must be
+// unique across the whole overlay
+static void helpButton(Onyx::Overlay *ui, const TKit::StringView popup, const char *title, const char *body)
+{
+    if (ui->Button("?##help", Onyx::OverlayButtonFlag_Small))
+        ui->OpenPopup(Onyx::LayoutId{popup});
+    tooltip(ui, Theme::Accent, title, "Click for the full explanation");
+    if (!ui->BeginPopup(popup, Onyx::OverlayWindowFlag_AutoResize))
+        return;
+    ui->BeginPanel({.Direction = Onyx::LayoutDirection_TopToBottom,
+                    .Alignment = Onyx::Overlay::TopLeft,
+                    .Sizing = {Onyx::LayoutSizing::Fixed(PopupWidth), Onyx::LayoutSizing::Fit()},
+                    .ChildGap = 6.f});
+    text(ui, Theme::Accent, title);
+    text(ui, Theme::Text, body, Onyx::TextMode_Wrapped);
+    if (ui->Button("Close"))
+        ui->CloseCurrentPopup();
+    ui->EndPanel();
+    ui->EndPopup();
+}
+
+// one line with the verdict and the name, one with what was measured. the rule is in the tooltip
+static void drawAutoCheck(Onyx::Overlay *ui, const AutoCheck &check)
+{
+    ui->BeginPanel(ui->IdFromStack(Onyx::LayoutId{check.Name}),
+                   {.Direction = Onyx::LayoutDirection_LeftToRight,
+                    .Alignment = Onyx::Overlay::CenterLeft,
+                    .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
+                    .ChildGap = ui->GetStyle(Onyx::OverlayStyle_ChildGap)});
+    badge(ui, OutcomeBadges[check.State], OutcomeColors[check.State]);
+    swatch(ui, check.Pane);
+    text(ui, Theme::Text, check.Name);
+    ui->EndPanel();
+    tooltip(ui, OutcomeColors[check.State], OutcomeMeanings[check.State], check.Rule);
+
+    const Onyx::Color &color = check.State == Outcome_Pass ? Theme::Info : OutcomeColors[check.State];
+    text(ui, color, check.Detail.View(), Onyx::TextMode_Wrapped);
+}
+
+// returns true when the verdict changed, so it can be saved
+static bool drawVisualCheck(Onyx::Overlay *ui, VisualCheck &check, const bool applicable)
+{
+    ui->PushId(Onyx::LayoutId{&check});
+    ui->BeginPanel(ui->IdFromStack("row"), {.Direction = Onyx::LayoutDirection_LeftToRight,
+                                            .Alignment = Onyx::Overlay::CenterLeft,
+                                            .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
+                                            .ChildGap = ui->GetStyle(Onyx::OverlayStyle_ChildGap)});
+    if (applicable)
+        badge(ui, VerdictBadges[check.Mark], VerdictColors[check.Mark]);
+    else
+        badge(ui, "N/A", Theme::Dim);
+    swatch(ui, check.Pane);
+    text(ui, applicable ? Theme::Text : Theme::Dim, check.Name);
+    ui->EndPanel();
+    tooltip(ui, applicable ? VerdictColors[check.Mark] : Theme::Dim,
+            applicable ? VerdictMeanings[check.Mark] : RequirementNotes[check.Needs], check.More);
+
+    bool changed = false;
+    if (applicable)
     {
-        VisualCheck &check = cat.Visuals[i];
-        ui->PushId(Onyx::LayoutId{usz(idOffset + i + 1)});
-
-        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        if (check.Verdict == Verdict_Good)
-            badge(ui, "GOOD", Theme::Pass);
-        else if (check.Verdict == Verdict_Broken)
-            badge(ui, "BAD", Theme::Fail);
-        else
-            badge(ui, "TODO", Theme::Todo);
-        coloredRaw(ui, Theme::Text, check.Name);
-        ui->PopPanel();
-
-        explain(ui, check.WhatToLookAt);
-
+        text(ui, Theme::Dim, check.Do, Onyx::TextMode_Wrapped);
         ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
-        ui->RadioButton("Not checked", &check.Verdict, Verdict_Unseen);
-        ui->RadioButton("Looks right", &check.Verdict, Verdict_Good);
-        ui->RadioButton("Broken", &check.Verdict, Verdict_Broken);
+        changed |= ui->RadioButton("To do", &check.Mark, Verdict_Unseen);
+        changed |= ui->RadioButton("Right", &check.Mark, Verdict_Good);
+        changed |= ui->RadioButton("Broken", &check.Mark, Verdict_Broken);
+        changed |= ui->RadioButton("Skip", &check.Mark, Verdict_Skipped);
         ui->PopPanel();
-
-        ui->PopId();
     }
-}
-
-const char *platformName(const Graph::Platform platform)
-{
-    switch (platform)
-    {
-    case Graph::Platform_Win32:
-        return "Win32";
-    case Graph::Platform_Cocoa:
-        return "Cocoa";
-    case Graph::Platform_Wayland:
-        return "Wayland";
-    case Graph::Platform_X11:
-        return "X11";
-    default:
-        return "Any";
-    }
-}
-
-constexpr const char *EventNames[] = {
-    "KeyPressed",     "KeyReleased",        "KeyRepeat",           "MouseMoved",   "MousePressed",
-    "MouseReleased",  "MouseEntered",       "MouseLeft",           "Scrolled",     "WindowMoved",
-    "WindowResized",  "WindowFocused",      "WindowUnfocused",     "WindowClosed", "WindowMinimized",
-    "WindowRestored", "FramebufferResized", "ContentScaleChanged", "CharInput",    "SwapchainRecreated",
-};
-static_assert(sizeof(EventNames) / sizeof(EventNames[0]) == Onyx::Event_Count,
-              "EventNames must list every Onyx::EventType, in order");
-
-bool near(const f32 a, const f32 b, const f32 tolerance)
-{
-    return Math::Absolute(a - b) <= tolerance;
-}
-bool near(const f32v2 &a, const f32v2 &b, const f32 tolerance)
-{
-    return near(a[0], b[0], tolerance) && near(a[1], b[1], tolerance);
-}
-bool nearPixels(const u32v2 &a, const u32v2 &b, const i32 tolerance)
-{
-    return Math::Absolute(i32(a[0]) - i32(b[0])) <= tolerance && Math::Absolute(i32(a[1]) - i32(b[1])) <= tolerance;
+    else
+        text(ui, Theme::Dim, RequirementNotes[check.Needs]);
+    ui->PopId();
+    return changed;
 }
 
 // =====================================================================================================================
 //  4. APPLICATION STATE
 // =====================================================================================================================
 
+enum LayoutMode : u8
+{
+    Mode_Direct,
+    Mode_Docked,
+    Mode_Count,
+};
+
+// runtime state of one scene view
+struct Pane
+{
+    // the 2D view that draws the title, brackets and cursor ring, one per layout. for the 2D panes it is the view
+    // itself. for the 3D gallery it is a transparent 2D view stacked on top of the 3D one
+    TKit::FixedArray<Onyx::RenderView<D2> *, Mode_Count> Frame{};
+    Onyx::RenderContext<D2> *Context = nullptr; // the context that draws into Frame
+    Onyx::RenderTexture *Texture = nullptr;     // what the pane renders into in the docked layout
+
+    // where the overlay drew the docked texture last frame, in logical window pixels, and whether it was hovered
+    f32v2 ImagePos{0.f};
+    f32v2 ImageSize{0.f};
+    bool ImageHovered = false;
+
+    // the mouse in the active frame view's screen space: window pixels in the direct layout, texture pixels when
+    // docked. drawing and camera control only use these
+    f32v2 Mouse{0.f};
+    bool MouseInside = false;
+
+    f32 MismatchSince = -1.f; // docked texture out of sync with its panel since
+};
+
 struct RenderSettings
 {
     bool Outlines = true;
     bool Rotate = true;
-    bool Lights2 = true;
-    bool Lights3 = true;
-    bool PointLight3 = true;
-    bool SpotLight3 = true;
     bool Shadows = true;
-    bool PostProcess = true;
+    bool FXAA = false;
+    Onyx::AntiAliasing FXAAMode = Onyx::FXAA_QualityMedium;
     f32 OutlineWidth = 0.08f;
     f32 Alpha = 0.6f;
     Onyx::CircleParameters Circle{.Hollowness = 0.3f, .UpperAngle = 1.6f * Math::Pi<f32>()};
+};
+
+struct LightSettings
+{
+    bool Lights2 = true;
+    bool Directional2 = true;
+    f32 DirectionalAngle = Math::Radians(-55.f); // the direction the light travels, in world space
+    bool Cone = false;
+    bool ConeFollowsMotion = true;
+    f32 ConeAngle = 0.f;
+    f32 ConeExtent = 0.2f; // half of the cone, as a fraction of half a turn
+    f32 ConeDecay = 0.6f;
+    bool Sweep = false;
+
+    bool Lights3 = true;
+    bool SunDown = false; // the 3D directional light points straight down
+    bool Point3 = true;
+    bool Spot3 = true;
+    bool SpotOnly = false;
+    bool SpotSwing = true;
+    f32 SpotFov = Math::Radians(40.f);
+    f32 SpotRange = 8.f;
+    f32 SpotTilt = 0.f; // away from straight down
+    f32 SpotTurn = 0.f; // which way it tilts, around the vertical axis
+};
+
+// the view lab: one more 2D view on the window, reconfigured from its panel and checked against these settings
+enum LabPlacement : u8
+{
+    LabPlacement_AboveScene, // over the four views, under the overlay
+    LabPlacement_BelowScene,
+};
+
+struct LabSettings
+{
+    bool Enabled = false;
+    bool FixedViewport = false;
+    f32v2 Position{0.3f, 0.25f}; // window fractions (proportional) or logical pixels (fixed)
+    f32v2 Size{0.4f, 0.5f};
+    f32v2 ScissorPosition{0.f}; // viewport fractions
+    f32v2 ScissorSize{1.f};
+    f32 ImageScale = 1.f; // image size over viewport size
+    bool Outlines = true;
+    bool Transparency = true;
+    bool FXAA = false;
+    Onyx::AntiAliasing FXAAMode = Onyx::FXAA_QualityMedium;
+    bool TransparentBackground = false;
+    bool Orthographic = true;
+    f32 OrthoSize = 6.f;
+    f32 Rotation = 0.f;
+    f32v2 CameraPosition{0.f};
+    LabPlacement Placement = LabPlacement_AboveScene;
+};
+
+// the views the Render views panel inspects, in its order
+enum InspectedView : u8
+{
+    Inspect_Pixel,
+    Inspect_Gallery2,
+    Inspect_Gallery3,
+    Inspect_Labels3,
+    Inspect_Textures,
+    Inspect_Overlay,
+    Inspect_RtScaled,
+    Inspect_RtFixed,
+    Inspect_Lab,
+    Inspect_Count,
+};
+
+// what the galleries asked for this frame, read back by the light checks
+struct LightRequests
+{
+    f32v2 Point2{0.f};
+    f32v2 Velocity2{0.f};
+    f32 ConeAim = 0.f;
+    f32v3 Point3{0.f};
+    f32v3 SpotPosition{0.f, 4.f, 2.f};
+    f32v3 SpotDirection{0.f, -1.f, 0.f};
 };
 
 struct InputTracking
@@ -468,26 +718,107 @@ struct ScaleEvent
     f32v2 Scale;
 };
 
+#ifdef ONYX_ENABLE_AUDIO
+enum Wave : u32
+{
+    Wave_Sine,
+    Wave_Square,
+    Wave_Noise,
+    Wave_Arpeggio,
+    Wave_Beeps,
+    Wave_Count,
+};
+constexpr u32 ScopeSize = 128;
+constexpr u32 ScopeStride = 6; // keep one frame out of every 6 for the scope
+
+// a procedural source. the callback runs on the audio thread, so it must not allocate or lock: everything it shares
+// with the main thread goes through atomics. the main thread writes the parameters and reads the scope
+struct Synth
+{
+    std::atomic<u32> Shape{Wave_Sine};
+    std::atomic<f32> Frequency{220.f};
+    std::atomic<u32> Length{0}; // frames until the sound ends, 0 is endless
+    std::atomic<u32> Cursor{0}; // frames produced since the start or the last seek
+    std::atomic<f32> Phase{0.f};
+    std::atomic<u32> Noise{0x9E3779B9u};
+    u32 SampleRate = 48000;
+
+    TKit::FixedArray<std::atomic<f32>, ScopeSize> Scope{};
+    std::atomic<u32> ScopeHead{0};
+};
+
+enum Orbit : u32
+{
+    Orbit_Off,
+    Orbit_2D,
+    Orbit_3D,
+};
+
+struct AudioState
+{
+    bool Available = false;
+
+    // the panel's source, a beeping source that orbits the listener and two silent blips for the self test, one per
+    // kind of end callback
+    Synth InstrumentSynth{};
+    Synth SpatialSynth{};
+    Synth BlipMainSynth{};
+    Synth BlipAudioSynth{};
+    Onyx::Resource Instrument = Onyx::NullHandle;
+    Onyx::Resource Spatial = Onyx::NullHandle;
+    Onyx::Resource BlipMain = Onyx::NullHandle;
+    Onyx::Resource BlipAudio = Onyx::NullHandle;
+
+    // settings, applied every frame and read back by the checks
+    u32 Wave = Wave_Sine;
+    f32 Frequency = 220.f;
+    f32 Volume = 0.5f;
+    f32 Pitch = 1.f;
+    f32 Pan = 0.f;
+    f32 Master = 1.f;
+    bool Loop = false;
+    u32 Orbit = Orbit_Off;
+
+    f32v2 Listener2{0.f};
+    f32v2 Source2{0.f};
+    f32v3 Listener3{0.f};
+    f32v3 Source3{0.f};
+
+    u32 InstrumentEnds = 0;
+    u32 BlipMainEnds = 0;
+    std::atomic<u32> BlipAudioEnds{0};
+
+    // self test: play then stop the main blip, then play both blips to the end and wait for their end callbacks
+    bool TestRunning = false;
+    bool TestDone = false;
+    f32 TestStartedAt = 0.f;
+    bool PlayFollows = false;
+    bool StopFollows = false;
+    bool Ended = false;
+    u32 MainEndsAtStart = 0;
+    u32 AudioEndsAtStart = 0;
+};
+#endif
+
 struct App
 {
     Onyx::Window *Window = nullptr;
     Onyx::Overlay *Ui = nullptr;
 
-    // cameras live here, render views only keep a pointer to them
+    // cameras live here, render views only keep a pointer to them. a pane's window and texture views share its camera
     Onyx::Camera<D2> PixelCam{};
     Onyx::Camera<D2> GalleryCam{};
+    Onyx::Camera<D2> LabelCam{};
     Onyx::Camera<D2> TexturesCam{};
     Onyx::Camera<D2> RtCam{};
+    Onyx::Camera<D2> LabCam{};
     Onyx::Camera<D3> Cam3{};
 
-    Onyx::RenderView<D2> *PixelView = nullptr;
-    Onyx::RenderView<D2> *GalleryView = nullptr;
-    Onyx::RenderView<D3> *View3 = nullptr;
-    Onyx::Camera<D2> LabelCam{};
-    Onyx::RenderView<D2> *Label3 = nullptr; // transparent 2D view on top of the 3D gallery (title, brackets, cursor)
-    Onyx::RenderView<D2> *TexturesView = nullptr;
+    TKit::FixedArray<Pane, Pane_Count> Panes{};
+    TKit::FixedArray<Onyx::RenderView<D3> *, Mode_Count> View3{};
     Onyx::RenderView<D2> *RtScaledView = nullptr;
     Onyx::RenderView<D2> *RtFixedView = nullptr;
+    Onyx::RenderView<D2> *LabView = nullptr;
 
     Onyx::RenderContext<D2> *PixelCtx = nullptr;
     Onyx::RenderContext<D2> *GalleryCtx = nullptr;
@@ -496,6 +827,7 @@ struct App
     Onyx::RenderContext<D2> *TexturesCtx = nullptr;
     Onyx::RenderContext<D2> *RtCtx = nullptr;
     Onyx::RenderContext<D2> *ScratchCtx = nullptr; // never renders. used to test context state logic
+    Onyx::RenderContext<D2> *LabCtx = nullptr;
 
     Onyx::RenderTexture *RtScaled = nullptr;
     Onyx::RenderTexture *RtFixed = nullptr;
@@ -506,8 +838,13 @@ struct App
     Onyx::Resource ProbeMaterial = Onyx::NullHandle; // registered with known values, read back by a check
 
     RenderSettings Render{};
-    f32v2 LightPos2{0.f}; // where the 2D gallery asked its point light to be, in world space
+    LightSettings Lights{};
+    LabSettings Lab{};
+    LightRequests Requested{};
     InputTracking Input{};
+#ifdef ONYX_ENABLE_AUDIO
+    AudioState Audio{};
+#endif
 
     // time
     f32 Time = 0.f;
@@ -528,150 +865,53 @@ struct App
     char Title[128]{};
     u32 PresentMode = Onyx::PresentMode_VSync;
     f32 Opacity = 1.f;
+    u32v2 RequestedSize = InitialWindowSize;
 
-    // overlay playground state
-    u32 ButtonClicks = 0;
-    bool PlaygroundBool = true;
-    f32 PlaygroundSlider = 0.5f;
-    i32 PlaygroundDrag = 42;
-    u32 PlaygroundChoice = 0;
-    Onyx::Color PlaygroundColor = Theme::Accent;
-    char PlaygroundText[64] = "Type here";
+    // present mode cycle scenario: steps left, when the next one is due and the mode to go back to
+    u32 PresentCycleSteps = 0;
+    f32 PresentCycleAt = 0.f;
+    u32 PresentCycleRestore = Onyx::PresentMode_VSync;
+
+    // layouts. every docked session gets a fresh dockspace, and going back to the direct layout puts the panels back
+    // in place: the first frame undocks them, the second places them
+    LayoutMode Mode = Mode_Direct;
+    LayoutMode RequestedMode = Mode_Direct;
+    u32 DockSessions = 0;
+    bool DockTreePending = false;
+    u32 PlacePanels = 0;
 
     // ui state
-    bool ShowRules = true;
+    bool ShowManual = true;
+    bool ShowGuide = false;
     bool ShowOverlayDemo = false;
-    bool ShowStyleEditor = false;
+    // how many frames each inspected view rendered with each of its framebuffers
+    TKit::FixedArray<TKit::FixedArray<u32, 4>, Inspect_Count> FramebufferUse{};
+    bool LabMouseInside = false;  // over the part of the lab view its scissor lets through
+    PaneId FocusPane = Pane_None; // the view the guided flow points at, by highlighting its brackets
+    TKit::StaticArray<const char *, 64> SkippedFailures{};
+    bool VerdictsDirty = false;
+    u32 LoadedVerdicts = 0;
+    f32 ReportCopiedAt = -100.f;
+    u32 ReportLines = 0;
 
-    TKit::FixedArray<Category, Category_Count> Categories{};
+    CategoryArray Categories{};
     TKit::StaticArray<FailureRecord, 48> FailureLog{};
-
-    Category &Get(const CategoryId id)
-    {
-        return Categories[id];
-    }
 };
 
 // =====================================================================================================================
 //  5. SETUP
 // =====================================================================================================================
 
-void setupCategories(App &app)
+static void resetCameras(App &app)
 {
-    const auto define = [&](const CategoryId id, const char *title, const char *summary, const bool open) {
-        Category &cat = app.Get(id);
-        cat.Title = title;
-        cat.Summary = summary;
-        cat.Open = open;
-    };
-    define(Category_Dpi, "DPI and content scale", "logical vs physical pixels, scale changes, swapchain extent", true);
-    define(Category_Views, "Render views and cameras", "viewports, coordinate conversions, camera modes, layers",
-           false);
-    define(Category_Rendering, "Rendering", "primitives, render modes, blending, lights, context state", false);
-    define(Category_Textures, "Render textures", "offscreen targets, their content scale and sampling", false);
-    define(Category_Input, "Input and events", "event stream consistency, keyboard, mouse, text input", false);
-    define(Category_Resources, "Resources", "default resources, materials, fonts, pools", false);
-    define(Category_Toolkit, "Toolkit and math", "tensors, quaternions, transforms, colors, containers, time", false);
-    define(Category_Platform, "Platform and device", "monitors, window properties, swapchain, GPU", false);
-    define(Category_Overlay, "Overlay", "widgets, windows, docking, the overlay's own view", false);
-
-    Category &dpi = app.Get(Category_Dpi);
-    dpi.AddVisual(
-        "Pixel grid is pixel perfect at integer scales",
-        "Top left view. At 1x and 2x the 8 px grid lines and the 1 px checkerboard must be perfectly crisp and "
-        "evenly spaced. At fractional scales (1.25x, 1.5x) one logical pixel covers a fractional number of "
-        "physical pixels, so some lines will look slightly thicker than others. That is expected. A blurry, "
-        "smeared look (like an upscaled image) is not");
-    dpi.AddVisual("Cursor markers sit exactly under the mouse",
-                  "Every 2D view draws a green ring at the mouse position. It must sit right under the cursor in all "
-                  "of them, especially near the right and bottom edges, and in the bottom right view, whose viewport "
-                  "does not start at the window origin. Drift that grows towards the bottom right means logical and "
-                  "physical coordinates are being mixed");
-    dpi.AddVisual("Corner brackets are visible in every view",
-                  "Each 2D view draws orange brackets in its four corners. All of them must be fully visible after "
-                  "resizing or changing the scale. Missing brackets on the right or bottom means the viewport or "
-                  "scissor is computed in the wrong pixel space");
-    dpi.AddVisual("Overlay text is sharp at every scale",
-                  "The text in these windows must stay sharp after a scale change, not just bigger or smaller");
-    dpi.AddVisual("Views re-tile without gaps after a scale change",
-                  "The four views have different background tints. After changing the scale they must still cover the "
-                  "window exactly, with no black strip or overlap between them");
-
-    Category &views = app.Get(Category_Views);
-    views.AddVisual("Cameras only move in the hovered view",
-                    "Hover the 2D gallery and press WASD/QE, then do the same over the 3D gallery. Only the hovered "
-                    "view's camera must move. The pixel view and the textures view never move");
-    views.AddVisual("2D zoom is anchored at the cursor",
-                    "Scroll over the 2D gallery. The world point under the cursor must stay under the cursor while "
-                    "zooming");
-    views.AddVisual("Overlay stays on top",
-                    "These windows must always be drawn above the four scene views, wherever you drag them, including "
-                    "over the 3D gallery. Layers order views of both dimensions together: a 3D view drawn over the "
-                    "overlay means the compositor orders 2D and 3D views separately");
-    views.AddVisual("3D gallery title, brackets and cursor are visible",
-                    "They are drawn by a transparent 2D view stacked on top of the 3D gallery. If they are missing, "
-                    "2D views are being composited below 3D views regardless of their layer");
-
-    Category &rendering = app.Get(Category_Rendering);
-    rendering.AddVisual("Every 2D primitive is drawn",
-                        "2D gallery, top row: triangle, quad, circle (hollow, partial arc), stadium, rounded rect");
-    rendering.AddVisual("Every 3D primitive is drawn",
-                        "3D gallery: box, sphere, cylinder, capsule, rounded box and torus over a floor");
-    rendering.AddVisual("Outlines are uniform",
-                        "With outlines on, every shape gets an even outline that follows its silhouette, with no gaps "
-                        "or spikes at corners. Changing the outline width must change all of them");
-    rendering.AddVisual("Transparency blends in order",
-                        "2D gallery, middle row: three overlapping translucent squares. You must see every overlap "
-                        "region tinted by both colors, and the alpha slider must fade all three");
-    rendering.AddVisual("Circle parameters are respected",
-                        "The circle follows the hollowness, arc and fade sliders exactly");
-    rendering.AddVisual("2D light follows the cursor and casts shadows",
-                        "With 2D lights on, a warm light follows the cursor in the 2D gallery, centered on the green "
-                        "cursor ring, lighting the dark band at the bottom. The spinning occluder must cast a shadow "
-                        "away from the light");
-    rendering.AddVisual("No light leaks through 2D occluders",
-                        "Move the light all around the spinning occluder, especially to its right (the occluder is "
-                        "then at angle 180 degrees from the light, where the circular shadow map wraps around). No "
-                        "slit of light may cross the occluder or its shadow at any angle");
-    rendering.AddVisual("3D point light is visible and its shadows are complete",
-                        "A small yellow sphere marks the orbiting point light. Its shadows must stay solid wherever "
-                        "the light is: no hole opening from the middle of a shadow as the light moves away. Shadows "
-                        "may only end beyond the light's ShadowRadius");
-    rendering.AddVisual(
-        "3D shadows are correct",
-        "With shadows on, every 3D shape casts a shadow onto the floor below it, displaced consistently "
-        "with the light direction and following the shape as it rotates. No shadow acne (striped self "
-        "shadowing on lit faces), no shadows cut off at cascade boundaries while moving the camera");
-    rendering.AddVisual("Text renders crisp",
-                        "Text inside the scene views (titles) must be crisp and correctly kerned");
-
-    Category &textures = app.Get(Category_Textures);
-    textures.AddVisual("Scaled render texture stays sharp",
-                       "Bottom right view and the image in this panel: the left render texture follows the window "
-                       "content scale and must look as crisp as the pixel view. The right one is fixed at scale 1 and "
-                       "must look softer above 1x. At 1x both must look identical");
-
-    Category &input = app.Get(Category_Input);
-    input.AddVisual("Typing reaches the overlay",
-                    "Click the text field in the Overlay panel and type. Characters must appear in order, and the "
-                    "typed text log in this panel must match");
-    input.AddVisual("Overlay captures the mouse",
-                    "Dragging an overlay window over a scene view must not move that view's camera, and scrolling "
-                    "inside an overlay window must not zoom the scene");
-
-    Category &overlay = app.Get(Category_Overlay);
-    overlay.AddVisual("Widgets respond", "In the playground below: the button counts clicks, the checkbox toggles, the "
-                                         "slider and drag change their values, the drop down selects");
-    overlay.AddVisual("Windows move, resize and collapse",
-                      "Drag any window by its header, resize it from its borders and collapse it from its arrow");
-    overlay.AddVisual("Docking works",
-                      "Drag a panel over another one: dock previews must appear, and dropping must dock it. Dragging "
-                      "the tab away must undock it again");
-    overlay.AddVisual("Tooltips and popups",
-                      "Hover the playground button for a tooltip, right click it for a popup menu");
+    app.GalleryCam.View = {};
+    app.GalleryCam.OrthoParameters.Size = 10.f;
+    app.Cam3.View = {};
+    app.Cam3.View.Translation = f32v3{0.f, 1.5f, 9.5f};
+    app.Cam3.PerspParameters.FieldOfView = Math::Radians(75.f);
 }
 
-void setup(App &app)
+static void setup(App &app)
 {
     // -- resources --------------------------------------------------------------------------------------------------
     // materials are registered up front and synced once. Resources_Sync uploads everything registered so far
@@ -689,52 +929,15 @@ void setup(App &app)
     Onyx::Window *win = app.Window;
 
     const Graph::PlatformBackendInfo pinfo = Graph::GetPlatformBackendInfo();
-    const Line title = Format("Onyx control center | {}", platformName(pinfo.Platform));
+    const Line title = formatLine("Onyx control center | {}", PlatformNames[pinfo.Platform]);
     for (u32 i = 0; i <= title.Size && i < sizeof(app.Title) - 1; ++i)
         app.Title[i] = title.Data[i];
     win->SetTitle(app.Title);
 
-    // -- scene views ------------------------------------------------------------------------------------------------
-    // all four use proportional viewports, so they follow the window when it is resized or its scale changes
-    const auto proportional = [](const u32 quadrant) {
-        return Onyx::Viewport{.Position = {Quadrants[quadrant].X, Quadrants[quadrant].Y},
-                              .Size = {QuadrantSize, QuadrantSize}};
-    };
-
-    app.PixelCam.Mode = Onyx::CameraMode_Viewport;
-    app.PixelView = win->CreateRenderView<D2>(&app.PixelCam, {.Flags = Onyx::RenderViewFlag_Outlines});
-    app.PixelView->SetProportionalViewport(proportional(0));
-    app.PixelView->ClearColor = Theme::ClearPixel;
-
-    app.GalleryCam.OrthoParameters.Size = 10.f;
-    app.GalleryView = win->CreateRenderView<D2>(
-        &app.GalleryCam,
-        {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
-    app.GalleryView->SetProportionalViewport(proportional(1));
-    app.GalleryView->ClearColor = Theme::ClearGallery;
-
-    app.Cam3.View.Translation = f32v3{0.f, 1.5f, 9.5f};
-    app.View3 =
-        win->CreateRenderView<D3>(&app.Cam3, {.Flags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines |
-                                                       Onyx::RenderViewFlag_Transparency});
-    app.View3->SetProportionalViewport(proportional(2));
-    app.View3->ClearColor = Theme::ClearScene3;
-
-    // 2D views can sit on top of 3D ones: this transparent view shares the 3D gallery's viewport and draws its title,
-    // corner brackets and cursor ring. it only shows if 2D and 3D views are composited by layer. the clear color is
-    // transparent black, like the overlay's
-    app.LabelCam.Mode = Onyx::CameraMode_Viewport;
-    app.Label3 = win->CreateRenderView<D2>(&app.LabelCam);
-    app.Label3->SetProportionalViewport(proportional(2));
-    app.Label3->ClearColor = Onyx::Color{0.f, 0.f, 0.f, 0.f};
-
-    app.TexturesCam.Mode = Onyx::CameraMode_Viewport;
-    app.TexturesView = win->CreateRenderView<D2>(&app.TexturesCam);
-    app.TexturesView->SetProportionalViewport(proportional(3));
-    app.TexturesView->ClearColor = Theme::ClearTextures;
-
     // -- render textures --------------------------------------------------------------------------------------------
-    // one follows the window content scale (updated on Event_ContentScaleChanged), the other stays at 1 as a reference
+    // one follows the window content scale (updated on Event_ContentScaleChanged), the other stays at 1 as a reference.
+    // render textures render in creation order, and a texture is only ready to be sampled once its own turn has come.
+    // the docked Textures pane samples these two, so they must be created before the pane textures
     app.RtScaled = Onyx::CreateRenderTexture(RenderTextureSize, {.ContentScale = win->GetContentScale()[0]});
     app.RtFixed = Onyx::CreateRenderTexture(RenderTextureSize, {.ContentScale = 1.f});
     app.RtCam.Mode = Onyx::CameraMode_Viewport;
@@ -743,54 +946,166 @@ void setup(App &app)
     app.RtScaledView->ClearColor = Theme::ClearRenderTexture;
     app.RtFixedView->ClearColor = Theme::ClearRenderTexture;
 
-    // -- render contexts --------------------------------------------------------------------------------------------
-    // a context records draw commands. it can target any number of views, of any render target.
+    // -- scene views ------------------------------------------------------------------------------------------------
+    // every pane has two sets of views on the same camera: one in its window quadrant for the direct layout and one
+    // covering a render texture for the docked layout. only the active set is targeted and visible
+    app.PixelCam.Mode = Onyx::CameraMode_Viewport;
+    app.LabelCam.Mode = Onyx::CameraMode_Viewport;
+    app.TexturesCam.Mode = Onyx::CameraMode_Viewport;
+    resetCameras(app);
 
+    const Onyx::RenderViewFlags galleryFlags =
+        Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency;
+    for (Pane &pane : app.Panes)
+        pane.Texture = Onyx::CreateRenderTexture(InitialPaneTextureSize, {.ContentScale = win->GetContentScale()[0]});
+
+    for (u32 m = 0; m < Mode_Count; ++m)
+    {
+        TKit::FixedArray<Onyx::RenderTarget *, Pane_Count> targets{};
+        for (u32 i = 0; i < Pane_Count; ++i)
+            targets[i] = m == Mode_Direct ? static_cast<Onyx::RenderTarget *>(win) : app.Panes[i].Texture;
+
+        app.Panes[Pane_Pixel].Frame[m] =
+            targets[Pane_Pixel]->CreateRenderView<D2>(&app.PixelCam, {.Flags = Onyx::RenderViewFlag_Outlines});
+        app.Panes[Pane_Gallery2].Frame[m] =
+            targets[Pane_Gallery2]->CreateRenderView<D2>(&app.GalleryCam, {.Flags = galleryFlags});
+        app.View3[m] = targets[Pane_Gallery3]->CreateRenderView<D3>(&app.Cam3, {.Flags = galleryFlags});
+        // 2D views can sit on top of 3D ones: this transparent view shares the 3D gallery's viewport and draws its
+        // title, corner brackets and cursor. it only shows if 2D and 3D views are composited by layer. the clear color
+        // is transparent black, like the overlay's
+        app.Panes[Pane_Gallery3].Frame[m] = targets[Pane_Gallery3]->CreateRenderView<D2>(&app.LabelCam);
+        app.Panes[Pane_Textures].Frame[m] = targets[Pane_Textures]->CreateRenderView<D2>(&app.TexturesCam);
+
+        app.View3[m]->ClearColor = PaneInfos[Pane_Gallery3].Clear;
+        for (u32 i = 0; i < Pane_Count; ++i)
+            app.Panes[i].Frame[m]->ClearColor = PaneInfos[i].Clear;
+        app.Panes[Pane_Gallery3].Frame[m]->ClearColor = Onyx::Color{0.f, 0.f, 0.f, 0.f};
+    }
+
+    // window views use proportional viewports, so they follow the window when it is resized or its scale changes.
+    // texture views keep the default: the whole texture
+    for (u32 i = 0; i < Pane_Count; ++i)
+        app.Panes[i].Frame[Mode_Direct]->SetProportionalViewport(
+            {.Position = PaneInfos[i].Quadrant, .Size = f32v2{QuadrantSize}});
+    app.View3[Mode_Direct]->SetProportionalViewport(
+        {.Position = PaneInfos[Pane_Gallery3].Quadrant, .Size = f32v2{QuadrantSize}});
+
+    // -- view lab ---------------------------------------------------------------------------------------------------
+    // one more window view, created after the scene views so it starts above them. it stays hidden until its panel
+    // turns it on, and updateLab() applies its settings every frame
+    app.LabView = win->CreateRenderView<D2>(&app.LabCam, {.Flags = Onyx::RenderViewFlag_Hidden});
+
+    // -- render contexts --------------------------------------------------------------------------------------------
+    // a context records draw commands and can target any number of views, of any render target. the scene contexts
+    // get their targets from setLayout()
     app.PixelCtx = Onyx::CreateRenderContext<D2>();
-    app.PixelCtx->AddTarget(app.PixelView);
     app.GalleryCtx = Onyx::CreateRenderContext<D2>();
-    app.GalleryCtx->AddTarget(app.GalleryView);
     app.Ctx3 = Onyx::CreateRenderContext<D3>();
-    app.Ctx3->AddTarget(app.View3);
     app.LabelCtx = Onyx::CreateRenderContext<D2>();
-    app.LabelCtx->AddTarget(app.Label3);
     app.TexturesCtx = Onyx::CreateRenderContext<D2>();
-    app.TexturesCtx->AddTarget(app.TexturesView);
+    app.Panes[Pane_Pixel].Context = app.PixelCtx;
+    app.Panes[Pane_Gallery2].Context = app.GalleryCtx;
+    app.Panes[Pane_Gallery3].Context = app.LabelCtx;
+    app.Panes[Pane_Textures].Context = app.TexturesCtx;
+
     app.RtCtx = Onyx::CreateRenderContext<D2>();
     app.RtCtx->AddTarget(app.RtScaledView);
     app.RtCtx->AddTarget(app.RtFixedView);
     app.ScratchCtx = Onyx::CreateRenderContext<D2>();
+    app.LabCtx = Onyx::CreateRenderContext<D2>();
+    app.LabCtx->AddTarget(app.LabView);
 
     // -- overlay ----------------------------------------------------------------------------------------------------
-    // created last and explicitly brought to the top, so it is drawn above every scene view
-    app.Ui = win->CreateOverlay();
+    // created last and explicitly brought to the top, so it is drawn above every scene view. docking is off unless
+    // asked for at creation
+    app.Ui = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking});
     win->BringToTop(app.Ui->GetMainNativeWindow()->View);
-
-    setupCategories(app);
 }
 
-void resetCameras(App &app)
+// =====================================================================================================================
+//  6. LAYOUTS, EVENTS AND CAMERA CONTROL
+// =====================================================================================================================
+
+// moves every scene context to the views of the requested layout. hidden views neither render nor composite. a
+// context is never left targeting both sets: every shadow casting light takes one shadow map per targeted view, and
+// 2D only has four
+static void setLayout(App &app, const LayoutMode mode)
 {
-    app.GalleryCam.View = {};
-    app.GalleryCam.OrthoParameters.Size = 10.f;
-    app.Cam3.View = {};
-    app.Cam3.View.Translation = f32v3{0.f, 1.5f, 9.5f};
-    app.Cam3.PerspParameters.FieldOfView = Math::Radians(75.f);
+    const LayoutMode old = mode == Mode_Direct ? Mode_Docked : Mode_Direct;
+    for (Pane &pane : app.Panes)
+    {
+        pane.Context->RemoveTarget(pane.Frame[old]);
+        pane.Context->AddTarget(pane.Frame[mode]);
+        pane.Frame[old]->AddFlags(Onyx::RenderViewFlag_Hidden);
+        pane.Frame[mode]->RemoveFlags(Onyx::RenderViewFlag_Hidden);
+        pane.ImageHovered = false;
+        pane.ImageSize = f32v2{0.f};
+        pane.MismatchSince = -1.f;
+    }
+    app.Ctx3->RemoveTarget(app.View3[old]);
+    app.Ctx3->AddTarget(app.View3[mode]);
+    app.View3[old]->AddFlags(Onyx::RenderViewFlag_Hidden);
+    app.View3[mode]->RemoveFlags(Onyx::RenderViewFlag_Hidden);
+
+    app.Mode = mode;
+    app.RequestedMode = mode;
+    app.FramebufferUse = {};
+    if (mode == Mode_Docked)
+    {
+        ++app.DockSessions;
+        app.DockTreePending = true;
+    }
+    else
+        app.PlacePanels = 2;
 }
 
-// =====================================================================================================================
-//  6. EVENT PROCESSING AND CAMERA CONTROL
-// =====================================================================================================================
+// docked textures follow the logical size of their panels at the window's content scale, and the mouse is mapped from
+// the panel's image into the texture. the image rectangle and its hover state come from last frame's overlay pass
+static void updatePanes(App &app)
+{
+    const f32v2 mouse = app.Window->GetMousePosition();
+    const f32v2 scale = app.Window->GetContentScale();
+
+    // the lab view only shows through its scissor. above the scene, that part hides the panes under it
+    const Onyx::RenderView<D2> *lab = app.LabView;
+    const f32v2 inScissor = lab->ScreenToViewport(mouse) - lab->GetScissor().Position;
+    const f32v2 &scissorSize = lab->GetScissor().Size;
+    app.LabMouseInside = !(lab->GetFlags() & Onyx::RenderViewFlag_Hidden) && lab->IsWithinViewport(mouse) &&
+                         inScissor[0] >= 0.f && inScissor[1] >= 0.f && inScissor[0] < scissorSize[0] &&
+                         inScissor[1] < scissorSize[1];
+    const bool labCovers = app.LabMouseInside && app.Lab.Placement == LabPlacement_AboveScene;
+
+    for (Pane &pane : app.Panes)
+    {
+        if (app.Mode == Mode_Direct)
+        {
+            pane.Mouse = mouse;
+            pane.MouseInside = !labCovers && pane.Frame[Mode_Direct]->IsWithinViewport(mouse);
+            continue;
+        }
+
+        Onyx::RenderTexture *rt = pane.Texture;
+        const u32v2 size{Math::Round(pane.ImageSize)};
+        if (size[0] > 0 && size[1] > 0 &&
+            (size != rt->GetSize() || !Math::Approximately(rt->GetContentScale(), scale, Epsilon)))
+            rt->Resize(size, scale);
+
+        // the image may be stretched for a frame while the texture catches up, so map through the image size
+        const bool hasImage = pane.ImageSize[0] >= 1.f && pane.ImageSize[1] >= 1.f;
+        pane.Mouse = hasImage ? (mouse - pane.ImagePos) * f32v2{rt->GetSize()} / pane.ImageSize : f32v2{-1.f};
+        pane.MouseInside = hasImage && pane.ImageHovered;
+    }
+}
 
 // "press" and "release" style events must alternate. two presses in a row (or two releases) is a violation
-void checkAlternation(Onyx::EventType &last, const Onyx::EventType current, u32 &violations)
+static void checkAlternation(Onyx::EventType &last, const Onyx::EventType current, u32 &violations)
 {
     if (last == current)
         ++violations;
     last = current;
 }
 
-template <typename Array, typename T> bool removeHeld(Array &held, const T value)
+template <typename Array, typename T> static bool removeHeld(Array &held, const T value)
 {
     for (T *it = held.begin(); it != held.end(); ++it)
         if (*it == value)
@@ -801,11 +1116,12 @@ template <typename Array, typename T> bool removeHeld(Array &held, const T value
     return false;
 }
 
-void processEvents(App &app)
+static void processEvents(App &app)
 {
     InputTracking &in = app.Input;
     Onyx::Window *win = app.Window;
-    const f32v2 mouse = win->GetMousePosition();
+    Pane &gallery2 = app.Panes[Pane_Gallery2];
+    Pane &gallery3 = app.Panes[Pane_Gallery3];
 
     for (const Onyx::Event &event : win->GetNewEvents())
     {
@@ -850,12 +1166,14 @@ void processEvents(App &app)
             break;
         case Onyx::Event_Scrolled:
             in.LastScroll = event.ScrollOffset;
-            if (app.Ui->WantCaptureScroll())
+            // docked galleries live inside overlay windows, so only the direct layout defers to the overlay here. a
+            // docked pane only counts as hovered when its image is the topmost thing under the mouse
+            if (app.Mode == Mode_Direct && app.Ui->WantCaptureScroll())
                 break;
-            if (app.GalleryView->IsWithinViewport(mouse))
-                app.GalleryView->ZoomScroll(mouse, 0.1f * event.ScrollOffset[1]);
-            else if (app.View3->IsWithinViewport(mouse))
-                app.View3->ZoomScroll(f32v3{mouse, 0.f}, 0.05f * event.ScrollOffset[1]);
+            if (gallery2.MouseInside)
+                gallery2.Frame[app.Mode]->ZoomScroll(gallery2.Mouse, 0.1f * event.ScrollOffset[1]);
+            else if (gallery3.MouseInside)
+                app.View3[app.Mode]->ZoomScroll(f32v3{gallery3.Mouse, 0.f}, 0.05f * event.ScrollOffset[1]);
             break;
         case Onyx::Event_ContentScaleChanged:
             if (app.ScaleEvents.IsFull())
@@ -885,28 +1203,73 @@ void processEvents(App &app)
     }
 }
 
-// only the hovered view's camera moves, and never while the overlay wants the keyboard. note that
+// only the hovered gallery's camera moves, and never while the overlay wants the keyboard. note that
 // Window::GetMouseRenderView<D2>() is not usable here: the overlay's own view is a 2D view covering the whole window,
-// and it is always on top
-void controlCameras(App &app)
+// and it is always on top. in the docked layout the mouse is always over an overlay window, so the mouse capture is
+// ignored there and the image hover decides
+static void controlCameras(App &app)
 {
-    if (app.Ui->WantCaptureKeyboard() || app.Ui->WantCaptureMouse())
+    const bool overlayMouse = app.Mode == Mode_Direct && app.Ui->WantCaptureMouse();
+    if (app.Ui->WantCaptureKeyboard() || overlayMouse)
         return;
-    const f32v2 mouse = app.Window->GetMousePosition();
     const TKit::Timespan dt = Onyx::GetDeltaTime(app.Window);
-    if (app.GalleryView->IsWithinViewport(mouse))
+    if (app.Panes[Pane_Gallery2].MouseInside)
         app.Window->ControlCamera(dt, &app.GalleryCam);
-    else if (app.View3->IsWithinViewport(mouse))
+    else if (app.Panes[Pane_Gallery3].MouseInside)
         app.Window->ControlCamera(dt, &app.Cam3);
+}
+
+// the lab's settings are applied every frame, so its checks can read them back. in the docked layout the dockspace
+// covers the window, so the lab is hidden there
+static void updateLab(App &app)
+{
+    const LabSettings &lab = app.Lab;
+    Onyx::RenderView<D2> *rv = app.LabView;
+
+    Onyx::RenderViewFlags flags = lab.Enabled && app.Mode == Mode_Direct ? 0 : Onyx::RenderViewFlag_Hidden;
+    if (lab.Outlines)
+        flags |= Onyx::RenderViewFlag_Outlines;
+    if (lab.Transparency)
+        flags |= Onyx::RenderViewFlag_Transparency;
+    if (lab.FXAA)
+        flags |= Onyx::RenderViewFlag_FXAA;
+    if (flags != rv->GetFlags())
+        rv->SetFlags(flags);
+    rv->AntiAliasingMode = lab.FXAAMode;
+
+    if (lab.FixedViewport)
+        rv->SetFixedViewport({.Position = lab.Position, .Size = lab.Size});
+    else
+        rv->SetProportionalViewport({.Position = lab.Position, .Size = lab.Size});
+    rv->SetProportionalScissor({.Position = lab.ScissorPosition, .Size = lab.ScissorSize});
+    rv->SetProportionalImageSize(f32v2{lab.ImageScale});
+    rv->ClearColor = lab.TransparentBackground ? Onyx::Color{0.f, 0.f, 0.f, 0.f} : Theme::ClearLab;
+
+    app.LabCam.Mode = lab.Orthographic ? Onyx::CameraMode_Orthographic : Onyx::CameraMode_Viewport;
+    app.LabCam.OrthoParameters.Size = lab.OrthoSize;
+    app.LabCam.View.Translation = lab.CameraPosition;
+    app.LabCam.View.Rotation = lab.Rotation;
+}
+
+// scenarios exercise related checks on demand
+static void runScenarios(App &app)
+{
+    if (app.PresentCycleSteps == 0 || app.Time < app.PresentCycleAt)
+        return;
+    --app.PresentCycleSteps;
+    app.PresentMode =
+        app.PresentCycleSteps == 0 ? app.PresentCycleRestore : (app.PresentMode + 1) % u32(Graph::PresentMode_Count);
+    app.Window->SetPresentMode(Graph::PresentMode(app.PresentMode));
+    app.PresentCycleAt = app.Time + 0.75f;
 }
 
 // =====================================================================================================================
 //  7. AUTOMATIC CHECKS
 // =====================================================================================================================
 
-void checkDpi(App &app)
+static void checkDpi(App &app)
 {
-    Category &cat = app.Get(Category_Dpi);
+    Category &cat = app.Categories[Category_Dpi];
     Onyx::Window *win = app.Window;
     const Graph::Window handle = win->GetHandle();
 
@@ -919,17 +1282,17 @@ void checkDpi(App &app)
     cat.Expect("Content scale is positive", scale[0] > 0.f && scale[1] > 0.f,
                "The content scale is the ratio between physical and logical pixels. It can never be zero or negative",
                "scale = {:.3f} x {:.3f}", scale[0], scale[1]);
-    cat.Expect("Content scale is uniform", near(scale[0], scale[1], Epsilon),
+    cat.Expect("Content scale is uniform", Math::Approximately(scale[0], scale[1], Epsilon),
                "Desktop platforms report the same scale on both axes. Onyx relies on the x component in a few places "
                "(render texture scale, outline width), so a non uniform scale would be handled incorrectly",
                "x = {:.3f}, y = {:.3f}", scale[0], scale[1]);
-    cat.Expect("Pixel size = logical size x scale", nearPixels(pixels, expected, 1),
+    cat.Expect("Pixel size = logical size x scale", Math::Approximately(f32v2{pixels}, f32v2{expected}, 1.f),
                "Window::GetSize() returns logical pixels. Multiplying by the content scale must give the framebuffer "
                "size in physical pixels (rounding may differ by one)",
                "logical {} x {}  x {:.3f}  = {} x {}, framebuffer {} x {}", size[0], size[1], scale[0], expected[0],
                expected[1], pixels[0], pixels[1]);
     cat.Expect("Logical size survives a scale round trip",
-               nearPixels(Onyx::UnapplyScale(Onyx::ApplyScale(size, scale), scale), size, 1),
+               Math::Approximately(f32v2{Onyx::UnapplyScale(Onyx::ApplyScale(size, scale), scale)}, f32v2{size}, 1.f),
                "ApplyScale and UnapplyScale convert between logical and physical sizes. Going there and back must "
                "return the original size (within rounding)",
                "{} x {} -> {} x {} -> back", size[0], size[1], expected[0], expected[1]);
@@ -950,152 +1313,162 @@ void checkDpi(App &app)
 
     bool viewsOk = true;
     for (const Onyx::RenderView<D2> *rv : win->GetRenderViews<D2>())
-        viewsOk &= near(rv->GetContentScale(), scale, Epsilon);
+        viewsOk &= Math::Approximately(rv->GetContentScale(), scale, Epsilon);
     for (const Onyx::RenderView<D3> *rv : win->GetRenderViews<D3>())
-        viewsOk &= near(rv->GetContentScale(), scale, Epsilon);
+        viewsOk &= Math::Approximately(rv->GetContentScale(), scale, Epsilon);
     cat.Expect("Every window view uses the window scale", viewsOk,
                "Render views size their framebuffers as logical size x content scale. A window view still holding an "
-               "old scale renders at the wrong resolution (blurry or clipped)",
+               "old scale renders at the wrong resolution (blurry or clipped). Hidden views are updated too",
                "{} 2D views, {} 3D views checked against {:.3f}", win->GetRenderViews<D2>().GetSize(),
                win->GetRenderViews<D3>().GetSize(), scale[0]);
 
-    if (!app.ScaleEvents.IsEmpty())
+    const char *eventRule = "Event_ContentScaleChanged carries the new scale. The most recent one must equal what the "
+                            "window reports now, otherwise an event was lost or carries a stale value";
+    if (app.ScaleEvents.IsEmpty())
+        cat.Skip("Last scale event matches the current scale", eventRule, "no scale change yet");
+    else
     {
         const f32v2 last = app.ScaleEvents.GetBack().Scale;
-        cat.Expect("Last scale event matches the current scale", near(last, scale, Epsilon),
-                   "Event_ContentScaleChanged carries the new scale. The most recent one must equal what the window "
-                   "reports now, otherwise an event was lost or carries a stale value",
+        cat.Expect("Last scale event matches the current scale", Math::Approximately(last, scale, Epsilon), eventRule,
                    "last event {:.3f} x {:.3f}, window {:.3f} x {:.3f}", last[0], last[1], scale[0], scale[1]);
     }
 
-    if (win->IsHovered())
+    const char *mouseRule = "Window::GetMousePosition() returns logical pixels. While the cursor hovers the window it "
+                            "must lie within [0, logical size]. A position up to scale times too large means it is in "
+                            "physical pixels";
+    if (!win->IsHovered())
+        cat.Skip("Hovered mouse lies inside the logical window", mouseRule, "the cursor is not over the window");
+    else
     {
         const f32v2 mouse = win->GetMousePosition();
         const bool inside =
             mouse[0] >= -1.f && mouse[1] >= -1.f && mouse[0] <= f32(size[0]) + 1.f && mouse[1] <= f32(size[1]) + 1.f;
-        cat.Expect("Hovered mouse lies inside the logical window", inside,
-                   "Window::GetMousePosition() returns logical pixels. While the cursor hovers the window it must lie "
-                   "within [0, logical size]. A position up to scale times too large means it is in physical pixels",
+        cat.Expect("Hovered mouse lies inside the logical window", inside, mouseRule,
                    "mouse ({:.1f}, {:.1f}) in {} x {}", mouse[0], mouse[1], size[0], size[1]);
     }
 }
 
-void checkViews(App &app)
+static void checkViews(App &app)
 {
-    Category &cat = app.Get(Category_Views);
+    Category &cat = app.Categories[Category_Views];
     Onyx::Window *win = app.Window;
     const f32v2 wsize = f32v2{win->GetSize()};
-    const f32v2 mouse = win->GetMousePosition();
+    const bool direct = app.Mode == Mode_Direct;
 
-    // the four quadrant views, as 2D or 3D, share most of their checks
-    const auto viewportOf = [&](const u32 quadrant) -> const Onyx::Viewport & {
-        switch (quadrant)
-        {
-        case 0:
-            return app.PixelView->GetViewport();
-        case 1:
-            return app.GalleryView->GetViewport();
-        case 2:
-            return app.View3->GetViewport();
-        default:
-            return app.TexturesView->GetViewport();
-        }
-    };
-    const auto imageSizeOf = [&](const u32 quadrant) -> u32v2 {
-        switch (quadrant)
-        {
-        case 0:
-            return app.PixelView->GetImageSize();
-        case 1:
-            return app.GalleryView->GetImageSize();
-        case 2:
-            return app.View3->GetImageSize();
-        default:
-            return app.TexturesView->GetImageSize();
-        }
-    };
-
-    f32 area = 0.f;
-    for (u32 q = 0; q < 4; ++q)
+    // the view that owns each pane's viewport: the frame view, except for the 3D gallery, whose 3D view does
+    TKit::FixedArray<const Onyx::Viewport *, Pane_Count> viewports{};
+    TKit::FixedArray<u32v2, Pane_Count> images{};
+    for (u32 i = 0; i < Pane_Count; ++i)
     {
-        const Onyx::Viewport &vp = viewportOf(q);
-        area += vp.Size[0] * vp.Size[1];
-        const f32v2 expectedPos = f32v2{Quadrants[q].X, Quadrants[q].Y} * wsize;
-        const f32v2 expectedSize = QuadrantSize * wsize;
-        cat.Expect(ViewportCheckNames[q], near(vp.Position, expectedPos, 0.5f) && near(vp.Size, expectedSize, 0.5f),
-                   "A proportional viewport is stored as window fractions and must be recomputed from the logical "
-                   "window size on every resize and scale change. Position and size are in logical pixels",
-                   "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}",
-                   vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1], expectedPos[0], expectedPos[1],
-                   expectedSize[0], expectedSize[1]);
+        viewports[i] = &app.Panes[i].Frame[app.Mode]->GetViewport();
+        images[i] = app.Panes[i].Frame[app.Mode]->GetImageSize();
+    }
+    viewports[Pane_Gallery3] = &app.View3[app.Mode]->GetViewport();
+    images[Pane_Gallery3] = app.View3[app.Mode]->GetImageSize();
 
-        const u32v2 isize = imageSizeOf(q);
-        cat.Expect(ImageCheckNames[q], nearPixels(isize, u32v2{Math::Round(vp.Size)}, 1),
+    const char *viewportRule = "A proportional viewport is stored as window fractions and must be recomputed from the "
+                               "logical window size on every resize and scale change. Position and size are in logical "
+                               "pixels. Only the direct layout tiles the window: docked views cover their texture";
+    f32 area = 0.f;
+    for (u32 i = 0; i < Pane_Count; ++i)
+    {
+        const Onyx::Viewport &vp = *viewports[i];
+        area += vp.Size[0] * vp.Size[1];
+        if (direct)
+        {
+            const f32v2 expectedPos = PaneInfos[i].Quadrant * wsize;
+            const f32v2 expectedSize = QuadrantSize * wsize;
+            cat.Expect(ViewportCheckNames[i],
+                       Math::Approximately(vp.Position, expectedPos, 0.5f) &&
+                           Math::Approximately(vp.Size, expectedSize, 0.5f),
+                       viewportRule,
+                       "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}",
+                       vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1], expectedPos[0], expectedPos[1],
+                       expectedSize[0], expectedSize[1])
+                .Pane = PaneId(i);
+        }
+        else
+            cat.Skip(ViewportCheckNames[i], viewportRule, "docked layout: the view covers its texture").Pane =
+                PaneId(i);
+
+        cat.Expect(ImageCheckNames[i], Math::Approximately(f32v2{images[i]}, Math::Round(vp.Size), 1.f),
                    "With proportional image sizing (the default, ratio 1) a view's image has the logical size of its "
                    "viewport. The physical extent is that size times the content scale",
-                   "image {} x {}, viewport {:.0f} x {:.0f}", isize[0], isize[1], vp.Size[0], vp.Size[1]);
+                   "image {} x {}, viewport {:.0f} x {:.0f}", images[i][0], images[i][1], vp.Size[0], vp.Size[1])
+            .Pane = PaneId(i);
     }
-    cat.Expect("Views tile the window", near(area, wsize[0] * wsize[1], 2.f * (wsize[0] + wsize[1])),
-               "The four quadrant viewports must cover the window exactly: their areas add up to the window area "
-               "(within a pixel of rounding along the seams)",
-               "viewports {:.0f} px2, window {:.0f} px2", area, wsize[0] * wsize[1]);
+    const char *tileRule =
+        "The four quadrant viewports must cover the window exactly: their areas add up to the window "
+        "area (within a pixel of rounding along the seams)";
+    if (direct)
+        cat.Expect("Views tile the window", Math::Approximately(area, wsize[0] * wsize[1], 2.f * (wsize[0] + wsize[1])),
+                   tileRule, "viewports {:.0f} px2, window {:.0f} px2", area, wsize[0] * wsize[1]);
+    else
+        cat.Skip("Views tile the window", tileRule, "docked layout: the views render into textures");
 
-    // coordinate conversions
-    const auto roundTrip2 = [&](const char *name, const Onyx::RenderView<D2> *rv) {
-        const Onyx::Viewport &vp = rv->GetViewport();
-        const f32v2 probes[3] = {vp.Position + 0.25f * vp.Size, vp.Position + 0.75f * vp.Size,
-                                 rv->IsWithinViewport(mouse) ? mouse : vp.Position + 0.5f * vp.Size};
+    // coordinate conversions, at the mouse when it is over the pane and at fixed probes otherwise
+    for (u32 i = 0; i < Pane_Count; ++i)
+    {
+        const Pane &pane = app.Panes[i];
+        const Onyx::Viewport &vp = *viewports[i];
+        const f32v2 probe = pane.MouseInside ? pane.Mouse : vp.Position + 0.5f * vp.Size;
+        if (i == Pane_Gallery3)
+        {
+            const Onyx::RenderView<D3> *rv = app.View3[app.Mode];
+            const f32v3 world = rv->ScreenToWorld(f32v3{probe, 0.5f});
+            const f32 error = Math::Norm(rv->WorldToScreen(world) - probe);
+            cat.Expect(RoundTripCheckNames[i], error < 0.05f,
+                       "In 3D, a screen point plus a depth (in normalized device coordinates) defines a world point. "
+                       "Projecting it back must give the same screen point",
+                       "error {:.5f} px at depth 0.5", error)
+                .Pane = PaneId(i);
+            continue;
+        }
+        const Onyx::RenderView<D2> *rv = pane.Frame[app.Mode];
+        const f32v2 probes[3] = {vp.Position + 0.25f * vp.Size, vp.Position + 0.75f * vp.Size, probe};
         f32 maxError = 0.f;
         for (const f32v2 &p : probes)
             maxError = Math::Max(maxError, Math::Norm(rv->WorldToScreen(rv->ScreenToWorld(p)) - p));
-        cat.Expect(name, maxError < 0.01f,
+        cat.Expect(RoundTripCheckNames[i], maxError < 0.01f,
                    "ScreenToWorld and WorldToScreen are inverses. Converting a screen point to world space and back "
                    "must land on the same logical pixel, for any camera position, rotation or zoom",
-                   "max error {:.5f} px over 3 probes", maxError);
-    };
-    roundTrip2("Pixel view: screen -> world -> screen", app.PixelView);
-    roundTrip2("2D gallery: screen -> world -> screen", app.GalleryView);
-    roundTrip2("Textures: screen -> world -> screen", app.TexturesView);
-
-    {
-        const Onyx::Viewport &vp = app.View3->GetViewport();
-        const f32v2 p = app.View3->IsWithinViewport(mouse) ? mouse : vp.Position + 0.5f * vp.Size;
-        const f32v3 world = app.View3->ScreenToWorld(f32v3{p, 0.5f});
-        const f32 error = Math::Norm(app.View3->WorldToScreen(world) - p);
-        cat.Expect("3D gallery: screen -> world -> screen", error < 0.05f,
-                   "In 3D, a screen point plus a depth (in normalized device coordinates) defines a world point. "
-                   "Projecting it back must give the same screen point",
-                   "error {:.5f} px at depth 0.5", error);
+                   "max error {:.5f} px over 3 probes", maxError)
+            .Pane = PaneId(i);
     }
 
     {
-        const Onyx::Viewport &vp = app.PixelView->GetViewport();
+        const Onyx::RenderView<D2> *rv = app.Panes[Pane_Pixel].Frame[app.Mode];
+        const Onyx::Viewport &vp = rv->GetViewport();
         const f32v2 p = vp.Position + 0.5f * vp.Size;
-        const f32v2 dx = app.PixelView->ScreenToWorld(p + f32v2{1.f, 0.f}) - app.PixelView->ScreenToWorld(p);
-        const f32v2 dy = app.PixelView->ScreenToWorld(p + f32v2{0.f, 1.f}) - app.PixelView->ScreenToWorld(p);
+        const f32v2 dx = rv->ScreenToWorld(p + f32v2{1.f, 0.f}) - rv->ScreenToWorld(p);
+        const f32v2 dy = rv->ScreenToWorld(p + f32v2{0.f, 1.f}) - rv->ScreenToWorld(p);
         cat.Expect("Viewport camera: 1 world unit = 1 logical pixel",
-                   near(Math::Norm(dx), 1.f, 1e-3f) && near(Math::Norm(dy), 1.f, 1e-3f),
+                   Math::Approximately(Math::Norm(dx), 1.f, 1e-3f) && Math::Approximately(Math::Norm(dy), 1.f, 1e-3f),
                    "CameraMode_Viewport maps one world unit to one logical pixel, independently of the content scale. "
                    "Moving one logical pixel on screen must move exactly one unit in world space",
-                   "1 px right -> ({:.4f}, {:.4f}), 1 px down -> ({:.4f}, {:.4f})", dx[0], dx[1], dy[0], dy[1]);
+                   "1 px right -> ({:.4f}, {:.4f}), 1 px down -> ({:.4f}, {:.4f})", dx[0], dx[1], dy[0], dy[1])
+            .Pane = Pane_Pixel;
     }
     {
-        const Onyx::Viewport &vp = app.GalleryView->GetViewport();
-        const f32v2 top = app.GalleryView->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 0.f});
-        const f32v2 bottom = app.GalleryView->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]});
+        const Onyx::RenderView<D2> *rv = app.Panes[Pane_Gallery2].Frame[app.Mode];
+        const Onyx::Viewport &vp = rv->GetViewport();
+        const f32v2 top = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 0.f});
+        const f32v2 bottom = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]});
         const f32 span = Math::Norm(top - bottom);
         cat.Expect("Orthographic camera: viewport height = ortho size",
-                   near(span, app.GalleryCam.OrthoParameters.Size, 1e-2f),
+                   Math::Approximately(span, app.GalleryCam.OrthoParameters.Size, 1e-2f),
                    "An orthographic camera shows OrthoParameters.Size world units from the top to the bottom of its "
                    "viewport, whatever the window size or scale. Zooming changes that size",
-                   "top to bottom = {:.4f} units, ortho size = {:.4f}", span, app.GalleryCam.OrthoParameters.Size);
+                   "top to bottom = {:.4f} units, ortho size = {:.4f}", span, app.GalleryCam.OrthoParameters.Size)
+            .Pane = Pane_Gallery2;
 
-        const f32v2 center = app.GalleryView->ScreenToWorld(vp.Position + 0.5f * vp.Size);
+        const f32v2 center = rv->ScreenToWorld(vp.Position + 0.5f * vp.Size);
         const f32v2 camPos = app.GalleryCam.View.Translation;
-        cat.Expect("Viewport center = camera position", near(center, camPos, 1e-3f),
+        cat.Expect("Viewport center = camera position", Math::Approximately(center, camPos, 1e-3f),
                    "A 2D camera looks at its own position, so the center of its viewport maps to the camera "
                    "translation, even after moving or rotating it (WASD/QE)",
-                   "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", center[0], center[1], camPos[0], camPos[1]);
+                   "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", center[0], center[1], camPos[0], camPos[1])
+            .Pane = Pane_Gallery2;
     }
 
     const auto sorted = win->GetSortedViews<D2>();
@@ -1106,11 +1479,31 @@ void checkViews(App &app)
                "Views are drawn in increasing Layer order. GetSortedViews must return them that way, which is what "
                "BringToTop and BringToBottom rely on",
                "{} 2D views", sorted.GetSize());
+
+    // the overlay draws through its own render view, so its place among the window views is checked here
+    const Onyx::RenderView<D2> *overlay = app.Ui->GetMainNativeWindow()->View;
+    bool onTop = true;
+    for (const Onyx::RenderView<D2> *rv : win->GetRenderViews<D2>())
+        onTop &= rv == overlay || rv->Layer < overlay->Layer;
+    for (const Onyx::RenderView<D3> *rv : win->GetRenderViews<D3>())
+        onTop &= rv->Layer < overlay->Layer;
+    cat.Expect("Overlay view is the top layer", onTop,
+               "The overlay draws through its own 2D render view. It must have the highest layer of all views in the "
+               "window, or scene views would be drawn over it. This demo calls BringToTop on it after creating "
+               "everything else",
+               "overlay layer {}", overlay->Layer);
+
+    const Onyx::Viewport &ovp = overlay->GetViewport();
+    cat.Expect("Overlay view covers the window",
+               Math::Approximately(ovp.Position, f32v2{0.f}, 0.5f) && Math::Approximately(ovp.Size, wsize, 0.5f),
+               "The overlay's view spans the whole window, so overlay windows can be placed anywhere on it",
+               "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, window {:.0f} x {:.0f}", ovp.Position[0], ovp.Position[1],
+               ovp.Size[0], ovp.Size[1], wsize[0], wsize[1]);
 }
 
-void checkRendering(App &app)
+static void checkRendering(App &app)
 {
-    Category &cat = app.Get(Category_Rendering);
+    Category &cat = app.Categories[Category_Rendering];
     Onyx::RenderContext<D2> *ctx = app.ScratchCtx;
 
     // the scratch context has no targets. it is used only to exercise state logic, and flushed every frame
@@ -1143,7 +1536,8 @@ void checkRendering(App &app)
     const f32v2 intrinsic = Onyx::Transform<D2>::ExtractTranslation(ctx->GetState().Transform);
     ctx->ResetTransform();
     cat.Expect("Extrinsic vs intrinsic transforms",
-               near(extrinsic, f32v2{2.f, 0.f}, Epsilon) && near(intrinsic, f32v2{1.f, 0.f}, Epsilon),
+               Math::Approximately(extrinsic, f32v2{2.f, 0.f}, Epsilon) &&
+                   Math::Approximately(intrinsic, f32v2{1.f, 0.f}, Epsilon),
                "Transforms are extrinsic by default: each one is applied in world space on top of the previous ones, "
                "so Translate(1, 0) then Scale(2) scales the translation too and the object ends at (2, 0). With "
                "Transform_Intrinsic the scale is applied in local space and the object stays at (1, 0). Rule of thumb "
@@ -1158,14 +1552,15 @@ void checkRendering(App &app)
     f32 r;
     Onyx::Transform<D2>::Extract(ctx->GetState().Transform, &t, &s, &r);
     cat.Expect("Scale, rotate, translate can be extracted back",
-               near(t, f32v2{4.f, 5.f}, 1e-3f) && near(s, f32v2{2.f, 3.f}, 1e-3f) && near(r, 0.7f, 1e-3f),
+               Math::Approximately(t, f32v2{4.f, 5.f}, 1e-3f) && Math::Approximately(s, f32v2{2.f, 3.f}, 1e-3f) &&
+                   Math::Approximately(r, 0.7f, 1e-3f),
                "Composing scale (2, 3), rotation 0.7 rad and translation (4, 5) and then decomposing the resulting "
                "matrix must give the same three components back",
                "t = ({:.3f}, {:.3f}), s = ({:.3f}, {:.3f}), r = {:.3f}", t[0], t[1], s[0], s[1], r);
 
     const f32v2 local{0.3f, -1.2f};
     const f32v2 back = ctx->WorldToLocal(ctx->LocalToWorld(local));
-    cat.Expect("LocalToWorld and WorldToLocal are inverses", near(back, local, 1e-3f),
+    cat.Expect("LocalToWorld and WorldToLocal are inverses", Math::Approximately(back, local, 1e-3f),
                "Converting a point from the current local space to world space and back must return the same point",
                "({:.3f}, {:.3f}) -> world -> ({:.3f}, {:.3f})", local[0], local[1], back[0], back[1]);
     ctx->ResetTransform();
@@ -1184,89 +1579,397 @@ void checkRendering(App &app)
                opaque ? "opaque" : "transparent", fromColor ? "transparent" : "opaque");
     ctx->Flush();
 
-    const u32 points2 = app.GalleryCtx->GetPointLightParams().GetSize();
-    cat.Expect("2D context recorded its lights", points2 == (app.Render.Lights2 ? 1u : 0u),
-               "Lights are recorded per context, like draws. The 2D gallery adds one point light (following the "
-               "cursor) when 2D lights are enabled",
-               "{} point lights recorded, {} expected", points2, app.Render.Lights2 ? 1 : 0);
-
-    if (points2 == 1)
-    {
-        const f32v2 recorded = app.GalleryCtx->GetPointLightParams()[0].Position;
-        cat.Expect("2D light lands where it was asked for", near(recorded, app.LightPos2, 1e-3f),
-                   "PointLight() transforms the light position by the current context transform, like any draw. The "
-                   "2D gallery emits its light with an identity transform, so the recorded position must equal the "
-                   "requested world position (the cursor). A mismatch means the light was emitted under some other "
-                   "object's transform",
-                   "recorded ({:.3f}, {:.3f}), requested ({:.3f}, {:.3f})", recorded[0], recorded[1], app.LightPos2[0],
-                   app.LightPos2[1]);
-    }
-
-    const u32 points3 = app.Ctx3->GetPointLightParams().GetSize();
-    const u32 spots3 = app.Ctx3->GetSpotLightParams().GetSize();
-    const u32 dirs3 = app.Ctx3->GetDirectionalLightParams().GetSize();
-    const bool lit3 = app.Render.Lights3;
-    const u32 expectedPoints = lit3 && app.Render.PointLight3 ? 1 : 0;
-    const u32 expectedSpots = lit3 && app.Render.SpotLight3 ? 1 : 0;
-    cat.Expect("3D context recorded its lights",
-               points3 == expectedPoints && spots3 == expectedSpots && dirs3 == (lit3 ? 1u : 0u),
-               "The 3D gallery records one directional light (with cascaded shadows bound to its view), plus an "
-               "optional point light and spot light",
-               "directional {}, point {} (expected {}), spot {} (expected {})", dirs3, points3, expectedPoints, spots3,
-               expectedSpots);
-
     Onyx::RenderViewFlags wanted = Onyx::RenderViewFlag_Transparency;
     if (app.Render.Outlines)
         wanted |= Onyx::RenderViewFlag_Outlines;
     if (app.Render.Shadows)
         wanted |= Onyx::RenderViewFlag_Shadows;
-    const Onyx::RenderViewFlags mask =
-        Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Transparency;
-    cat.Expect("Gallery view flags match the toggles",
-               (app.GalleryView->GetFlags() & mask) == wanted && (app.View3->GetFlags() & mask) == wanted,
-               "RenderView::SetFlags enables or disables whole passes. Toggling post process or transparency "
+    if (app.Render.FXAA)
+        wanted |= Onyx::RenderViewFlag_FXAA;
+    const Onyx::RenderViewFlags mask = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Shadows |
+                                       Onyx::RenderViewFlag_FXAA | Onyx::RenderViewFlag_Transparency;
+    const Onyx::RenderViewFlags flags2 = app.Panes[Pane_Gallery2].Frame[app.Mode]->GetFlags() & mask;
+    const Onyx::RenderViewFlags flags3 = app.View3[app.Mode]->GetFlags() & mask;
+    cat.Expect("Gallery view flags match the toggles", flags2 == wanted && flags3 == wanted,
+               "RenderView::SetFlags enables or disables whole passes. Toggling outlines, transparency or FXAA "
                "recreates the view's framebuffers. The flags read back must be the ones requested",
-               "2D gallery flags {:#06x}, 3D gallery flags {:#06x}, wanted {:#06x}", app.GalleryView->GetFlags() & mask,
-               app.View3->GetFlags() & mask, wanted);
+               "2D gallery flags {:#06x}, 3D gallery flags {:#06x}, wanted {:#06x}", flags2, flags3, wanted);
 }
 
-void checkTextures(App &app)
+// the lab view's checks compare the view against the settings its panel asked for
+enum LabCheck : u8
 {
-    Category &cat = app.Get(Category_Textures);
+    LabCheck_Viewport,
+    LabCheck_Scissor,
+    LabCheck_Image,
+    LabCheck_Conversions,
+    LabCheck_RoundTrip,
+    LabCheck_Camera,
+    LabCheck_Center,
+    LabCheck_Flags,
+    LabCheck_Layer,
+    LabCheck_Count,
+};
+constexpr const char *LabCheckNames[LabCheck_Count] = {
+    "Lab: viewport follows its settings",      "Lab: scissor follows its settings",
+    "Lab: image size follows the image scale", "Lab: screen and viewport coordinates agree",
+    "Lab: screen -> world -> screen",          "Lab: the camera maps world units as asked",
+    "Lab: viewport center = camera position",  "Lab: flags read back",
+    "Lab: layer is where it was put",
+};
+constexpr const char *LabCheckRules[LabCheck_Count] = {
+    "A proportional viewport is stored as window fractions and recomputed from the logical window size. A fixed one "
+    "is in logical pixels and never moves when the window is resized",
+    "A proportional scissor is stored as fractions of the viewport, and follows it when the viewport changes. It is "
+    "relative to the viewport, in logical pixels",
+    "With proportional image sizing the view renders at viewport size x ratio: below 1 it renders fewer pixels and is "
+    "stretched, above 1 it supersamples. The viewport itself does not change",
+    "ScreenToViewport and ViewportToScreen offset by the viewport position. IsWithinViewport is true one pixel inside "
+    "each edge and false one pixel outside",
+    "ScreenToWorld and WorldToScreen are inverses for any viewport, scissor, image scale, camera mode, position and "
+    "rotation",
+    "CameraMode_Orthographic shows OrthoParameters.Size world units from the top to the bottom of the viewport. "
+    "CameraMode_Viewport maps one logical pixel to one world unit. Rotation never changes either",
+    "A 2D camera looks at its own position: the center of the viewport maps to the camera translation",
+    "SetFlags stores exactly the flags given: outlines, transparency, FXAA and hidden",
+    "BringToTop and BringToBottom move a view to either end of its target's layers. Above the scene the lab sits over "
+    "every scene view and under the overlay, below the scene it sits under all of them",
+};
+
+static void checkLab(App &app)
+{
+    Category &cat = app.Categories[Category_Lab];
+    const LabSettings &lab = app.Lab;
+    const Onyx::RenderView<D2> *rv = app.LabView;
+    if (!lab.Enabled || app.Mode != Mode_Direct)
+    {
+        const char *reason = lab.Enabled ? "only in the direct layout" : "the lab view is off, turn it on in its panel";
+        for (u32 i = 0; i < LabCheck_Count; ++i)
+            cat.Skip(LabCheckNames[i], LabCheckRules[i], "{}", reason);
+        return;
+    }
+
+    const Onyx::Viewport &vp = rv->GetViewport();
+    const Onyx::Scissor &sc = rv->GetScissor();
+    const f32v2 wsize = f32v2{app.Window->GetSize()};
+    const f32v2 wantPos = lab.FixedViewport ? lab.Position : lab.Position * wsize;
+    const f32v2 wantSize = lab.FixedViewport ? lab.Size : lab.Size * wsize;
+    cat.Expect(LabCheckNames[LabCheck_Viewport],
+               Math::Approximately(vp.Position, wantPos, 0.5f) && Math::Approximately(vp.Size, wantSize, 0.5f),
+               LabCheckRules[LabCheck_Viewport],
+               "{} viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}",
+               lab.FixedViewport ? "fixed" : "proportional", vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1],
+               wantPos[0], wantPos[1], wantSize[0], wantSize[1]);
+
+    const f32v2 wantScPos = lab.ScissorPosition * vp.Size;
+    const f32v2 wantScSize = lab.ScissorSize * vp.Size;
+    cat.Expect(LabCheckNames[LabCheck_Scissor],
+               Math::Approximately(sc.Position, wantScPos, 0.5f) && Math::Approximately(sc.Size, wantScSize, 0.5f),
+               LabCheckRules[LabCheck_Scissor],
+               "scissor ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}", sc.Position[0],
+               sc.Position[1], sc.Size[0], sc.Size[1], wantScPos[0], wantScPos[1], wantScSize[0], wantScSize[1]);
+
+    const u32v2 image = rv->GetImageSize();
+    const f32v2 wantImage = Math::Round(vp.Size * lab.ImageScale);
+    cat.Expect(LabCheckNames[LabCheck_Image], Math::Approximately(f32v2{image}, wantImage, 1.f),
+               LabCheckRules[LabCheck_Image], "image {} x {}, expected {:.0f} x {:.0f} (scale {:.2f})", image[0],
+               image[1], wantImage[0], wantImage[1], lab.ImageScale);
+
+    const f32v2 center = vp.Position + 0.5f * vp.Size;
+    const f32v2 probe = vp.Position + f32v2{0.3f, 0.7f} * vp.Size;
+    const f32v2 end = vp.Position + vp.Size;
+    const bool offsets = Math::Approximately(rv->ScreenToViewport(vp.Position), f32v2{0.f}, Epsilon) &&
+                         Math::Approximately(rv->ViewportToScreen(rv->ScreenToViewport(probe)), probe, Epsilon);
+    const bool inside =
+        rv->IsWithinViewport(center) && rv->IsWithinViewport(vp.Position + 1.f) && rv->IsWithinViewport(end - 1.f);
+    const bool outside = !rv->IsWithinViewport(vp.Position - 1.f) && !rv->IsWithinViewport(end + 1.f) &&
+                         !rv->IsWithinViewport(f32v2{vp.Position[0] - 1.f, center[1]}) &&
+                         !rv->IsWithinViewport(f32v2{end[0] + 1.f, center[1]});
+    cat.Expect(LabCheckNames[LabCheck_Conversions], offsets && inside && outside, LabCheckRules[LabCheck_Conversions],
+               "offsets {}, inside {}, outside {}", offsets ? "ok" : "wrong", inside ? "ok" : "wrong",
+               outside ? "ok" : "wrong");
+
+    const f32v2 probes[3] = {vp.Position + 0.25f * vp.Size, end - 0.25f * vp.Size,
+                             app.LabMouseInside ? app.Window->GetMousePosition() : center};
+    f32 maxError = 0.f;
+    for (const f32v2 &p : probes)
+        maxError = Math::Max(maxError, Math::Norm(rv->WorldToScreen(rv->ScreenToWorld(p)) - p));
+    cat.Expect(LabCheckNames[LabCheck_RoundTrip], maxError < 0.01f, LabCheckRules[LabCheck_RoundTrip],
+               "max error {:.5f} px over 3 probes", maxError);
+
+    const f32v2 top = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 0.f});
+    const f32v2 bottom = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]});
+    const f32 span = Math::Norm(top - bottom);
+    const f32 wantSpan = lab.Orthographic ? lab.OrthoSize : vp.Size[1];
+    cat.Expect(LabCheckNames[LabCheck_Camera], Math::Approximately(span, wantSpan, 1e-3f * wantSpan),
+               LabCheckRules[LabCheck_Camera], "{}: top to bottom = {:.4f} world units, expected {:.4f}",
+               lab.Orthographic ? "orthographic" : "viewport", span, wantSpan);
+
+    const f32v2 world = rv->ScreenToWorld(center);
+    cat.Expect(LabCheckNames[LabCheck_Center], Math::Approximately(world, lab.CameraPosition, 1e-3f),
+               LabCheckRules[LabCheck_Center], "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", world[0], world[1],
+               lab.CameraPosition[0], lab.CameraPosition[1]);
+
+    Onyx::RenderViewFlags wanted = 0;
+    if (lab.Outlines)
+        wanted |= Onyx::RenderViewFlag_Outlines;
+    if (lab.Transparency)
+        wanted |= Onyx::RenderViewFlag_Transparency;
+    if (lab.FXAA)
+        wanted |= Onyx::RenderViewFlag_FXAA;
+    const Onyx::RenderViewFlags mask = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency |
+                                       Onyx::RenderViewFlag_FXAA | Onyx::RenderViewFlag_Hidden;
+    cat.Expect(LabCheckNames[LabCheck_Flags], (rv->GetFlags() & mask) == wanted && rv->AntiAliasingMode == lab.FXAAMode,
+               LabCheckRules[LabCheck_Flags], "flags {:#06x}, wanted {:#06x}, FXAA mode {}", rv->GetFlags() & mask,
+               wanted, u32(rv->AntiAliasingMode));
+
+    const Onyx::RenderView<D2> *overlay = app.Ui->GetMainNativeWindow()->View;
+    const bool above = lab.Placement == LabPlacement_AboveScene;
+    bool placed = above ? rv->Layer < overlay->Layer : true;
+    for (const Onyx::RenderView<D2> *other : app.Window->GetRenderViews<D2>())
+        if (other != rv && other != overlay)
+            placed &= above ? other->Layer < rv->Layer : other->Layer > rv->Layer;
+    for (const Onyx::RenderView<D3> *other : app.Window->GetRenderViews<D3>())
+        placed &= above ? other->Layer < rv->Layer : other->Layer > rv->Layer;
+    cat.Expect(LabCheckNames[LabCheck_Layer], placed, LabCheckRules[LabCheck_Layer], "{} the scene: lab layer {}",
+               above ? "above" : "below", rv->Layer);
+}
+
+static void checkLights(App &app)
+{
+    Category &cat = app.Categories[Category_Lights];
+    const LightSettings &ls = app.Lights;
+    const LightRequests &req = app.Requested;
+
+    const u32 points2 = app.GalleryCtx->GetPointLightParams().GetSize();
+    const u32 dirs2 = app.GalleryCtx->GetDirectionalLightParams().GetSize();
+    const u32 wantPoints2 = ls.Lights2 ? 1 : 0;
+    const u32 wantDirs2 = ls.Lights2 && ls.Directional2 ? 1 : 0;
+    cat.Expect("2D context recorded its lights", points2 == wantPoints2 && dirs2 == wantDirs2,
+               "Lights are recorded per context, like draws. With 2D lights on, the 2D gallery adds one point light "
+               "(the cursor light, a cone when asked) and, when enabled, one directional light",
+               "point {} (expected {}), directional {} (expected {})", points2, wantPoints2, dirs2, wantDirs2)
+        .Pane = Pane_Gallery2;
+
+    const char *pointRule = "PointLight() takes world space positions: the context transform does not apply to lights, "
+                            "and neither does it scale their radii. The gallery emits its lights under a non identity "
+                            "transform on purpose, so a transformed position would show up here. A cone light also "
+                            "keeps its angle and extent";
+    if (points2 == 1)
+    {
+        const Onyx::PointLightParameters<D2> &p = app.GalleryCtx->GetPointLightParams()[0];
+        const f32 extent = ls.Cone ? ls.ConeExtent : 1.f;
+        cat.Expect("2D light lands where it was asked for",
+                   Math::Approximately(p.Position, req.Point2, 1e-3f) &&
+                       Math::Approximately(p.Extent, extent, Epsilon) &&
+                       (!ls.Cone || Math::Approximately(p.Angle, req.ConeAim, Epsilon)),
+                   pointRule, "recorded ({:.3f}, {:.3f}) extent {:.2f}, requested ({:.3f}, {:.3f}) extent {:.2f}",
+                   p.Position[0], p.Position[1], p.Extent, req.Point2[0], req.Point2[1], extent)
+            .Pane = Pane_Gallery2;
+    }
+    else
+        cat.Skip("2D light lands where it was asked for", pointRule, "2D lights are off").Pane = Pane_Gallery2;
+
+    const char *dirRule = "DirectionalLight() in 2D takes an angle, in world space: the context transform never "
+                          "applies to it. The recorded angle must be the requested one, and the light must cast "
+                          "shadows";
+    if (dirs2 == 1)
+    {
+        const Onyx::DirectionalLightParameters<D2> &d = app.GalleryCtx->GetDirectionalLightParams()[0];
+        cat.Expect("2D directional light keeps its angle",
+                   Math::Approximately(d.Angle, ls.DirectionalAngle, Epsilon) &&
+                       (d.Flags & Onyx::LightFlag_CastShadows),
+                   dirRule, "recorded {:.1f} deg, requested {:.1f} deg", Math::Degrees(d.Angle),
+                   Math::Degrees(ls.DirectionalAngle))
+            .Pane = Pane_Gallery2;
+    }
+    else
+        cat.Skip("2D directional light keeps its angle", dirRule, "the 2D directional light is off").Pane =
+            Pane_Gallery2;
+
+    const u32 points3 = app.Ctx3->GetPointLightParams().GetSize();
+    const u32 spots3 = app.Ctx3->GetSpotLightParams().GetSize();
+    const u32 dirs3 = app.Ctx3->GetDirectionalLightParams().GetSize();
+    const bool others = ls.Lights3 && !ls.SpotOnly;
+    const u32 wantPoints3 = others && ls.Point3 ? 1 : 0;
+    const u32 wantSpots3 = ls.Lights3 && ls.Spot3 ? 1 : 0;
+    const u32 wantDirs3 = others ? 1 : 0;
+    cat.Expect("3D context recorded its lights", points3 == wantPoints3 && spots3 == wantSpots3 && dirs3 == wantDirs3,
+               "The 3D gallery records one directional light (with cascaded shadows bound to the active 3D view), "
+               "plus an optional point light and spot light. Spot only leaves the spot alone",
+               "directional {} (expected {}), point {} (expected {}), spot {} (expected {})", dirs3, wantDirs3, points3,
+               wantPoints3, spots3, wantSpots3)
+        .Pane = Pane_Gallery3;
+
+    const char *point3Rule = "PointLight() in 3D takes a world space position too. The orbiting light is emitted under "
+                             "a non identity transform, and must be recorded exactly where it was asked for";
+    if (points3 == 1)
+    {
+        const f32v3 p = app.Ctx3->GetPointLightParams()[0].Position;
+        cat.Expect("3D point light lands where it was asked for", Math::Approximately(p, req.Point3, 1e-3f), point3Rule,
+                   "recorded ({:.2f}, {:.2f}, {:.2f}), requested ({:.2f}, {:.2f}, {:.2f})", p[0], p[1], p[2],
+                   req.Point3[0], req.Point3[1], req.Point3[2])
+            .Pane = Pane_Gallery3;
+    }
+    else
+        cat.Skip("3D point light lands where it was asked for", point3Rule, "the 3D point light is off").Pane =
+            Pane_Gallery3;
+
+    const char *spotRule = "SpotLight() takes a world space position and direction. The spot is emitted under a non "
+                           "identity transform, and GetSpotLightParams() must return the position, the direction and "
+                           "the field of view it was given";
+    if (spots3 == 1)
+    {
+        const Onyx::SpotLightParameters &sp = app.Ctx3->GetSpotLightParams()[0];
+        const f32v3 dir = Math::Normalize(sp.Direction);
+        cat.Expect("3D spot light keeps its position and direction",
+                   Math::Approximately(sp.Position, req.SpotPosition, 1e-3f) &&
+                       Math::Approximately(dir, req.SpotDirection, 1e-3f) &&
+                       Math::Approximately(sp.FieldOfView, ls.SpotFov, Epsilon),
+                   spotRule, "position ({:.2f}, {:.2f}, {:.2f}), direction ({:.2f}, {:.2f}, {:.2f}), fov {:.1f} deg",
+                   sp.Position[0], sp.Position[1], sp.Position[2], dir[0], dir[1], dir[2],
+                   Math::Degrees(sp.FieldOfView))
+            .Pane = Pane_Gallery3;
+    }
+    else
+        cat.Skip("3D spot light keeps its position and direction", spotRule, "the spot light is off").Pane =
+            Pane_Gallery3;
+
+    // the renderer builds every 3D directional light's frame with the one argument CreateOrthogonalBase, which picks
+    // its own helper vector. a sun pointing straight down is common, so vertical directions must work too
+    const f32v3 directions[3] = {f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 1.f, 0.f},
+                                 Math::Normalize(f32v3{-0.6f, -1.f, -0.4f})};
+    const char *directionNames[3] = {"straight down", "straight up", "tilted"};
+    u32 brokenBases = 0;
+    const char *firstBroken = "none";
+    for (u32 i = 0; i < 3; ++i)
+    {
+        const f32m2x3 base = Onyx::Transform<D3>::CreateOrthogonalBase(directions[i]);
+        const f32 error = Math::Absolute(Math::Dot(base[0], directions[i])) +
+                          Math::Absolute(Math::Dot(base[1], directions[i])) +
+                          Math::Absolute(Math::Dot(base[0], base[1])) + Math::Absolute(Math::Norm(base[0]) - 1.f) +
+                          Math::Absolute(Math::Norm(base[1]) - 1.f);
+        if (error < 1e-4f) // false for NaN as well
+            continue;
+        if (brokenBases++ == 0)
+            firstBroken = directionNames[i];
+    }
+    cat.Expect(
+           "Light bases work for vertical directions", brokenBases == 0,
+           "Transform<D3>::CreateOrthogonalBase(direction) returns two unit vectors orthogonal to the direction and "
+           "to each other. The renderer builds the frame of every 3D directional light with it, and a light whose "
+           "frame comes out NaN lights nothing. It must work for any direction, straight down included",
+           "{} of 3 directions broken (straight down, straight up, tilted), first: {}", brokenBases, firstBroken)
+        .Pane = Pane_Gallery3;
+}
+
+static void checkTextures(App &app)
+{
+    Category &cat = app.Categories[Category_Textures];
     const f32v2 wscale = app.Window->GetContentScale();
 
-    const auto checkOne = [&](const char *sizeName, const char *extentName, const Onyx::RenderTexture *rt,
-                              const Onyx::RenderView<D2> *rv) {
-        cat.Expect(sizeName, rt->GetSize() == RenderTextureSize && rv->GetImageSize() == RenderTextureSize,
+    const char *sizeNames[2] = {"Scaled texture: logical size", "Fixed texture: logical size"};
+    const char *extentNames[2] = {"Scaled texture: physical extent", "Fixed texture: physical extent"};
+    const Onyx::RenderTexture *textures[2] = {app.RtScaled, app.RtFixed};
+    const Onyx::RenderView<D2> *views[2] = {app.RtScaledView, app.RtFixedView};
+    for (u32 i = 0; i < 2; ++i)
+    {
+        const Onyx::RenderTexture *rt = textures[i];
+        const Onyx::RenderView<D2> *rv = views[i];
+        cat.Expect(sizeNames[i], rt->GetSize() == RenderTextureSize && rv->GetImageSize() == RenderTextureSize,
                    "A render texture is a render target with its own logical size. Its views use proportional sizing "
                    "too, so a full size view has the texture's logical size",
                    "texture {} x {}, view image {} x {}", rt->GetSize()[0], rt->GetSize()[1], rv->GetImageSize()[0],
-                   rv->GetImageSize()[1]);
+                   rv->GetImageSize()[1])
+            .Pane = Pane_Textures;
 
         const u32v2 expected = Onyx::ApplyScale(RenderTextureSize, rt->GetContentScale());
-        cat.Expect(extentName,
-                   rv->GetImageExtent() == expected && near(rv->GetContentScale(), rt->GetContentScale(), Epsilon),
+        cat.Expect(extentNames[i],
+                   rv->GetImageExtent() == expected &&
+                       Math::Approximately(rv->GetContentScale(), rt->GetContentScale(), Epsilon),
                    "The physical size of a render texture is its logical size times its own content scale, and that "
                    "scale must reach its views (they recreate their framebuffers when it changes)",
                    "scale {:.3f}, extent {} x {}, expected {} x {}", rt->GetContentScale()[0], rv->GetImageExtent()[0],
-                   rv->GetImageExtent()[1], expected[0], expected[1]);
-    };
-    checkOne("Scaled texture: logical size", "Scaled texture: physical extent", app.RtScaled, app.RtScaledView);
-    checkOne("Fixed texture: logical size", "Fixed texture: physical extent", app.RtFixed, app.RtFixedView);
+                   rv->GetImageExtent()[1], expected[0], expected[1])
+            .Pane = Pane_Textures;
+    }
 
     cat.Expect(
-        "Scaled texture follows the window scale", near(app.RtScaled->GetContentScale(), wscale, Epsilon),
-        "This demo forwards every Event_ContentScaleChanged to RenderTexture::SetContentScale. If they disagree, "
-        "the event was not delivered or SetContentScale did not apply",
-        "texture {:.3f}, window {:.3f}", app.RtScaled->GetContentScale()[0], wscale[0]);
-    cat.Expect("Fixed texture keeps scale 1", near(app.RtFixed->GetContentScale(), f32v2{1.f}, Epsilon),
+           "Scaled texture follows the window scale",
+           Math::Approximately(app.RtScaled->GetContentScale(), wscale, Epsilon),
+           "This demo forwards every Event_ContentScaleChanged to RenderTexture::SetContentScale. If they disagree, "
+           "the event was not delivered or SetContentScale did not apply",
+           "texture {:.3f}, window {:.3f}", app.RtScaled->GetContentScale()[0], wscale[0])
+        .Pane = Pane_Textures;
+    cat.Expect("Fixed texture keeps scale 1", Math::Approximately(app.RtFixed->GetContentScale(), f32v2{1.f}, Epsilon),
                "The reference texture is never rescaled", "scale {:.3f} x {:.3f}", app.RtFixed->GetContentScale()[0],
-               app.RtFixed->GetContentScale()[1]);
+               app.RtFixed->GetContentScale()[1])
+        .Pane = Pane_Textures;
+
+    // docked galleries: each pane's texture follows its panel, at the window's scale, and its views cover it
+    const char *matchRule =
+        "In the docked layout every gallery renders into a render texture shown by its panel. The "
+        "demo resizes the texture to the panel's logical size with RenderTexture::Resize, one frame "
+        "after the panel changes, so a short mismatch is tolerated";
+    const char *scaleRule = "Docked textures are resized at the window's content scale, so one texel maps to one "
+                            "physical pixel. After a scale change they must catch up within the grace period";
+    const char *coverRule = "A render texture's views default to proportional viewports covering the whole texture. "
+                            "After every resize the viewport and image must match the new logical size";
+    if (app.Mode == Mode_Direct)
+    {
+        cat.Skip("Docked galleries: textures match their panels", matchRule, "only in the docked layout");
+        cat.Skip("Docked galleries: textures use the window scale", scaleRule, "only in the docked layout");
+        cat.Skip("Docked galleries: views cover their textures", coverRule, "only in the docked layout");
+        return;
+    }
+
+    // a pane whose panel was never drawn (a hidden tab, or the first docked frames) has nothing to follow yet
+    bool sized = true;
+    bool scaled = true;
+    bool covered = true;
+    f32 worstFor = 0.f;
+    u32v2 worstTexture{0};
+    u32v2 worstPanel{0};
+    for (Pane &pane : app.Panes)
+    {
+        const Onyx::RenderTexture *rt = pane.Texture;
+        const u32v2 panel{Math::Round(pane.ImageSize)};
+        const bool known = panel[0] > 0 && panel[1] > 0;
+        const bool sizeOff = known && !Math::Approximately(f32v2{rt->GetSize()}, f32v2{panel}, 1.f);
+        const bool scaleOff = known && !Math::Approximately(rt->GetContentScale(), wscale, Epsilon);
+        if ((sizeOff || scaleOff) && pane.MismatchSince < 0.f)
+            pane.MismatchSince = app.Time;
+        else if (!sizeOff && !scaleOff)
+            pane.MismatchSince = -1.f;
+        const f32 mismatchFor = pane.MismatchSince < 0.f ? 0.f : app.Time - pane.MismatchSince;
+        const bool late = mismatchFor > DockedGracePeriod;
+        sized &= !(sizeOff && late);
+        scaled &= !(scaleOff && late);
+        if (known && mismatchFor >= worstFor)
+        {
+            worstFor = mismatchFor;
+            worstTexture = rt->GetSize();
+            worstPanel = panel;
+        }
+
+        const Onyx::RenderView<D2> *rv = pane.Frame[Mode_Docked];
+        const Onyx::Viewport &vp = rv->GetViewport();
+        covered &= Math::Approximately(vp.Position, f32v2{0.f}, 0.5f) &&
+                   Math::Approximately(vp.Size, f32v2{rt->GetSize()}, 0.5f) && rv->GetImageSize() == rt->GetSize();
+    }
+    cat.Expect("Docked galleries: textures match their panels", sized, matchRule,
+               "worst: texture {} x {}, panel {} x {}, out of sync for {:.2f}s", worstTexture[0], worstTexture[1],
+               worstPanel[0], worstPanel[1], worstFor);
+    cat.Expect("Docked galleries: textures use the window scale", scaled, scaleRule, "window scale {:.3f}", wscale[0]);
+    const Onyx::RenderTexture *pixelTexture = app.Panes[Pane_Pixel].Texture;
+    cat.Expect("Docked galleries: views cover their textures", covered, coverRule,
+               "pixel view texture {} x {} at scale {:.3f}", pixelTexture->GetSize()[0], pixelTexture->GetSize()[1],
+               pixelTexture->GetContentScale()[0]);
 }
 
-void checkInput(App &app)
+static void checkInput(App &app)
 {
-    Category &cat = app.Get(Category_Input);
+    Category &cat = app.Categories[Category_Input];
     InputTracking &in = app.Input; // non const: TKit's Contains is not a const member
 
     cat.Expect("Key repeats only follow a press", in.RepeatWithoutPress == 0,
@@ -1300,9 +2003,114 @@ void checkInput(App &app)
                in.HeldButtons.Contains(Onyx::Mouse_ButtonLeft) ? "yes" : "no");
 }
 
-void checkResources(App &app)
+static void checkAudio([[maybe_unused]] App &app)
 {
-    Category &cat = app.Get(Category_Resources);
+#ifdef ONYX_ENABLE_AUDIO
+    Category &cat = app.Categories[Category_Audio];
+    AudioState &au = app.Audio;
+
+    const char *formatRule = "The engine reports the sample rate and channel count every custom source defaults to. "
+                             "Both must be positive";
+    const char *settingsRule = "Volume, pitch, pan, looping and the master volume are set every frame from the panel. "
+                               "Reading them back right away must return exactly what was set";
+    const char *playRule = "Audio_IsPlaying() follows Audio_Play() and Audio_Stop() right away: both change the "
+                           "sound's state on the calling thread. The self test plays and stops a silent blip";
+    const char *endRule = "A non looping source ends when its callback returns 0 frames. Audio_IsPlaying() then turns "
+                          "false within a couple of audio periods. The self test waits up to 1.5 s for a 0.15 s blip";
+    const char *audioThreadRule = "Audio_SetAudioThreadEndCallback() runs its callback on the audio thread, right when "
+                                  "the sound ends. The self test counts it through an atomic";
+    const char *mainThreadRule = "Audio_SetMainThreadEndCallback() queues the end on the audio thread and runs the "
+                                 "callback later on the main thread, when Onyx drains its queue each frame. A sound "
+                                 "that ended without the callback arriving means the queue is never drained";
+    const char *spatialRule = "A spatialized source and the listener take positions in world units. "
+                              "Audio_GetPosition and Listener_GetPosition must return what the orbit set this frame";
+    if (!au.Available)
+    {
+        const char *reason = "no audio output device: Audio_IsAvailable() is false";
+        cat.Skip("Sample rate and channel count are positive", formatRule, "{}", reason);
+        cat.Skip("Audio settings read back", settingsRule, "{}", reason);
+        cat.Skip("IsPlaying follows play and stop", playRule, "{}", reason);
+        cat.Skip("A short sound ends on its own", endRule, "{}", reason);
+        cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "{}", reason);
+        cat.Skip("End callbacks reach the main thread", mainThreadRule, "{}", reason);
+        cat.Skip("Spatial positions read back", spatialRule, "{}", reason);
+        return;
+    }
+
+    const u32 rate = Onyx::Audio_GetSampleRate();
+    const u32 channels = Onyx::Audio_GetChannels();
+    cat.Expect("Sample rate and channel count are positive", rate > 0 && channels > 0, formatRule, "{} Hz, {} channels",
+               rate, channels);
+
+    const Onyx::Resource h = au.Instrument;
+    const bool settings = Onyx::Audio_GetVolume(h) == au.Volume && Onyx::Audio_GetPitch(h) == au.Pitch &&
+                          Onyx::Audio_GetPan(h) == au.Pan && Onyx::Audio_GetVolume() == au.Master &&
+                          Onyx::Audio_IsLooping(h) == au.Loop;
+    cat.Expect("Audio settings read back", settings, settingsRule,
+               "volume {:.2f}, pitch {:.2f}, pan {:.2f}, looping {}, master {:.2f}", Onyx::Audio_GetVolume(h),
+               Onyx::Audio_GetPitch(h), Onyx::Audio_GetPan(h), Onyx::Audio_IsLooping(h), Onyx::Audio_GetVolume());
+
+    if (!au.TestDone && !au.TestRunning)
+    {
+        cat.Skip("IsPlaying follows play and stop", playRule, "the self test has not run yet");
+        cat.Skip("A short sound ends on its own", endRule, "the self test has not run yet");
+        cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "the self test has not run yet");
+        cat.Skip("End callbacks reach the main thread", mainThreadRule, "the self test has not run yet");
+    }
+    else
+    {
+        cat.Expect("IsPlaying follows play and stop", au.PlayFollows && au.StopFollows, playRule,
+                   "playing right after Play: {}, stopped right after Stop: {}", au.PlayFollows, au.StopFollows);
+        const u32 audioEnds = au.BlipAudioEnds.load(std::memory_order_relaxed) - au.AudioEndsAtStart;
+        const u32 mainEnds = au.BlipMainEnds - au.MainEndsAtStart;
+        if (au.TestRunning)
+        {
+            cat.Skip("A short sound ends on its own", endRule, "waiting for the blips, {:.2f}s in",
+                     app.Time - au.TestStartedAt);
+            cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "waiting for the blips");
+            cat.Skip("End callbacks reach the main thread", mainThreadRule, "waiting for the blips");
+        }
+        else
+        {
+            cat.Expect("A short sound ends on its own", au.Ended, endRule, "blip {} after 1.5 s",
+                       au.Ended ? "ended" : "still playing");
+            cat.Expect("End callbacks fire on the audio thread", audioEnds > 0, audioThreadRule,
+                       "{} audio thread end callbacks", audioEnds);
+            cat.Expect("End callbacks reach the main thread", mainEnds > 0, mainThreadRule,
+                       "{} main thread end callbacks (the audio thread one fired {} times)", mainEnds, audioEnds);
+        }
+    }
+
+    if (au.Orbit == Orbit_Off)
+        cat.Skip("Spatial positions read back", spatialRule, "the spatial orbit is off");
+    else if (au.Orbit == Orbit_2D)
+    {
+        const f32v2 source = Onyx::Audio_GetPosition<D2>(au.Spatial);
+        const f32v2 listener = Onyx::Listener_GetPosition<D2>(0);
+        cat.Expect("Spatial positions read back",
+                   Math::Approximately(source, au.Source2, Epsilon) &&
+                       Math::Approximately(listener, au.Listener2, Epsilon),
+                   spatialRule, "source ({:.2f}, {:.2f}), listener ({:.2f}, {:.2f})", source[0], source[1], listener[0],
+                   listener[1])
+            .Pane = Pane_Gallery2;
+    }
+    else
+    {
+        const f32v3 source = Onyx::Audio_GetPosition<D3>(au.Spatial);
+        const f32v3 listener = Onyx::Listener_GetPosition<D3>(0);
+        cat.Expect("Spatial positions read back",
+                   Math::Approximately(source, au.Source3, Epsilon) &&
+                       Math::Approximately(listener, au.Listener3, Epsilon),
+                   spatialRule, "source ({:.2f}, {:.2f}, {:.2f}), listener ({:.2f}, {:.2f}, {:.2f})", source[0],
+                   source[1], source[2], listener[0], listener[1], listener[2])
+            .Pane = Pane_Gallery3;
+    }
+#endif
+}
+
+static void checkResources(App &app)
+{
+    Category &cat = app.Categories[Category_Resources];
     const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
 
     const bool meshes2 = Onyx::IsResourceValid<D2>(res.Triangle2, Onyx::Resource_StaticMesh) &&
@@ -1358,7 +2166,7 @@ void checkResources(App &app)
     cat.Expect("Font covers printable ASCII", missing == 0,
                "DefaultResourcesOptions loads the ASCII block into the default font. Every printable character must "
                "have a glyph (space has no outline, so it is skipped)",
-               "{} missing{}", missing, missing ? Format(", first one is '{}'", char(firstMissing)).Data : "");
+               "{} missing{}", missing, missing ? formatLine(", first one is '{}'", char(firstMissing)).Data : "");
 
     const Onyx::FontInfo &finfo = Onyx::Font_GetInfo(res.Font);
     cat.Expect("Font metrics are sane", finfo.LineHeight > 0.f && finfo.Ascender > finfo.Descender,
@@ -1373,8 +2181,8 @@ void checkResources(App &app)
 
     const Onyx::MaterialData<D2> &probe = Onyx::Material_GetData<D2>(app.ProbeMaterial);
     cat.Expect("Registered material reads back unchanged",
-               probe.ColorFactor == Theme::Accent && near(probe.TexOffset, f32v2{0.25f}, Epsilon) &&
-                   near(probe.TexScale, f32v2{2.f}, Epsilon) && !probe.Occluder,
+               probe.ColorFactor == Theme::Accent && Math::Approximately(probe.TexOffset, f32v2{0.25f}, Epsilon) &&
+                   Math::Approximately(probe.TexScale, f32v2{2.f}, Epsilon) && !probe.Occluder,
                "Material_Register stores the data it is given. Reading it back must return exactly the same values",
                "color factor #{}, tex offset ({:.2f}, {:.2f}), tex scale ({:.2f}, {:.2f})",
                probe.ColorFactor.ToHexadecimal<TKit::StaticString<16>>().GetData(), probe.TexOffset[0],
@@ -1388,9 +2196,9 @@ void checkResources(App &app)
                "2 materials in 2D, 1 in 3D (plus the probe)");
 }
 
-void checkToolkit(App &app)
+static void checkToolkit(App &app)
 {
-    Category &cat = app.Get(Category_Toolkit);
+    Category &cat = app.Categories[Category_Toolkit];
 
     // tensors
     const f32q q = Math::Normalize(f32q::FromEulerAngles(f32v3{0.3f, -0.7f, 1.1f}));
@@ -1420,7 +2228,7 @@ void checkToolkit(App &app)
     const f32v3 v{0.4f, -1.3f, 2.2f};
     const f32v3 rotated = q * v;
     const f32v3 restored = Math::Inverse(q) * rotated;
-    cat.Expect("Rotations preserve length", near(Math::Norm(rotated), Math::Norm(v), 1e-4f),
+    cat.Expect("Rotations preserve length", Math::Approximately(Math::Norm(rotated), Math::Norm(v), 1e-4f),
                "Rotating a vector with a unit quaternion never changes its length", "|v| = {:.5f}, |q v| = {:.5f}",
                Math::Norm(v), Math::Norm(rotated));
     cat.Expect("Inverse rotation undoes the rotation", Math::Approximately(restored, v, 1e-4f),
@@ -1430,11 +2238,11 @@ void checkToolkit(App &app)
     {
         const f32 angle = 1.234f;
         const f32q aa = f32q::FromAngleAxis(angle, Math::Normalize(f32v3{1.f, 2.f, -0.5f}));
-        cat.Expect("Angle axis round trip", near(Math::GetAngle(aa), angle, 1e-4f),
+        cat.Expect("Angle axis round trip", Math::Approximately(Math::GetAngle(aa), angle, 1e-4f),
                    "A quaternion built from an angle and an axis reports that same angle back",
                    "angle {:.4f} -> {:.4f}", angle, Math::GetAngle(aa));
     }
-    cat.Expect("Degrees and radians round trip", near(Math::Degrees(Math::Radians(37.5f)), 37.5f, 1e-4f),
+    cat.Expect("Degrees and radians round trip", Math::Approximately(Math::Degrees(Math::Radians(37.5f)), 37.5f, 1e-4f),
                "Degrees(Radians(x)) = x", "37.5 -> {:.5f}", Math::Degrees(Math::Radians(37.5f)));
 
     // colors
@@ -1461,7 +2269,7 @@ void checkToolkit(App &app)
                    Math::Norm(srgb.rgba - c.rgba), hex == Onyx::Color_Lavender ? "exact" : "different");
     }
     {
-        const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>{Theme::FrameTimeStops, 3}};
+        const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>(Theme::FrameTimeStops)};
         cat.Expect("Gradient endpoints are exact",
                    gradient.Evaluate(0.f) == Theme::Pass && gradient.Evaluate(1.f) == Theme::Fail &&
                        Math::Approximately(gradient.Evaluate(0.5f).rgba, Theme::Todo.rgba, 1e-4f),
@@ -1470,7 +2278,8 @@ void checkToolkit(App &app)
     }
 
     // time
-    cat.Expect("Timespan conversions", near(TKit::Timespan::FromMilliseconds(1500).AsSeconds(), 1.5f, Epsilon),
+    cat.Expect("Timespan conversions",
+               Math::Approximately(TKit::Timespan::FromMilliseconds(1500).AsSeconds(), 1.5f, Epsilon),
                "1500 ms is 1.5 s", "FromMilliseconds(1500).AsSeconds() = {:.4f}",
                TKit::Timespan::FromMilliseconds(1500).AsSeconds());
     const f32 reading = app.MonotonicClock.GetElapsed().AsSeconds();
@@ -1514,9 +2323,9 @@ void checkToolkit(App &app)
     }
 }
 
-void checkPlatform(App &app)
+static void checkPlatform(App &app)
 {
-    Category &cat = app.Get(Category_Platform);
+    Category &cat = app.Categories[Category_Platform];
     Onyx::Window *win = app.Window;
     const Graph::Window handle = win->GetHandle();
 
@@ -1543,64 +2352,32 @@ void checkPlatform(App &app)
                "handle valid: {}", Graph::Window_IsHandleValid(handle));
 
     const char *title = win->GetTitle();
-    bool titleOk = title != nullptr;
-    for (u32 i = 0; titleOk && (app.Title[i] != '\0' || title[i] != '\0'); ++i)
-        titleOk = app.Title[i] == title[i];
-    cat.Expect("Title reads back", titleOk, "The title set with SetTitle must be returned by GetTitle", "\"{}\"",
-               title ? title : "(null)");
+    cat.Expect("Title reads back", title && std::strcmp(title, app.Title) == 0,
+               "The title set with SetTitle must be returned by GetTitle", "\"{}\"", title ? title : "(null)");
 
     cat.Expect("Present mode reads back", u32(win->GetPresentMode()) == app.PresentMode,
                "SetPresentMode schedules a swapchain recreation, and GetPresentMode returns the requested mode",
                "requested {}, active {}", app.PresentMode, u32(win->GetPresentMode()));
+
+    const Graph::Swapchain sc = win->GetSwapchain();
+    cat.Expect("Swapchain is consistent",
+               Graph::Swapchain_IsHandleValid(sc) &&
+                   win->GetSwapchainImageCount() == Graph::Swapchain_GetImageCount(sc),
+               "The window's swapchain is valid and reports the same image count through Onyx and Graphite",
+               "{} images, {} recreations since start", win->GetSwapchainImageCount(), app.SwapchainRecreations);
 
     cat.Expect("Delta time is positive", app.DeltaTime > 0.f,
                "Every frame takes some time. A zero or negative delta time breaks camera movement and animations",
                "{:.3f} ms", 1000.f * app.DeltaTime);
 }
 
-void checkOverlay(App &app)
-{
-    Category &cat = app.Get(Category_Overlay);
-    Onyx::Window *win = app.Window;
-    const Onyx::RenderView<D2> *view = app.Ui->GetMainNativeWindow()->View;
-    const f32v2 wsize = f32v2{win->GetSize()};
-
-    bool onTop = true;
-    for (const Onyx::RenderView<D2> *rv : win->GetRenderViews<D2>())
-        onTop &= rv == view || rv->Layer < view->Layer;
-    for (const Onyx::RenderView<D3> *rv : win->GetRenderViews<D3>())
-        onTop &= rv->Layer < view->Layer;
-    cat.Expect("Overlay view is the top layer", onTop,
-               "The overlay draws through its own 2D render view. It must have the highest layer of all views in the "
-               "window, or scene views would be drawn over it. This demo calls BringToTop on it after creating "
-               "everything else",
-               "overlay layer {}", view->Layer);
-
-    const Onyx::Viewport &vp = view->GetViewport();
-    cat.Expect("Overlay view covers the window", near(vp.Position, f32v2{0.f}, 0.5f) && near(vp.Size, wsize, 0.5f),
-               "The overlay's view spans the whole window, so overlay windows can be placed anywhere on it",
-               "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, window {:.0f} x {:.0f}", vp.Position[0], vp.Position[1],
-               vp.Size[0], vp.Size[1], wsize[0], wsize[1]);
-
-    cat.Expect("Playground slider stays in range", app.PlaygroundSlider >= 0.f && app.PlaygroundSlider <= 1.f,
-               "A slider can only produce values inside its [min, max] range, even when typed in", "value {:.3f}",
-               app.PlaygroundSlider);
-}
-
-void runChecks(App &app)
+static void runChecks(App &app)
 {
     for (Category &cat : app.Categories)
-        cat.BeginFrame();
-
-    checkDpi(app);
-    checkViews(app);
-    checkRendering(app);
-    checkTextures(app);
-    checkInput(app);
-    checkResources(app);
-    checkToolkit(app);
-    checkPlatform(app);
-    checkOverlay(app);
+    {
+        cat.BeginFrame(app.Time);
+        cat.Check(app);
+    }
 
     // collect new failures into the log, oldest first
     for (const Category &cat : app.Categories)
@@ -1619,7 +2396,7 @@ void runChecks(App &app)
 
 // fine pattern in logical pixels. "align" puts integer coordinates on pixel centers, so 1 px features land exactly on
 // one pixel instead of straddling two
-void drawPixelPattern(Onyx::RenderContext<D2> *ctx, const f32 halfExtent, const f32v2 &align)
+static void drawPixelPattern(Onyx::RenderContext<D2> *ctx, const f32 halfExtent, const f32v2 &align)
 {
     ctx->FillColor(Theme::Grid);
     for (f32 x = -halfExtent; x <= halfExtent; x += 8.f)
@@ -1640,68 +2417,68 @@ void drawPixelPattern(Onyx::RenderContext<D2> *ctx, const f32 halfExtent, const 
 }
 
 // offset from integer world coordinates to pixel centers, for a viewport camera
-f32v2 pixelAlignment(const Onyx::RenderView<D2> *rv)
+static f32v2 pixelAlignment(const Onyx::RenderView<D2> *rv)
 {
     const f32v2 corner = rv->ScreenToWorld(rv->GetViewport().Position);
     return corner - f32v2{std::floor(corner[0]), std::floor(corner[1])} + 0.5f;
 }
 
-// brackets just inside the four viewport corners. if one is missing, the viewport or scissor is wrong
-void drawCornerBrackets(Onyx::RenderContext<D2> *ctx, const Onyx::RenderView<D2> *rv, const f32 inset)
+// every pane's frame, in its 2D frame view: the title, brackets just inside the four corners (a missing one means the
+// viewport or scissor is wrong) and a ring at the mouse. the guided flow points at the view its current step concerns
+// with longer, thicker, pulsing brackets
+static void drawFrame(const App &app, const PaneId id)
 {
+    const Pane &pane = app.Panes[id];
+    const PaneInfo &info = PaneInfos[id];
+    Onyx::RenderContext<D2> *ctx = pane.Context;
+    const Onyx::RenderView<D2> *rv = pane.Frame[app.Mode];
     const Onyx::Viewport &vp = rv->GetViewport();
-    const f32v2 corners[4] = {vp.Position + inset, vp.Position + f32v2{vp.Size[0] - inset, inset},
-                              vp.Position + f32v2{inset, vp.Size[1] - inset}, vp.Position + vp.Size - inset};
     const f32v2 center = vp.Position + 0.5f * vp.Size;
     const f32 pixel = Math::Norm(rv->ScreenToWorld(center + f32v2{1.f, 0.f}) - rv->ScreenToWorld(center));
-    const f32 arm = 14.f;
 
+    // counter rotated with the camera, so it always reads upright
     ctx->Push();
-    ctx->FillColor(Theme::Corner);
+    ctx->FillColor(info.Tint);
+    ctx->Align(Onyx::Alignment_Center);
+    ctx->Scale(15.f * pixel);
+    ctx->Rotate(rv->GetCamera()->View.Rotation);
+    ctx->Translate(rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 26.f}));
+    ctx->Text(info.Title);
+    ctx->Pop();
+
+    const bool focus = app.FocusPane == id;
+    const f32 arm = focus ? 32.f : 14.f;
+    const f32 width = (focus ? 3.f + 2.f * Math::Sine(6.f * app.Time) : 2.f) * pixel;
+    const f32 inset = 3.f;
+    const f32v2 corners[4] = {vp.Position + inset, vp.Position + f32v2{vp.Size[0] - inset, inset},
+                              vp.Position + f32v2{inset, vp.Size[1] - inset}, vp.Position + vp.Size - inset};
+    ctx->Push();
+    ctx->FillColor(info.Tint);
     for (const f32v2 &c : corners)
     {
         const f32v2 towardsX = f32v2{c[0] < center[0] ? arm : -arm, 0.f};
         const f32v2 towardsY = f32v2{0.f, c[1] < center[1] ? arm : -arm};
         const f32v2 w = rv->ScreenToWorld(c);
-        ctx->Line(w, rv->ScreenToWorld(c + towardsX), 2.f * pixel);
-        ctx->Line(w, rv->ScreenToWorld(c + towardsY), 2.f * pixel);
+        ctx->Line(w, rv->ScreenToWorld(c + towardsX), width);
+        ctx->Line(w, rv->ScreenToWorld(c + towardsY), width);
     }
     ctx->Pop();
-}
 
-void drawCursor(Onyx::RenderContext<D2> *ctx, const Onyx::RenderView<D2> *rv, const f32v2 &mouse, const f32 radiusPx)
-{
-    if (!rv->IsWithinViewport(mouse))
+    if (!pane.MouseInside)
         return;
-    const f32v2 center = rv->ScreenToWorld(mouse);
-    const f32 pixel = Math::Norm(rv->ScreenToWorld(mouse + f32v2{1.f, 0.f}) - center);
     ctx->Push();
     ctx->FillColor(Theme::Cursor);
-    ctx->Scale(2.f * radiusPx * pixel);
-    ctx->Translate(center);
+    ctx->Scale(20.f * pixel);
+    ctx->Translate(rv->ScreenToWorld(pane.Mouse));
     ctx->Circle({.Hollowness = 0.75f});
     ctx->Pop();
 }
 
-void drawTitle(Onyx::RenderContext<D2> *ctx, const Onyx::RenderView<D2> *rv, const char *text, const f32 sizePx)
-{
-    const Onyx::Viewport &vp = rv->GetViewport();
-    const f32v2 anchor = vp.Position + f32v2{0.5f * vp.Size[0], 26.f};
-    const f32 pixel = Math::Norm(rv->ScreenToWorld(anchor + f32v2{1.f, 0.f}) - rv->ScreenToWorld(anchor));
-    ctx->Push();
-    ctx->FillColor(Theme::Text);
-    ctx->Align(Onyx::Alignment_Center);
-    ctx->Scale(sizePx * pixel);
-    ctx->Translate(rv->ScreenToWorld(anchor));
-    ctx->Text(text);
-    ctx->Pop();
-}
-
-void drawPixelView(App &app, const f32v2 &mouse)
+static void drawPixelView(const App &app)
 {
     Onyx::RenderContext<D2> *ctx = app.PixelCtx;
     ctx->Flush();
-    const f32v2 align = pixelAlignment(app.PixelView);
+    const f32v2 align = pixelAlignment(app.Panes[Pane_Pixel].Frame[app.Mode]);
 
     drawPixelPattern(ctx, 96.f, align);
 
@@ -1728,15 +2505,23 @@ void drawPixelView(App &app, const f32v2 &mouse)
     ctx->Line(f32v2{110.f, -40.f} + align, f32v2{210.f, -40.f} + align, 1.f);
     ctx->Pop();
 
-    drawTitle(ctx, app.PixelView, "PIXEL VIEW  1 unit = 1 logical px", 15.f);
-    drawCornerBrackets(ctx, app.PixelView, 3.f);
-    drawCursor(ctx, app.PixelView, mouse, 10.f);
+    drawFrame(app, Pane_Pixel);
 }
 
-void drawGallery2(App &app, const f32v2 &mouse)
+// the lights live in a dark receiver band under the primitives, with one occluder per geometry kind. the 2D shadow pass
+// draws every shaded draw whose material is an occluder, so each kind must cast
+constexpr f32v2 BandCenter{0.f, -3.f};
+constexpr f32v2 BandSize{9.8f, 3.8f};
+
+static void drawGallery2(App &app)
 {
     Onyx::RenderContext<D2> *ctx = app.GalleryCtx;
     const RenderSettings &rs = app.Render;
+    const LightSettings &ls = app.Lights;
+    LightRequests &req = app.Requested;
+    const Pane &pane = app.Panes[Pane_Gallery2];
+    const Onyx::RenderView<D2> *rv = pane.Frame[app.Mode];
+    const f32 time = app.Time;
     ctx->Flush();
 
     // background grid, one line per world unit
@@ -1747,38 +2532,121 @@ void drawGallery2(App &app, const f32v2 &mouse)
         ctx->Line(f32v2{-15.f, f32(i)}, f32v2{15.f, f32(i)}, 0.02f);
     }
 
-    // lights: a dark receiver band, a light following the cursor and a spinning occluder casting a shadow
-    if (rs.Lights2)
+    if (ls.Lights2)
     {
-        app.LightPos2 = app.GalleryView->IsWithinViewport(mouse)
-                            ? app.GalleryView->ScreenToWorld(mouse)
-                            : f32v2{4.f * Math::Cosine(app.Time), -3.4f + 0.8f * Math::Sine(app.Time)};
+        // the light orbits the center occluder on request, follows the cursor, or wanders between the occluders
+        const f32v2 previous = req.Point2;
+        if (ls.Sweep)
+            req.Point2 =
+                BandCenter + f32v2{0.f, 0.4f} + 1.6f * f32v2{Math::Cosine(1.2f * time), Math::Sine(1.2f * time)};
+        else if (pane.MouseInside)
+            req.Point2 = rv->ScreenToWorld(pane.Mouse);
+        else
+            req.Point2 = BandCenter + f32v2{3.8f * Math::Cosine(0.6f * time), 1.3f * Math::Sine(1.2f * time)};
 
-        // lights are transformed by the current context transform, like any draw. emit it before touching the
-        // transform, so its position stays in world space
-        ctx->PointLight({.Position = app.LightPos2,
+        // a cone points where the light moves (smoothed, so it does not jitter), or at the slider angle
+        if (app.DeltaTime > 0.f)
+            req.Velocity2 += 0.15f * ((req.Point2 - previous) / app.DeltaTime - req.Velocity2);
+        if (!ls.ConeFollowsMotion)
+            req.ConeAim = ls.ConeAngle;
+        else if (Math::Norm(req.Velocity2) > 0.3f)
+            req.ConeAim = Math::AntiTangent(req.Velocity2[1], req.Velocity2[0]);
+
+        // emitted under a non identity transform on purpose: lights take world space positions and angles, and the
+        // light checks catch any transform leaking into them
+        ctx->Push();
+        ctx->Scale(2.f);
+        ctx->Translate(f32v2{5.f, -7.f});
+        ctx->PointLight({.Position = req.Point2,
                          .Tint = Onyx::Color_Honey,
                          .LightRadius = 4.f,
                          .ShadowRadius = 8.f,
+                         .Angle = ls.Cone ? req.ConeAim : 0.f,
+                         .Decay = ls.Cone ? ls.ConeDecay : 0.f,
+                         .Extent = ls.Cone ? ls.ConeExtent : 1.f,
                          .Intensity = 1.2f,
                          .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+        // a band of light along its direction, wide enough to cover the gallery. its shadows run from the occluders in
+        // the direction it travels
+        if (ls.Directional2)
+            ctx->DirectionalLight({.Tint = Onyx::Color_Sky,
+                                   .LightExtent = 12.f,
+                                   .ShadowExtent = 12.f,
+                                   .Angle = ls.DirectionalAngle,
+                                   .Intensity = 0.55f,
+                                   .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+        ctx->Pop();
 
         ctx->Push();
         ctx->RenderFlags(Onyx::RenderModeFlag_Shaded);
         ctx->Material(app.Lit2);
         ctx->FillColor(Onyx::Color{70u, 74u, 96u});
-        ctx->Scale(f32v2{14.f, 2.6f});
-        ctx->Translate(f32v2{0.f, -3.4f});
+        ctx->Scale(BandSize);
+        ctx->Translate(BandCenter);
         ctx->Quad();
 
+        // occluders at different distances, all moving: static meshes (the spinning quad the sweep orbits, a triangle),
+        // a circle, parametric meshes (stadium, rounded rect) and glyphs
         ctx->Material(app.Occluder2);
         ctx->FillColor(Onyx::Color_Rose);
         ctx->ResetTransform();
-        ctx->Scale(0.7f);
-        ctx->Rotate(app.Time);
-        ctx->Translate(f32v2{0.f, -3.4f});
+        ctx->Scale(0.6f);
+        ctx->Rotate(time);
+        ctx->Translate(BandCenter + f32v2{0.f, 0.4f});
         ctx->Quad();
+
+        ctx->ResetTransform();
+        ctx->Scale(0.7f);
+        ctx->Rotate(-0.8f * time);
+        ctx->Translate(BandCenter + f32v2{-3.3f, 0.8f});
+        ctx->Triangle();
+
+        ctx->ResetTransform();
+        ctx->Scale(0.6f);
+        ctx->Translate(BandCenter + f32v2{-1.2f + 0.4f * Math::Sine(0.9f * time), -0.6f});
+        ctx->Circle();
+
+        ctx->ResetTransform();
+        ctx->Scale(0.55f);
+        ctx->Rotate(0.6f * time);
+        ctx->Translate(BandCenter + f32v2{1.7f, -0.9f});
+        ctx->Stadium();
+
+        ctx->ResetTransform();
+        ctx->Scale(0.65f);
+        ctx->Rotate(-0.4f * time);
+        ctx->Translate(BandCenter + f32v2{3.3f, 0.7f});
+        ctx->RoundedRect();
+
+        ctx->ResetTransform();
+        ctx->Align(Onyx::Alignment_Center);
+        ctx->Scale(0.6f);
+        ctx->Translate(BandCenter + f32v2{-3.f, -1.2f + 0.15f * Math::Sine(1.3f * time)});
+        ctx->Text("ONYX");
         ctx->Pop();
+
+        // flat markers, so they never reach the shadow maps: a ring on the point light, and an arrow showing where the
+        // directional light travels
+        ctx->Push();
+        ctx->FillColor(Onyx::Color_Honey);
+        ctx->Scale(0.3f);
+        ctx->Translate(req.Point2);
+        ctx->Circle({.Hollowness = 0.6f});
+        ctx->Pop();
+        if (ls.Directional2)
+        {
+            const f32 a = ls.DirectionalAngle;
+            const f32v2 dir{Math::Cosine(a), Math::Sine(a)};
+            const f32v2 left{Math::Cosine(a + 2.6f), Math::Sine(a + 2.6f)};
+            const f32v2 right{Math::Cosine(a - 2.6f), Math::Sine(a - 2.6f)};
+            const f32v2 tip = BandCenter + f32v2{4.1f, 1.45f} + 0.4f * dir;
+            ctx->Push();
+            ctx->FillColor(Onyx::Color_Sky);
+            ctx->RoundedLine(tip - 0.8f * dir, tip, 0.06f);
+            ctx->RoundedLine(tip, tip + 0.3f * left, 0.06f);
+            ctx->RoundedLine(tip, tip + 0.3f * right, 0.06f);
+            ctx->Pop();
+        }
     }
 
     // top row: every 2D primitive, with the selected render mode
@@ -1793,10 +2661,10 @@ void drawGallery2(App &app, const f32v2 &mouse)
     {
         ctx->Push();
         ctx->FillColor(Theme::Shapes[i]);
-        ctx->Scale(1.4f);
+        ctx->Scale(1.2f);
         if (rs.Rotate && i != 2)
-            ctx->Rotate(0.5f * app.Time + f32(i));
-        ctx->Translate(f32v2{-4.4f + 2.2f * f32(i), 2.4f});
+            ctx->Rotate(0.5f * time + f32(i));
+        ctx->Translate(f32v2{-3.6f + 1.8f * f32(i), 3.f});
         switch (i)
         {
         case 0:
@@ -1820,36 +2688,98 @@ void drawGallery2(App &app, const f32v2 &mouse)
         ctx->Pop();
     }
 
-    // middle row: three overlapping translucent squares
+    // middle row: three overlapping translucent squares, between two lines
     ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
     for (u32 i = 0; i < 3; ++i)
     {
         ctx->Push();
         ctx->FillColor(Theme::Shapes[i + 3]);
         ctx->Alpha(rs.Alpha);
-        ctx->Scale(1.6f);
-        ctx->Translate(f32v2{-0.7f + 0.7f * f32(i), -0.2f + 0.35f * f32(i % 2)});
+        ctx->Scale(1.3f);
+        ctx->Translate(f32v2{-0.6f + 0.6f * f32(i), 0.6f + 0.3f * f32(i % 2)});
         ctx->Quad();
         ctx->Pop();
     }
-
-    // lines and text
     ctx->Push();
     ctx->FillColor(Onyx::Color_Mint);
-    ctx->RoundedLine(f32v2{-5.2f, -0.6f}, f32v2{-2.6f, 0.4f}, 0.15f);
+    ctx->RoundedLine(f32v2{-4.4f, 0.3f}, f32v2{-2.2f, 1.1f}, 0.15f);
     ctx->FillColor(Onyx::Color_Peach);
-    ctx->Line(f32v2{2.6f, 0.4f}, f32v2{5.2f, -0.6f}, 0.15f);
+    ctx->Line(f32v2{2.2f, 1.1f}, f32v2{4.4f, 0.3f}, 0.15f);
     ctx->Pop();
 
-    drawTitle(ctx, app.GalleryView, "2D GALLERY", 15.f);
-    drawCornerBrackets(ctx, app.GalleryView, 3.f);
-    drawCursor(ctx, app.GalleryView, mouse, 10.f);
+#ifdef ONYX_ENABLE_AUDIO
+    // the 2D spatial orbit: the listener and the source circling it
+    const AudioState &au = app.Audio;
+    if (au.Available && au.Orbit == Orbit_2D)
+    {
+        ctx->Push();
+        ctx->FillColor(Theme::Accent);
+        ctx->Line(au.Listener2, au.Source2, 0.03f);
+        ctx->Scale(0.5f);
+        ctx->Translate(au.Listener2);
+        ctx->Circle({.Hollowness = 0.7f});
+        ctx->ResetTransform();
+        ctx->Scale(0.35f);
+        ctx->Translate(au.Source2);
+        ctx->Circle();
+        ctx->Pop();
+    }
+#endif
+
+    drawFrame(app, Pane_Gallery2);
 }
 
-void drawGallery3(App &app)
+// the spot's cone: lines from the light to where its edge meets the floor, and the outline of the lit area there. drawn
+// flat, like the light markers, so it never reaches the shadow maps
+static void drawSpotCone(Onyx::RenderContext<D3> *ctx, const f32v3 &position, const f32v3 &direction, const f32 fov,
+                         const f32 floorY)
+{
+    constexpr u32 segments = 48;
+    // the helper vector is picked here, not by the one argument CreateOrthogonalBase: that one breaks straight down
+    // (see the light checks), and the outline must stay right when the spot points there
+    const f32v3 helper = Math::Absolute(direction[1]) < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+    const f32m2x3 base = Onyx::Transform<D3>::CreateOrthogonalBase(direction, helper);
+    const f32 half = 0.5f * fov;
+
+    // where each edge ray meets the floor, or a point far along it when it never does
+    TKit::FixedArray<f32v3, segments> edge{};
+    TKit::FixedArray<bool, segments> onFloor{};
+    for (u32 i = 0; i < segments; ++i)
+    {
+        const f32 a = 2.f * Math::Pi<f32>() * f32(i) / f32(segments);
+        const f32v3 ray =
+            Math::Cosine(half) * direction + Math::Sine(half) * (Math::Cosine(a) * base[0] + Math::Sine(a) * base[1]);
+        const f32 t = ray[1] < -1e-3f ? (floorY - position[1]) / ray[1] : 30.f;
+        onFloor[i] = t < 30.f;
+        edge[i] = position + Math::Min(t, 30.f) * ray;
+    }
+
+    ctx->Push();
+    ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+    ctx->FillColor(Onyx::Color_Sky);
+    ctx->Line(position, position + 0.8f * direction, 0.04f);
+    const f32v3 lift{0.f, 0.02f, 0.f};
+    for (u32 i = 0; i < segments; ++i)
+    {
+        if (i % (segments / 8) == 0)
+            ctx->Line(position, edge[i], 0.015f);
+        const u32 next = (i + 1) % segments;
+        if (onFloor[i] && onFloor[next])
+            ctx->Line(edge[i] + lift, edge[next] + lift, 0.03f);
+    }
+    ctx->Scale(0.22f);
+    ctx->Translate(position);
+    ctx->Sphere();
+    ctx->Pop();
+}
+
+static void drawGallery3(App &app)
 {
     Onyx::RenderContext<D3> *ctx = app.Ctx3;
     const RenderSettings &rs = app.Render;
+    const LightSettings &ls = app.Lights;
+    LightRequests &req = app.Requested;
+    constexpr f32 floorY = -1.6f;
     ctx->Flush();
 
     Onyx::RenderModeFlags flags = Onyx::RenderModeFlag_Shaded;
@@ -1860,41 +2790,58 @@ void drawGallery3(App &app)
     ctx->OutlineWidth(rs.OutlineWidth);
     ctx->Material(app.Mat3);
 
-    if (rs.Lights3)
-    {
-        ctx->DirectionalLight({.Direction = f32v3{-0.6f, -1.f, -0.4f},
-                               .Cascades = {.View = app.View3},
+    // spot only leaves the spot alone, so its light and shadows are unmistakable
+    const bool others = ls.Lights3 && !ls.SpotOnly;
+    if (others)
+        ctx->DirectionalLight({.Direction = ls.SunDown ? f32v3{0.f, -1.f, 0.f} : f32v3{-0.6f, -1.f, -0.4f},
+                               .Cascades = {.View = app.View3[app.Mode]},
                                .Intensity = 0.7f,
                                .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
-        if (rs.PointLight3)
-        {
-            // ShadowRadius is the far plane of the cube shadow map (default 4). shapes here can be ~10 units away
-            // from the light, so it must be larger. the near plane is 5% of it, so do not overdo it either
-            const f32v3 lightPos{3.5f * Math::Cosine(app.Time), 2.5f, 3.5f * Math::Sine(app.Time)};
-            ctx->PointLight({.Position = lightPos,
-                             .Tint = Onyx::Color_Honey,
-                             .LightRadius = 6.f,
-                             .ShadowRadius = 14.f,
-                             .Intensity = 1.6f,
-                             .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+    if (others && ls.Point3)
+    {
+        req.Point3 = f32v3{3.5f * Math::Cosine(app.Time), 2.5f, 3.5f * Math::Sine(app.Time)};
+        // emitted under a non identity transform on purpose (see the light checks). ShadowRadius is the far plane of
+        // the cube shadow map and shapes here can be about 10 units away from the light. the near plane is 5% of it
+        // and shadows fade out over its last 10%, so it must cover the scene without overdoing it
+        ctx->Push();
+        ctx->Translate(f32v3{1.f, 2.f, 3.f});
+        ctx->PointLight({.Position = req.Point3,
+                         .Tint = Onyx::Color_Honey,
+                         .LightRadius = 6.f,
+                         .ShadowRadius = 14.f,
+                         .Intensity = 1.6f,
+                         .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+        ctx->Pop();
 
-            // a small unlit sphere marks where the light is
-            ctx->Push();
-            ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
-            ctx->FillColor(Onyx::Color_Buttercup);
-            ctx->Scale(0.25f);
-            ctx->Translate(lightPos);
-            ctx->Sphere();
-            ctx->Pop();
-        }
-        if (rs.SpotLight3)
-            ctx->SpotLight({.Position = f32v3{0.f, 4.f, 2.f},
-                            .Direction = Math::Normalize(f32v3{0.4f * Math::Sine(0.7f * app.Time), -1.f, -0.5f}),
-                            .Tint = Onyx::Color_Sky,
-                            .FieldOfView = Math::Radians(40.f),
-                            .LightRange = 8.f,
-                            .Intensity = 1.5f,
-                            .Flags = Onyx::LightFlag_CastShadows});
+        // a flat marker: a shaded sphere around the light would block its own shadows
+        ctx->Push();
+        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+        ctx->FillColor(Onyx::Color_Buttercup);
+        ctx->Scale(0.25f);
+        ctx->Translate(req.Point3);
+        ctx->Sphere();
+        ctx->Pop();
+    }
+    if (ls.Lights3 && ls.Spot3)
+    {
+        // tilted away from straight down, towards SpotTurn. swinging adds a slow sway to the tilt. ShadowRange is the
+        // far plane of its shadow map (the near plane is a fraction of it) and shadows fade over its last 10%: 20 units
+        // keep the floor well inside it, even tilted
+        const f32 tilt = ls.SpotTilt + (ls.SpotSwing ? Math::Radians(12.f) * Math::Sine(0.7f * app.Time) : 0.f);
+        req.SpotDirection = Math::Normalize(f32v3{Math::Sine(tilt) * Math::Cosine(ls.SpotTurn), -Math::Cosine(tilt),
+                                                  Math::Sine(tilt) * Math::Sine(ls.SpotTurn)});
+        ctx->Push();
+        ctx->Translate(f32v3{-2.f, 1.f, 0.5f});
+        ctx->SpotLight({.Position = req.SpotPosition,
+                        .Direction = req.SpotDirection,
+                        .Tint = Onyx::Color_Sky,
+                        .FieldOfView = ls.SpotFov,
+                        .LightRange = ls.SpotRange,
+                        .ShadowRange = 20.f,
+                        .Intensity = 1.8f,
+                        .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+        ctx->Pop();
+        drawSpotCone(ctx, req.SpotPosition, req.SpotDirection, ls.SpotFov, floorY);
     }
 
     // floor
@@ -1904,7 +2851,7 @@ void drawGallery3(App &app)
     ctx->ScaleX(24.f);
     ctx->ScaleY(24.f);
     ctx->RotateX(-0.5f * Math::Pi<f32>());
-    ctx->TranslateY(-1.6f);
+    ctx->TranslateY(floorY);
     ctx->Quad();
     ctx->Pop();
 
@@ -1940,9 +2887,37 @@ void drawGallery3(App &app)
         }
         ctx->Pop();
     }
+
+    // a box right under the spot: lit by it, and casting its shadow onto the floor
+    ctx->Push();
+    ctx->FillColor(Onyx::Color_Pearl);
+    ctx->Scale(0.9f);
+    ctx->RotateY(0.4f * app.Time);
+    ctx->Translate(f32v3{req.SpotPosition[0], 0.3f, req.SpotPosition[2]});
+    ctx->Box();
+    ctx->Pop();
+
+#ifdef ONYX_ENABLE_AUDIO
+    // the 3D spatial orbit circles the camera, which is the listener: it crosses the view when it passes in front
+    const AudioState &au = app.Audio;
+    if (au.Available && au.Orbit == Orbit_3D)
+    {
+        ctx->Push();
+        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+        ctx->FillColor(Theme::Accent);
+        ctx->Scale(0.2f);
+        ctx->Translate(au.Source3);
+        ctx->Sphere();
+        ctx->Pop();
+    }
+#endif
+
+    // the title, brackets and cursor of the 3D gallery go to the transparent 2D view stacked on top of it
+    app.LabelCtx->Flush();
+    drawFrame(app, Pane_Gallery3);
 }
 
-void drawTextures(App &app, const f32v2 &mouse)
+static void drawTextures(const App &app)
 {
     // render texture contents: the same pixel pattern as the pixel view, in each texture's own logical pixels
     Onyx::RenderContext<D2> *rt = app.RtCtx;
@@ -1958,448 +2933,742 @@ void drawTextures(App &app, const f32v2 &mouse)
 
     Onyx::RenderContext<D2> *ctx = app.TexturesCtx;
     ctx->Flush();
-    const f32v2 align = pixelAlignment(app.TexturesView);
+    const f32v2 align = pixelAlignment(app.Panes[Pane_Textures].Frame[app.Mode]);
     const f32 size = f32(RenderTextureSize[0]);
 
     // drawn at their logical size, so the scaled one maps one texel to one physical pixel
-    ctx->Push();
-    ctx->Scale(size);
-    ctx->Translate(f32v2{-100.f, 0.f} + align - 0.5f);
-    ctx->Image(*app.RtScaled);
-    ctx->Pop();
-
-    ctx->Push();
-    ctx->Scale(size);
-    ctx->Translate(f32v2{100.f, 0.f} + align - 0.5f);
-    ctx->Image(*app.RtFixed);
-    ctx->Pop();
-
-    const auto label = [&](const char *text, const f32 x) {
+    const Onyx::RenderTexture *textures[2] = {app.RtScaled, app.RtFixed};
+    const char *labels[2] = {"follows window scale", "fixed at scale 1"};
+    for (u32 i = 0; i < 2; ++i)
+    {
+        const f32 x = i == 0 ? -100.f : 100.f;
         ctx->Push();
+        ctx->Scale(size);
+        ctx->Translate(f32v2{x, 0.f} + align - 0.5f);
+        ctx->Image(*textures[i]);
+        ctx->ResetTransform();
         ctx->FillColor(Theme::Dim);
         ctx->Align(Onyx::Alignment_Center);
         ctx->Scale(13.f);
         ctx->Translate(f32v2{x, -100.f});
-        ctx->Text(text);
+        ctx->Text(labels[i]);
         ctx->Pop();
-    };
-    label("follows window scale", -100.f);
-    label("fixed at scale 1", 100.f);
+    }
 
-    drawTitle(ctx, app.TexturesView, "TEXTURES  offset viewport", 15.f);
-    drawCornerBrackets(ctx, app.TexturesView, 3.f);
-    drawCursor(ctx, app.TexturesView, mouse, 10.f);
+    drawFrame(app, Pane_Textures);
 }
 
-// the 3D gallery's title, brackets and cursor are drawn by a transparent 2D view stacked on top of it
-void drawGallery3Labels(App &app, const f32v2 &mouse)
+// the lab: a world grid with labelled axes, shapes for each flag (outlined ones, a translucent square, thin lines and a
+// circle for FXAA), brackets at the viewport corners, the scissor outline, a probe point and the cursor ring
+static void drawLab(const App &app)
 {
-    Onyx::RenderContext<D2> *ctx = app.LabelCtx;
+    Onyx::RenderContext<D2> *ctx = app.LabCtx;
     ctx->Flush();
-    drawTitle(ctx, app.Label3, "3D GALLERY", 15.f);
-    drawCornerBrackets(ctx, app.Label3, 3.f);
-    drawCursor(ctx, app.Label3, mouse, 10.f);
+    const LabSettings &lab = app.Lab;
+    const Onyx::RenderView<D2> *rv = app.LabView;
+    if (rv->GetFlags() & Onyx::RenderViewFlag_Hidden)
+        return;
+
+    const Onyx::Viewport &vp = rv->GetViewport();
+    const Onyx::Scissor &sc = rv->GetScissor();
+    const f32v2 center = vp.Position + 0.5f * vp.Size;
+    const f32 pixel = Math::Norm(rv->ScreenToWorld(center + f32v2{1.f, 0.f}) - rv->ScreenToWorld(center));
+    const f32 step = lab.Orthographic ? 1.f : 50.f; // 1 world unit, or 50 logical pixels in viewport mode
+
+    // the world rectangle the viewport covers. the camera may be rotated, so all four corners count
+    const f32v2 corners[4] = {vp.Position, vp.Position + f32v2{vp.Size[0], 0.f}, vp.Position + f32v2{0.f, vp.Size[1]},
+                              vp.Position + vp.Size};
+    f32v2 lo = rv->ScreenToWorld(corners[0]);
+    f32v2 hi = lo;
+    for (const f32v2 &c : corners)
+    {
+        lo = Math::Min(lo, rv->ScreenToWorld(c));
+        hi = Math::Max(hi, rv->ScreenToWorld(c));
+    }
+    ctx->FillColor(Theme::Grid);
+    for (u32 i = 0; i < 200; ++i)
+    {
+        const f32 x = (std::floor(lo[0] / step) + f32(i)) * step;
+        if (x > hi[0])
+            break;
+        ctx->Line(f32v2{x, lo[1]}, f32v2{x, hi[1]}, pixel);
+    }
+    for (u32 i = 0; i < 200; ++i)
+    {
+        const f32 y = (std::floor(lo[1] / step) + f32(i)) * step;
+        if (y > hi[1])
+            break;
+        ctx->Line(f32v2{lo[0], y}, f32v2{hi[0], y}, pixel);
+    }
+    ctx->FillColor(Onyx::Color_Coral);
+    ctx->Line(f32v2{lo[0], 0.f}, f32v2{hi[0], 0.f}, 2.f * pixel);
+    ctx->FillColor(Onyx::Color_Mint);
+    ctx->Line(f32v2{0.f, lo[1]}, f32v2{0.f, hi[1]}, 2.f * pixel);
+
+    // labels at the origin and two steps along each axis, kept upright
+    const f32v2 labelled[3] = {f32v2{0.f}, f32v2{2.f * step, 0.f}, f32v2{0.f, 2.f * step}};
+    for (const f32v2 &at : labelled)
+    {
+        ctx->Push();
+        ctx->FillColor(Theme::Text);
+        ctx->Scale(12.f * pixel);
+        ctx->Rotate(lab.Rotation);
+        ctx->Translate(at + 8.f * pixel);
+        ctx->Text(formatLine("({:g}, {:g})", at[0], at[1]).View());
+        ctx->Pop();
+    }
+
+    // outlines need RenderViewFlag_Outlines, the translucent square RenderViewFlag_Transparency. the thin lines and the
+    // circle are where FXAA shows most
+    ctx->Push();
+    ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
+    ctx->OutlineColor(Theme::Text);
+    ctx->OutlineWidth(0.08f);
+    ctx->FillColor(Onyx::Color_Sky);
+    ctx->Scale(1.4f * step);
+    ctx->Translate(f32v2{-2.f * step, 1.2f * step});
+    ctx->Circle();
+    ctx->ResetTransform();
+    ctx->FillColor(Onyx::Color_Honey);
+    ctx->Scale(1.2f * step);
+    ctx->Rotate(0.4f * app.Time);
+    ctx->Translate(f32v2{2.f * step, 1.2f * step});
+    ctx->Quad();
+    ctx->Pop();
+
+    ctx->Push();
+    ctx->FillColor(Onyx::Color_Lavender);
+    ctx->Alpha(0.5f);
+    ctx->Scale(1.6f * step);
+    ctx->Translate(f32v2{0.f, -1.f * step});
+    ctx->Quad();
+    ctx->Pop();
+
+    ctx->Push();
+    ctx->FillColor(Theme::Text);
+    const f32v2 fan = f32v2{-2.f * step, -1.2f * step};
+    for (u32 i = 0; i < 9; ++i)
+    {
+        const f32 a = 0.05f + 0.17f * f32(i);
+        ctx->Line(fan, fan + 1.1f * step * f32v2{Math::Cosine(a), Math::Sine(a)}, pixel);
+    }
+    ctx->Pop();
+
+    // the probe the panel converts to screen coordinates
+    const f32v2 probe{step, step};
+    ctx->Push();
+    ctx->FillColor(Theme::Cursor);
+    ctx->Line(probe - f32v2{6.f * pixel, 0.f}, probe + f32v2{6.f * pixel, 0.f}, 2.f * pixel);
+    ctx->Line(probe - f32v2{0.f, 6.f * pixel}, probe + f32v2{0.f, 6.f * pixel}, 2.f * pixel);
+    ctx->Pop();
+
+    // brackets in the viewport's corners: only the ones the scissor lets through show. the scissor's own outline is
+    // drawn a pixel inside it, so it is visible exactly when the scissor is right
+    ctx->Push();
+    ctx->FillColor(Theme::Accent);
+    for (const f32v2 &c : corners)
+    {
+        const f32v2 inner = c + 3.f * f32v2{c[0] < center[0] ? 1.f : -1.f, c[1] < center[1] ? 1.f : -1.f};
+        const f32v2 armX = f32v2{c[0] < center[0] ? 18.f : -18.f, 0.f};
+        const f32v2 armY = f32v2{0.f, c[1] < center[1] ? 18.f : -18.f};
+        ctx->Line(rv->ScreenToWorld(inner), rv->ScreenToWorld(inner + armX), 2.f * pixel);
+        ctx->Line(rv->ScreenToWorld(inner), rv->ScreenToWorld(inner + armY), 2.f * pixel);
+    }
+    const f32v2 s0 = vp.Position + sc.Position + 1.5f;
+    const f32v2 s1 = vp.Position + sc.Position + sc.Size - 1.5f;
+    const f32v2 outline[4] = {s0, f32v2{s1[0], s0[1]}, s1, f32v2{s0[0], s1[1]}};
+    for (u32 i = 0; i < 4; ++i)
+        ctx->Line(rv->ScreenToWorld(outline[i]), rv->ScreenToWorld(outline[(i + 1) % 4]), pixel);
+    ctx->Pop();
+
+    if (!app.LabMouseInside)
+        return;
+    ctx->Push();
+    ctx->FillColor(Theme::Cursor);
+    ctx->Scale(20.f * pixel);
+    ctx->Translate(rv->ScreenToWorld(app.Window->GetMousePosition()));
+    ctx->Circle({.Hollowness = 0.75f});
+    ctx->Pop();
 }
 
-void drawScene(App &app)
+static void drawScene(App &app)
 {
-    const f32v2 mouse = app.Window->GetMousePosition();
-    drawPixelView(app, mouse);
-    drawGallery2(app, mouse);
+    // views cache their matrices when they render. cameras have moved since, and docked textures may have been resized,
+    // so refresh them first, or every screen to world conversion below (and in the checks) would lag one frame behind
+    for (Pane &pane : app.Panes)
+        pane.Frame[app.Mode]->CacheMatrices();
+    app.View3[app.Mode]->CacheMatrices();
+    app.LabView->CacheMatrices();
+
+    drawPixelView(app);
+    drawGallery2(app);
     drawGallery3(app);
-    drawGallery3Labels(app, mouse);
-    drawTextures(app, mouse);
+    drawTextures(app);
+    drawLab(app);
 }
 
 // =====================================================================================================================
-//  9. OVERLAY PANELS
+//  9. AUDIO
 // =====================================================================================================================
 
-bool beginPanel(App &app, const CategoryId id)
+#ifdef ONYX_ENABLE_AUDIO
+constexpr f32 ArpeggioRatios[4] = {1.f, 1.25992f, 1.49831f, 2.f}; // root, major third, fifth, octave
+constexpr f32 ArpeggioNote = 0.18f;                               // seconds per note
+
+// how long the instrument plays each wave, in seconds
+constexpr f32 WaveLengths[Wave_Count] = {1.f, 1.f, 0.4f, 4.f * ArpeggioNote, 0.f};
+constexpr const char *WaveNames = "Sine#Square#Noise burst#Arpeggio#Beeps";
+
+// fills interleaved frames and returns how many it wrote. returning 0 ends the sound. runs on the audio thread: it
+// only reads and writes the synth's atomics
+static u32 synthesize(Synth &synth, f32 *out, const u32 frameCount, const u32 channels)
 {
-    Category &cat = app.Get(id);
-    if (!cat.Open)
-        return false;
-    const f32 offset = 28.f * f32(id);
-    app.Ui->SetNextWindowPosition(f32v2{470.f + offset, 20.f + offset}, Onyx::OverlayCondition_OnBirth);
-    app.Ui->SetNextWindowSize(f32v2{520.f, 760.f}, Onyx::OverlayCondition_OnBirth);
-    return app.Ui->BeginWindow(cat.Title, &cat.Open);
-}
+    const u32 length = synth.Length.load(std::memory_order_relaxed);
+    u32 cursor = synth.Cursor.load(std::memory_order_relaxed);
+    const u32 frames = length == 0 ? frameCount : Math::Min(frameCount, length - Math::Min(cursor, length));
 
-void endPanel(App &app, const CategoryId id)
-{
-    Category &cat = app.Get(id);
-    drawAutoChecks(app.Ui, cat, app.ShowRules);
-    drawVisualChecks(app.Ui, cat, 100u * u32(id));
-    app.Ui->EndWindow();
-}
+    const u32 shape = synth.Shape.load(std::memory_order_relaxed);
+    const f32 frequency = synth.Frequency.load(std::memory_order_relaxed);
+    const f32 rate = f32(synth.SampleRate);
+    const f32 fade = 0.005f * rate; // 5 ms ramps at both ends, so starting and ending do not click
+    f32 phase = synth.Phase.load(std::memory_order_relaxed);
+    u32 noise = synth.Noise.load(std::memory_order_relaxed);
+    u32 head = synth.ScopeHead.load(std::memory_order_relaxed);
 
-void panelDpi(App &app)
-{
-    if (!beginPanel(app, Category_Dpi))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-    Onyx::Window *win = app.Window;
-
-    concepts(ui, "Concepts: logical and physical pixels",
-             "A physical pixel is a dot on the screen. A logical pixel is what your layout is written in. The content "
-             "scale is the ratio between them: at 1.5x, a 100 x 100 logical rectangle covers 150 x 150 physical "
-             "pixels. Onyx works in logical pixels everywhere (window size, viewports, mouse, overlay layout) and only "
-             "multiplies by the content scale where real pixels are allocated: swapchain images, view framebuffers and "
-             "render textures. A DPI bug is almost always a place where the two spaces get mixed: blurry output "
-             "(rendering at logical resolution on a physical framebuffer), clipped output (physical sizes used as "
-             "logical) or a drifting cursor (mouse in one space, viewport in the other).");
-    concepts(ui, "Concepts: screen coordinates",
-             "GLFW's screen coordinates are logical on Wayland and macOS, and physical on X11 and Windows. Onyx hides "
-             "that: Window::GetSize() and GetMousePosition() always return logical pixels, derived from the "
-             "framebuffer size divided by the content scale.");
-
-    const Graph::Window handle = win->GetHandle();
-    const f32v2 scale = win->GetContentScale();
-    const u32v2 size = win->GetSize();
-    const u32v2 screen = Graph::Window_GetScreenSize(handle);
-    const u32v2 pixels = Graph::Window_GetPixelSize(handle);
-
-    ui->HorizontalSeparator("Measured");
-    info(ui, "Content scale", "{:.3f} x {:.3f}", scale[0], scale[1]);
-    info(ui, "Logical size", "{} x {}", size[0], size[1]);
-    info(ui, "Screen size (platform units)", "{} x {}", screen[0], screen[1]);
-    info(ui, "Framebuffer size (physical)", "{} x {}", pixels[0], pixels[1]);
-    info(ui, "Swapchain recreations", "{}", app.SwapchainRecreations);
-    const Graph::Monitor monitor = win->GetMonitor();
-    // graphite's null handle is all ones, not zero, so a plain truthiness test does not work here
-    if (Graph::Monitor_IsHandleValid(monitor))
+    for (u32 i = 0; i < frames; ++i, ++cursor)
     {
-        const f32v2 ms = Graph::Monitor_GetContentScale(monitor);
-        info(ui, "Monitor scale (fullscreen only)", "{:.3f} x {:.3f}", ms[0], ms[1]);
-    }
-
-    ui->HorizontalSeparator("Content scale events");
-    if (app.ScaleEvents.IsEmpty())
-        explain(ui, "None yet. Change the monitor scale (or drag the window to a monitor with a different scale) and "
-                    "every change must show up here.");
-    for (const ScaleEvent &e : app.ScaleEvents)
-        colored(ui, Theme::Info, "t = {:7.2f}s  ->  {:.3f} x {:.3f}", e.Time, e.Scale[0], e.Scale[1]);
-
-    endPanel(app, Category_Dpi);
-}
-
-void panelViews(App &app)
-{
-    if (!beginPanel(app, Category_Views))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-
-    concepts(ui, "Concepts: render targets, views and cameras",
-             "A render target is something that can be rendered to: a window or a render texture. A render view is a "
-             "rectangle (viewport) inside a target, with its own framebuffers, camera and passes. A camera decides "
-             "what part of the world the view shows: CameraMode_Orthographic shows OrthoParameters.Size world units "
-             "vertically, CameraMode_Viewport maps one world unit to one logical pixel, CameraMode_Perspective (3D "
-             "only) uses a field of view. A render context records draws and can target several views at once.");
-    concepts(ui, "Concepts: sizing policies and layers",
-             "Viewport, scissor and image size can each be proportional (fractions of the parent, recomputed on "
-             "resize) or fixed (absolute logical pixels). Views are drawn in increasing Layer order: BringToTop and "
-             "BringToBottom move a view to either end. Coordinates: screen = logical pixels from the window's top "
-             "left, viewport = the same relative to the view, world = what the camera sees.");
-
-    ui->HorizontalSeparator("Live values");
-    const f32v2 mouse = app.Window->GetMousePosition();
-    info(ui, "Mouse (screen)", "({:.1f}, {:.1f})", mouse[0], mouse[1]);
-    const auto viewRow = [&](const char *name, const Onyx::RenderView<D2> *rv) {
-        const Onyx::Viewport &vp = rv->GetViewport();
-        const u32v2 ext = rv->GetImageExtent();
-        colored(ui, Theme::Text, "{}", name);
-        colored(ui, Theme::Info, "    viewport ({:.0f}, {:.0f}) {:.0f} x {:.0f}   extent {} x {}   layer {}",
-                vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1], ext[0], ext[1], rv->Layer);
-        if (rv->IsWithinViewport(mouse))
+        const f32 time = f32(cursor) / rate;
+        const f32 sine = Math::Sine(2.f * Math::Pi<f32>() * phase);
+        f32 step = frequency;
+        f32 sample = sine;
+        switch (shape)
         {
-            const f32v2 w = rv->ScreenToWorld(mouse);
-            colored(ui, Theme::Cursor, "    mouse in world ({:.3f}, {:.3f})", w[0], w[1]);
+        case Wave_Square:
+            sample = phase < 0.5f ? 0.4f : -0.4f;
+            break;
+        case Wave_Noise:
+            noise ^= noise << 13;
+            noise ^= noise >> 17;
+            noise ^= noise << 5;
+            sample = (f32(noise) / 4294967295.f * 2.f - 1.f) * std::exp(-6.f * time);
+            break;
+        case Wave_Arpeggio:
+            step = frequency * ArpeggioRatios[u32(time / ArpeggioNote) % 4];
+            break;
+        case Wave_Beeps: {
+            // 80 ms beeps every 300 ms, each with its own ramps. easier to place in space than a steady tone
+            const f32 t = std::fmod(time, 0.3f);
+            sample = t < 0.08f ? sine * Math::Min(1.f, Math::Min(t, 0.08f - t) / 0.005f) : 0.f;
+            break;
         }
-    };
-    viewRow("Pixel view", app.PixelView);
-    viewRow("2D gallery", app.GalleryView);
-    viewRow("Textures", app.TexturesView);
-    {
-        const Onyx::Viewport &vp = app.View3->GetViewport();
-        const f32v3 &pos = app.Cam3.View.Translation;
-        colored(ui, Theme::Text, "3D gallery");
-        colored(ui, Theme::Info,
-                "    viewport ({:.0f}, {:.0f}) {:.0f} x {:.0f}   camera ({:.2f}, {:.2f}, {:.2f})   fov {:.1f} deg",
-                vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1], pos[0], pos[1], pos[2],
-                Math::Degrees(app.Cam3.PerspParameters.FieldOfView));
+        default:
+            break;
+        }
+        phase += step / rate;
+        phase -= std::floor(phase);
+
+        f32 envelope = Math::Min(1.f, f32(cursor) / fade);
+        if (length != 0)
+            envelope = Math::Min(envelope, f32(length - cursor) / fade);
+        sample *= envelope;
+
+        for (u32 c = 0; c < channels; ++c)
+            out[i * channels + c] = sample;
+        if (cursor % ScopeStride == 0)
+            synth.Scope[head++ % ScopeSize].store(sample, std::memory_order_relaxed);
     }
-
-    ui->HorizontalSeparator("Controls");
-    ui->HorizontalSlider("2D ortho size", &app.GalleryCam.OrthoParameters.Size, 1.f, 40.f);
-    if (ui->Button("Reset cameras"))
-        resetCameras(app);
-
-    endPanel(app, Category_Views);
+    synth.Cursor.store(cursor, std::memory_order_relaxed);
+    synth.Phase.store(phase, std::memory_order_relaxed);
+    synth.Noise.store(noise, std::memory_order_relaxed);
+    synth.ScopeHead.store(head, std::memory_order_release);
+    return frames;
 }
 
-void panelRendering(App &app)
+// custom sources need a seek callback to loop or to play again after ending: miniaudio does both by seeking back to
+// frame 0. it may run on the main thread (Audio_Play after the end) or the audio thread (looping, deferred seeks)
+static Onyx::Resource createSource(Synth &synth, const Onyx::AudioFlags flags)
 {
-    if (!beginPanel(app, Category_Rendering))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-    RenderSettings &rs = app.Render;
-
-    concepts(ui, "Concepts: geometry and render modes",
-             "Onyx draws five kinds of geometry: circles (analytic, with hollowness, arcs and fades), static meshes "
-             "(triangle, quad, box...), parametric meshes (stadium, rounded rect, capsule, torus: one mesh, shape set "
-             "per instance), glyphs (text) and dynamic meshes (your own vertices). Each draw is flat (unlit color), "
-             "shaded (lit by the context's lights, using its material) and optionally outlined. Outlines are drawn in "
-             "the post process pass, so the view needs RenderViewFlag_Outlines and RenderViewFlag_PostProcess.");
-    concepts(ui, "Concepts: passes",
-             "Opaque draws go first and write depth. Translucent draws (alpha below 1) go to the transparent pass and "
-             "are blended on top, if the view has RenderViewFlag_Transparency. Shadow maps are rendered for lights "
-             "with LightFlag_CastShadows when the view has RenderViewFlag_Shadows. In 2D, occluder materials block "
-             "light; in 3D every shaded mesh casts and receives.");
-
-    ui->HorizontalSeparator("Controls");
-    ui->CheckBox("Outlines", &rs.Outlines);
-    ui->HorizontalSlider("Outline width", &rs.OutlineWidth, 0.f, 0.3f);
-    ui->CheckBox("Rotate shapes", &rs.Rotate);
-    ui->HorizontalSlider("Alpha (middle row)", &rs.Alpha, 0.05f, 1.f);
-    ui->HorizontalSlider("Circle hollowness", &rs.Circle.Hollowness, 0.f, 0.95f);
-    ui->HorizontalSlider("Circle arc end", &rs.Circle.UpperAngle, 0.1f, 2.f * Math::Pi<f32>());
-    ui->HorizontalSlider("Circle inner fade", &rs.Circle.InnerFade, 0.f, 1.f);
-    ui->HorizontalSlider("Circle outer fade", &rs.Circle.OuterFade, 0.f, 1.f);
-    ui->CheckBox("2D lights", &rs.Lights2);
-    ui->CheckBox("3D lights", &rs.Lights3);
-    ui->CheckBox("3D point light", &rs.PointLight3);
-    ui->CheckBox("3D spot light", &rs.SpotLight3);
-
-    // view flags: changing them goes through RenderView::SetFlags
-    const bool oldShadows = rs.Shadows;
-    const bool oldPost = rs.PostProcess;
-    const bool oldOutlines = rs.Outlines;
-    ui->CheckBox("View: shadows", &rs.Shadows);
-    ui->CheckBox("View: post process", &rs.PostProcess);
-    if (oldShadows != rs.Shadows || oldPost != rs.PostProcess || oldOutlines != rs.Outlines)
-    {
-        Onyx::RenderViewFlags flags = Onyx::RenderViewFlag_Transparency;
-        if (rs.Shadows)
-            flags |= Onyx::RenderViewFlag_Shadows;
-        if (rs.Outlines)
-            flags |= Onyx::RenderViewFlag_Outlines;
-        app.GalleryView->SetFlags(flags);
-        app.View3->SetFlags(flags);
-    }
-    if (rs.Outlines && !rs.PostProcess)
-        colored(ui, Theme::Todo, "Outlines need the post process pass: expect no outlines now");
-
-    endPanel(app, Category_Rendering);
+    synth.SampleRate = Onyx::Audio_GetSampleRate();
+    return Onyx::Audio_Create([&synth](f32 *out, const u32 frameCount,
+                                       const u32 channels) { return synthesize(synth, out, frameCount, channels); },
+                              {.SeekCallback =
+                                   [&synth](const u64 frame) {
+                                       synth.Cursor.store(u32(frame), std::memory_order_relaxed);
+                                       synth.Phase.store(0.f, std::memory_order_relaxed);
+                                       return true;
+                                   },
+                               .Flags = flags});
 }
 
-void panelTextures(App &app)
+static void setupAudio(App &app)
 {
-    if (!beginPanel(app, Category_Textures))
+    AudioState &au = app.Audio;
+    au.Available = Onyx::Audio_IsAvailable();
+    if (!au.Available)
         return;
-    Onyx::Overlay *ui = app.Ui;
 
-    concepts(ui, "Concepts: render textures",
-             "A render texture is an offscreen render target. You create views on it like on a window, render into "
-             "them with contexts, and then sample the result as a texture: in a context (ctx->Image) or in the "
-             "overlay (ui->Image). It has its own logical size and content scale. Rendering at the window's scale "
-             "gives a texture that maps one texel to one physical pixel when drawn at its logical size.");
+    au.Instrument = createSource(au.InstrumentSynth, 0);
+    au.Spatial = createSource(au.SpatialSynth, Onyx::AudioFlag_Spatialization | Onyx::AudioFlag_Loop);
+    au.BlipMain = createSource(au.BlipMainSynth, 0);
+    au.BlipAudio = createSource(au.BlipAudioSynth, 0);
 
-    const f32v2 imageSize = f32v2{RenderTextureSize};
-    ui->HorizontalSeparator("Sampled in the overlay");
-    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
-    ui->Image(*app.RtScaled, imageSize);
-    ui->Image(*app.RtFixed, imageSize);
-    ui->PopPanel();
-    explain(ui, "Left: follows the window scale. Right: fixed at scale 1.");
-
-    endPanel(app, Category_Textures);
-}
-
-void panelInput(App &app)
-{
-    if (!beginPanel(app, Category_Input))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-    Onyx::Window *win = app.Window;
-    const InputTracking &in = app.Input;
-
-    concepts(ui, "Concepts: events and polling",
-             "Each window collects events (keys, mouse, scroll, resize, focus, scale...) while Onyx polls the "
-             "platform. Window::GetNewEvents() returns the events gathered since the previous frame. Polling "
-             "(IsKeyPressed, GetMousePosition) returns the state right now. Both views of the input must agree, and "
-             "the event stream must be internally consistent: a release always follows a press, focus gain and loss "
-             "alternate, and so on. The overlay consumes input too: WantCaptureMouse/Keyboard tell the application "
-             "when to ignore it.");
-
-    ui->HorizontalSeparator("Live state");
-    const f32v2 mouse = win->GetMousePosition();
-    info(ui, "Mouse (polled)", "({:.1f}, {:.1f})", mouse[0], mouse[1]);
-    if (in.HasEventMouse)
+    au.SpatialSynth.Shape.store(Wave_Beeps);
+    au.SpatialSynth.Frequency.store(660.f);
+    const u32 blip = u32(0.15f * f32(au.BlipMainSynth.SampleRate));
+    for (Synth *synth : {&au.BlipMainSynth, &au.BlipAudioSynth})
     {
-        info(ui, "Mouse (last move event)", "({:.1f}, {:.1f})", in.EventMouse[0], in.EventMouse[1]);
-        info(ui, "Event vs polled distance", "{:.2f} px", Math::Norm(in.EventMouse - mouse));
-        explain(ui, "Should be about 0 while moving slowly. A constant offset, or a distance that grows with the "
-                    "position by a factor equal to the content scale, means events and polling use different spaces.");
-    }
-    info(ui, "Buttons held (events)", "{}", in.HeldButtons.GetSize());
-    info(ui, "Keys held (events)", "{}", in.HeldKeys.GetSize());
-    info(ui, "Last key pressed", "{}", in.LastKey);
-    info(ui, "Last scroll", "({:.2f}, {:.2f})", in.LastScroll[0], in.LastScroll[1]);
-    info(ui, "Typed text", "\"{}\"", TKit::StringView{in.Typed, in.TypedSize});
-    info(ui, "Overlay wants", "mouse {}, scroll {}, keyboard {}", ui->WantCaptureMouse(), ui->WantCaptureScroll(),
-         ui->WantCaptureKeyboard());
-    info(ui, "Window", "hovered {}, fullscreen {}", win->IsHovered(), win->IsFullScreen());
-
-    ui->HorizontalSeparator("Event counters since start");
-    for (u32 i = 0; i < Onyx::Event_Count; ++i)
-    {
-        const u32 count = in.EventCounts[i];
-        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        colored(ui, count ? Theme::Info : Theme::Dim, "{:>8}", count);
-        coloredRaw(ui, count ? Theme::Text : Theme::Dim, EventNames[i]);
-        ui->PopPanel();
+        synth->Frequency.store(880.f);
+        synth->Length.store(blip);
     }
 
-    endPanel(app, Category_Input);
+    // the self test blips are inaudible, but still produce frames and reach their end
+    Onyx::Audio_SetVolume(au.BlipMain, 1e-4f);
+    Onyx::Audio_SetVolume(au.BlipAudio, 1e-4f);
+    Onyx::Audio_SetMainThreadEndCallback(au.Instrument, [&au] { ++au.InstrumentEnds; });
+    Onyx::Audio_SetMainThreadEndCallback(au.BlipMain, [&au] { ++au.BlipMainEnds; });
+    Onyx::Audio_SetAudioThreadEndCallback(au.BlipAudio,
+                                          [&au] { au.BlipAudioEnds.fetch_add(1, std::memory_order_relaxed); });
 }
 
-void panelResources(App &app)
+// one column of the audio scope: a bar of height |value| * half, above the middle line when positive
+static void scopeColumn(Onyx::Overlay *ui, const f32 value, const f32 height, const Onyx::Color &color)
 {
-    if (!beginPanel(app, Category_Resources))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-
-    concepts(ui, "Concepts: resources",
-             "Meshes, fonts, materials, samplers, images and textures are referred to by handles (Onyx::Resource). "
-             "Unlike raw Graphite handles, they are bound and ready to use: give a handle to a context or a material "
-             "and it just works. Meshes and fonts are grouped in pools. Registering a resource only records it: "
-             "Resources_Sync uploads everything pending to the GPU, so sync after a batch of registrations.");
-
-    ui->HorizontalSeparator("Counts");
-    info(ui, "Dynamic meshes (2D / 3D)", "{} / {}", Onyx::DynamicMesh_GetCount<D2>(), Onyx::DynamicMesh_GetCount<D3>());
-    info(ui, "Font pool", "{} fonts, {} glyphs", Onyx::FontPool_GetFontCount(Onyx::Resources_GetDefault().FontPool),
-         Onyx::FontPool_GetGlyphCount(Onyx::Resources_GetDefault().FontPool));
-
-    endPanel(app, Category_Resources);
+    const f32 half = 0.5f * height;
+    const f32 v = Math::Clamp(value, -1.f, 1.f);
+    ui->BeginPanel(
+        {.Direction = Onyx::LayoutDirection_TopToBottom, .Sizing = Onyx::LayoutSizing::Fixed(f32v2{2.f, height})});
+    ui->Panel({.Sizing = Onyx::LayoutSizing::Fixed(f32v2{2.f, half * (1.f - Math::Max(v, 0.f))})});
+    ui->Panel({.FillColor = color,
+               .Sizing = Onyx::LayoutSizing::Fixed(f32v2{2.f, Math::Max(1.f, half * Math::Absolute(v))})});
+    ui->EndPanel();
 }
 
-void panelToolkit(App &app)
+static void playInstrument(AudioState &au)
 {
-    if (!beginPanel(app, Category_Toolkit))
+    au.InstrumentSynth.Length.store(u32(WaveLengths[au.Wave] * f32(au.InstrumentSynth.SampleRate)));
+    Onyx::Audio_PlayFromBeginning(au.Instrument);
+}
+
+// IsPlaying must follow play and stop right away. then both blips play to their end, and their end callbacks must
+// arrive: the audio thread one through an atomic, the main thread one through Onyx's queue
+static void startAudioSelfTest(App &app)
+{
+    AudioState &au = app.Audio;
+    au.MainEndsAtStart = au.BlipMainEnds;
+    au.AudioEndsAtStart = au.BlipAudioEnds.load(std::memory_order_relaxed);
+    Onyx::Audio_PlayFromBeginning(au.BlipMain);
+    au.PlayFollows = Onyx::Audio_IsPlaying(au.BlipMain);
+    Onyx::Audio_Stop(au.BlipMain);
+    au.StopFollows = !Onyx::Audio_IsPlaying(au.BlipMain);
+
+    Onyx::Audio_PlayFromBeginning(au.BlipMain);
+    Onyx::Audio_PlayFromBeginning(au.BlipAudio);
+    au.Ended = false;
+    au.TestRunning = true;
+    au.TestStartedAt = app.Time;
+}
+
+// the panel's settings are applied every frame, so the checks can read them back
+static void updateAudio(App &app)
+{
+    AudioState &au = app.Audio;
+    if (!au.Available)
         return;
-    Onyx::Overlay *ui = app.Ui;
 
-    concepts(ui, "Concepts: what lives in Toolkit",
-             "Toolkit (TKit) is the foundation: tensors (vectors, matrices) and quaternions, containers with explicit "
-             "allocation strategies (static, stack, arena, tier), timing, logging and multiprocessing. Onyx adds "
-             "Transform (composition and decomposition of translation, scale and rotation) and Color on top. These "
-             "checks run every frame on fixed inputs, so a failure here is a math or container regression, not a "
-             "rendering issue.");
+    au.InstrumentSynth.Shape.store(au.Wave, std::memory_order_relaxed);
+    au.InstrumentSynth.Frequency.store(au.Frequency, std::memory_order_relaxed);
+    Onyx::Audio_SetVolume(au.Instrument, au.Volume);
+    Onyx::Audio_SetPitch(au.Instrument, au.Pitch);
+    Onyx::Audio_SetPan(au.Instrument, au.Pan);
+    Onyx::Audio_EnableLooping(au.Instrument, au.Loop);
+    Onyx::Audio_SetVolume(au.Master);
 
-#ifdef TKIT_ENABLE_ENSURE
-    if (ui->PushTree("Tier allocator statistics"))
+    // the spatial source orbits the listener: the 2D gallery's center in 2D, the 3D camera in 3D. the listener looks
+    // down -z in 2D, so x maps to left and right
+    if (au.Orbit == Orbit_Off)
     {
-        ui->ShowTierAllocatorStatistics();
-        ui->PopTree();
+        if (Onyx::Audio_IsPlaying(au.Spatial))
+            Onyx::Audio_Stop(au.Spatial);
     }
+    else
+    {
+        if (!Onyx::Audio_IsPlaying(au.Spatial))
+            Onyx::Audio_Play(au.Spatial);
+        const f32 a = 0.9f * app.Time;
+        if (au.Orbit == Orbit_2D)
+        {
+            au.Listener2 = f32v2{0.f, 0.8f};
+            au.Source2 = au.Listener2 + 3.f * f32v2{Math::Cosine(a), Math::Sine(a)};
+            Onyx::Listener_SetPosition<D2>(0, au.Listener2);
+            Onyx::Listener_SetDirection(0, f32v3{0.f, 0.f, -1.f});
+            Onyx::Audio_SetPosition<D2>(au.Spatial, au.Source2);
+        }
+        else
+        {
+            au.Listener3 = app.Cam3.View.Translation;
+            au.Source3 = au.Listener3 + 3.f * f32v3{Math::Cosine(a), 0.f, Math::Sine(a)};
+            Onyx::Listener_SetPosition<D3>(0, au.Listener3);
+            Onyx::Listener_SetDirection(0, Math::Normalize(app.Cam3.View.Rotation) * f32v3{0.f, 0.f, -1.f});
+            Onyx::Audio_SetPosition<D3>(au.Spatial, au.Source3);
+        }
+    }
+
+    // the self test runs once a second after launch, and again on demand
+    if (!au.TestDone && !au.TestRunning && app.Time > 1.f)
+        startAudioSelfTest(app);
+    if (au.TestRunning)
+    {
+        au.Ended |= !Onyx::Audio_IsPlaying(au.BlipMain);
+        const bool called = au.BlipMainEnds != au.MainEndsAtStart &&
+                            au.BlipAudioEnds.load(std::memory_order_relaxed) != au.AudioEndsAtStart;
+        if ((au.Ended && called) || app.Time - au.TestStartedAt > 1.5f)
+        {
+            au.TestRunning = false;
+            au.TestDone = true;
+        }
+    }
+}
 #endif
 
-    endPanel(app, Category_Toolkit);
+// =====================================================================================================================
+//  10. OVERLAY PANELS
+// =====================================================================================================================
+
+constexpr const char *ControlCenterTitle = "Control center";
+constexpr const char *ManualTitle = "Where do I start?";
+constexpr const char *GuideTitle = "Guided checks";
+constexpr const char *LegendPopup = "Legend##popup";
+
+constexpr u32v2 SizePresets[3] = {{1280, 720}, {1600, 900}, {960, 540}};
+
+constexpr const char *EventNames[] = {
+    "KeyPressed",     "KeyReleased",        "KeyRepeat",           "MouseMoved",   "MousePressed",
+    "MouseReleased",  "MouseEntered",       "MouseLeft",           "Scrolled",     "WindowMoved",
+    "WindowResized",  "WindowFocused",      "WindowUnfocused",     "WindowClosed", "WindowMinimized",
+    "WindowRestored", "FramebufferResized", "ContentScaleChanged", "CharInput",    "SwapchainRecreated",
+};
+static_assert(sizeof(EventNames) / sizeof(EventNames[0]) == Onyx::Event_Count,
+              "EventNames must list every Onyx::EventType, in order");
+
+static bool isApplicable(const App &app, const VisualCheck &check)
+{
+    switch (check.Needs)
+    {
+    case Requires_DirectLayout:
+        return app.Mode == Mode_Direct;
+    case Requires_DockedLayout:
+        return app.Mode == Mode_Docked;
+    case Requires_Audio:
+#ifdef ONYX_ENABLE_AUDIO
+        return app.Audio.Available;
+#else
+        return false;
+#endif
+    default:
+        return true;
+    }
 }
 
-void panelPlatform(App &app)
+// panels float in the direct layout, where they were born, and never dock: NoDocking also undocks a window that was
+// docked. leaving the docked layout puts them back in place for two frames, since the first one only undocks them. in
+// the docked layout the dock tree places them
+static Onyx::OverlayWindowFlags placeWindow(const App &app, const f32v2 &position, const f32v2 &size)
 {
-    if (!beginPanel(app, Category_Platform))
-        return;
-    Onyx::Overlay *ui = app.Ui;
-    Onyx::Window *win = app.Window;
+    if (app.Mode == Mode_Docked)
+        return 0;
+    const Onyx::OverlayCondition cond =
+        app.PlacePanels > 0 ? Onyx::OverlayCondition_Always : Onyx::OverlayCondition_OnBirth;
+    app.Ui->SetNextWindowPosition(position, cond);
+    app.Ui->SetNextWindowSize(size, cond);
+    return Onyx::OverlayWindowFlag_NoDocking;
+}
 
-    concepts(ui, "Concepts: Graphite",
-             "Graphite (Graph) is the layer between Onyx and the system: a platform backend (GLFW) for windows, "
-             "monitors and input, and a render backend (Vulkan) for devices, swapchains, pipelines and resources. "
-             "Onyx windows wrap a Graphite window and own its swapchain.");
+static void startPresentCycle(App &app)
+{
+    app.PresentCycleRestore = app.PresentMode;
+    app.PresentCycleSteps = Graph::PresentMode_Count;
+    app.PresentCycleAt = app.Time;
+}
 
+struct GuideStep
+{
+    Category *Cat = nullptr;
+    const AutoCheck *Auto = nullptr; // a failing automatic check, or
+    VisualCheck *Visual = nullptr;   // a visual check waiting for a verdict
+    u32 Done = 0;
+    u32 Total = 0;
+};
+
+static bool isFailing(const App &app, const char *name)
+{
+    for (const Category &cat : app.Categories)
+        for (const AutoCheck &check : cat.Checks)
+            if (std::strcmp(check.Name, name) == 0 && check.State == Outcome_Fail)
+                return true;
+    return false;
+}
+
+// failing automatic checks come first, the most recent failure first. then the visual checks without a verdict, by
+// priority. a skipped failure is forgotten once it recovers, so a new failure of the same check shows up again
+static GuideStep findGuideStep(App &app)
+{
+    for (u32 i = app.SkippedFailures.GetSize() - 1; i < app.SkippedFailures.GetSize(); --i)
+        if (!isFailing(app, app.SkippedFailures[i]))
+            app.SkippedFailures.RemoveUnordered(app.SkippedFailures.begin() + i);
+
+    GuideStep step{};
+    Category *visualCat = nullptr;
+    VisualCheck *visual = nullptr;
+    for (Category &cat : app.Categories)
+    {
+        for (const AutoCheck &check : cat.Checks)
+        {
+            if (check.State != Outcome_Fail)
+                continue;
+            ++step.Total;
+            bool skipped = false;
+            for (const char *name : app.SkippedFailures)
+                skipped |= std::strcmp(name, check.Name) == 0;
+            if (skipped)
+                ++step.Done;
+            else if (!step.Auto || check.FailingSince > step.Auto->FailingSince)
+            {
+                step.Auto = &check;
+                step.Cat = &cat;
+            }
+        }
+        for (VisualCheck &check : cat.Visuals)
+        {
+            if (!isApplicable(app, check))
+                continue;
+            ++step.Total;
+            if (check.Mark != Verdict_Unseen)
+                ++step.Done;
+            else if (!visual || check.Priority < visual->Priority)
+            {
+                visual = &check;
+                visualCat = &cat;
+            }
+        }
+    }
+    if (!step.Auto)
+    {
+        step.Visual = visual;
+        step.Cat = visualCat;
+    }
+    return step;
+}
+
+static Line describeWhere(const App &app, const Category &cat, const PaneId pane)
+{
+    if (pane == Pane_None)
+        return formatLine("the {} panel", cat.Title);
+    if (app.Mode == Mode_Direct)
+        return formatLine("the {}, {} of the window", PaneInfos[pane].Name, PaneInfos[pane].Corner);
+    return formatLine("the {} panel", PaneInfos[pane].Name);
+}
+
+// a plain text summary of failures and verdicts, ready to paste into a chat or an issue
+static void copyReport(App &app)
+{
     const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
     const Graph::PlatformBackendInfo pinfo = Graph::GetPlatformBackendInfo();
-    ui->HorizontalSeparator("Device");
-    info(ui, "GPU", "{}", rinfo.Device.Name);
-    info(ui, "Driver", "{} ({})", rinfo.Device.DriverName, rinfo.Device.DriverInfo);
-    info(ui, "API", "{}.{}.{}", rinfo.Device.ApiMajor, rinfo.Device.ApiMinor, rinfo.Device.ApiPatch);
-    info(ui, "Render backend", "{}", rinfo.Version);
-    info(ui, "Platform backend", "{} on {}", pinfo.Version, platformName(pinfo.Platform));
+    const f32v2 scale = app.Window->GetContentScale();
+    const u32v2 size = app.Window->GetSize();
 
-    ui->HorizontalSeparator("Monitors");
-    for (u32 i = 0; i < Graph::Monitor_GetCount(); ++i)
+    u32 outcomes[Outcome_Count]{};
+    u32 verdicts[Verdict_Count]{};
+    for (const Category &cat : app.Categories)
     {
-        const Graph::Monitor monitor = Graph::Monitor_Get(i);
-        const Graph::VideoMode mode = Graph::Monitor_GetVideoMode(monitor);
-        const f32v2 scale = Graph::Monitor_GetContentScale(monitor);
-        const Graph::MonitorArea area = Graph::Monitor_GetWorkArea(monitor);
-        colored(ui, Theme::Text, "Monitor {}{}", i, monitor == Graph::Monitor_GetPrimary() ? " (primary)" : "");
-        colored(ui, Theme::Info, "    {} x {} @ {} Hz, scale {:.2f}, work area {} x {} at ({}, {})", mode.Size[0],
-                mode.Size[1], mode.RefreshRate, scale[0], area.Size[0], area.Size[1], area.Position[0],
-                area.Position[1]);
+        for (u32 i = 0; i < Outcome_Count; ++i)
+            outcomes[i] += cat.Count(Outcome(i));
+        for (const VisualCheck &check : cat.Visuals)
+            verdicts[check.Mark] += isApplicable(app, check);
     }
 
-    ui->HorizontalSeparator("Window");
-    const i32v2 pos = win->GetPosition();
-    info(ui, "Position", "({}, {}) (not reported on Wayland)", pos[0], pos[1]);
-    info(ui, "Opacity (read back)", "{:.2f}", win->GetOpacity());
-    if (ui->DropDown("Present mode", &app.PresentMode, "Immediate#Mailbox#VSync"))
-        win->SetPresentMode(Graph::PresentMode(app.PresentMode));
-    if (ui->HorizontalSlider("Opacity", &app.Opacity, 0.2f, 1.f))
-        win->SetOpacity(app.Opacity);
-    explain(ui, "Changing the present mode recreates the swapchain. Opacity is not supported by every platform "
-                "(Wayland ignores it), so its read back is informative only.");
+    TKit::TierString report{};
+    report +=
+        TKit::TierString::Format("Onyx control center report\n{} ({}) | {} | {} layout | scale {:.2f} | window {} "
+                                 "x {}\n",
+                                 rinfo.Device.Name, rinfo.Device.DriverName, PlatformNames[pinfo.Platform],
+                                 app.Mode == Mode_Direct ? "direct" : "docked", scale[0], size[0], size[1]);
+    report += TKit::TierString::Format("\nAutomatic checks: {} pass, {} fail, {} not applicable\n",
+                                       outcomes[Outcome_Pass], outcomes[Outcome_Fail], outcomes[Outcome_NotApplicable]);
+    for (const Category &cat : app.Categories)
+        for (const AutoCheck &check : cat.Checks)
+            if (check.State == Outcome_Fail)
+                report += TKit::TierString::Format("- FAIL [{}] {}: {}\n", cat.Title, check.Name, check.Detail.View());
 
-    endPanel(app, Category_Platform);
+    report += TKit::TierString::Format("\nFailure log ({} entries, newest first):\n", app.FailureLog.GetSize());
+    for (u32 i = app.FailureLog.GetSize() - 1, n = 0; i < app.FailureLog.GetSize() && n < 20; --i, ++n)
+    {
+        const FailureRecord &record = app.FailureLog[i];
+        report += TKit::TierString::Format("- t = {:.2f}s [{}] {}: {}\n", record.Time, record.Category, record.Name,
+                                           record.Detail.View());
+    }
+
+    report += TKit::TierString::Format("\nVisual checks: {} right, {} broken, {} skipped, {} not judged\n",
+                                       verdicts[Verdict_Good], verdicts[Verdict_Broken], verdicts[Verdict_Skipped],
+                                       verdicts[Verdict_Unseen]);
+    for (const Verdict verdict : {Verdict_Broken, Verdict_Skipped, Verdict_Unseen})
+        for (const Category &cat : app.Categories)
+            for (const VisualCheck &check : cat.Visuals)
+                if (check.Mark == verdict && isApplicable(app, check))
+                    report += TKit::TierString::Format("- {} [{}] {}\n", VerdictBadges[verdict], cat.Title, check.Name);
+
+    Graph::SetClipboard(report.CString());
+    app.ReportLines = 0;
+    for (const char c : report)
+        app.ReportLines += c == '\n';
+    app.ReportCopiedAt = app.Time;
 }
 
-void panelOverlay(App &app)
+static void drawGuide(App &app, const GuideStep &step)
 {
-    if (!beginPanel(app, Category_Overlay))
+    if (!app.ShowGuide)
         return;
     Onyx::Overlay *ui = app.Ui;
+    const f32v2 wsize = f32v2{app.Window->GetSize()};
+    const Onyx::OverlayWindowFlags flags = placeWindow(app, f32v2{wsize[0] - 480.f, 16.f}, f32v2{464.f, 300.f});
+    if (!ui->BeginWindow(GuideTitle, &app.ShowGuide, flags))
+        return;
 
-    concepts(ui, "Concepts: the overlay",
-             "The overlay is Onyx's immediate mode UI: every frame you describe the windows and widgets, and it lays "
-             "them out with the layout engine and draws them through its own render view. It supports menus, tabs, "
-             "trees, popups, tooltips, drag and drop, docking (enabled in this demo with OverlayFlag_Docking) and "
-             "window promotion to native windows (not on Wayland).");
-
-    ui->HorizontalSeparator("Playground");
-    if (ui->Button("Click me"))
-        ++app.ButtonClicks;
-    ui->SetItemTooltipRaw("A tooltip. Right click the button for a popup");
-    if (ui->BeginPopupContextItem("Playground popup"))
+    if (!step.Cat)
     {
-        colored(ui, Theme::Accent, "A popup menu");
-        if (ui->MenuItem("Reset the click counter"))
-            app.ButtonClicks = 0;
-        ui->EndPopup();
+        text(ui, Theme::Pass, formatLine("Every step is done ({} of {}).", step.Done, step.Total).View());
+        text(ui, Theme::Dim, "Broken verdicts and failures are in the report, ready to paste.", Onyx::TextMode_Wrapped);
+        if (ui->Button("Copy report"))
+            copyReport(app);
+        ui->EndWindow();
+        return;
     }
-    colored(ui, Theme::Info, "Clicked {} times", app.ButtonClicks);
-    ui->CheckBox("A checkbox", &app.PlaygroundBool);
-    ui->HorizontalSlider("A slider", &app.PlaygroundSlider, 0.f, 1.f);
-    ui->HorizontalDrag("A drag", &app.PlaygroundDrag, 1.f, -100, 100);
-    ui->DropDown("A drop down", &app.PlaygroundChoice, "First#Second#Third");
-    ui->InputText("A text field", app.PlaygroundText, sizeof(app.PlaygroundText));
-    ui->ColorEditor("A color", &app.PlaygroundColor);
-    ui->ProgressBar("A progress bar", app.PlaygroundSlider, "{:.0f}%", 100.f * app.PlaygroundSlider);
 
-    ui->HorizontalSeparator("Built in tools");
-    ui->CheckBox("Show the overlay demo", &app.ShowOverlayDemo);
-    ui->CheckBox("Show the style editor", &app.ShowStyleEditor);
+    ui->ProgressBar("Progress", step.Total ? f32(step.Done) / f32(step.Total) : 1.f, "step {} of {}", step.Done + 1,
+                    step.Total);
+    const PaneId pane = step.Auto ? step.Auto->Pane : step.Visual->Pane;
+    ui->BeginPanel(ui->IdFromStack("step"), {.Direction = Onyx::LayoutDirection_LeftToRight,
+                                             .Alignment = Onyx::Overlay::CenterLeft,
+                                             .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
+                                             .ChildGap = ui->GetStyle(Onyx::OverlayStyle_ChildGap)});
+    if (step.Auto)
+        badge(ui, "FAIL", Theme::Fail);
+    else
+        badge(ui, "TODO", Theme::Todo);
+    swatch(ui, pane);
+    text(ui, Theme::Text, step.Auto ? step.Auto->Name : step.Visual->Name);
+    ui->EndPanel();
+    if (step.Visual)
+        tooltip(ui, Theme::Todo, VerdictMeanings[Verdict_Unseen], step.Visual->More);
 
-    endPanel(app, Category_Overlay);
+    if (step.Auto)
+    {
+        text(ui, Theme::Text, "This automatic check is failing right now. What must hold:", Onyx::TextMode_Wrapped);
+        text(ui, Theme::Dim, step.Auto->Rule, Onyx::TextMode_Wrapped);
+        text(ui, Theme::Fail, step.Auto->Detail.View(), Onyx::TextMode_Wrapped);
+    }
+    else
+        text(ui, Theme::Text, step.Visual->Do, Onyx::TextMode_Wrapped);
+    field(ui, "Look at ", describeWhere(app, *step.Cat, pane).View());
+
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    if (step.Auto)
+    {
+        if (ui->Button("Skip for now") && !app.SkippedFailures.IsFull())
+            app.SkippedFailures.Append(step.Auto->Name);
+        tooltip(ui, Theme::Dim, "Moves on to the next step", "The failure stays in the failure log and the report.");
+    }
+    else
+    {
+        const Verdict verdicts[3] = {Verdict_Good, Verdict_Broken, Verdict_Skipped};
+        const char *labels[3] = {"Looks right", "Broken", "Skip"};
+        for (u32 i = 0; i < 3; ++i)
+            if (ui->Button(labels[i]))
+            {
+                step.Visual->Mark = verdicts[i];
+                app.VerdictsDirty = true;
+            }
+    }
+    if (ui->Button("Open its panel"))
+        step.Cat->Open = true;
+    if (app.Mode == Mode_Docked)
+        tooltip(ui, Theme::Dim, "Opens the category panel",
+                "In the docked layout it opens as a tab in the right column: select its tab there.");
+    ui->PopPanel();
+    ui->EndWindow();
 }
 
-void drawFrameTimes(App &app)
+static void drawManual(App &app)
+{
+    if (!app.ShowManual)
+        return;
+    Onyx::Overlay *ui = app.Ui;
+    const f32v2 wsize = f32v2{app.Window->GetSize()};
+    const Onyx::OverlayWindowFlags flags = placeWindow(app, f32v2{0.5f * wsize[0] - 280.f, 50.f}, f32v2{560.f, 690.f});
+    if (!ui->BeginWindow(ManualTitle, &app.ShowManual, flags))
+        return;
+
+    text(ui, Theme::Accent, "What this is");
+    text(ui, Theme::Text,
+         "The control center checks that Onyx, and the parts of Graphite and Toolkit it stands on, behave as intended. "
+         "Automatic checks run every frame. Visual checks need your eyes: you give the verdict.",
+         Onyx::TextMode_Wrapped);
+
+    ui->HorizontalSeparator("The four views");
+    for (u32 i = 0; i < Pane_Count; ++i)
+    {
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        swatch(ui, PaneId(i));
+        text(ui, PaneInfos[i].Tint, PaneInfos[i].Name);
+        text(ui, Theme::Dim, formatLine("({} in the direct layout)", PaneInfos[i].Corner).View());
+        ui->PopPanel();
+        text(ui, Theme::Text, PaneInfos[i].Shows, Onyx::TextMode_Wrapped);
+    }
+    text(ui, Theme::Dim, "Every check about a view is tagged with that view's tint.", Onyx::TextMode_Wrapped);
+
+    ui->HorizontalSeparator("Badges");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    for (u32 i = 0; i < Outcome_Count; ++i)
+        badge(ui, OutcomeBadges[i], OutcomeColors[i]);
+    text(ui, Theme::Text, "automatic: holds, broken, not applicable");
+    ui->PopPanel();
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    for (u32 i = 0; i < Verdict_Count; ++i)
+        badge(ui, VerdictBadges[i], VerdictColors[i]);
+    text(ui, Theme::Text, "visual: your verdict");
+    ui->PopPanel();
+    text(ui, Theme::Dim, "Hover any check to read its rule, or what to look at.", Onyx::TextMode_Wrapped);
+
+    ui->HorizontalSeparator("A first session");
+    const char *steps[] = {
+        "1. Resize the window. The Scenarios menu of the Control center has fixed sizes.",
+        "2. Change the monitor scale, on Hyprland: hyprctl keyword monitor <name>,preferred,auto,1.5",
+        "3. Sweep the 2D light around its occluders: move the mouse over the 2D gallery.",
+        "4. Move both cameras: hover a gallery, press W A S D Q E and scroll to zoom.",
+        "5. Switch to the docked layout from the Layout menu, and back.",
+    };
+    for (const char *line : steps)
+        text(ui, Theme::Text, line, Onyx::TextMode_Wrapped);
+
+    ui->HorizontalSeparator("Where failures end up");
+    text(ui, Theme::Text,
+         "Every time an automatic check goes from passing to failing, the failure log of the Control center keeps it, "
+         "even if it lasted a single frame. Report > Copy puts failures and verdicts on the clipboard. Verdicts are "
+         "saved as you give them.",
+         Onyx::TextMode_Wrapped);
+
+    if (ui->Button("Start the guided checks"))
+    {
+        app.ShowGuide = true;
+        app.ShowManual = false;
+    }
+    ui->EndWindow();
+}
+
+static void drawFrameTimes(App &app)
 {
     Onyx::Overlay *ui = app.Ui;
     const f32 target = Math::Max(app.Window->GetMonitorDeltaTime().AsSeconds(), 1e-4f);
-    const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>{Theme::FrameTimeStops, 3}};
+    const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>(Theme::FrameTimeStops)};
     constexpr f32 height = 44.f;
 
     ui->BeginPanel({.Direction = Onyx::LayoutDirection_LeftToRight,
@@ -2417,176 +3686,1649 @@ void drawFrameTimes(App &app)
     ui->EndPanel();
 }
 
-void drawControlCenter(App &app)
+static void drawDashboard(App &app, const GuideStep &step)
 {
     Onyx::Overlay *ui = app.Ui;
-    ui->SetNextWindowPosition(f32v2{16.f, 16.f}, Onyx::OverlayCondition_OnBirth);
-    ui->SetNextWindowSize(f32v2{440.f, 860.f}, Onyx::OverlayCondition_OnBirth);
-    if (!ui->BeginWindow("Control center", Onyx::OverlayWindowFlag_MenuBar))
+    const f32v2 wsize = f32v2{app.Window->GetSize()};
+    const Onyx::OverlayWindowFlags flags = placeWindow(app, f32v2{16.f}, f32v2{390.f, wsize[1] - 32.f});
+    if (!ui->BeginWindow(ControlCenterTitle, Onyx::OverlayWindowFlag_MenuBar | flags))
         return;
 
     if (ui->BeginMenuBar())
     {
+        if (ui->BeginMenu("Layout"))
+        {
+            if (ui->MenuItem("Direct: views in window quadrants", app.Mode == Mode_Direct))
+                app.RequestedMode = Mode_Direct;
+            if (ui->MenuItem("Docked: every view in its own panel", app.Mode == Mode_Docked))
+                app.RequestedMode = Mode_Docked;
+            ui->EndMenu();
+        }
         if (ui->BeginMenu("Panels"))
         {
+            ui->MenuItem(GuideTitle, &app.ShowGuide);
+            ui->MenuItem(ManualTitle, &app.ShowManual);
             for (Category &cat : app.Categories)
                 ui->MenuItem(cat.Title, &cat.Open);
             ui->EndMenu();
         }
-        if (ui->BeginMenu("View"))
+        if (ui->BeginMenu("Scenarios"))
         {
-            ui->MenuItem("Show rules under each check", &app.ShowRules);
-            ui->MenuItem("Overlay demo", &app.ShowOverlayDemo);
-            ui->MenuItem("Style editor", &app.ShowStyleEditor);
+            for (const u32v2 &preset : SizePresets)
+                if (ui->MenuItem(formatLine("Resize the window to {} x {}", preset[0], preset[1]).View()))
+                {
+                    app.RequestedSize = preset;
+                    app.Window->SetSize(preset);
+                }
+            if (ui->MenuItem("Cycle present modes"))
+                startPresentCycle(app);
+            ui->MenuItem("Sweep the 2D light around the occluders", &app.Lights.Sweep);
+            if (ui->MenuItem("Reset cameras"))
+                resetCameras(app);
+            ui->EndMenu();
+        }
+        if (ui->BeginMenu("Report"))
+        {
+            if (ui->MenuItem("Copy report to the clipboard"))
+                copyReport(app);
+            if (ui->MenuItem("Clear the failure log"))
+                app.FailureLog.Clear();
+            if (ui->MenuItem("Forget every verdict"))
+            {
+                for (Category &cat : app.Categories)
+                    for (VisualCheck &check : cat.Visuals)
+                        check.Mark = Verdict_Unseen;
+                app.VerdictsDirty = true;
+            }
+            ui->EndMenu();
+        }
+        if (ui->BeginMenu("Help"))
+        {
+            ui->MenuItem(ManualTitle, &app.ShowManual);
+            if (ui->MenuItem("Legend and controls"))
+                ui->OpenPopup(LegendPopup);
+            ui->MenuItem("Overlay demo (Overlay::ShowDemo)", &app.ShowOverlayDemo);
             ui->EndMenu();
         }
         ui->EndMenuBar();
     }
 
+    if (ui->BeginPopup(LegendPopup, Onyx::OverlayWindowFlag_AutoResize))
+    {
+        for (u32 i = 0; i < Outcome_Count; ++i)
+        {
+            ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+            badge(ui, OutcomeBadges[i], OutcomeColors[i]);
+            text(ui, Theme::Text, OutcomeMeanings[i]);
+            ui->PopPanel();
+        }
+        for (u32 i = 0; i < Verdict_Count; ++i)
+        {
+            ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+            badge(ui, VerdictBadges[i], VerdictColors[i]);
+            text(ui, Theme::Text, VerdictMeanings[i]);
+            ui->PopPanel();
+        }
+        text(ui, Theme::Dim,
+             "W A S D Q E move the camera of the hovered gallery. Space and LCtrl move up and down in 3D, hold LShift "
+             "to look around. The mouse wheel zooms.");
+        ui->EndPopup();
+    }
+
     // -- header ----------------------------------------------------------------------------------------------------
-    colored(ui, Theme::Accent, "ONYX CONTROL CENTER");
     const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
-    colored(ui, Theme::Dim, "{} | {}", rinfo.Device.Name, platformName(Graph::GetPlatformBackendInfo().Platform));
+    text(ui, Theme::Accent, "ONYX CONTROL CENTER");
+    text(ui, Theme::Dim,
+         formatLine("{} | {} | {} layout", rinfo.Device.Name, PlatformNames[Graph::GetPlatformBackendInfo().Platform],
+                    app.Mode == Mode_Direct ? "direct" : "docked")
+             .View());
+
+    // -- next step -------------------------------------------------------------------------------------------------
+    ui->HorizontalSeparator("Next step");
+    if (step.Cat)
+    {
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        if (step.Auto)
+            badge(ui, "FAIL", Theme::Fail);
+        else
+            badge(ui, "TODO", Theme::Todo);
+        text(ui, Theme::Text, step.Auto ? step.Auto->Name : step.Visual->Name);
+        ui->PopPanel();
+    }
+    else
+        text(ui, Theme::Pass, "Every step is done");
+    if (!app.ShowGuide && ui->Button("Open the guided checks"))
+        app.ShowGuide = true;
 
     // -- totals ----------------------------------------------------------------------------------------------------
-    u32 total = 0, passed = 0, visuals = 0, good = 0, broken = 0;
+    u32 outcomes[Outcome_Count]{};
+    u32 verdicts[Verdict_Count]{};
+    u32 visuals = 0;
     for (const Category &cat : app.Categories)
     {
-        total += cat.Checks.GetSize();
-        passed += cat.CountPassed();
-        visuals += cat.Visuals.GetSize();
-        good += cat.CountVisuals(Verdict_Good);
-        broken += cat.CountVisuals(Verdict_Broken);
+        for (u32 i = 0; i < Outcome_Count; ++i)
+            outcomes[i] += cat.Count(Outcome(i));
+        for (const VisualCheck &check : cat.Visuals)
+            if (isApplicable(app, check))
+            {
+                ++verdicts[check.Mark];
+                ++visuals;
+            }
     }
+    const u32 evaluated = outcomes[Outcome_Pass] + outcomes[Outcome_Fail];
+    const u32 judged = visuals - verdicts[Verdict_Unseen];
     ui->HorizontalSeparator("Summary");
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    badge(ui, passed == total ? "PASS" : "FAIL", passed == total ? Theme::Pass : Theme::Fail);
-    colored(ui, Theme::Text, "{} / {} automatic checks pass", passed, total);
+    badge(ui, OutcomeBadges[outcomes[Outcome_Fail] ? Outcome_Fail : Outcome_Pass],
+          OutcomeColors[outcomes[Outcome_Fail] ? Outcome_Fail : Outcome_Pass]);
+    text(ui, Theme::Text,
+         formatLine("{} / {} automatic checks pass, {} n/a", outcomes[Outcome_Pass], evaluated,
+                    outcomes[Outcome_NotApplicable])
+             .View());
     ui->PopPanel();
-    ui->ProgressBar("Automatic", total ? f32(passed) / f32(total) : 1.f, "{}/{}", passed, total);
+    ui->ProgressBar("Automatic", evaluated ? f32(outcomes[Outcome_Pass]) / f32(evaluated) : 1.f, "{}/{}",
+                    outcomes[Outcome_Pass], evaluated);
+    const Verdict summary = verdicts[Verdict_Broken]   ? Verdict_Broken
+                            : verdicts[Verdict_Unseen] ? Verdict_Unseen
+                                                       : Verdict_Good;
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    badge(ui, broken ? "BAD" : (good == visuals ? "GOOD" : "TODO"),
-          broken ? Theme::Fail : (good == visuals ? Theme::Pass : Theme::Todo));
-    colored(ui, Theme::Text, "{} / {} visual checks reviewed, {} broken", good + broken, visuals, broken);
+    badge(ui, VerdictBadges[summary], VerdictColors[summary]);
+    text(ui, Theme::Text,
+         formatLine("{} / {} visual checks judged, {} broken, {} skipped", judged, visuals, verdicts[Verdict_Broken],
+                    verdicts[Verdict_Skipped])
+             .View());
     ui->PopPanel();
-    ui->ProgressBar("Visual", visuals ? f32(good + broken) / f32(visuals) : 1.f, "{}/{}", good + broken, visuals);
+    ui->ProgressBar("Visual", visuals ? f32(judged) / f32(visuals) : 1.f, "{}/{}", judged, visuals);
+    if (app.LoadedVerdicts != 0)
+        text(ui, Theme::Dim, formatLine("{} verdicts loaded from {}", app.LoadedVerdicts, VerdictFile).View());
 
     // -- frame timing ----------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Frame timing");
-    f32 avg = 0.f, worst = 0.f;
+    f32 avg = 0.f;
+    f32 worst = 0.f;
     for (const f32 dt : app.FrameTimes)
     {
         avg += dt;
         worst = Math::Max(worst, dt);
     }
     avg /= f32(app.FrameTimes.GetSize());
-    colored(ui, Theme::Info, "{:.0f} fps   avg {:.2f} ms   worst {:.2f} ms   monitor {:.2f} ms",
-            avg > 0.f ? 1.f / avg : 0.f, 1000.f * avg, 1000.f * worst,
-            app.Window->GetMonitorDeltaTime().AsMilliseconds());
+    text(ui, Theme::Info,
+         formatLine("{:.0f} fps   avg {:.2f} ms   worst {:.2f} ms   monitor {:.2f} ms", avg > 0.f ? 1.f / avg : 0.f,
+                    1000.f * avg, 1000.f * worst, app.Window->GetMonitorDeltaTime().AsMilliseconds())
+             .View());
     drawFrameTimes(app);
-    explain(ui, "Bars are the last frames. Green is on the monitor's refresh interval, red is twice as slow or worse.");
+    tooltip(ui, Theme::Accent, "The last frames",
+            "Green is on the monitor's refresh interval, red is twice as slow or worse.");
 
     // -- categories ------------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Categories");
-    explain(ui, "Tick a category to open its panel. Each panel explains the concepts behind it, lists its automatic "
-                "checks with the rule that must hold, and the visual checks you have to judge yourself.");
-    for (u32 i = 0; i < Category_Count; ++i)
+    for (Category &cat : app.Categories)
     {
-        Category &cat = app.Categories[i];
-        const u32 cp = cat.CountPassed();
-        const u32 cn = cat.Checks.GetSize();
-        const u32 todo = cat.CountVisuals(Verdict_Unseen);
-        const u32 bad = cat.CountVisuals(Verdict_Broken);
-
+        const u32 fails = cat.Count(Outcome_Fail);
+        const u32 checks = cat.Checks.GetSize() - cat.Count(Outcome_NotApplicable);
+        u32 todo = 0;
+        u32 bad = 0;
+        for (const VisualCheck &check : cat.Visuals)
+            if (isApplicable(app, check))
+            {
+                todo += check.Mark == Verdict_Unseen;
+                bad += check.Mark == Verdict_Broken;
+            }
+        ui->PushId(Onyx::LayoutId{&cat});
         ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        badge(ui, cp == cn ? "PASS" : "FAIL", cp == cn ? Theme::Pass : Theme::Fail);
+        badge(ui, OutcomeBadges[fails ? Outcome_Fail : Outcome_Pass],
+              OutcomeColors[fails ? Outcome_Fail : Outcome_Pass]);
         if (bad)
-            badge(ui, "BAD", Theme::Fail);
+            badge(ui, VerdictBadges[Verdict_Broken], VerdictColors[Verdict_Broken]);
         else if (todo)
-            badge(ui, "TODO", Theme::Todo);
+            badge(ui, VerdictBadges[Verdict_Unseen], VerdictColors[Verdict_Unseen]);
         ui->CheckBox(cat.Title, &cat.Open);
+        tooltip(ui, Theme::Accent, cat.Title, cat.Summary);
+        text(ui, Theme::Dim, formatLine("{}/{}{}", checks - fails, checks, todo ? ", to judge" : "").View());
         ui->PopPanel();
-        colored(ui, Theme::Dim, "    {}/{} pass, {} to review, {} failures since start | {}", cp, cn, todo,
-                cat.FailuresSinceStart, cat.Summary);
+        ui->PopId();
     }
 
     // -- failure log -----------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Failure log");
-    explain(ui, "Every time an automatic check goes from passing to failing, it is recorded here with what was "
-                "measured, so failures that last a single frame (during a resize or a scale change) are not missed.");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button("Copy report"))
+        copyReport(app);
+    tooltip(ui, Theme::Accent, "Copies a plain text report",
+            "Failing checks, the failure log and every verdict, ready to paste into a chat or an issue.");
+    if (!app.FailureLog.IsEmpty() && ui->Button("Clear log"))
+        app.FailureLog.Clear();
+    if (app.Time - app.ReportCopiedAt < 3.f)
+        text(ui, Theme::Pass, formatLine("copied {} lines", app.ReportLines).View());
+    ui->PopPanel();
     if (app.FailureLog.IsEmpty())
-        colored(ui, Theme::Pass, "No failures recorded");
+        text(ui, Theme::Pass, "No failures recorded");
     else
     {
-        if (ui->Button("Clear log"))
-            app.FailureLog.Clear();
         ui->BeginScroll("Failure log scroll", 220.f, Onyx::OverlayScrollFlag_Borders);
         for (u32 i = app.FailureLog.GetSize() - 1; i < app.FailureLog.GetSize(); --i)
         {
             const FailureRecord &record = app.FailureLog[i];
-            colored(ui, Theme::Fail, "t = {:.2f}s  {} / {}", record.Time, record.Category, record.Name);
-            coloredRaw(ui, Theme::Dim, record.Detail.View(), Onyx::TextMode_Wrapped);
+            text(ui, Theme::Fail, formatLine("t = {:.2f}s  {} / {}", record.Time, record.Category, record.Name).View(),
+                 Onyx::TextMode_Wrapped);
+            text(ui, Theme::Dim, record.Detail.View(), Onyx::TextMode_Wrapped);
         }
         ui->EndScroll();
     }
-
-    // -- legend ----------------------------------------------------------------------------------------------------
-    if (ui->PushTree("Legend and controls"))
-    {
-        const auto legend = [&](const char *text, const Onyx::Color &color, const char *meaning) {
-            ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-            badge(ui, text, color);
-            coloredRaw(ui, Theme::Text, meaning);
-            ui->PopPanel();
-        };
-        legend("PASS", Theme::Pass, "automatic check holds this frame");
-        legend("FAIL", Theme::Fail, "automatic check broken (also logged)");
-        legend("TODO", Theme::Todo, "visual check waiting for your verdict");
-        legend("GOOD", Theme::Pass, "visual check you marked as right");
-        legend("BAD", Theme::Fail, "visual check you marked as broken");
-        legend("INFO", Theme::Info, "measured value, nothing to judge");
-        explain(ui, "WASD/QE move the camera of the hovered view (2D and 3D galleries). Space/LCtrl move up and down "
-                    "in 3D, LShift toggles looking around. The mouse wheel zooms.");
-        ui->PopTree();
-    }
-
     ui->EndWindow();
 }
 
-void drawOverlay(App &app)
+// docked layout only: each gallery shows its render texture filling its panel. the image's rectangle and hover come
+// back next frame for updatePanes(), which resizes the texture and maps the mouse into it
+static void drawGalleryPanels(App &app)
 {
-    drawControlCenter(app);
-    panelDpi(app);
-    panelViews(app);
-    panelRendering(app);
-    panelTextures(app);
-    panelInput(app);
-    panelResources(app);
-    panelToolkit(app);
-    panelPlatform(app);
-    panelOverlay(app);
-
-    if (app.ShowOverlayDemo)
-        app.Ui->ShowDemo(&app.ShowOverlayDemo);
-    if (app.ShowStyleEditor && app.Ui->BeginWindow("Style editor", &app.ShowStyleEditor))
+    Onyx::Overlay *ui = app.Ui;
+    const Onyx::RenderView<D2> *overlay = ui->GetMainNativeWindow()->View;
+    const Onyx::OverlayWindowFlags flags = Onyx::OverlayWindowFlag_NoScrollBar |
+                                           Onyx::OverlayWindowFlag_NoVerticalScroll |
+                                           Onyx::OverlayWindowFlag_NoCloseButton;
+    for (u32 i = 0; i < Pane_Count; ++i)
     {
-        app.Ui->ShowStyleEditor();
-        app.Ui->EndWindow();
+        Pane &pane = app.Panes[i];
+        pane.ImageHovered = false;
+        if (!ui->BeginWindow(PaneInfos[i].Name, flags))
+            continue;
+        ui->Image(ui->IdFromStack("image"), *pane.Texture,
+                  Onyx::Overlay::LySz2{Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Grow()});
+        pane.ImageHovered = ui->IsItemHovered();
+
+        // the layout reports last frame's rectangle in the overlay's world space, by its bottom left corner
+        if (const Onyx::LayoutElementQueryInfo *info = ui->QueryLastItem())
+        {
+            const f32v2 a = overlay->WorldToScreen(info->Position);
+            const f32v2 b = overlay->WorldToScreen(info->Position + info->Size);
+            pane.ImagePos = Math::Min(a, b);
+            pane.ImageSize = Math::Absolute(b - a);
+        }
+        ui->EndWindow();
     }
 }
-} // namespace
+
+static void drawChecks(App &app, Category &cat)
+{
+    Onyx::Overlay *ui = app.Ui;
+    if (!cat.Checks.IsEmpty())
+        ui->HorizontalSeparator("Automatic checks");
+    for (const AutoCheck &check : cat.Checks)
+        drawAutoCheck(ui, check);
+    if (!cat.Visuals.IsEmpty())
+        ui->HorizontalSeparator("Visual checks");
+    for (VisualCheck &check : cat.Visuals)
+        app.VerdictsDirty |= drawVisualCheck(ui, check, isApplicable(app, check));
+}
+
+static void drawCategoryPanels(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    for (u32 i = 0; i < Category_Count; ++i)
+    {
+        Category &cat = app.Categories[i];
+        if (!cat.Open)
+            continue;
+        const f32 offset = 26.f * f32(i);
+        const Onyx::OverlayWindowFlags flags =
+            placeWindow(app, f32v2{430.f + offset, 40.f + offset}, f32v2{480.f, 640.f});
+        if (!ui->BeginWindow(cat.Title, &cat.Open, flags))
+            continue;
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        const Line popup = formatLine("{}##help", cat.Title);
+        helpButton(ui, popup.View(), cat.Title, cat.Concepts);
+        text(ui, Theme::Dim, cat.Summary);
+        ui->PopPanel();
+        cat.Panel(app);
+        drawChecks(app, cat);
+        ui->EndWindow();
+    }
+}
+
+static void panelDpi(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    Onyx::Window *win = app.Window;
+    const Graph::Window handle = win->GetHandle();
+    const f32v2 scale = win->GetContentScale();
+    const u32v2 size = win->GetSize();
+    const u32v2 screen = Graph::Window_GetScreenSize(handle);
+    const u32v2 pixels = Graph::Window_GetPixelSize(handle);
+
+    ui->HorizontalSeparator("Measured");
+    field(ui, "Content scale ", formatLine("{:.3f} x {:.3f}", scale[0], scale[1]).View());
+    field(ui, "Logical size ", formatLine("{} x {}", size[0], size[1]).View());
+    field(ui, "Screen size (platform units) ", formatLine("{} x {}", screen[0], screen[1]).View());
+    field(ui, "Framebuffer size (physical) ", formatLine("{} x {}", pixels[0], pixels[1]).View());
+    field(ui, "Swapchain recreations ", formatLine("{}", app.SwapchainRecreations).View());
+    // graphite's null handle is all ones, not zero, so a plain truthiness test does not work here
+    const Graph::Monitor monitor = win->GetMonitor();
+    if (Graph::Monitor_IsHandleValid(monitor))
+    {
+        const f32v2 ms = Graph::Monitor_GetContentScale(monitor);
+        field(ui, "Monitor scale (fullscreen only) ", formatLine("{:.3f} x {:.3f}", ms[0], ms[1]).View());
+    }
+
+    ui->HorizontalSeparator("Content scale events");
+    if (app.ScaleEvents.IsEmpty())
+        text(ui, Theme::Dim, "None yet. Change the monitor scale, or move the window to a monitor with another scale.",
+             Onyx::TextMode_Wrapped);
+    for (const ScaleEvent &e : app.ScaleEvents)
+        text(ui, Theme::Info, formatLine("t = {:7.2f}s  ->  {:.3f} x {:.3f}", e.Time, e.Scale[0], e.Scale[1]).View());
+}
+
+constexpr const char *FXAAModes = "Fast#Console#Quality low#Quality medium#Quality high";
+constexpr const char *FXAAModeNames[] = {"fast", "console", "quality low", "quality medium", "quality high"};
+constexpr const char *InspectNames[Inspect_Count] = {
+    "Pixel view", "2D gallery",          "3D gallery",         "3D gallery labels", "Textures",
+    "Overlay",    "Scaled texture view", "Fixed texture view", "Lab view",
+};
+constexpr const char *SizingNames[] = {"proportional", "fixed"};
+
+// counts which framebuffer each inspected view rendered with last frame. a view only reaches its other framebuffers
+// when the previous frames are still on the GPU, so a bug in one of them shows up rarely
+static void trackFramebuffers(App &app)
+{
+    const Onyx::RenderView<D2> *views[Inspect_Count] = {app.Panes[Pane_Pixel].Frame[app.Mode],
+                                                        app.Panes[Pane_Gallery2].Frame[app.Mode],
+                                                        nullptr,
+                                                        app.Panes[Pane_Gallery3].Frame[app.Mode],
+                                                        app.Panes[Pane_Textures].Frame[app.Mode],
+                                                        app.Ui->GetMainNativeWindow()->View,
+                                                        app.RtScaledView,
+                                                        app.RtFixedView,
+                                                        app.LabView};
+    for (u32 i = 0; i < Inspect_Count; ++i)
+    {
+        const bool is3 = i == Inspect_Gallery3;
+        const Onyx::RenderViewFlags flags = is3 ? app.View3[app.Mode]->GetFlags() : views[i]->GetFlags();
+        const u32 index = is3 ? app.View3[app.Mode]->GetAttachmentIndex() : views[i]->GetAttachmentIndex();
+        if (!(flags & Onyx::RenderViewFlag_Hidden) && index < app.FramebufferUse[i].GetSize())
+            ++app.FramebufferUse[i][index];
+    }
+}
+
+// one view, collapsed to its name and flags. open, it shows where it renders, its rectangles and how they are sized,
+// its framebuffer use and the mouse in its coordinates
+template <Onyx::Dimension D>
+static void inspectView(App &app, const InspectedView slot, const Onyx::RenderView<D> *rv, const char *target,
+                        const bool mouseInside, const f32v2 &mouse)
+{
+    Onyx::Overlay *ui = app.Ui;
+    const Onyx::RenderViewFlags flags = rv->GetFlags();
+    const Line tags = formatLine("{}{}{}{}{}", flags & Onyx::RenderViewFlag_Shadows ? " shadows" : "",
+                                 flags & Onyx::RenderViewFlag_Outlines ? " outlines" : "",
+                                 flags & Onyx::RenderViewFlag_Transparency ? " transparency" : "",
+                                 flags & Onyx::RenderViewFlag_FXAA ? " fxaa" : "",
+                                 flags & Onyx::RenderViewFlag_Hidden ? " hidden" : "");
+    // the id after ### keeps the tree open while its title changes
+    const Line label =
+        formatLine("{}  -{}###inspect{}", InspectNames[slot], tags.Size ? tags.View() : " no flags", u32(slot));
+    if (!ui->PushTree(label.View()))
+        return;
+
+    const Onyx::Viewport &vp = rv->GetViewport();
+    const Onyx::Scissor &sc = rv->GetScissor();
+    const u32v2 image = rv->GetImageSize();
+    const u32v2 extent = rv->GetImageExtent();
+    field(ui, "Renders into ", formatLine("{}, layer {}", target, rv->Layer).View());
+    field(ui, "Viewport ",
+          formatLine("({:.1f}, {:.1f}) {:.1f} x {:.1f}, {}", vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1],
+                     SizingNames[rv->GetViewportSizing()])
+              .View());
+    field(ui, "Scissor ",
+          formatLine("({:.1f}, {:.1f}) {:.1f} x {:.1f}, {}", sc.Position[0], sc.Position[1], sc.Size[0], sc.Size[1],
+                     SizingNames[rv->GetScissorSizing()])
+              .View());
+    field(ui, "Image ",
+          formatLine("{} x {}, {} x {} physical at {:.2f}, {}", image[0], image[1], extent[0], extent[1],
+                     rv->GetContentScale()[0], SizingNames[rv->GetImageSizing()])
+              .View());
+    if (flags & Onyx::RenderViewFlag_FXAA)
+        field(ui, "FXAA mode ", TKit::StringView{FXAAModeNames[rv->AntiAliasingMode]});
+    const TKit::FixedArray<u32, 4> &use = app.FramebufferUse[slot];
+    field(ui, "Frames per framebuffer ", formatLine("{} / {} / {} / {}", use[0], use[1], use[2], use[3]).View());
+    tooltip(ui, Theme::Accent, "Counted since the last layout change",
+            "A view takes the first framebuffer the GPU is done with, so a capped frame rate mostly uses the first "
+            "one. The Immediate present mode keeps several frames in flight and uses them all.");
+
+    if (!mouseInside)
+    {
+        ui->PopTree();
+        return;
+    }
+    if constexpr (D == D2)
+    {
+        const f32v2 world = rv->ScreenToWorld(mouse);
+        field(ui, "Mouse ",
+              formatLine("screen ({:.1f}, {:.1f}), viewport ({:.1f}, {:.1f}), world ({:.3f}, {:.3f})", mouse[0],
+                         mouse[1], rv->ScreenToViewport(mouse)[0], rv->ScreenToViewport(mouse)[1], world[0], world[1])
+                  .View());
+    }
+    else
+    {
+        const f32v3 world = rv->ScreenToWorld(f32v3{mouse, 0.5f});
+        field(ui, "Mouse ",
+              formatLine("screen ({:.1f}, {:.1f}), world at depth 0.5 ({:.2f}, {:.2f}, {:.2f})", mouse[0], mouse[1],
+                         world[0], world[1], world[2])
+                  .View());
+    }
+    ui->PopTree();
+}
+
+static void panelViews(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    const f32v2 mouse = app.Window->GetMousePosition();
+    const char *paneTarget = app.Mode == Mode_Direct ? "the window" : "its panel's render texture";
+    const Pane &pixel = app.Panes[Pane_Pixel];
+    const Pane &gallery2 = app.Panes[Pane_Gallery2];
+    const Pane &gallery3 = app.Panes[Pane_Gallery3];
+    const Pane &textures = app.Panes[Pane_Textures];
+
+    ui->HorizontalSeparator("Inspector");
+    inspectView(app, Inspect_Pixel, pixel.Frame[app.Mode], paneTarget, pixel.MouseInside, pixel.Mouse);
+    inspectView(app, Inspect_Gallery2, gallery2.Frame[app.Mode], paneTarget, gallery2.MouseInside, gallery2.Mouse);
+    inspectView(app, Inspect_Gallery3, app.View3[app.Mode], paneTarget, gallery3.MouseInside, gallery3.Mouse);
+    inspectView(app, Inspect_Labels3, gallery3.Frame[app.Mode], paneTarget, gallery3.MouseInside, gallery3.Mouse);
+    inspectView(app, Inspect_Textures, textures.Frame[app.Mode], paneTarget, textures.MouseInside, textures.Mouse);
+    inspectView(app, Inspect_Overlay, app.Ui->GetMainNativeWindow()->View, "the window", app.Window->IsHovered(),
+                mouse);
+    inspectView(app, Inspect_RtScaled, app.RtScaledView, "the scaled render texture", false, mouse);
+    inspectView(app, Inspect_RtFixed, app.RtFixedView, "the fixed render texture", false, mouse);
+    inspectView(app, Inspect_Lab, app.LabView, "the window", app.LabMouseInside, mouse);
+
+    const f32v3 &pos = app.Cam3.View.Translation;
+    field(ui, "3D camera ",
+          formatLine("({:.2f}, {:.2f}, {:.2f}), fov {:.1f} deg", pos[0], pos[1], pos[2],
+                     Math::Degrees(app.Cam3.PerspParameters.FieldOfView))
+              .View());
+
+    ui->HorizontalSeparator("Controls");
+    ui->HorizontalSlider("2D ortho size", &app.GalleryCam.OrthoParameters.Size, 1.f, 40.f);
+    if (ui->Button("Reset cameras"))
+        resetCameras(app);
+}
+
+// every setting of the lab view. its checks compare the view against these
+static void panelLab(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    Onyx::Window *win = app.Window;
+    LabSettings &lab = app.Lab;
+    Onyx::RenderView<D2> *rv = app.LabView;
+    const f32v2 wsize = f32v2{win->GetSize()};
+
+    ui->CheckBox("Show the lab view", &lab.Enabled);
+    if (app.Mode != Mode_Direct)
+    {
+        text(ui, Theme::Info, "The lab lives in the direct layout: the docked layout's dockspace covers the window.",
+             Onyx::TextMode_Wrapped);
+        return;
+    }
+    if (!lab.Enabled)
+        return;
+
+    ui->HorizontalSeparator("Viewport");
+    // switching keeps the view where it is, only the units of the sliders change
+    bool fixed = lab.FixedViewport;
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    ui->RadioButton("Proportional", &fixed, false);
+    ui->RadioButton("Fixed (logical pixels)", &fixed, true);
+    ui->PopPanel();
+    if (fixed != lab.FixedViewport)
+    {
+        const Onyx::Viewport &vp = rv->GetViewport();
+        lab.Position = fixed ? vp.Position : vp.Position / wsize;
+        lab.Size = fixed ? vp.Size : vp.Size / wsize;
+        lab.FixedViewport = fixed;
+    }
+    const f32v2 limit = lab.FixedViewport ? wsize : f32v2{1.f};
+    if (lab.FixedViewport)
+    {
+        ui->HorizontalSlider("Position (px)", &lab.Position, 0.f, Math::Max(wsize[0], wsize[1]), "{:.0f}");
+        ui->HorizontalSlider("Size (px)", &lab.Size, 16.f, Math::Max(wsize[0], wsize[1]), "{:.0f}");
+    }
+    else
+    {
+        ui->HorizontalSlider("Position", &lab.Position, 0.f, 0.95f);
+        ui->HorizontalSlider("Size", &lab.Size, 0.05f, 1.f);
+    }
+    // kept inside the window, even after it shrinks
+    lab.Size = Math::Min(lab.Size, limit);
+    lab.Position = Math::Max(Math::Min(lab.Position, limit - lab.Size), f32v2{0.f});
+
+    ui->HorizontalSeparator("Scissor and image");
+    ui->HorizontalSlider("Scissor position", &lab.ScissorPosition, 0.f, 0.95f);
+    ui->HorizontalSlider("Scissor size", &lab.ScissorSize, 0.05f, 1.f);
+    lab.ScissorSize = Math::Min(lab.ScissorSize, 1.f - lab.ScissorPosition);
+    tooltip(ui, Theme::Accent, "Fractions of the viewport",
+            "Only the part inside the scissor is drawn, the views below show everywhere else.");
+    ui->HorizontalSlider("Image scale", &lab.ImageScale, 0.25f, 2.f);
+    tooltip(ui, Theme::Accent, "Image size over viewport size",
+            "Below 1 the view renders fewer pixels and is stretched, above 1 it supersamples. Nothing may move.");
+
+    ui->HorizontalSeparator("Flags");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    ui->CheckBox("Outlines", &lab.Outlines);
+    ui->CheckBox("Transparency", &lab.Transparency);
+    ui->CheckBox("FXAA", &lab.FXAA);
+    ui->PopPanel();
+    if (lab.FXAA)
+        ui->DropDown("Lab FXAA mode", &lab.FXAAMode, FXAAModes);
+    ui->CheckBox("Transparent background", &lab.TransparentBackground);
+    tooltip(ui, Theme::Accent, "Clears to transparent black, like the overlay",
+            "The views below must show through the lab, with FXAA on as well.");
+
+    ui->HorizontalSeparator("Camera");
+    const bool wasOrthographic = lab.Orthographic;
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    ui->RadioButton("Orthographic", &lab.Orthographic, true);
+    ui->RadioButton("Viewport (1 unit = 1 px)", &lab.Orthographic, false);
+    ui->PopPanel();
+    if (wasOrthographic != lab.Orthographic)
+        lab.CameraPosition = f32v2{0.f}; // its units changed
+    const f32 step = lab.Orthographic ? 1.f : 50.f;
+    if (lab.Orthographic)
+        ui->HorizontalSlider("Ortho size", &lab.OrthoSize, 1.f, 20.f);
+    ui->HorizontalSlider("Camera position", &lab.CameraPosition, -8.f * step, 8.f * step);
+    f32 degrees = Math::Degrees(lab.Rotation);
+    if (ui->HorizontalSlider("Camera rotation (deg)", &degrees, -180.f, 180.f, "{:.0f}"))
+        lab.Rotation = Math::Radians(degrees);
+
+    ui->HorizontalSeparator("Layer");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button("Above the scene"))
+    {
+        // the overlay goes back on top right after
+        win->BringToTop(rv);
+        win->BringToTop(app.Ui->GetMainNativeWindow()->View);
+        lab.Placement = LabPlacement_AboveScene;
+    }
+    if (ui->Button("Below the scene"))
+    {
+        win->BringToBottom(rv);
+        lab.Placement = LabPlacement_BelowScene;
+    }
+    text(ui, Theme::Dim, formatLine("layer {}", rv->Layer).View());
+    ui->PopPanel();
+
+    ui->HorizontalSeparator("Coordinates");
+    if (app.LabMouseInside)
+    {
+        const f32v2 mouse = win->GetMousePosition();
+        const f32v2 local = rv->ScreenToViewport(mouse);
+        const f32v2 world = rv->ScreenToWorld(mouse);
+        field(ui, "Mouse, screen ", formatLine("({:.1f}, {:.1f})", mouse[0], mouse[1]).View());
+        field(ui, "Mouse, viewport ", formatLine("({:.1f}, {:.1f})", local[0], local[1]).View());
+        field(ui, "Mouse, world ", formatLine("({:.3f}, {:.3f})", world[0], world[1]).View());
+    }
+    else
+        text(ui, Theme::Dim, "Hover the lab to read the mouse in screen, viewport and world coordinates.",
+             Onyx::TextMode_Wrapped);
+    const f32v2 cross = rv->WorldToScreen(f32v2{step});
+    field(ui, "Green cross ",
+          formatLine("world ({:g}, {:g}) -> screen ({:.1f}, {:.1f})", step, step, cross[0], cross[1]).View());
+}
+
+static void panelRendering(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    RenderSettings &rs = app.Render;
+
+    ui->HorizontalSeparator("Controls");
+    const bool oldOutlines = rs.Outlines;
+    ui->CheckBox("Outlines", &rs.Outlines);
+    ui->HorizontalSlider("Outline width", &rs.OutlineWidth, 0.f, 0.3f);
+    ui->CheckBox("Rotate shapes", &rs.Rotate);
+    ui->HorizontalSlider("Alpha (middle row)", &rs.Alpha, 0.05f, 1.f);
+    ui->HorizontalSlider("Circle hollowness", &rs.Circle.Hollowness, 0.f, 0.95f);
+    ui->HorizontalSlider("Circle arc end", &rs.Circle.UpperAngle, 0.1f, 2.f * Math::Pi<f32>());
+    ui->HorizontalSlider("Circle inner fade", &rs.Circle.InnerFade, 0.f, 1.f);
+    ui->HorizontalSlider("Circle outer fade", &rs.Circle.OuterFade, 0.f, 1.f);
+
+    // view flags go through RenderView::SetFlags, on both layouts' gallery views. the inactive ones stay hidden
+    const bool oldShadows = rs.Shadows;
+    const bool oldFXAA = rs.FXAA;
+    ui->CheckBox("View: shadows", &rs.Shadows);
+    ui->CheckBox("View: FXAA", &rs.FXAA);
+    tooltip(ui, Theme::Accent, "Anti-aliasing on both galleries",
+            "A full screen pass after the outlines. The pixel view never uses it: it must stay pixel perfect.");
+    if (rs.FXAA)
+        ui->DropDown("FXAA mode", &rs.FXAAMode, FXAAModes);
+    if (oldShadows != rs.Shadows || oldFXAA != rs.FXAA || oldOutlines != rs.Outlines)
+    {
+        Onyx::RenderViewFlags flags = Onyx::RenderViewFlag_Transparency;
+        if (rs.Shadows)
+            flags |= Onyx::RenderViewFlag_Shadows;
+        if (rs.Outlines)
+            flags |= Onyx::RenderViewFlag_Outlines;
+        if (rs.FXAA)
+            flags |= Onyx::RenderViewFlag_FXAA;
+        for (u32 m = 0; m < Mode_Count; ++m)
+        {
+            const Onyx::RenderViewFlags hidden = m == app.Mode ? 0 : Onyx::RenderViewFlag_Hidden;
+            app.Panes[Pane_Gallery2].Frame[m]->SetFlags(flags | hidden);
+            app.View3[m]->SetFlags(flags | hidden);
+        }
+    }
+    for (u32 m = 0; m < Mode_Count; ++m)
+    {
+        app.Panes[Pane_Gallery2].Frame[m]->AntiAliasingMode = rs.FXAAMode;
+        app.View3[m]->AntiAliasingMode = rs.FXAAMode;
+    }
+}
+
+static void panelLights(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    LightSettings &ls = app.Lights;
+
+    ui->HorizontalSeparator("2D gallery");
+    ui->CheckBox("2D lights", &ls.Lights2);
+    ui->CheckBox("Sweep the light around the center occluder", &ls.Sweep);
+    tooltip(ui, Theme::Accent, "A repeatable test for the shadow seam",
+            "The light orbits the spinning quad. When it sits to the quad's right, the quad is at 180 degrees from it, "
+            "where the circular shadow map wraps around: no slit of light may cross the quad or its shadow.");
+    text(ui, Theme::Dim, "Without the sweep, hover the 2D gallery: the light follows the cursor.",
+         Onyx::TextMode_Wrapped);
+
+    ui->CheckBox("Directional light", &ls.Directional2);
+    f32 degrees = Math::Degrees(ls.DirectionalAngle);
+    if (ui->HorizontalSlider("Direction (deg)", &degrees, -180.f, 180.f, "{:.0f}"))
+        ls.DirectionalAngle = Math::Radians(degrees);
+
+    ui->CheckBox("Cone", &ls.Cone);
+    tooltip(ui, Theme::Accent, "Turns the cursor light into a cone",
+            "Extent is half of the cone, as a fraction of half a turn. Decay fades the light from the axis to the "
+            "edges. Both must stay in [0, 1], an assert enforces it.");
+    if (ls.Cone)
+    {
+        ui->CheckBox("Aim where the light moves", &ls.ConeFollowsMotion);
+        if (!ls.ConeFollowsMotion)
+        {
+            f32 aim = Math::Degrees(ls.ConeAngle);
+            if (ui->HorizontalSlider("Aim (deg)", &aim, -180.f, 180.f, "{:.0f}"))
+                ls.ConeAngle = Math::Radians(aim);
+        }
+        ui->HorizontalSlider("Cone width (extent)", &ls.ConeExtent, 0.05f, 1.f);
+        ui->HorizontalSlider("Edge softness (decay)", &ls.ConeDecay, 0.f, 1.f);
+    }
+
+    ui->HorizontalSeparator("3D gallery");
+    ui->CheckBox("3D lights", &ls.Lights3);
+    ui->CheckBox("Point light", &ls.Point3);
+    ui->CheckBox("Spot light", &ls.Spot3);
+    ui->CheckBox("Spot only", &ls.SpotOnly);
+    tooltip(ui, Theme::Accent, "Leaves the spot alone",
+            "Turns off the directional and point lights, so the spot's light and shadows are unmistakable.");
+    ui->CheckBox("Sun straight down", &ls.SunDown);
+    tooltip(ui, Theme::Accent, "Points the directional light straight down",
+            "A vertical direction is a corner case for the math that builds a light's frame. Alone, the sun must "
+            "still light the tops of the shapes, with their shadows right under them.");
+    f32 fov = Math::Degrees(ls.SpotFov);
+    if (ui->HorizontalSlider("Spot field of view (deg)", &fov, 10.f, 120.f, "{:.0f}"))
+        ls.SpotFov = Math::Radians(fov);
+    ui->HorizontalSlider("Spot range", &ls.SpotRange, 1.f, 20.f);
+    f32 tilt = Math::Degrees(ls.SpotTilt);
+    if (ui->HorizontalSlider("Spot tilt (deg)", &tilt, 0.f, 60.f, "{:.0f}"))
+        ls.SpotTilt = Math::Radians(tilt);
+    f32 turn = Math::Degrees(ls.SpotTurn);
+    if (ui->HorizontalSlider("Spot turn (deg)", &turn, -180.f, 180.f, "{:.0f}"))
+        ls.SpotTurn = Math::Radians(turn);
+    ui->CheckBox("Spot swings", &ls.SpotSwing);
+    if (ui->Button("Spot straight down"))
+    {
+        ls.SpotTilt = 0.f;
+        ls.SpotSwing = false;
+    }
+    tooltip(ui, Theme::Accent, "No tilt, no swing",
+            "The same corner case for the spot: the box under it must keep its shadow.");
+}
+
+static void panelTextures(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    const f32v2 imageSize = f32v2{RenderTextureSize};
+    ui->HorizontalSeparator("Sampled in the overlay");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    ui->Image(*app.RtScaled, imageSize);
+    ui->Image(*app.RtFixed, imageSize);
+    ui->PopPanel();
+    text(ui, Theme::Dim, "Left: follows the window scale. Right: fixed at scale 1.");
+
+    if (app.Mode != Mode_Docked)
+        return;
+    ui->HorizontalSeparator("Docked galleries");
+    for (u32 i = 0; i < Pane_Count; ++i)
+    {
+        const Pane &pane = app.Panes[i];
+        const u32v2 size = pane.Texture->GetSize();
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        swatch(ui, PaneId(i));
+        field(ui, PaneInfos[i].Name,
+              formatLine("  texture {} x {} at {:.2f}, panel {:.0f} x {:.0f}", size[0], size[1],
+                         pane.Texture->GetContentScale()[0], pane.ImageSize[0], pane.ImageSize[1])
+                  .View());
+        ui->PopPanel();
+    }
+}
+
+static void panelInput(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    Onyx::Window *win = app.Window;
+    const InputTracking &in = app.Input;
+
+    ui->HorizontalSeparator("Live state");
+    const f32v2 mouse = win->GetMousePosition();
+    field(ui, "Mouse (polled) ", formatLine("({:.1f}, {:.1f})", mouse[0], mouse[1]).View());
+    if (in.HasEventMouse)
+    {
+        field(ui, "Mouse (last move event) ",
+              formatLine("({:.1f}, {:.1f})", in.EventMouse[0], in.EventMouse[1]).View());
+        field(ui, "Event vs polled distance ", formatLine("{:.2f} px", Math::Norm(in.EventMouse - mouse)).View());
+        tooltip(ui, Theme::Accent, "Should be about 0 while moving slowly",
+                "A constant offset, or a distance that grows with the position by a factor equal to the content "
+                "scale, means events and polling use different spaces.");
+    }
+    field(ui, "Buttons and keys held (events) ",
+          formatLine("{} buttons, {} keys", in.HeldButtons.GetSize(), in.HeldKeys.GetSize()).View());
+    field(ui, "Last key pressed ", TKit::StringView{in.LastKey});
+    field(ui, "Last scroll ", formatLine("({:.2f}, {:.2f})", in.LastScroll[0], in.LastScroll[1]).View());
+    field(ui, "Typed text ", formatLine("\"{}\"", TKit::StringView{in.Typed, in.TypedSize}).View());
+    field(ui, "Overlay wants ",
+          formatLine("mouse {}, scroll {}, keyboard {}", ui->WantCaptureMouse(), ui->WantCaptureScroll(),
+                     ui->WantCaptureKeyboard())
+              .View());
+    field(ui, "Window ", formatLine("hovered {}, fullscreen {}", win->IsHovered(), win->IsFullScreen()).View());
+
+    ui->HorizontalSeparator("Event counters since start");
+    for (u32 i = 0; i < Onyx::Event_Count; i += 2)
+    {
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        for (u32 j = i; j < i + 2 && j < Onyx::Event_Count; ++j)
+        {
+            const u32 count = in.EventCounts[j];
+            ui->BeginPanel({.Direction = Onyx::LayoutDirection_LeftToRight,
+                            .Alignment = Onyx::Overlay::CenterLeft,
+                            .Sizing = {Onyx::LayoutSizing::Fixed(210.f), Onyx::LayoutSizing::Fit()},
+                            .ChildGap = 6.f});
+            text(ui, count ? Theme::Info : Theme::Dim, formatLine("{:>6}", count).View());
+            text(ui, count ? Theme::Text : Theme::Dim, EventNames[j]);
+            ui->EndPanel();
+        }
+        ui->PopPanel();
+    }
+}
+
+static void panelAudio([[maybe_unused]] App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+#ifndef ONYX_ENABLE_AUDIO
+    text(ui, Theme::Info, "Audio is not compiled in. Configure Onyx with ONYX_ENABLE_AUDIO=ON to test it.",
+         Onyx::TextMode_Wrapped);
+#else
+    AudioState &au = app.Audio;
+    if (!au.Available)
+    {
+        text(ui, Theme::Info,
+             "No audio output device: Audio_IsAvailable() is false, and Onyx fell back to miniaudio's null backend. "
+             "The audio checks are not applicable.",
+             Onyx::TextMode_Wrapped);
+        return;
+    }
+    field(ui, "Output ",
+          formatLine("{} Hz, {} channels", Onyx::Audio_GetSampleRate(), Onyx::Audio_GetChannels()).View());
+
+    ui->HorizontalSeparator("Source");
+    ui->DropDown("Wave", &au.Wave, WaveNames);
+    ui->HorizontalSlider("Frequency (Hz)", &au.Frequency, 110.f, 880.f, "{:.0f}");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button("Play"))
+        playInstrument(au);
+    if (ui->Button("Stop"))
+        Onyx::Audio_Stop(au.Instrument);
+    ui->CheckBox("Loop", &au.Loop);
+    text(ui, Theme::Info,
+         formatLine("{}, ended {} times", Onyx::Audio_IsPlaying(au.Instrument) ? "playing" : "stopped",
+                    au.InstrumentEnds)
+             .View());
+    ui->PopPanel();
+    tooltip(ui, Theme::Accent, "Counted by the main thread end callback",
+            "Audio_SetMainThreadEndCallback() increments this every time the sound ends without looping.");
+    ui->HorizontalSlider("Volume", &au.Volume, 0.f, 1.f);
+    ui->HorizontalSlider("Pitch", &au.Pitch, 0.25f, 4.f);
+    ui->HorizontalSlider("Pan", &au.Pan, -1.f, 1.f);
+    ui->HorizontalSlider("Master volume", &au.Master, 0.f, 1.f);
+
+    // what the callback produced, most recent last. it moves even with the volume down
+    const Synth &synth = au.InstrumentSynth;
+    const u32 head = synth.ScopeHead.load(std::memory_order_acquire);
+    ui->BeginPanel({.Direction = Onyx::LayoutDirection_LeftToRight,
+                    .Alignment = Onyx::Overlay::CenterLeft,
+                    .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fixed(60.f)},
+                    .ChildGap = 1.f});
+    for (u32 i = 0; i < ScopeSize; ++i)
+        scopeColumn(ui, synth.Scope[(head + i) % ScopeSize].load(std::memory_order_relaxed), 60.f, Theme::Accent);
+    ui->EndPanel();
+    tooltip(ui, Theme::Accent, "The scope", "One sample out of every few the callback wrote, kept in a ring buffer.");
+
+    ui->HorizontalSeparator("Spatial source");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    ui->RadioButton("Off", &au.Orbit, Orbit_Off);
+    ui->RadioButton("2D orbit", &au.Orbit, Orbit_2D);
+    ui->RadioButton("3D orbit", &au.Orbit, Orbit_3D);
+    ui->PopPanel();
+    text(ui, Theme::Dim,
+         "2D: beeps circle the listener at the 2D gallery's center. 3D: they circle the 3D camera, which listens.",
+         Onyx::TextMode_Wrapped);
+
+    ui->HorizontalSeparator("Self test");
+    if (ui->Button("Run the self test") && !au.TestRunning)
+        startAudioSelfTest(app);
+    tooltip(ui, Theme::Accent, "Silent",
+            "Plays and stops an inaudible blip, then plays two of them to their end, one per kind of end callback.");
+    text(ui, Theme::Dim, au.TestRunning ? "running..." : (au.TestDone ? "done, see the checks below" : "not run yet"));
+#endif
+}
+
+static void panelResources(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
+    ui->HorizontalSeparator("Counts");
+    field(ui, "Dynamic meshes (2D / 3D) ",
+          formatLine("{} / {}", Onyx::DynamicMesh_GetCount<D2>(), Onyx::DynamicMesh_GetCount<D3>()).View());
+    field(ui, "Font pool ",
+          formatLine("{} fonts, {} glyphs", Onyx::FontPool_GetFontCount(res.FontPool),
+                     Onyx::FontPool_GetGlyphCount(res.FontPool))
+              .View());
+}
+
+static void panelToolkit([[maybe_unused]] App &app)
+{
+#ifdef TKIT_ENABLE_ENSURE
+    Onyx::Overlay *ui = app.Ui;
+    if (ui->PushTree("Tier allocator statistics"))
+    {
+        ui->ShowTierAllocatorStatistics();
+        ui->PopTree();
+    }
+#endif
+}
+
+static void panelPlatform(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    Onyx::Window *win = app.Window;
+    const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
+    const Graph::PlatformBackendInfo pinfo = Graph::GetPlatformBackendInfo();
+
+    ui->HorizontalSeparator("Device");
+    field(ui, "GPU ", formatLine("{}", rinfo.Device.Name).View());
+    field(ui, "Driver ", formatLine("{} ({})", rinfo.Device.DriverName, rinfo.Device.DriverInfo).View());
+    field(ui, "API ",
+          formatLine("{}.{}.{}", rinfo.Device.ApiMajor, rinfo.Device.ApiMinor, rinfo.Device.ApiPatch).View());
+    field(ui, "Render backend ", formatLine("{}", rinfo.Version).View());
+    field(ui, "Platform backend ", formatLine("{} on {}", pinfo.Version, PlatformNames[pinfo.Platform]).View());
+
+    ui->HorizontalSeparator("Monitors");
+    for (u32 i = 0; i < Graph::Monitor_GetCount(); ++i)
+    {
+        const Graph::Monitor monitor = Graph::Monitor_Get(i);
+        const Graph::VideoMode mode = Graph::Monitor_GetVideoMode(monitor);
+        const f32v2 scale = Graph::Monitor_GetContentScale(monitor);
+        const Graph::MonitorArea area = Graph::Monitor_GetWorkArea(monitor);
+        text(ui, Theme::Text,
+             formatLine("Monitor {}{}", i, monitor == Graph::Monitor_GetPrimary() ? " (primary)" : "").View());
+        text(ui, Theme::Info,
+             formatLine("    {} x {} @ {} Hz, scale {:.2f}, work area {} x {} at ({}, {})", mode.Size[0], mode.Size[1],
+                        mode.RefreshRate, scale[0], area.Size[0], area.Size[1], area.Position[0], area.Position[1])
+                 .View());
+    }
+
+    // window position and opacity are not supported everywhere (Wayland ignores both), so they are informative only
+    ui->HorizontalSeparator("Window");
+    const i32v2 pos = win->GetPosition();
+    const u32v2 size = win->GetSize();
+    field(ui, "Position (not reported on Wayland) ", formatLine("({}, {})", pos[0], pos[1]).View());
+    field(ui, "Opacity (read back) ", formatLine("{:.2f}", win->GetOpacity()).View());
+    field(ui, "Size ",
+          formatLine("{} x {}, last requested {} x {}", size[0], size[1], app.RequestedSize[0], app.RequestedSize[1])
+              .View());
+    if (ui->DropDown("Present mode", &app.PresentMode, "Immediate#Mailbox#VSync"))
+        win->SetPresentMode(Graph::PresentMode(app.PresentMode));
+    if (ui->HorizontalSlider("Opacity", &app.Opacity, 0.2f, 1.f))
+        win->SetOpacity(app.Opacity);
+
+    ui->HorizontalSeparator("Scenarios");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
+    for (const u32v2 &preset : SizePresets)
+        if (ui->Button(formatLine("{} x {}", preset[0], preset[1]).View()))
+        {
+            app.RequestedSize = preset;
+            win->SetSize(preset);
+        }
+    ui->PopPanel();
+    tooltip(ui, Theme::Accent, "Resizes the window",
+            "A tiling compositor may ignore the request: float the window first. The DPI and view checks must hold "
+            "through the resize.");
+    if (ui->Button(app.PresentCycleSteps ? "Cycling present modes..." : "Cycle present modes") &&
+        app.PresentCycleSteps == 0)
+        startPresentCycle(app);
+    tooltip(ui, Theme::Accent, "Steps through the present modes and back",
+            "Each change recreates the swapchain. Present mode reads back and Swapchain is consistent must hold.");
+}
+
+// left: the dashboard and the manual as tabs, over the guided checks. middle: the four galleries. right: the category
+// panels, as tabs. a window that is still docked cannot join a tree (asserted), and one can be left docked: a closed
+// panel inside a group the user docked together by hand. so every window of the tree is undocked first, which happens
+// at the end of this frame, right before the tree is applied
+static void submitDockTree(App &app, const Onyx::LayoutId dock)
+{
+    Onyx::Overlay *ui = app.Ui;
+    TKit::StaticArray<Onyx::LayoutId, Category_Count> panels{};
+    for (const Category &cat : app.Categories)
+        panels.Append(Onyx::LayoutId{cat.Title});
+    const Onyx::LayoutId side[2] = {ControlCenterTitle, ManualTitle};
+    const Onyx::LayoutId guide{GuideTitle};
+    TKit::FixedArray<Onyx::LayoutId, Pane_Count> galleries{};
+    for (u32 i = 0; i < Pane_Count; ++i)
+        galleries[i] = Onyx::LayoutId{PaneInfos[i].Name};
+
+    for (const Onyx::LayoutId &id : panels)
+        ui->UndockWindow(id);
+    for (const Onyx::LayoutId &id : side)
+        ui->UndockWindow(id);
+    for (const Onyx::LayoutId &id : galleries)
+        ui->UndockWindow(id);
+    ui->UndockWindow(guide);
+
+    const Onyx::OverlayDockNode *left =
+        Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.62f, Onyx::DockTabBar(TKit::Span<const Onyx::LayoutId>(side)),
+                        Onyx::DockTabBar(guide));
+    const Onyx::OverlayDockNode *top =
+        Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f, Onyx::DockTabBar(galleries[Pane_Pixel]),
+                        Onyx::DockTabBar(galleries[Pane_Gallery2]));
+    const Onyx::OverlayDockNode *bottom =
+        Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f, Onyx::DockTabBar(galleries[Pane_Gallery3]),
+                        Onyx::DockTabBar(galleries[Pane_Textures]));
+    const Onyx::OverlayDockNode *scene = Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.5f, top, bottom);
+    const Onyx::OverlayDockNode *rest =
+        Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.7f, scene, Onyx::DockTabBar(panels));
+    ui->SubmitDockTree(dock, Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.24f, left, rest));
+}
+
+static void drawOverlay(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+
+    // dockspaces must be submitted before any window that docks into them. every docked session gets a fresh full
+    // screen one, which undocks its windows once it stops being submitted. its tree is submitted once
+    if (app.Mode == Mode_Docked)
+    {
+        const Line name = formatLine("Docked layout {}", app.DockSessions);
+        const Onyx::LayoutId dock{name.View()};
+        ui->FullScreenDockSpace(dock, 0, Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
+        if (app.DockTreePending)
+        {
+            submitDockTree(app, dock);
+            app.DockTreePending = false;
+        }
+    }
+
+    const GuideStep step = findGuideStep(app);
+    app.FocusPane = Pane_None;
+    if (app.ShowGuide && step.Cat)
+        app.FocusPane = step.Auto ? step.Auto->Pane : step.Visual->Pane;
+
+    drawDashboard(app, step);
+    drawManual(app);
+    drawGuide(app, step);
+    if (app.Mode == Mode_Docked)
+        drawGalleryPanels(app);
+    drawCategoryPanels(app);
+    if (app.ShowOverlayDemo)
+        ui->ShowDemo(&app.ShowOverlayDemo);
+
+    if (app.PlacePanels > 0)
+        --app.PlacePanels;
+    if (app.VerdictsDirty)
+    {
+        saveVerdicts(app.Categories);
+        app.VerdictsDirty = false;
+    }
+}
 
 // =====================================================================================================================
-//  10. MAIN LOOP
+//  11. CATEGORIES
+// =====================================================================================================================
+//
+//  What each panel checks: its title, a one line summary, the concepts behind it (behind its help button), the
+//  functions that run its automatic checks and draw its panel, and its visual checks. A visual check says what to do
+//  in one or two lines, explains more on hover, and has a priority for the guided flow: DPI and rendering correctness
+//  come before cosmetics.
+
+static void setupCategories(App &app)
+{
+    Category &dpi = app.Categories[Category_Dpi];
+    dpi.Title = "DPI and content scale";
+    dpi.Summary = "Logical vs physical pixels, scale changes, swapchain extent";
+    dpi.Concepts =
+        "A physical pixel is a dot on the screen. A logical pixel is what your layout is written in. The content scale "
+        "is the ratio between them: at 1.5x, a 100 x 100 logical rectangle covers 150 x 150 physical pixels. Onyx "
+        "works "
+        "in logical pixels everywhere (window size, viewports, mouse, overlay layout) and only multiplies by the "
+        "content scale where real pixels are allocated: swapchain images, view framebuffers and render textures. A DPI "
+        "bug is almost always a place where the two spaces get mixed: blurry output (rendering at logical resolution "
+        "on "
+        "a physical framebuffer), clipped output (physical sizes used as logical) or a drifting cursor (mouse in one "
+        "space, viewport in the other).\n\nGLFW's screen coordinates are logical on Wayland and macOS, and physical on "
+        "X11 and Windows. Onyx hides that: Window::GetSize() and GetMousePosition() always return logical pixels, "
+        "derived from the framebuffer size divided by the content scale.\n\nOn Hyprland, change the scale with: "
+        "hyprctl keyword monitor <name>,preferred,auto,1.5 (also try 1, 1.25 and 2).";
+    dpi.Check = checkDpi;
+    dpi.Panel = panelDpi;
+    dpi.Visuals.Append(VisualCheck{
+        .Name = "Pixel grid is pixel perfect at integer scales",
+        .Do = "At 1x and 2x, the 8 px grid and the 1 px checkerboard of the pixel view are perfectly crisp and evenly "
+              "spaced.",
+        .More =
+            "At fractional scales (1.25x, 1.5x) one logical pixel covers a fractional number of physical pixels, so "
+            "some lines look slightly thicker than others. That is expected. A blurry, smeared look, like an "
+            "upscaled image, is not. The docked layout can put a panel's image at a fractional position, which "
+            "softens it, so this is judged in the direct layout.",
+        .Priority = 10,
+        .Pane = Pane_Pixel,
+        .Needs = Requires_DirectLayout});
+    dpi.Visuals.Append(VisualCheck{
+        .Name = "Cursor markers sit exactly under the mouse",
+        .Do = "Move the mouse through every view: the green ring sits right under the cursor, also near the right and "
+              "bottom edges.",
+        .More = "Every view draws a green ring at the mouse position, the textures view included, whose viewport does "
+                "not start at the window origin. Drift that grows towards the bottom right means logical and physical "
+                "coordinates are being mixed. In the docked layout the ring also goes through the mapping from the "
+                "panel's image into its texture.",
+        .Priority = 11,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    dpi.Visuals.Append(VisualCheck{
+        .Name = "Corner brackets are visible in every view",
+        .Do = "Resize the window or change the scale: every view keeps tinted brackets in its four corners.",
+        .More = "Missing brackets on the right or bottom mean the viewport or scissor is computed in the wrong pixel "
+                "space. In the docked layout they also show that each texture follows its panel.",
+        .Priority = 12,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    dpi.Visuals.Append(VisualCheck{
+        .Name = "Views re-tile without gaps after a scale change",
+        .Do = "Change the monitor scale: the four tinted views still cover the window exactly, with no black strip or "
+              "overlap.",
+        .More = "Each view has its own background tint. Their proportional viewports are recomputed from the logical "
+                "window size after every resize and scale change.",
+        .Priority = 13,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    dpi.Visuals.Append(VisualCheck{
+        .Name = "Overlay text is sharp at every scale",
+        .Do = "After a scale change, the text in these windows stays sharp, not just bigger or smaller.",
+        .More = "The overlay renders through its own view at the window's content scale. Blurry text after a change "
+                "means that view kept the old scale.",
+        .Priority = 18,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+
+    Category &views = app.Categories[Category_Views];
+    views.Title = "Render views and cameras";
+    views.Summary = "Viewports, coordinate conversions, camera modes, layers, the overlay's view, an inspector";
+    views.Concepts =
+        "A render target is something that can be rendered to: a window or a render texture. A render view is a "
+        "rectangle (viewport) inside a target, with its own framebuffers, camera and passes. A camera decides what "
+        "part "
+        "of the world the view shows: CameraMode_Orthographic shows OrthoParameters.Size world units vertically, "
+        "CameraMode_Viewport maps one world unit to one logical pixel, CameraMode_Perspective (3D only) uses a field "
+        "of "
+        "view. A render context records draws and can target several views at once.\n\nViewport, scissor and image "
+        "size can each be proportional (fractions of the parent, recomputed on resize) or fixed (absolute logical "
+        "pixels). Views are drawn in increasing Layer order: BringToTop and BringToBottom move a view to either end. "
+        "Coordinates: screen = logical pixels from the target's top left, viewport = the same relative to the view, "
+        "world = what the camera sees.\n\nThe overlay draws through its own 2D view covering the window, on top of "
+        "every other view. In the docked layout every gallery's views live in its own render texture instead of a "
+        "window quadrant, and a hidden view neither renders nor composites.";
+    views.Check = checkViews;
+    views.Panel = panelViews;
+    views.Visuals.Append(VisualCheck{
+        .Name = "3D gallery title, brackets and cursor are visible",
+        .Do = "The 3D gallery shows its title, tinted corner brackets and the green ring under the mouse.",
+        .More =
+            "They are drawn by a transparent 2D view stacked on top of the 3D gallery. If they are missing, 2D views "
+            "are composited below 3D views regardless of their layer. In the docked layout the same stacking "
+            "happens inside a render texture.",
+        .Priority = 16,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    views.Visuals.Append(VisualCheck{
+        .Name = "Cameras only move in the hovered view",
+        .Do = "Hover the 2D gallery and press W A S D Q E, then do the same over the 3D gallery. Only the hovered "
+              "gallery moves.",
+        .More = "The pixel view and the textures view never move. In the docked layout only the hovered panel's camera "
+                "may move, and only while its image is the topmost thing under the mouse.",
+        .Priority = 50,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    views.Visuals.Append(VisualCheck{
+        .Name = "2D zoom is anchored at the cursor",
+        .Do = "Scroll over the 2D gallery: the world point under the cursor stays under the cursor.",
+        .More = "RenderView::ZoomScroll changes the ortho size and moves the camera so the point under the cursor does "
+                "not move. In the docked layout the cursor goes through the panel's image mapping first.",
+        .Priority = 51,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    views.Visuals.Append(VisualCheck{
+        .Name = "Overlay stays on top",
+        .Do = "Drag these windows over every view, the 3D gallery included: they are always drawn above the scene.",
+        .More = "Layers order views of both dimensions together. A 3D view drawn over the overlay means the compositor "
+                "orders 2D and 3D views separately.",
+        .Priority = 52,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    views.Visuals.Append(VisualCheck{
+        .Name = "Tooltips stay inside the window",
+        .Do = "Hover a check near the right and the bottom edges of the window: its tooltip stays fully inside.",
+        .More =
+            "Without window promotion, always the case on Wayland, tooltips are drawn in the main view. The overlay "
+            "shifts them left and up when they would cross the right or the bottom edge. They are kept narrow, "
+            "so they fit as long as the window is wider than a tooltip.",
+        .Priority = 95,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+
+    Category &labCat = app.Categories[Category_Lab];
+    labCat.Title = "View lab";
+    labCat.Summary = "One more view to reconfigure: viewport, scissor, image scale, flags, camera, layer";
+    labCat.Concepts =
+        "The lab is a 2D view on the window, above the scene views and under the overlay, that you can reconfigure "
+        "at will. Its viewport can be proportional (window fractions, recomputed on every resize) or fixed (logical "
+        "pixels). Its scissor is a fraction of the viewport: only that part is drawn. Its image scale renders the view "
+        "at a fraction (or a multiple) of its viewport size, and the result is stretched over the viewport.\n\nIts "
+        "flags turn whole passes on and off: outlines (the outlined circle and square), transparency (the translucent "
+        "square) and FXAA (watch the thin lines and the circle). Its camera is orthographic (Ortho size world units "
+        "from top to bottom) or in viewport mode (one world unit per logical pixel), and can be moved and rotated. The "
+        "grid lines are one world unit apart, or 50 pixels in viewport mode, and the axes cross at the world origin.";
+    labCat.Check = checkLab;
+    labCat.Panel = panelLab;
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "The lab sits where its viewport says",
+        .Do = "View lab panel: show the lab and drag its position and size, in both modes. Resizing the window moves "
+              "a proportional lab, never a fixed one.",
+        .More = "The purple brackets mark the corners of the lab's viewport. The automatic checks compare the "
+                "viewport with the sliders, this one checks that the view is drawn there.",
+        .Priority = 55,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "The scissor clips the lab",
+        .Do = "Shrink and move the scissor: the lab is drawn only inside its thin outline, the scene shows everywhere "
+              "else, and corner brackets outside the scissor disappear.",
+        .More = "The outline is drawn a pixel inside the scissor, so all four sides show exactly when the scissor is "
+                "where its numbers say.",
+        .Priority = 56,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "The scissor holds at any image scale",
+        .Do = "Move the scissor to the right half, then set the image scale to 0.5 and to 2: the same area stays "
+              "visible, and it is fully drawn.",
+        .More = "Inside the view's passes the scissor is in image pixels, so it must be scaled by the image size over "
+                "the viewport size, not only by the content scale. Otherwise a scaled image draws the wrong part, or "
+                "nothing at all, inside the scissor.",
+        .Priority = 57,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "Image scale changes the resolution only",
+        .Do = "Drag the image scale: below 1 the lab gets blockier, above 1 smoother, but nothing in it moves or "
+              "changes size.",
+        .More = "The image is stretched over the viewport by the compositor, so world positions on screen do not "
+                "depend on the image size.",
+        .Priority = 58,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "Flags turn their passes on and off",
+        .Do = "Untick Outlines: the circle and the square lose their outlines. Untick Transparency: the translucent "
+              "square disappears. Nothing else changes.",
+        .More = "Outlined draws need RenderViewFlag_Outlines, translucent ones need RenderViewFlag_Transparency. "
+                "Toggling either recreates the view's framebuffers.",
+        .Priority = 59,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "A transparent view stays transparent",
+        .Do = "Tick Transparent background: the scene shows through the lab. Then tick FXAA: it still does.",
+        .More = "The compositor blends every view over the ones below with its alpha. A pass that writes alpha 1 "
+                "everywhere turns a transparent view opaque, and hides what is under it.",
+        .Priority = 60,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "Layer buttons reorder the lab",
+        .Do = "Press Below the scene: the lab disappears under the four views. Press Above the scene: it is back on "
+              "top, still under these windows.",
+        .More = "BringToTop and BringToBottom set a view's layer, and views are composited in increasing layer order. "
+                "The overlay is brought back on top right after the lab.",
+        .Priority = 61,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+    labCat.Visuals.Append(VisualCheck{
+        .Name = "Lab coordinates follow the mouse",
+        .Do = "Move, rotate and zoom the lab's camera, then hover the lab: the ring sits under the cursor, and the "
+              "world readout agrees with the grid and its labels.",
+        .More = "Grid lines are one world unit apart (50 in viewport mode), the axes cross at the origin and the green "
+                "cross sits at one step along both axes.",
+        .Priority = 62,
+        .Pane = Pane_None,
+        .Needs = Requires_DirectLayout});
+
+    Category &rendering = app.Categories[Category_Rendering];
+    rendering.Title = "Rendering";
+    rendering.Summary = "Primitives, render modes, outlines, blending, context state";
+    rendering.Concepts =
+        "Onyx draws five kinds of geometry: circles (analytic, with hollowness, arcs and fades), static meshes "
+        "(triangle, quad, box...), parametric meshes (stadium, rounded rect, capsule, torus: one mesh, shape set per "
+        "instance), glyphs (text) and dynamic meshes (your own vertices). Each draw is flat (unlit color), shaded (lit "
+        "by the context's lights, using its material) and optionally outlined. Outlines are drawn in their own full "
+        "screen pass, so the view needs RenderViewFlag_Outlines. RenderViewFlag_FXAA adds an anti-aliasing pass after "
+        "it, with a quality set by RenderView::AntiAliasingMode.\n\nOpaque draws go first and "
+        "write depth. Translucent draws (alpha below 1) go to the transparent pass and are blended on top, if the view "
+        "has RenderViewFlag_Transparency.";
+    rendering.Check = checkRendering;
+    rendering.Panel = panelRendering;
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Every 2D primitive is drawn",
+        .Do = "2D gallery, top row: triangle, quad, circle (hollow, partial arc), stadium and rounded rect.",
+        .More = "All five use the selected render mode. Turning outlines off must leave the same five shapes.",
+        .Priority = 20,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(
+        VisualCheck{.Name = "Every 3D primitive is drawn",
+                    .Do = "3D gallery: box, sphere, cylinder, capsule, rounded box and torus over a floor.",
+                    .More = "They rotate when Rotate shapes is on, and are shaded by the gallery's lights.",
+                    .Priority = 21,
+                    .Pane = Pane_Gallery3,
+                    .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Transparency blends in order",
+        .Do = "2D gallery, middle: three overlapping translucent squares. Every overlap is tinted by both colors, and "
+              "the alpha slider fades all three.",
+        .More = "Translucent draws go to the transparent pass, which sorts and blends them. The view needs "
+                "RenderViewFlag_Transparency.",
+        .Priority = 22,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Circle parameters are respected",
+        .Do = "Drag the circle sliders of the Rendering panel: the circle follows hollowness, arc and fades exactly.",
+        .More = "Circles are analytic: hollowness, the arc's angles and the inner and outer fades are evaluated per "
+                "pixel. Fades need the blend pass, which the gallery turns on for them.",
+        .Priority = 23,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Text renders crisp",
+        .Do = "The titles inside the scene views are crisp and correctly kerned, at any zoom.",
+        .More = "Scene text uses the default font's glyphs, rendered from distance fields, so it must stay sharp when "
+                "scaled.",
+        .Priority = 24,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Outlines are uniform",
+        .Do = "With outlines on, every shape gets an even outline that follows its silhouette. The width slider "
+              "changes all of them.",
+        .More = "No gaps or spikes at corners. Outlines are drawn in their own full screen pass, so they need "
+                "RenderViewFlag_Outlines.",
+        .Priority = 80,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "FXAA smooths edges",
+        .Do = "Rendering panel: turn outlines off and FXAA on. The edges of the 2D shapes and the 3D silhouettes get "
+              "smoother, more so in the quality modes than in Fast.",
+        .More = "FXAA finds edges by their contrast and blends across them. Text and the 1 px lines get slightly "
+                "softer, which is expected. No change at all means the pass is not running, or its result is not the "
+                "one composited. Toggling FXAA recreates the view's framebuffers.",
+        .Priority = 25,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "FXAA leaves the view borders alone",
+        .Do = "With FXAA on, the borders of both galleries get no light rim, even where the background is dark.",
+        .More = "FXAA samples the neighbours of every pixel. At the border of a view they fall outside the image, "
+                "and must repeat the edge pixel. A sampler with a white border color bleeds white into every edge.",
+        .Priority = 26,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
+        .Name = "Nothing flickers with an uncapped frame rate",
+        .Do = "Platform panel: set the present mode to Immediate. Toggle FXAA and outlines: no view flickers, shows "
+              "an older frame or goes black for a frame.",
+        .More = "Every view keeps a few framebuffers, so a frame can render while the previous one is on the GPU. "
+                "Capped by vsync, a view almost always gets its first one, and a bug in the others shows up once in "
+                "a while. Uncapped, frames overlap and all of them are used: the Render views inspector counts them.",
+        .Priority = 27,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+
+    Category &lights = app.Categories[Category_Lights];
+    lights.Title = "Lights and shadows";
+    lights.Summary = "2D point, cone and directional lights, occluders, 3D point and spot lights";
+    lights.Concepts =
+        "Lights only affect shaded draws, through their material. In 2D, occluder materials block light: for every "
+        "shadow casting light and view, the shadow pass draws the shaded occluders into an occlusion map around the "
+        "light, and a compute pass ray marches it into a 1D shadow map. There are four of those per frame, shared by "
+        "every 2D light and view. A 2D point light can be a cone (Angle, Extent and Decay), and a 2D directional light "
+        "is a band of light along an angle.\n\nIn 3D every shaded mesh casts and receives: directional lights use "
+        "cascades bound to a view (asserted), point lights a cube map up to ShadowRadius and spot lights a perspective "
+        "map up to ShadowRange. 3D point and spot shadows fade over the last 10% of that range. Light positions, "
+        "directions and radii are in world space: the context transform does not apply to lights.";
+    lights.Check = checkLights;
+    lights.Panel = panelLights;
+    lights.Visuals.Append(VisualCheck{
+        .Name = "2D light follows the cursor and casts shadows",
+        .Do = "Hover the 2D gallery: a warm light, ringed in yellow, follows the cursor and lights the dark band. The "
+              "occluders cast shadows away from it.",
+        .More = "With the mouse elsewhere the light wanders between the occluders. Its shadows reach ShadowRadius (8 "
+                "units). Unlike 3D, the 2D point light does not fade there: its occlusion map only covers that radius.",
+        .Priority = 30,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "No light leaks through 2D occluders",
+        .Do = "Turn on Sweep in the Lights panel and watch the spinning quad: no slit of light crosses it or its "
+              "shadow, at any angle.",
+        .More =
+            "The sweep orbits the light around the quad. When the light sits to the quad's right, the quad is at 180 "
+            "degrees from it, where the circular shadow map wraps around: that is where a seam leaked light.",
+        .Priority = 31,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Static meshes cast 2D shadows",
+        .Do = "The spinning quad and the triangle in the band block the light: their shadows have their shape.",
+        .More = "Each occluder is a shaded draw with an occluder material, and the 2D shadow pass draws every kind of "
+                "geometry. One that does not cast is a library bug.",
+        .Priority = 32,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Circles cast 2D shadows",
+        .Do = "The circle in the band blocks the light and casts a round shadow.",
+        .More = "Circles are analytic: the shadow pass evaluates the same circle per pixel, hollowness and arcs "
+                "included.",
+        .Priority = 33,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Parametric meshes cast 2D shadows",
+        .Do = "The stadium and the rounded rect in the band block the light: their shadows follow their rounded "
+              "shapes.",
+        .More = "Parametric meshes cut their shape per pixel, in the shadow pass too.",
+        .Priority = 34,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Text casts 2D shadows",
+        .Do = "The ONYX text in the band blocks the light letter by letter.",
+        .More = "Glyphs are drawn from distance fields: the shadow pass must sample them too, or the text would cast "
+                "solid boxes, or nothing.",
+        .Priority = 35,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "2D directional light casts shadows away from it",
+        .Do =
+            "With the directional light on, every occluder casts a second, bluish shadow in the direction of the blue "
+            "arrow. Rotate it with Direction.",
+        .More = "The 2D directional light is a band of light along its direction, in world space. The same occluders "
+                "must block both lights, and its shadows run from them in the direction it travels.",
+        .Priority = 36,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "2D cone light has clean edges",
+        .Do = "Turn on Cone: the cursor light becomes a cone aimed where it moves. Its edges are straight, softened by "
+              "Edge softness.",
+        .More = "Extent is half of the cone as a fraction of half a turn, and Decay fades the light from the axis to "
+                "the edges. Shadows inside the cone stay correct, and nothing behind the light is lit by it.",
+        .Priority = 37,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "3D point light is visible and its shadows are complete",
+        .Do = "A small yellow sphere marks the orbiting point light. Its shadows stay solid wherever it is.",
+        .More = "No hole may open from the middle of a shadow as the light moves away. Shadows only fade near "
+                "ShadowRadius (14 units here), over its last 10%.",
+        .Priority = 40,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "3D shadows are correct",
+        .Do = "Every 3D shape casts a shadow on the floor, consistent with the light and following the shape as it "
+              "rotates.",
+        .More = "No shadow acne (striped self shadowing on lit faces), no shadows cut off at cascade boundaries while "
+                "moving the camera. The directional light's cascades follow the active 3D view.",
+        .Priority = 41,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Spot cone matches the lit area on the floor",
+        .Do = "Turn on Spot only. The blue lines from the spot outline its cone: the lit area on the floor fills that "
+              "outline exactly.",
+        .More = "The outline is computed from the spot's position, direction and field of view, independently of the "
+                "renderer. Change the field of view, tilt and turn: the light must follow the outline.",
+        .Priority = 42,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Spot shadow of the shape is complete",
+        .Do = "The white box under the spot casts a solid shadow inside the lit area, without holes or gaps.",
+        .More = "The spot's shadow map reaches ShadowRange (20 units) and shadows fade over its last 10%. The box is "
+                "well inside it.",
+        .Priority = 43,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Nothing outside the cone is lit by the spot",
+        .Do = "With Spot only, the floor and the shapes outside the outline get no spot light, only the ambient one.",
+        .More = "The spot's edge is sharp unless its Decay softens it. LightRange only sets how fast it falls off with "
+                "distance, it does not cut it.",
+        .Priority = 44,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Sun pointing straight down still lights",
+        .Do = "Untick Point light, Spot light and Spot only, then tick Sun straight down: the tops of the shapes stay "
+              "lit and their shadows fall right under them.",
+        .More = "A light's frame is built from its direction and a helper vector. A helper parallel to the direction "
+                "gives a zero cross product and a NaN frame, and the light goes dark. The automatic check Light bases "
+                "work for vertical directions tests the helper used for directional lights.",
+        .Priority = 45,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Spot pointing straight down keeps its shadow",
+        .Do = "Tick Spot light and Spot only, then press Spot straight down: the box still casts a solid shadow inside "
+              "the lit area.",
+        .More = "The spot's shadow map is rendered from a view looking along its direction. Built with a helper vector "
+                "parallel to that direction, the view comes out NaN: the shadow vanishes, or the whole lit area goes "
+                "dark, depending on the GPU.",
+        .Priority = 46,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+
+    Category &textures = app.Categories[Category_Textures];
+    textures.Title = "Render textures";
+    textures.Summary = "Offscreen targets, their content scale, sampling and docked galleries";
+    textures.Concepts =
+        "A render texture is an offscreen render target. You create views on it like on a window, render into them "
+        "with contexts, and then sample the result as a texture: in a context (ctx->Image) or in the overlay "
+        "(ui->Image). It has its own logical size and content scale. Rendering at the window's scale gives a texture "
+        "that maps one texel to one physical pixel when drawn at its logical size.\n\nIn the docked layout every "
+        "gallery "
+        "renders into its own render texture, which the demo resizes to its panel with RenderTexture::Resize.";
+    textures.Check = checkTextures;
+    textures.Panel = panelTextures;
+    textures.Visuals.Append(VisualCheck{
+        .Name = "Scaled render texture stays sharp",
+        .Do = "Textures view and the Render textures panel: the left texture looks as crisp as the pixel view, the "
+              "right one softer above 1x.",
+        .More = "The left render texture follows the window content scale, the right one is fixed at scale 1. At 1x "
+                "both must look identical.",
+        .Priority = 14,
+        .Pane = Pane_Textures,
+        .Needs = Requires_Nothing});
+    textures.Visuals.Append(VisualCheck{
+        .Name = "Docked galleries stay crisp when panels resize",
+        .Do = "Drag the dock splits: every gallery redraws at its panel's size, never stretched or blurry once it "
+              "settles.",
+        .More = "Each docked gallery renders into a render texture resized to its panel, at the window's content "
+                "scale, one frame after the panel changes.",
+        .Priority = 15,
+        .Pane = Pane_None,
+        .Needs = Requires_DockedLayout});
+
+    Category &input = app.Categories[Category_Input];
+    input.Title = "Input and events";
+    input.Summary = "Event stream consistency, keyboard, mouse, text input";
+    input.Concepts =
+        "Each window collects events (keys, mouse, scroll, resize, focus, scale...) while Onyx polls the platform. "
+        "Window::GetNewEvents() returns the events gathered since the previous frame. Polling (IsKeyPressed, "
+        "GetMousePosition) returns the state right now. Both views of the input must agree, and the event stream must "
+        "be internally consistent: a release always follows a press, focus gain and loss alternate, and so on. The "
+        "overlay consumes input too: WantCaptureMouse, WantCaptureScroll and WantCaptureKeyboard tell the application "
+        "when to ignore it.";
+    input.Check = checkInput;
+    input.Panel = panelInput;
+    input.Visuals.Append(VisualCheck{
+        .Name = "Overlay captures the mouse",
+        .Do = "Drag an overlay window over a gallery and scroll inside a panel: the cameras neither move nor zoom.",
+        .More = "In the direct layout the demo gates camera control on WantCaptureMouse and WantCaptureKeyboard, and "
+                "zoom on WantCaptureScroll. Docked galleries live inside overlay windows, so they use their image's "
+                "hover instead.",
+        .Priority = 53,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    input.Visuals.Append(VisualCheck{
+        .Name = "Typing reaches the event stream",
+        .Do = "Type a few letters with no text field focused: the Typed text line of the Input panel shows them, in "
+              "order.",
+        .More = "Every printable Event_CharInput is appended to that line. Missing or reordered characters mean the "
+                "event stream drops or reorders text input.",
+        .Priority = 60,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+
+    Category &audio = app.Categories[Category_Audio];
+    audio.Title = "Audio";
+    audio.Summary = "Procedural sources, playback state, end callbacks, spatialization";
+    audio.Concepts =
+        "Onyx's audio wraps miniaudio and is optional: it compiles only with ONYX_ENABLE_AUDIO. A source is a "
+        "resource: a decoded buffer, a stream, or, as here, a callback that fills interleaved frames on the audio "
+        "thread and returns how many it wrote. Returning 0 ends the sound. The callback must not allocate or lock, so "
+        "this demo passes its parameters through atomics, and gives every source a seek callback: miniaudio loops and "
+        "replays a source by seeking it back to frame 0.\n\nVolume, pitch, pan and looping are per source, the master "
+        "volume is global. End callbacks run on the audio thread, or are queued and run later on the main thread. "
+        "Spatialized sources (AudioFlag_Spatialization) are placed in world units around a listener.";
+    audio.Check = checkAudio;
+    audio.Panel = panelAudio;
+#ifdef ONYX_ENABLE_AUDIO
+    audio.Visuals.Append(VisualCheck{
+        .Name = "The sound is audible",
+        .Do = "Audio panel: press Play. You hear the selected wave for about a second, or until Stop with Loop on.",
+        .More = "Every sound is generated in code. The scope shows what the callback produced, so it moves even with "
+                "the volume down.",
+        .Priority = 70,
+        .Pane = Pane_None,
+        .Needs = Requires_Audio});
+    audio.Visuals.Append(
+        VisualCheck{.Name = "The pitch slider changes pitch",
+                    .Do = "Loop a sine and drag Pitch: the tone goes up and down smoothly, without clicks or gaps.",
+                    .More = "Pitch resamples the source: 2 is an octave up, 0.5 an octave down.",
+                    .Priority = 71,
+                    .Pane = Pane_None,
+                    .Needs = Requires_Audio});
+    audio.Visuals.Append(
+        VisualCheck{.Name = "The pan slider moves the sound between channels",
+                    .Do = "Loop a tone and drag Pan from -1 to 1: it moves from the left speaker to the right one.",
+                    .More = "Pan applies to sources without spatialization. Headphones make it obvious.",
+                    .Priority = 72,
+                    .Pane = Pane_None,
+                    .Needs = Requires_Audio});
+    audio.Visuals.Append(VisualCheck{
+        .Name = "The spatial source moves around you",
+        .Do = "Start the 2D orbit, then the 3D orbit: the beeps circle you, left and right, louder when near.",
+        .More = "In 2D the source circles the listener at the 2D gallery's center. In 3D the listener is the 3D "
+                "camera: move it and the beeps keep circling it.",
+        .Priority = 73,
+        .Pane = Pane_None,
+        .Needs = Requires_Audio});
+#endif
+
+    Category &resources = app.Categories[Category_Resources];
+    resources.Title = "Resources";
+    resources.Summary = "Default resources, materials, fonts, pools";
+    resources.Concepts =
+        "Meshes, fonts, materials, samplers, images and textures are referred to by handles (Onyx::Resource). Unlike "
+        "raw Graphite handles, they are bound and ready to use: give a handle to a context or a material and it just "
+        "works. Meshes and fonts are grouped in pools. Registering a resource only records it: Resources_Sync uploads "
+        "everything pending to the GPU, so sync after a batch of registrations.";
+    resources.Check = checkResources;
+    resources.Panel = panelResources;
+
+    Category &toolkit = app.Categories[Category_Toolkit];
+    toolkit.Title = "Toolkit and math";
+    toolkit.Summary = "Tensors, quaternions, transforms, colors, containers, time";
+    toolkit.Concepts =
+        "Toolkit (TKit) is the foundation: tensors (vectors, matrices) and quaternions, containers with explicit "
+        "allocation strategies (static, stack, arena, tier), timing, logging and multiprocessing. Onyx adds Transform "
+        "(composition and decomposition of translation, scale and rotation) and Color on top. These checks run every "
+        "frame on fixed inputs, so a failure here is a math or container regression, not a rendering issue.";
+    toolkit.Check = checkToolkit;
+    toolkit.Panel = panelToolkit;
+
+    Category &platform = app.Categories[Category_Platform];
+    platform.Title = "Platform and device";
+    platform.Summary = "Monitors, window properties, swapchain, GPU, scenarios";
+    platform.Concepts =
+        "Graphite (Graph) is the layer between Onyx and the system: a platform backend (GLFW) for windows, monitors "
+        "and input, and a render backend (Vulkan) for devices, swapchains, pipelines and resources. Onyx windows wrap "
+        "a Graphite window and own its swapchain. Changing the present mode or the size recreates the swapchain.";
+    platform.Check = checkPlatform;
+    platform.Panel = panelPlatform;
+
+    app.LoadedVerdicts = loadVerdicts(app.Categories);
+}
+
+// =====================================================================================================================
+//  12. MAIN LOOP
 // =====================================================================================================================
 
 int main()
 {
-    Onyx::Initialize({.Platform = DemoPlatform});
+    Onyx::Initialize({.Platform = DemoPlatform, .MaxImages = 512});
     Onyx::Resources_CreateDefault();
 
     App app{};
     setup(app);
+    setLayout(app, Mode_Direct);
+    setupCategories(app);
+#ifdef ONYX_ENABLE_AUDIO
+    setupAudio(app);
+#endif
 
     while (Onyx::Running())
     {
@@ -2594,9 +5336,19 @@ int main()
         app.Time += app.DeltaTime;
         app.FrameTimes[app.FrameTimeHead] = app.DeltaTime;
         app.FrameTimeHead = (app.FrameTimeHead + 1) % app.FrameTimes.GetSize();
+        trackFramebuffers(app);
 
+        // a layout change asked for last frame applies before anything is drawn, so the whole frame is consistent
+        if (app.RequestedMode != app.Mode)
+            setLayout(app, app.RequestedMode);
+        updatePanes(app);
         processEvents(app);
         controlCameras(app);
+        updateLab(app);
+        runScenarios(app);
+#ifdef ONYX_ENABLE_AUDIO
+        updateAudio(app);
+#endif
 
         // the scene is recorded before the checks, so checks that inspect recorded state (lights) see this frame
         drawScene(app);

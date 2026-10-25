@@ -62,7 +62,7 @@ f32v4 mainFS(const FragInput input) : SV_Target
         if (stencil > cstencil)
         {
             const f32v4 outl = outlines.Sample(offUv);
-            width = u32(outl.a * f32(maxWidth));
+            width = u32(outl.a * f32(maxWidth) + 0.5);
             outline = outl.rgb;
             break;
         }

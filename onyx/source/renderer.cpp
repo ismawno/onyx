@@ -538,7 +538,7 @@ static void createShaders()
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = shaderFromBinary(g_ShaderBinaryData.Blend);
     s_LayoutData->Standalone[StandalonePass_Outline].Shader = shaderFromBinary(g_ShaderBinaryData.Outline);
-    s_LayoutData->Standalone[StandalonePass_FXAA].Shader = shaderFromBinary(g_ShaderBinaryData.FXAA);
+    s_LayoutData->Standalone[StandalonePass_FXAA].Shader = shaderFromBinary(g_ShaderBinaryData.Fxaa);
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader = shaderFromBinary(g_ShaderBinaryData.Compositor);
 #endif
 }
