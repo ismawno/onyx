@@ -84,7 +84,7 @@ namespace Math = TKit::Math;
 
 // force a platform backend here if you need to (Graph::Platform_Wayland, Graph::Platform_X11). it matters for DPI work,
 // because each backend reports screen coordinates differently
-constexpr Graph::Platform DemoPlatform = Graph::Platform_Wayland;
+constexpr Graph::Platform DemoPlatform = Graph::Platform_Auto;
 
 constexpr u32v2 InitialWindowSize{1600, 900};
 constexpr u32v2 RenderTextureSize{160, 160};
