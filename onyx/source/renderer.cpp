@@ -1532,31 +1532,6 @@ template <typename T> static T cascadeLerp(const T mn, const T mx, const f32 t, 
     return Math::LinearLerp(ln, lg, lambda);
 }
 
-static TKit::FixedArray<CascadeData, ONYX_3D_MAX_CASCADES> createCascades(const f32v3 &dir, const u32 count,
-                                                                          const f32 lambda, const f32 overlap,
-                                                                          const FixedCascadeParameters &params)
-{
-    TKIT_ASSERT(count <= ONYX_3D_MAX_CASCADES, "[ONYX] The maximum amount of cascades is {}", ONYX_3D_MAX_CASCADES);
-    TKit::FixedArray<CascadeData, ONYX_3D_MAX_CASCADES> cascades;
-
-    for (u32 i = 0; i < count; ++i)
-    {
-        CascadeData &c = cascades[i];
-        const f32 t = f32(i + 1) / f32(count);
-
-        const f32 width = cascadeLerp(params.MinSize, params.MaxSize, t, lambda);
-
-        const f32m4 proj = Transform<D3>::Orthographic(-width, width, -width, width, params.Near, params.Far);
-        const f32m4 view = Transform<D3>::LookTowards(params.ViewPosition, dir);
-        c.ProjectionView = PackTransform<D3>(proj * view);
-
-        c.InvSize = 0.5f * f32v2{proj[0][0], proj[1][1]};
-        c.DepthRange = params.Far - params.Near;
-        c.Split = width * (1.f + overlap);
-    }
-    return cascades;
-}
-
 static TKit::FixedArray8<f32v4> getCameraCorners(const f32m4 &pv)
 {
     const f32m4 ipv = Math::Inverse(pv);
@@ -1691,13 +1666,11 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
                 c.Count != 0,
                 "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
 
-            data.CascadeEnable = (1U << ONYX_3D_MAX_CASCADES) - 1;
-            const TKit::FixedArray<CascadeData, ONYX_3D_MAX_CASCADES> cascades =
-                c.View ? createCascades(dir, c.View, data.Offset, params.Extent, c.Count, c.FittedParameters.ZMul,
-                                        c.Lambda, c.Overlap, data.CascadeEnable)
-                       : createCascades(dir, c.Count, c.Lambda, c.Overlap, c.FixedParameters);
+            TKIT_ASSERT(c.View, "[ONYX][RENDERER] A view must be specified when using directional light shadows");
 
-            data.Cascades = cascades;
+            data.CascadeEnable = (1U << ONYX_3D_MAX_CASCADES) - 1;
+            data.Cascades = createCascades(dir, c.View, data.Offset, params.Extent, c.Count, c.ZMul, c.Lambda,
+                                           c.Overlap, data.CascadeEnable);
             data.CascadeCount = c.Count;
         }
         data.Direction = dir;

@@ -179,7 +179,9 @@ template <> struct DirectionalLightData<D3>
     u32 Color;
     u32 ShadowMapOffset;
     u32 CascadeCount;
+    // a bit mask denoting what cascades are enabled
     u32 CascadeEnable;
+    //
     ViewMask ViewMask;
     LightFlags Flags;
 };

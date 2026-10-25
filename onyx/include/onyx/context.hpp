@@ -59,26 +59,11 @@ constexpr TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> CreateDepthBias(const f32 
     return bias;
 }
 
-struct FixedCascadeParameters
-{
-    f32v3 ViewPosition{1.f};
-    f32 MinSize = 6.f;
-    f32 MaxSize = 12.f;
-    f32 Near = -3.f;
-    f32 Far = 3.f;
-};
-
-struct FittedCascadeParameters
-{
-    f32 ZMul = 3.f;
-};
-
 struct ShadowCascadeParameters
 {
-    const RenderView<D3> *View = nullptr; // if null, will use fixed cascades. if populated, will use fitted
+    const RenderView<D3> *View = nullptr;
     TKit::FixedArray<f32, ONYX_3D_MAX_CASCADES> DepthBias = CreateDepthBias(0.001f, 0.007f);
-    FixedCascadeParameters FixedParameters{};
-    FittedCascadeParameters FittedParameters{};
+    f32 ZMul = 3.f;
     f32 Overlap = 0.f;
     f32 Lambda = 0.8f;
     u32 Count = ONYX_3D_MAX_CASCADES;
