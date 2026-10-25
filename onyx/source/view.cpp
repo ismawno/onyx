@@ -94,7 +94,7 @@ RenderView<D>::RenderView(const u32v2 &size, const f32v2 &contentScale, Camera<D
 
     m_BlendSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Blend));
     m_OutlineSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Outline));
-    m_FxaaSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Fxaa));
+    m_FXAASet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_FXAA));
     m_CompositorSet = Graph::DescriptorSet_Create(GetDescriptorLayout(StandalonePass_Compositor));
 
     if (Graph::IsValidationEnabled())
@@ -117,7 +117,7 @@ template <Dimension D> RenderView<D>::~RenderView()
 
     Graph::DescriptorSet_Destroy(m_BlendSet);
     Graph::DescriptorSet_Destroy(m_OutlineSet);
-    Graph::DescriptorSet_Destroy(m_FxaaSet);
+    Graph::DescriptorSet_Destroy(m_FXAASet);
     Graph::DescriptorSet_Destroy(m_CompositorSet);
 
     destroyFramebuffers();
@@ -139,7 +139,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
 
     const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool outlines = m_Flags & RenderViewFlag_Outlines;
-    const bool fxaa = m_Flags & RenderViewFlag_AntiAliasingFxaa;
+    const bool fxaa = m_Flags & RenderViewFlag_FXAA;
     TKit::FixedArray<bool, AttachmentRole_Count> mustCreate{true, true, true, true, transparency, transparency, fxaa};
 
     u32 pingPong = 0;
@@ -191,7 +191,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             const Graph::DescriptorImageInfo color = Graph::DescriptorImageInfo::Create(
                 Graph::Image_GetView(fb.Attachments[s_ColorAtts[++pingPong & 1]], 1), layout, linearSampler);
 
-            Graph::DescriptorSet_Write(m_FxaaSet, ONYX_FXAA_PASS_COLOR_ATTACHMENTS_BINDING, color, i);
+            Graph::DescriptorSet_Write(m_FXAASet, ONYX_FXAA_PASS_COLOR_ATTACHMENTS_BINDING, color, i);
         }
 
         // view 1 is the linear format view, created in createAttachment()
@@ -209,7 +209,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             names[AttachmentRole_DepthStencil] = TKit::StackString::Format("onyx-depth-stencil-att-{}", i);
             names[AttachmentRole_Accumulation] = TKit::StackString::Format("onyx-transparent-att-{}", i);
             names[AttachmentRole_Revealage] = TKit::StackString::Format("onyx-revealage-att-{}", i);
-            names[AttachmentRole_Fxaa] = TKit::StackString::Format("onyx-fxaa-att-{}", i);
+            names[AttachmentRole_FXAA] = TKit::StackString::Format("onyx-fxaa-att-{}", i);
             for (u32 j = 0; j < AttachmentRole_Count; ++j)
                 if (fb.Attachments[j] != Graph::NullHandle)
                 {
@@ -530,9 +530,9 @@ template <Dimension D> void RenderView<D>::EndOutlinePass(const Graph::CommandBu
     Graph::Command_ImageBarrier(cmd, barrier);
 }
 
-template <Dimension D> void RenderView<D>::BeginFxaaPass(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginFXAAPass(const Graph::CommandBuffer cmd)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::View::BeginFxaaPass");
+    TKIT_PROFILE_NSCOPE("Onyx::View::BeginFXAAPass");
 
     m_PingPong = (m_PingPong + 1) & 1;
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
@@ -548,9 +548,9 @@ template <Dimension D> void RenderView<D>::BeginFxaaPass(const Graph::CommandBuf
     beginRendering(cmd, color, nullptr, GetImageExtent(), m_Scissor, m_ContentScale);
 }
 
-template <Dimension D> void RenderView<D>::EndFxaaPass(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffer cmd)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::View::EndFxaaPass");
+    TKIT_PROFILE_NSCOPE("Onyx::View::EndFXAAPass");
 
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 

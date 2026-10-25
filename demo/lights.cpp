@@ -22,11 +22,11 @@ int main()
 
     Onyx::Window *win = Onyx::OpenWindow();
 
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_AntiAliasingFxaa;
+    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_FXAA;
 
     Onyx::Camera<D2> cam2{};
     Onyx::RenderView<D2> *view2 =
-        win->CreateRenderView<D2>(&cam2, {.AntiAliasingMode = Onyx::AntiAliasingFxaa_QualityHigh, .Flags = vflags});
+        win->CreateRenderView<D2>(&cam2, {.AntiAliasingMode = Onyx::FXAA_QualityHigh, .Flags = vflags});
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
 
     cam2.OrthoParameters.Size = 10.f;

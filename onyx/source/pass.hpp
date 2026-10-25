@@ -25,7 +25,7 @@ enum StandalonePass : u8
     StandalonePass_RayMarch,
     StandalonePass_Blend,
     StandalonePass_Outline,
-    StandalonePass_Fxaa,
+    StandalonePass_FXAA,
     StandalonePass_Compositor,
     StandalonePass_Count,
 };

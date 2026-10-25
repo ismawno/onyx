@@ -57,11 +57,11 @@ template <> struct ViewInfo<D3>
 
 enum AntiAliasing : u8
 {
-    AntiAliasingFxaa_Fast,
-    AntiAliasingFxaa_Console,
-    AntiAliasingFxaa_QualityLow,
-    AntiAliasingFxaa_QualityMedium,
-    AntiAliasingFxaa_QualityHigh,
+    FXAA_Fast,
+    FXAA_Console,
+    FXAA_QualityLow,
+    FXAA_QualityMedium,
+    FXAA_QualityHigh,
 };
 
 using RenderViewFlags = u16;
@@ -71,7 +71,7 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Outlines = 1U << 1,
     RenderViewFlag_Transparency = 1U << 2,
     RenderViewFlag_ManualProjectionView = 1U << 3,
-    RenderViewFlag_AntiAliasingFxaa = 1U << 4,
+    RenderViewFlag_FXAA = 1U << 4,
     RenderViewFlag_Hidden = 1U << 5,
 };
 
@@ -87,7 +87,7 @@ struct RenderViewSpecs
     SizingPolicy ViewportSizing = SizingPolicy_Proportional;
     SizingPolicy ScissorSizing = SizingPolicy_Proportional;
     SizingPolicy ImageSizing = SizingPolicy_Proportional;
-    AntiAliasing AntiAliasingMode = AntiAliasingFxaa_QualityMedium;
+    AntiAliasing AntiAliasingMode = FXAA_QualityMedium;
     RenderViewFlags Flags = 0;
 };
 
@@ -141,8 +141,8 @@ template <Dimension D> class RenderView
     void BeginOutlinePass(Graph::CommandBuffer cmd);
     void EndOutlinePass(Graph::CommandBuffer cmd);
 
-    void BeginFxaaPass(Graph::CommandBuffer cmd);
-    void EndFxaaPass(Graph::CommandBuffer cmd);
+    void BeginFXAAPass(Graph::CommandBuffer cmd);
+    void EndFXAAPass(Graph::CommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const;
 
@@ -329,9 +329,9 @@ template <Dimension D> class RenderView
     {
         return m_OutlineSet;
     }
-    Graph::DescriptorSet GetFxaaSet() const
+    Graph::DescriptorSet GetFXAASet() const
     {
-        return m_FxaaSet;
+        return m_FXAASet;
     }
     Graph::DescriptorSet GetCompositorSet() const
     {
@@ -444,7 +444,7 @@ template <Dimension D> class RenderView
     TKit::TierArray<Framebuffer> m_Framebuffers{};
     Graph::DescriptorSet m_BlendSet;
     Graph::DescriptorSet m_OutlineSet;
-    Graph::DescriptorSet m_FxaaSet;
+    Graph::DescriptorSet m_FXAASet;
     Graph::DescriptorSet m_CompositorSet;
 
     u32 m_AttachmentIndex = TKIT_U32_MAX;

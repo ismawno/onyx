@@ -246,10 +246,10 @@ struct OutlinePushConstantData
     u32 MaxOutlineWidth;
 };
 
-struct FxaaPushConstantData
+struct FXAAPushConstantData
 {
     u32 AttachmentIndex;
-    // value equivalent to AntiAliasingFxaa in view.hpp
+    // value equivalent to FXAA in view.hpp
     u32 Mode;
 };
 

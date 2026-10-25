@@ -82,7 +82,7 @@ enum AttachmentRole : u8
     AttachmentRole_DepthStencil,
     AttachmentRole_Accumulation,
     AttachmentRole_Revealage,
-    AttachmentRole_Fxaa,
+    AttachmentRole_FXAA,
     AttachmentRole_Count,
 };
 

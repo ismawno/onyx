@@ -270,7 +270,7 @@ static void createDescriptorData()
     constexpr Binding fxaa[] = {Binding::Create(ONYX_FXAA_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment,
                                                 ONYX_MAX_ATTACHMENTS, pbound | updateAfterBind)};
 
-    s_DescriptorData->StandaloneLayouts[StandalonePass_Fxaa] = Graph::DescriptorSetLayout_Create(fxaa);
+    s_DescriptorData->StandaloneLayouts[StandalonePass_FXAA] = Graph::DescriptorSetLayout_Create(fxaa);
 
     constexpr Binding compositor[] = {
         Binding::Create(ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
@@ -293,7 +293,7 @@ static void createDescriptorData()
                                            "onyx-blend-descriptor-set-layout");
         Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Outline],
                                            "onyx-outline-descriptor-set-layout");
-        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Fxaa],
+        Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_FXAA],
                                            "onyx-fxaa-descriptor-set-layout");
         Graph::DescriptorSetLayout_SetName(s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor],
                                            "onyx-compositor-descriptor-set-layout");

@@ -120380,7 +120380,7 @@ struct ShaderBinaryData
     ShaderBinary Blend;
     ShaderBinary Compositor;
     ShaderBinary Outline;
-    ShaderBinary Fxaa;
+    ShaderBinary FXAA;
     ShaderBinary FullVertex;
     ShaderBinary RayMarch;
 };
@@ -120553,8 +120553,8 @@ inline void InitializeBinaries()
     g_ShaderBinaryData.Compositor.Count = compositor_spv_len;
     g_ShaderBinaryData.Outline.Code = outline_spv;
     g_ShaderBinaryData.Outline.Count = outline_spv_len;
-    g_ShaderBinaryData.Fxaa.Code = fxaa_spv;
-    g_ShaderBinaryData.Fxaa.Count = fxaa_spv_len;
+    g_ShaderBinaryData.FXAA.Code = fxaa_spv;
+    g_ShaderBinaryData.FXAA.Count = fxaa_spv_len;
     g_ShaderBinaryData.FullVertex.Code = full_vertex_spv;
     g_ShaderBinaryData.FullVertex.Count = full_vertex_spv_len;
     g_ShaderBinaryData.RayMarch.Code = ray_march_spv;

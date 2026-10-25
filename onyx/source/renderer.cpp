@@ -351,8 +351,8 @@ static void createPipelineLayouts()
     s_LayoutData->Standalone[StandalonePass_Outline].Layout =
         create(GetDescriptorLayout(StandalonePass_Outline), fragment, sizeof(OutlinePushConstantData));
 
-    s_LayoutData->Standalone[StandalonePass_Fxaa].Layout =
-        create(GetDescriptorLayout(StandalonePass_Fxaa), fragment, sizeof(FxaaPushConstantData));
+    s_LayoutData->Standalone[StandalonePass_FXAA].Layout =
+        create(GetDescriptorLayout(StandalonePass_FXAA), fragment, sizeof(FXAAPushConstantData));
 
     s_LayoutData->Standalone[StandalonePass_Compositor].Layout =
         create(GetDescriptorLayout(StandalonePass_Compositor), fragment, sizeof(CompositorPushConstantData));
@@ -537,7 +537,7 @@ static void createShaders()
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = shaderFromBinary(g_ShaderBinaryData.Blend);
     s_LayoutData->Standalone[StandalonePass_Outline].Shader = shaderFromBinary(g_ShaderBinaryData.Outline);
-    s_LayoutData->Standalone[StandalonePass_Fxaa].Shader = shaderFromBinary(g_ShaderBinaryData.Fxaa);
+    s_LayoutData->Standalone[StandalonePass_FXAA].Shader = shaderFromBinary(g_ShaderBinaryData.FXAA);
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader = shaderFromBinary(g_ShaderBinaryData.Compositor);
 #endif
 }
@@ -860,7 +860,7 @@ static Graph::Pipeline createStandalonePassPipeline(const StandalonePass pass)
     }
     case StandalonePass_Outline:
         return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_SrgbColor)});
-    case StandalonePass_Fxaa:
+    case StandalonePass_FXAA:
         return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_LinearColor)});
     case StandalonePass_Compositor: {
         Graph::ColorAttachment attachment{};
@@ -1007,7 +1007,7 @@ static void createPipelines()
         Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_RayMarch], "onyx-blend-ray-march");
         Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Blend], "onyx-blend-pipeline");
         Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Outline], "onyx-outline-pipeline");
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Fxaa], "onyx-fxaa-pipeline");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_FXAA], "onyx-fxaa-pipeline");
         Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Compositor], "onyx-compositor-pipeline");
     }
 
@@ -2503,7 +2503,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
             continue;
         if (flags & RenderViewFlag_Outlines)
             outlineViews.Append(rv);
-        if (flags & RenderViewFlag_AntiAliasingFxaa)
+        if (flags & RenderViewFlag_FXAA)
             fxaaViews.Append(rv);
 
         const bool shadows = flags & RenderViewFlag_Shadows;
@@ -2576,13 +2576,13 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
 
     if (!fxaaViews.IsEmpty())
     {
-        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Fxaa);
+        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_FXAA);
         for (RenderView<D> *rv : fxaaViews)
         {
-            rv->BeginFxaaPass(cmd);
-            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Fxaa]);
+            rv->BeginFXAAPass(cmd);
+            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_FXAA]);
 
-            const Graph::DescriptorSet set = rv->GetFxaaSet();
+            const Graph::DescriptorSet set = rv->GetFXAASet();
             Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 
             const u32 attIdx = rv->GetAttachmentIndex();
@@ -2590,13 +2590,13 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
                         "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})", attIdx,
                         ONYX_MAX_ATTACHMENTS);
 
-            FxaaPushConstantData pdata;
+            FXAAPushConstantData pdata;
             pdata.AttachmentIndex = attIdx;
             pdata.Mode = rv->AntiAliasingMode;
             Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);
             Graph::Command_Draw(cmd, 6);
 
-            rv->EndFxaaPass(cmd);
+            rv->EndFXAAPass(cmd);
         }
     }
 }
