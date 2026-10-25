@@ -307,6 +307,11 @@ template <> struct Transform<D3> : ITransform<D3>
      */
     static Transform Extract(const f32m4 &transform);
 
+    static f32v3 GetUpDirection(const f32v3 &direction)
+    {
+        return Math::Absolute(direction[1]) < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+    }
+
     static f32m2x3 CreateOrthogonalBase(const f32v3 &direction, const f32v3 &up)
     {
         const f32v3 t1 = Math::Normalize(Math::Cross(up, direction));
@@ -315,8 +320,7 @@ template <> struct Transform<D3> : ITransform<D3>
     }
     static f32m2x3 CreateOrthogonalBase(const f32v3 &direction)
     {
-        const f32v3 up = direction[1] < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
-        return CreateOrthogonalBase(direction, up);
+        return CreateOrthogonalBase(direction, GetUpDirection(direction));
     }
 
     static f32m4 LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f})

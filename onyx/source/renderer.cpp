@@ -1591,7 +1591,8 @@ static TKit::FixedArray<CascadeData, ONYX_3D_MAX_CASCADES> createCascades(const 
             center += f32v3{corners[j]};
         center /= 8.f;
 
-        const f32m4 view = Transform<D3>::LookTowards(center, dir);
+        const f32v3 up = Math::Normalize(Math::Cross(Transform<D3>::GetUpDirection(dir), dir));
+        const f32m4 view = Transform<D3>::LookTowards(center, dir, up);
         f32v3 min{TKIT_F32_MAX};
         f32v3 max{TKIT_F32_MIN};
         for (const f32v4 &cr : corners)
@@ -1711,7 +1712,8 @@ SpotLightData createLightData(const ViewMask vmask, const u32 shadowMapOffset, c
     data.Far = far;
 
     const f32m4 proj = Transform<D3>::Perspective(params.FieldOfView, near, far);
-    const f32m4 view = Transform<D3>::LookTowards(params.Position, data.Direction);
+    const f32v3 up = Math::Normalize(Math::Cross(Transform<D3>::GetUpDirection(data.Direction), data.Direction));
+    const f32m4 view = Transform<D3>::LookTowards(params.Position, data.Direction, up);
 
     data.ProjectionView = proj * view;
     data.ShadowInvSize = 0.5f * Math::Absolute(f32v2{proj[0][0], proj[1][1]});
