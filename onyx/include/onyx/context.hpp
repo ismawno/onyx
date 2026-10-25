@@ -19,8 +19,11 @@ template <> struct PointLightParameters<D3>
     using InstanceData = PointLightData<D3>;
     f32v3 Position = f32v3{0.f};
     Color Tint = Color_White;
+    // light size for soft shadows
     f32 LightSize = 0.01f;
+    // the light radius: how much does it reach
     f32 LightRadius = 1.f;
+    // how far shadows are casted
     f32 ShadowRadius = 4.f;
     f32 Intensity = 0.8f;
     f32 DepthBias = 0.001f;
@@ -32,8 +35,11 @@ template <> struct PointLightParameters<D2>
     using InstanceData = PointLightData<D2>;
     f32v2 Position = f32v2{0.f};
     Color Tint = Color_White;
+    // light size for soft shadows
     f32 LightSize = 0.01f;
+    // the light radius: how much does it reach
     f32 LightRadius = 1.f;
+    // how far shadows are casted
     f32 ShadowRadius = 4.f;
     f32 Angle = 0.f;  // from -pi to pi, otherwise shadows wont work
     f32 Decay = 0.f;  // must be between 0 and 1
