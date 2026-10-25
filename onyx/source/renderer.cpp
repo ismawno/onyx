@@ -24,11 +24,6 @@
 #    endif
 #endif
 
-// TODO(Isma): Remove all kinds of constexpr max etc. at least have them controlled
-// TODO(Isma): InstanceDataBuffer and InstanceBuffer are too close a name
-// TODO(Isma): Remove places where im doing stupid resizes that could be solved by just allocating a big enough chunk at
-// the beginning
-
 namespace Onyx
 {
 struct InstanceRange
@@ -49,7 +44,7 @@ struct InstanceRange
     BlendPass Blend = BlendPass_None;
 };
 
-struct InstanceBuffer
+struct InstanceDeviceBuffer
 {
     Graph::Buffer Buffer = Graph::NullHandle;
     TKit::TierArray<InstanceRange> Ranges{};
@@ -133,7 +128,7 @@ struct DrawCommandBuffer
 
 template <Dimension D> struct ResourceGroup
 {
-    TKit::FixedArray<InstanceBuffer, Geometry_Count> InstanceBuffers{};
+    TKit::FixedArray<InstanceDeviceBuffer, Geometry_Count> InstanceBuffers{};
     LightResources<D> LightData{};
 
     ten<Graph::DescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
@@ -1228,7 +1223,7 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
 
 template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &group)
 {
-    for (const InstanceBuffer &buff : group.InstanceBuffers)
+    for (const InstanceDeviceBuffer &buff : group.InstanceBuffers)
         Graph::Buffer_Destroy(buff.Buffer);
     group.LightData.Destroy();
 
@@ -1245,7 +1240,7 @@ template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
     ResourceGroup<D> *pending = nullptr;
 
     const auto reset = [](ResourceGroup<D> &group) {
-        for (InstanceBuffer &buff : group.InstanceBuffers)
+        for (InstanceDeviceBuffer &buff : group.InstanceBuffers)
             buff.Ranges.Clear();
         group.LightData.Reset();
         group.DrawBuffer.Offset = 0;
@@ -1787,17 +1782,17 @@ template <Dimension D> static void transfer()
     for (u32 bpass = 0; bpass < BlendPass_Count; ++bpass)
         for (u32 rmode = 0; rmode < RenderMode_Count; ++rmode)
         {
-            const auto copyInstanceData = [&](const Geometry geo, const InstanceDataBuffer &idata, const ViewMask vmask,
+            const auto copyInstanceData = [&](const Geometry geo, const InstanceHostBuffer &idata, const ViewMask vmask,
                                               const Resource handle = NullHandle) {
                 if (idata.Instances == 0)
                     return;
 
-                InstanceBuffer &buff = group->InstanceBuffers[geo];
+                InstanceDeviceBuffer &buff = group->InstanceBuffers[geo];
                 InstanceRange &range = buff.Ranges.Append();
                 range.Blend = BlendPass(bpass);
                 range.Offset = offsets[geo];
                 range.RenderFlags = GetRenderModeFlags(RenderMode(rmode));
-                range.Size = idata.Instances * idata.InstanceSize;
+                range.Size = idata.Instances * GetInstanceSize<D>(geo);
                 range.ViewMask = vmask;
                 range.MeshHandle = handle;
                 if (handle != NullHandle && Handle_GetResourceType(handle) == Resource_DynamicMesh)

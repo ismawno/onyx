@@ -10,15 +10,8 @@ namespace Onyx
 {
 using namespace Detail;
 
-template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpecs &specs) : m_Specs(specs)
+template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpecs &specs)
 {
-    for (InstanceDataBuffer &buffer : m_InstanceData.Circles)
-    {
-        if (specs.MaxInstances[Geometry_Circle] != 0)
-            buffer.Data = Buffer::Create<CircleInstanceData<D>>(specs.MaxInstances[Geometry_Circle]);
-        buffer.InstanceSize = sizeof(CircleInstanceData<D>);
-    }
-
     acommodateResourceIds();
     m_DefaultResources = Resources_GetDefault();
 
@@ -35,15 +28,15 @@ template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpec
 }
 template <Dimension D> IRenderContext<D>::~IRenderContext()
 {
-    for (InstanceDataBuffer &buffer : m_InstanceData.Circles)
+    for (InstanceHostBuffer &buffer : m_InstanceData.Circles)
         buffer.Data.Destroy();
 
     for (InstanceResourceGroup &group : m_InstanceData.DynamicMeshes)
-        for (InstanceDataBuffer &buffer : group.Buffers)
+        for (InstanceHostBuffer &buffer : group.Buffers)
             buffer.Data.Destroy();
 
     for (InstanceResourceGroup &group : m_InstanceData.Meshes)
-        for (InstanceDataBuffer &buffer : group.Buffers)
+        for (InstanceHostBuffer &buffer : group.Buffers)
             buffer.Data.Destroy();
 
     for (const Resource handle : m_ImmediateDynamicMeshes)
@@ -74,7 +67,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
         InstanceResourceGroup &dgroup = m_InstanceData.DynamicMeshes[bpass][rmode];
         dgroup.Registry.Clear();
-        for (InstanceDataBuffer &buffer : dgroup.Buffers)
+        for (InstanceHostBuffer &buffer : dgroup.Buffers)
             buffer.Instances = 0;
 
         for (u32 j = 0; j < Resource_MeshPoolCount; ++j)
@@ -87,7 +80,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
             {
                 InstanceResourceGroup &group = ipools[pid];
                 group.Registry.Clear();
-                for (InstanceDataBuffer &buffer : group.Buffers)
+                for (InstanceHostBuffer &buffer : group.Buffers)
                     buffer.Instances = 0;
             }
         }
@@ -350,55 +343,24 @@ static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> &state
     return instanceData;
 }
 
-static Geometry getGeometry(const ResourceType rtype)
-{
-    switch (rtype)
-    {
-    case Resource_StaticMesh:
-        return Geometry_Static;
-    case Resource_ParametricMesh:
-        return Geometry_Parametric;
-    case Resource_GlyphMesh:
-        return Geometry_Glyph;
-    case Resource_DynamicMesh:
-        return Geometry_Dynamic;
-    default:
-        TKIT_FATAL("[ONYX][RENDERER] The resource type '{}' does not have a geometry associated", ToString(rtype));
-        return Geometry_Count;
-    }
-}
-
 // NOTE(Isma): For vertex geometry it is important that *creating new vertex/index arrays* triggers this function
 // through a FlushAllContexts. meaning creating them requires a Sync() call.
 template <Dimension D> void IRenderContext<D>::acommodateResourceIds()
 {
-    const auto resize = [this](const ResourceType rtype, InstanceResourceGroup &group, const u32 ncount) {
-        const u32 count = group.Buffers.GetSize();
-        group.Registry.ResourceIds.Reserve(ncount);
-        for (u32 k = count; k < ncount; ++k)
-        {
-            InstanceDataBuffer &buffer = group.Buffers.Append();
-            const Geometry geo = getGeometry(rtype);
-            const u32 isize = GetInstanceSize<D>(geo);
-            if (m_Specs.MaxInstances[geo] != 0)
-                buffer.Data = Buffer{isize * m_Specs.MaxInstances[geo]};
-            buffer.InstanceSize = isize;
-            buffer.Instances = 0;
-        }
-    };
-
     ForEachResourceGroup<D>([&](const u32 bpass, const u32 rmode, const u32 mtype, const u32 pid) {
         InstanceResourceGroup &group = m_InstanceData.Meshes[bpass][rmode][mtype][pid];
         const ResourceType rtype = ResourceType(mtype);
 
         const u32 ncount = ResourcePool_GetResourceCount<D>(Handle_CreateForResourcePool(rtype, pid));
-        resize(rtype, group, ncount);
+        group.Registry.ResourceIds.Reserve(ncount);
+        group.Buffers.Resize(ncount);
     });
 
     m_InstanceData.DynamicMeshes.IterateMultiIndex([&](const u32 bpass, const u32 rmode) {
         InstanceResourceGroup &group = m_InstanceData.DynamicMeshes[bpass][rmode];
         const u32 ncount = DynamicMesh_GetCount<D>();
-        resize(Resource_DynamicMesh, group, ncount);
+        group.Registry.ResourceIds.Reserve(ncount);
+        group.Buffers.Resize(ncount);
     });
 }
 
@@ -472,12 +434,33 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
     }
     return ClipRect<D>{mn, mx};
 }
+// template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &buffer)
+// {
+//     if (buffer.Instances > buffer.Capacity)
+//     {
+//         const u32 ninst = GrowCapacity(buffer.Instances);
+//         buffer.Data.Resize(ninst * buffer.InstanceSize);
+//         buffer.Capacity = ninst;
+//     }
+// }
+//
+// template <Dimension D>
+// template <typename T>
+// void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
+// {
+//     const u32 index = buffer.Instances++;
+//     resizeBuffer(buffer);
+//     buffer.Data.Write(&data, {.srcOffset = 0, .dstOffset = index * sizeof(T), .size = sizeof(T)});
+// }
 
-template <typename T> static void addInstanceData(InstanceDataBuffer &buffer, const T &data)
+template <typename T> static void addInstanceData(InstanceHostBuffer &buffer, const T &data)
 {
-    TKIT_ASSERT(
-        buffer.Data.GetData(),
-        "[ONYX][CONTEXT] Attempting to add instance data for an instance type that had .MaxInstances = 0 in the specs");
+    if (buffer.Instances == buffer.Capacity)
+    {
+        const u32 ninst = TKit::ArrayGrowthFactor(buffer.Instances);
+        buffer.Data.Resize(ninst * sizeof(T));
+        buffer.Capacity = ninst;
+    }
     buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = buffer.Instances++ * sizeof(T)});
 }
 
@@ -486,7 +469,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     if (!m_State.RenderFlags)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData.Circles[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
+    InstanceHostBuffer &buffer = m_InstanceData.Circles[m_State.Blend][GetRenderMode(m_State.RenderFlags)];
     addInstanceData(buffer, idata);
 }
 

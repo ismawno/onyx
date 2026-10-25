@@ -746,38 +746,25 @@ void setup(App &app)
 
     // -- render contexts --------------------------------------------------------------------------------------------
     // a context records draw commands. it can target any number of views, of any render target.
-    // instance buffers are preallocated for every (blend pass, render mode, resource) combination: 2 x 5 buffers per
-    // glyph of every font, each holding MaxInstances instances. scene text here is short, so the glyph limit is kept
-    // small to avoid paying for ~100 glyphs x 10 buffers x 1000 instances in every context
-    Onyx::RenderContextSpecs sceneSpecs{};
-    sceneSpecs.MaxInstances[Onyx::Geometry_Glyph] = 64;
-    // the scratch context never draws, so it needs no instance memory at all (any accidental draw asserts loudly)
-    Onyx::RenderContextSpecs scratchSpecs{};
-    for (u32 &count : scratchSpecs.MaxInstances)
-        count = 0;
 
-    app.PixelCtx = Onyx::CreateRenderContext<D2>(sceneSpecs);
+    app.PixelCtx = Onyx::CreateRenderContext<D2>();
     app.PixelCtx->AddTarget(app.PixelView);
-    app.GalleryCtx = Onyx::CreateRenderContext<D2>(sceneSpecs);
+    app.GalleryCtx = Onyx::CreateRenderContext<D2>();
     app.GalleryCtx->AddTarget(app.GalleryView);
-    app.Ctx3 = Onyx::CreateRenderContext<D3>(sceneSpecs);
+    app.Ctx3 = Onyx::CreateRenderContext<D3>();
     app.Ctx3->AddTarget(app.View3);
-    app.LabelCtx = Onyx::CreateRenderContext<D2>(sceneSpecs);
+    app.LabelCtx = Onyx::CreateRenderContext<D2>();
     app.LabelCtx->AddTarget(app.Label3);
-    app.TexturesCtx = Onyx::CreateRenderContext<D2>(sceneSpecs);
+    app.TexturesCtx = Onyx::CreateRenderContext<D2>();
     app.TexturesCtx->AddTarget(app.TexturesView);
-    app.RtCtx = Onyx::CreateRenderContext<D2>(sceneSpecs);
+    app.RtCtx = Onyx::CreateRenderContext<D2>();
     app.RtCtx->AddTarget(app.RtScaledView);
     app.RtCtx->AddTarget(app.RtFixedView);
-    app.ScratchCtx = Onyx::CreateRenderContext<D2>(scratchSpecs);
+    app.ScratchCtx = Onyx::CreateRenderContext<D2>();
 
     // -- overlay ----------------------------------------------------------------------------------------------------
     // created last and explicitly brought to the top, so it is drawn above every scene view
-    // the overlay limit applies to each glyph separately. the panels here are text heavy, so raise it for glyphs.
-    // memory: ~100 glyphs x 10 buffers x 84 bytes x 3000 = ~250 MB of preallocated instance data (see the report)
-    Onyx::OverlaySpecs ospecs{.Flags = Onyx::OverlayFlag_Docking};
-    ospecs.Context.MaxInstances[Onyx::Geometry_Glyph] = 3000;
-    app.Ui = win->CreateOverlay(ospecs);
+    app.Ui = win->CreateOverlay();
     win->BringToTop(app.Ui->GetMainNativeWindow()->View);
 
     setupCategories(app);

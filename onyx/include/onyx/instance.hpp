@@ -135,18 +135,20 @@ template <> struct WorldRect<D3>
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
-class Buffer
+class HostBuffer
 {
   public:
-    Buffer() = default;
-    Buffer(const usz size, const usize alignment = alignof(std::max_align_t)) : m_Size(size), m_Alignment(alignment)
+    HostBuffer(const usize alignment = alignof(std::max_align_t)) : m_Alignment(alignment)
+    {
+    }
+    HostBuffer(const usz size, const usize alignment = alignof(std::max_align_t)) : m_Size(size), m_Alignment(alignment)
     {
         m_Data = TKit::AllocateAligned(size, alignment);
     }
 
-    template <typename T> static Buffer Create(const u32 instanceCount)
+    template <typename T> static HostBuffer Create(const u32 instanceCount)
     {
-        return Buffer(instanceCount * sizeof(T), alignof(T));
+        return HostBuffer(instanceCount * sizeof(T), alignof(T));
     }
 
     void Write(const void *data, const Graph::BufferCopy &copy)
@@ -178,8 +180,11 @@ class Buffer
     void Resize(const usz size)
     {
         void *data = TKit::AllocateAligned(size, m_Alignment);
-        TKit::ForwardCopy(data, m_Data, m_Size);
-        TKit::DeallocateAligned(m_Data);
+        if (m_Data)
+        {
+            TKit::ForwardCopy(data, m_Data, m_Size);
+            TKit::DeallocateAligned(m_Data);
+        }
         m_Data = data;
         m_Size = size;
     }
@@ -196,14 +201,14 @@ class Buffer
   private:
     void *m_Data = nullptr;
     usz m_Size = 0;
-    usize m_Alignment = 0;
+    usize m_Alignment;
 };
 
-struct InstanceDataBuffer
+struct InstanceHostBuffer
 {
-    Buffer Data{};
-    u32 InstanceSize = 0;
+    HostBuffer Data{};
     u32 Instances = 0;
+    u32 Capacity = 0;
 };
 
 struct LocalResourceRegistry
@@ -230,13 +235,13 @@ struct LocalResourceRegistry
 
 struct InstanceResourceGroup
 {
-    TKit::TierArray<InstanceDataBuffer> Buffers{};
+    TKit::TierArray<InstanceHostBuffer> Buffers{};
     LocalResourceRegistry Registry{};
 };
 
 struct ContextInstanceData
 {
-    ten<InstanceDataBuffer, BlendPass_Count, RenderMode_Count> Circles{};
+    ten<InstanceHostBuffer, BlendPass_Count, RenderMode_Count> Circles{};
     ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count> DynamicMeshes{};
     ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
         Meshes{};

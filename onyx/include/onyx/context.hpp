@@ -193,7 +193,6 @@ template <Dimension D> struct ContextState
 
 struct RenderContextSpecs
 {
-    TKit::FixedArray<u32, Geometry_Count> MaxInstances{};
     // parameter specifying how many dynamic mesh slots to preallocate. by default zero. if users
     // exceed (or the value was zero) when calling dynamic mesh, trigger an assert warning them. this is only a concern
     // for the most immediate API that lets the user to just provide some vertices/indices, because it requires a fresh
@@ -202,12 +201,6 @@ struct RenderContextSpecs
     // own handles, that is just fine and wont interfere with anything. for the immediate approach, store a counter that
     // increases that picks a different dynamic mesh
     u32 ImmediateDynamicMeshCapacity = 0;
-
-    RenderContextSpecs()
-    {
-        for (u32 &mi : MaxInstances)
-            mi = 1000;
-    }
 };
 
 // contexts must always be created by the same thread
@@ -831,7 +824,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
     TKit::TierArray<Resource> m_ImmediateDynamicMeshes{};
 
-    RenderContextSpecs m_Specs;
     Color m_AmbientLight = Color{Color_White, 0.4f};
     u32 m_DynamicMeshCounter = 0;
 };
