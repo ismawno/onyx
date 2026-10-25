@@ -68,7 +68,6 @@ using enum Graph::Mouse;
 using enum Graph::PresentMode;
 using enum Graph::MouseCursor;
 
-static constexpr Graph::Format SurfaceFormat = Graph::Format_B8G8R8A8_UNORM;
 enum ErrorCode : u8
 {
     Error_LoadFailed,

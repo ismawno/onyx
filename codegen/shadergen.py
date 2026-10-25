@@ -78,7 +78,7 @@ dims = ["2D", "3D"]
 geos = ["circle", "static", "parametric", "glyph", "dynamic"]
 passes = ["flat", "shaded", "shadow"]
 
-fshaders = ["blend", "compositor", "outline"]
+fshaders = ["blend", "compositor", "outline", "fxaa"]
 vshaders = ["full-vertex"]
 cshaders = ["ray-march"]
 standalone = fshaders + vshaders + cshaders

@@ -246,6 +246,13 @@ struct OutlinePushConstantData
     u32 MaxOutlineWidth;
 };
 
+struct FxaaPushConstantData
+{
+    u32 AttachmentIndex;
+    // value equivalent to AntiAliasingFxaa in view.hpp
+    u32 Mode;
+};
+
 template <Dimension D> struct ShadowPushConstantData
 {
     f32m4 LightProjection;

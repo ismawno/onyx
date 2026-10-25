@@ -73,33 +73,17 @@ constexpr RenderModeFlags GetRenderModeFlags(const RenderMode mode)
         return 0;
     }
 }
-enum AttachmentType : u8
+
+enum AttachmentRole : u8
 {
-    Attachment_Transparent,
-    Attachment_Revealage,
-    Attachment_Intermediate,
-    Attachment_Outline,
-    Attachment_DepthStencil,
-    Attachment_Final,
-    Attachment_Count,
+    AttachmentRole_Color0,
+    AttachmentRole_Color1,
+    AttachmentRole_OutlineColor,
+    AttachmentRole_DepthStencil,
+    AttachmentRole_Accumulation,
+    AttachmentRole_Revealage,
+    AttachmentRole_Fxaa,
+    AttachmentRole_Count,
 };
 
-constexpr Graph::Format GetAttachmentFormat(const AttachmentType atype)
-{
-    switch (atype)
-    {
-    case Attachment_Intermediate:
-    case Attachment_Outline:
-    case Attachment_Final:
-        return Graph::Format_B8G8R8A8_SRGB;
-    case Attachment_Transparent:
-        return Graph::Format_R16G16B16A16_SFLOAT;
-    case Attachment_Revealage:
-        return Graph::Format_R8_UNORM;
-    case Attachment_DepthStencil:
-        return Graph::Format_D32_SFLOAT_S8_UINT;
-    default:
-        return Graph::Format_Undefined;
-    }
-}
 } // namespace Onyx

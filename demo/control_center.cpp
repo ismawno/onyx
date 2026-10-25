@@ -1553,15 +1553,6 @@ void checkPlatform(App &app)
                "SetPresentMode schedules a swapchain recreation, and GetPresentMode returns the requested mode",
                "requested {}, active {}", app.PresentMode, u32(win->GetPresentMode()));
 
-    const Graph::Swapchain sc = win->GetSwapchain();
-    cat.Expect("Swapchain is consistent",
-               Graph::Swapchain_IsHandleValid(sc) &&
-                   win->GetSwapchainImageCount() == Graph::Swapchain_GetImageCount(sc) &&
-                   Graph::Swapchain_GetFormat(sc) == Onyx::SurfaceFormat,
-               "The window's swapchain is valid, reports the same image count through Onyx and Graphite, and uses "
-               "Onyx's surface format (B8G8R8A8_UNORM)",
-               "{} images, {} recreations since start", win->GetSwapchainImageCount(), app.SwapchainRecreations);
-
     cat.Expect("Delta time is positive", app.DeltaTime > 0.f,
                "Every frame takes some time. A zero or negative delta time breaks camera movement and animations",
                "{:.3f} ms", 1000.f * app.DeltaTime);

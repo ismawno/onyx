@@ -49,6 +49,7 @@ template <Dimension D>
 void Renderer_WriteSamplerDescriptor(u32 binding, Graph::Sampler sampler, RenderPass pass, u32 dstElement = 0);
 
 Graph::Sampler Renderer_GetNearSampler();
+Graph::Sampler Renderer_GetLinearSampler();
 
 // consider having arrays of semaphores to allow for some flexibility
 

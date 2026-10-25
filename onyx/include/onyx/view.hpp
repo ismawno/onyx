@@ -55,6 +55,15 @@ template <> struct ViewInfo<D3>
     ViewMask ViewBit;
 };
 
+enum AntiAliasing : u8
+{
+    AntiAliasingFxaa_Fast,
+    AntiAliasingFxaa_Console,
+    AntiAliasingFxaa_QualityLow,
+    AntiAliasingFxaa_QualityMedium,
+    AntiAliasingFxaa_QualityHigh,
+};
+
 using RenderViewFlags = u16;
 enum RenderViewFlagBit : RenderViewFlags
 {
@@ -62,13 +71,14 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Outlines = 1U << 1,
     RenderViewFlag_Transparency = 1U << 2,
     RenderViewFlag_ManualProjectionView = 1U << 3,
-    RenderViewFlag_Hidden = 1U << 4,
+    RenderViewFlag_AntiAliasingFxaa = 1U << 4,
+    RenderViewFlag_Hidden = 1U << 5,
 };
 
 struct Framebuffer
 {
     Graph::Tracker Tracker{};
-    TKit::FixedArray<Graph::Image, Attachment_Count> Attachments{};
+    TKit::FixedArray<Graph::Image, AttachmentRole_Count> Attachments{};
 };
 
 struct RenderViewSpecs
@@ -77,6 +87,7 @@ struct RenderViewSpecs
     SizingPolicy ViewportSizing = SizingPolicy_Proportional;
     SizingPolicy ScissorSizing = SizingPolicy_Proportional;
     SizingPolicy ImageSizing = SizingPolicy_Proportional;
+    AntiAliasing AntiAliasingMode = AntiAliasingFxaa_QualityMedium;
     RenderViewFlags Flags = 0;
 };
 
@@ -129,6 +140,9 @@ template <Dimension D> class RenderView
 
     void BeginOutlinePass(Graph::CommandBuffer cmd);
     void EndOutlinePass(Graph::CommandBuffer cmd);
+
+    void BeginFxaaPass(Graph::CommandBuffer cmd);
+    void EndFxaaPass(Graph::CommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const;
 
@@ -315,6 +329,10 @@ template <Dimension D> class RenderView
     {
         return m_OutlineSet;
     }
+    Graph::DescriptorSet GetFxaaSet() const
+    {
+        return m_FxaaSet;
+    }
     Graph::DescriptorSet GetCompositorSet() const
     {
         return m_CompositorSet;
@@ -351,6 +369,7 @@ template <Dimension D> class RenderView
     // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
     u64 Layer = 0;
+    AntiAliasing AntiAliasingMode;
 
   private:
     void setImageSize(const u32v2 &size)
@@ -380,6 +399,7 @@ template <Dimension D> class RenderView
         findAvailableFramebuffer();
     }
     void drainWork() const;
+    void applyPostProcessBarriers(Graph::CommandBuffer cmd) const;
 
     void update(const u32v2 &parentSize, const f32v2 &contentScale)
     {
@@ -424,10 +444,13 @@ template <Dimension D> class RenderView
     TKit::TierArray<Framebuffer> m_Framebuffers{};
     Graph::DescriptorSet m_BlendSet;
     Graph::DescriptorSet m_OutlineSet;
+    Graph::DescriptorSet m_FxaaSet;
     Graph::DescriptorSet m_CompositorSet;
 
     u32 m_AttachmentIndex = TKIT_U32_MAX;
     u32 m_FrameBufferCount;
+    u32 m_PingPong = 0;
+
     RenderViewFlags m_Flags;
 
     friend class Window;

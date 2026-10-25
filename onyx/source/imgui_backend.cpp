@@ -1196,7 +1196,8 @@ static Graph::Pipeline renderer_CreatePipeline()
         {.Offset = offsetof(ImDrawVert, col), .Format = Graph::Format_R8G8B8A8_UNORM}};
 
     // The default blend factors are the ones ImGui expects
-    const Graph::ColorAttachment attachment{.Format = SurfaceFormat, .BlendEnabled = true};
+    const Graph::ColorAttachment attachment{.Format = GetAttachmentFormat(AttachmentKind_LinearColor),
+                                            .BlendEnabled = true};
 
     Graph::GraphicsPipelineSpecs specs{};
     specs.ShaderStages = stages;

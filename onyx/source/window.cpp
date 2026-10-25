@@ -2,6 +2,7 @@
 #include "onyx/window.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/camera.hpp"
+#include "pass.hpp"
 #include "graph/execution.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -203,7 +204,7 @@ bool Window::AcquireNextImage(const u64 timeout)
 void Window::createSwapchain()
 {
     Graph::SwapchainSpecs spc{};
-    spc.SurfaceFormat = SurfaceFormat;
+    spc.SurfaceFormat = GetAttachmentFormat(AttachmentKind_LinearColor);
     spc.Window = m_Window;
     spc.OldSwapchain = m_Swapchain;
     spc.PresentMode = m_PresentMode;

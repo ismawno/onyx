@@ -185,9 +185,6 @@ template <Dimension D> struct ShadowData;
 template <> struct ShadowData<D2>
 {
     ten<Graph::Pipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
-    // compute pipeline!
-    Graph::Pipeline RayMarchPipeline{};
-    //
     Graph::Format ShadowFormat = Graph::Format_Undefined;
 
     u32 ShadowResolution;
@@ -280,9 +277,7 @@ static TKit::Storage<LayoutData> s_LayoutData{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
-static Graph::Pipeline s_BlendPipeline = Graph::NullHandle;
-static Graph::Pipeline s_OutlinePipeline = Graph::NullHandle;
-static Graph::Pipeline s_CompositorPipeline = Graph::NullHandle;
+static TKit::FixedArray<Graph::Pipeline, StandalonePass_Count> s_StandalonePipelines{};
 
 static Graph::Sampler s_LinearSampler = Graph::NullHandle;
 static Graph::Sampler s_CompareSampler = Graph::NullHandle;
@@ -355,6 +350,9 @@ static void createPipelineLayouts()
 
     s_LayoutData->Standalone[StandalonePass_Outline].Layout =
         create(GetDescriptorLayout(StandalonePass_Outline), fragment, sizeof(OutlinePushConstantData));
+
+    s_LayoutData->Standalone[StandalonePass_Fxaa].Layout =
+        create(GetDescriptorLayout(StandalonePass_Fxaa), fragment, sizeof(FxaaPushConstantData));
 
     s_LayoutData->Standalone[StandalonePass_Compositor].Layout =
         create(GetDescriptorLayout(StandalonePass_Compositor), fragment, sizeof(CompositorPushConstantData));
@@ -539,6 +537,7 @@ static void createShaders()
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader = shaderFromBinary(g_ShaderBinaryData.RayMarch);
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = shaderFromBinary(g_ShaderBinaryData.Blend);
     s_LayoutData->Standalone[StandalonePass_Outline].Shader = shaderFromBinary(g_ShaderBinaryData.Outline);
+    s_LayoutData->Standalone[StandalonePass_Fxaa].Shader = shaderFromBinary(g_ShaderBinaryData.Fxaa);
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader = shaderFromBinary(g_ShaderBinaryData.Compositor);
 #endif
 }
@@ -597,9 +596,9 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
         stages[1].Specialization.DataSize = sizeof(u32);
     }
 
-    const Graph::Format cf = GetAttachmentFormat(Attachment_Intermediate);
-    const Graph::Format tf = GetAttachmentFormat(Attachment_Transparent);
-    const Graph::Format rf = GetAttachmentFormat(Attachment_Revealage);
+    const Graph::Format cf = GetAttachmentFormat(AttachmentKind_SrgbColor);
+    const Graph::Format tf = GetAttachmentFormat(AttachmentKind_Accumulation);
+    const Graph::Format rf = GetAttachmentFormat(AttachmentKind_Revealage);
 
     const Graph::ColorWriteMask full = Graph::ColorWrite_All;
     const Graph::ColorWriteMask mainMask = pass != PipelinePass_Outlined ? full : 0;
@@ -708,7 +707,7 @@ static Graph::Pipeline createGeometryPipeline(const PipelinePass pass, const Ble
     specs.VertexBindings = bindings;
     specs.VertexAttributes = attributes;
     specs.ColorAttachments = {attachments.GetData(), u32(opaque ? 2 : 3)};
-    specs.DepthFormat = GetAttachmentFormat(Attachment_DepthStencil);
+    specs.DepthFormat = GetAttachmentFormat(AttachmentKind_DepthStencil);
     specs.StencilFormat = specs.DepthFormat;
 
     const bool depth = pass == PipelinePass_Shaded || pass == PipelinePass_Flat;
@@ -818,59 +817,60 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
     return Graph::Pipeline_CreateGraphics(getPipelineLayout<D>(RenderPass_Shadow), specs);
 }
 
-static Graph::Pipeline createRayMarchPipeline()
+static Graph::Pipeline createStandalonePassPipeline(const StandalonePass pass)
 {
-    const StandalonePipelineData &data = s_LayoutData->Standalone[StandalonePass_RayMarch];
-    Graph::ShaderStageInfo stage{};
-    stage.Shader = data.Shader;
-    stage.Stage = Graph::ShaderStageFlag_Compute;
-    return Graph::Pipeline_CreateCompute(data.Layout, stage);
-}
+    const auto createFullPassPipeline = [pass](const Graph::ColorAttachment &attachment) {
+        const StandalonePipelineData &data = s_LayoutData->Standalone[pass];
 
-static Graph::Pipeline createFullPassPipeline(const StandalonePass pass, const Graph::ColorAttachment &attachment)
-{
-    const StandalonePipelineData &data = s_LayoutData->Standalone[pass];
+        Graph::ShaderStageInfo stages[2]{};
+        stages[0].Shader = s_LayoutData->FullPassVertexShader;
+        stages[0].Stage = Graph::ShaderStageFlag_Vertex;
+        stages[1].Shader = data.Shader;
+        stages[1].Stage = Graph::ShaderStageFlag_Fragment;
 
-    Graph::ShaderStageInfo stages[2]{};
-    stages[0].Shader = s_LayoutData->FullPassVertexShader;
-    stages[0].Stage = Graph::ShaderStageFlag_Vertex;
-    stages[1].Shader = data.Shader;
-    stages[1].Stage = Graph::ShaderStageFlag_Fragment;
+        Graph::GraphicsPipelineSpecs specs{};
+        specs.ShaderStages = stages;
+        specs.ColorAttachments = attachment;
+        specs.DepthStencil.DepthTestEnabled = false;
+        specs.DepthStencil.DepthWriteEnabled = false;
+        return Graph::Pipeline_CreateGraphics(data.Layout, specs);
+    };
 
-    Graph::GraphicsPipelineSpecs specs{};
-    specs.ShaderStages = stages;
-    specs.ColorAttachments = attachment;
-    specs.DepthStencil.DepthTestEnabled = false;
-    specs.DepthStencil.DepthWriteEnabled = false;
-    return Graph::Pipeline_CreateGraphics(data.Layout, specs);
-}
-
-static Graph::Pipeline createBlendPipeline()
-{
-    Graph::ColorAttachment attachment{};
-    attachment.BlendEnabled = true;
-    attachment.SrcColor = Graph::BlendFactor_SrcAlpha;
-    attachment.DstColor = Graph::BlendFactor_OneMinusSrcAlpha;
-    // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
-    // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
-    // counterintuitive
-    attachment.SrcAlpha = Graph::BlendFactor_One;
-    attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
-    attachment.Format = GetAttachmentFormat(Attachment_Intermediate);
-    return createFullPassPipeline(StandalonePass_Blend, attachment);
-}
-
-static Graph::Pipeline createOutlinePipeline()
-{
-    return createFullPassPipeline(StandalonePass_Outline, {.Format = GetAttachmentFormat(Attachment_Final)});
-}
-
-static Graph::Pipeline createCompositorPipeline()
-{
-    Graph::ColorAttachment attachment{};
-    attachment.BlendEnabled = true;
-    attachment.Format = SurfaceFormat;
-    return createFullPassPipeline(StandalonePass_Compositor, attachment);
+    switch (pass)
+    {
+    case StandalonePass_RayMarch: {
+        const StandalonePipelineData &data = s_LayoutData->Standalone[StandalonePass_RayMarch];
+        Graph::ShaderStageInfo stage{};
+        stage.Shader = data.Shader;
+        stage.Stage = Graph::ShaderStageFlag_Compute;
+        return Graph::Pipeline_CreateCompute(data.Layout, stage);
+    }
+    case StandalonePass_Blend: {
+        Graph::ColorAttachment attachment{};
+        attachment.BlendEnabled = true;
+        attachment.SrcColor = Graph::BlendFactor_SrcAlpha;
+        attachment.DstColor = Graph::BlendFactor_OneMinusSrcAlpha;
+        // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
+        // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
+        // counterintuitive
+        attachment.SrcAlpha = Graph::BlendFactor_One;
+        attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
+        attachment.Format = GetAttachmentFormat(AttachmentKind_SrgbColor);
+        return createFullPassPipeline(attachment);
+    }
+    case StandalonePass_Outline:
+        return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_SrgbColor)});
+    case StandalonePass_Fxaa:
+        return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_LinearColor)});
+    case StandalonePass_Compositor: {
+        Graph::ColorAttachment attachment{};
+        attachment.BlendEnabled = true;
+        attachment.Format = GetAttachmentFormat(AttachmentKind_LinearColor);
+        return createFullPassPipeline(attachment);
+    }
+    default:
+        return Graph::NullHandle;
+    }
 }
 
 static u32 lightToBinding(const LightType light)
@@ -995,26 +995,20 @@ template <Dimension D> static void createPipelines()
             Graph::Pipeline_SetName(sdata.Pipelines[geo], name.CString());
         }
     }
-
-    if constexpr (D == D2)
-    {
-        sdata.RayMarchPipeline = createRayMarchPipeline();
-        if (Graph::IsValidationEnabled())
-            Graph::Pipeline_SetName(sdata.RayMarchPipeline, "onyx-renderer-ray-march-pipeline");
-    }
 }
 
 static void createPipelines()
 {
-    s_BlendPipeline = createBlendPipeline();
-    s_OutlinePipeline = createOutlinePipeline();
-    s_CompositorPipeline = createCompositorPipeline();
+    for (u32 i = 0; i < StandalonePass_Count; ++i)
+        s_StandalonePipelines[i] = createStandalonePassPipeline(StandalonePass(i));
 
     if (Graph::IsValidationEnabled())
     {
-        Graph::Pipeline_SetName(s_BlendPipeline, "onyx-blend-pipeline");
-        Graph::Pipeline_SetName(s_OutlinePipeline, "onyx-post-process-pipeline");
-        Graph::Pipeline_SetName(s_CompositorPipeline, "onyx-compositor-pipeline");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_RayMarch], "onyx-blend-ray-march");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Blend], "onyx-blend-pipeline");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Outline], "onyx-outline-pipeline");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Fxaa], "onyx-fxaa-pipeline");
+        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Compositor], "onyx-compositor-pipeline");
     }
 
     createPipelines<D2>();
@@ -1029,17 +1023,14 @@ template <Dimension D> static void destroyPipelines()
         Graph::Pipeline_Destroy(p);
     for (const Graph::Pipeline p : sdata.Pipelines)
         Graph::Pipeline_Destroy(p);
-    if constexpr (D == D2)
-        Graph::Pipeline_Destroy(sdata.RayMarchPipeline);
 }
 
 static void destroyPipelines()
 {
     destroyPipelines<D2>();
     destroyPipelines<D3>();
-    Graph::Pipeline_Destroy(s_BlendPipeline);
-    Graph::Pipeline_Destroy(s_OutlinePipeline);
-    Graph::Pipeline_Destroy(s_CompositorPipeline);
+    for (const Graph::Pipeline pip : s_StandalonePipelines)
+        Graph::Pipeline_Destroy(pip);
 }
 
 template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
@@ -1479,6 +1470,10 @@ void Renderer_WriteSamplerDescriptor(const u32 binding, const Graph::Sampler sam
 Graph::Sampler Renderer_GetNearSampler()
 {
     return s_NearSampler;
+}
+Graph::Sampler Renderer_GetLinearSampler()
+{
+    return s_LinearSampler;
 }
 
 static ResourceType getResourceType(const Geometry geo)
@@ -2282,7 +2277,7 @@ template <Dimension D> static void renderShadows(const Graph::CommandBuffer cmd,
 
                 const Graph::DescriptorSet set = l2.RayMarchDescriptor;
 
-                Graph::Command_BindPipeline(cmd, sdata.RayMarchPipeline);
+                Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_RayMarch]);
                 const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_RayMarch);
                 Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Compute, set);
 
@@ -2496,6 +2491,9 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
     TKit::StackArray<RenderView<D> *> outlineViews{};
     outlineViews.Reserve(views.GetSize());
 
+    TKit::StackArray<RenderView<D> *> fxaaViews{};
+    fxaaViews.Reserve(views.GetSize());
+
     for (RenderView<D> *rv : views)
     {
         const RenderViewFlags flags = rv->GetFlags();
@@ -2503,6 +2501,8 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
             continue;
         if (flags & RenderViewFlag_Outlines)
             outlineViews.Append(rv);
+        if (flags & RenderViewFlag_AntiAliasingFxaa)
+            fxaaViews.Append(rv);
 
         const bool shadows = flags & RenderViewFlag_Shadows;
         if (shadows)
@@ -2525,7 +2525,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
             renderGeometry<D>(cmd, vinfo, BlendPass_Transparent, shadows ? ShadedFlag_Shadows : 0);
             rv->EndTransparentPass(cmd);
             rv->BeginBlendPass(cmd);
-            Graph::Command_BindPipeline(cmd, s_BlendPipeline);
+            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Blend]);
 
             const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Blend);
             const Graph::DescriptorSet set = rv->GetBlendSet();
@@ -2550,7 +2550,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
         for (RenderView<D> *rv : outlineViews)
         {
             rv->BeginOutlinePass(cmd);
-            Graph::Command_BindPipeline(cmd, s_OutlinePipeline);
+            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Outline]);
 
             const Graph::DescriptorSet set = rv->GetOutlineSet();
             Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
@@ -2569,6 +2569,32 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
             Graph::Command_Draw(cmd, 6);
 
             rv->EndOutlinePass(cmd);
+        }
+    }
+
+    if (!fxaaViews.IsEmpty())
+    {
+        const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Fxaa);
+        for (RenderView<D> *rv : fxaaViews)
+        {
+            rv->BeginFxaaPass(cmd);
+            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Fxaa]);
+
+            const Graph::DescriptorSet set = rv->GetFxaaSet();
+            Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
+
+            const u32 attIdx = rv->GetAttachmentIndex();
+            TKIT_ASSERT(attIdx < ONYX_MAX_ATTACHMENTS,
+                        "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})", attIdx,
+                        ONYX_MAX_ATTACHMENTS);
+
+            FxaaPushConstantData pdata;
+            pdata.AttachmentIndex = attIdx;
+            pdata.Mode = rv->AntiAliasingMode;
+            Graph::Command_PushConstants(cmd, playout, Graph::ShaderStageFlag_Fragment, &pdata);
+            Graph::Command_Draw(cmd, 6);
+
+            rv->EndFxaaPass(cmd);
         }
     }
 }
@@ -2643,7 +2669,7 @@ RenderSubmitInfo render(const Graph::CommandBuffer cmd, Target *target, const Re
 
     target->BeginRendering(cmd);
 
-    Graph::Command_BindPipeline(cmd, s_CompositorPipeline);
+    Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Compositor]);
 
     const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Compositor);
     renderCompositor(cmd, tinfo, playout);

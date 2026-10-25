@@ -8,9 +8,11 @@ namespace Onyx
 {
 static Graph::Image createImage(const u32v2 &size, const f32v2 contentScale)
 {
-    const Graph::Format format = GetAttachmentFormat(Attachment_Intermediate);
-    const TKit::FixedArray<Graph::Format, 2> formats{format, SurfaceFormat};
-    const TKit::FixedArray<Graph::ImageViewSpecs, 2> views{{.Format = format}, {.Format = SurfaceFormat}};
+    const Graph::Format srgbFmt = GetAttachmentFormat(AttachmentKind_SrgbColor);
+    const Graph::Format linearFmt = GetAttachmentFormat(AttachmentKind_LinearColor);
+
+    const TKit::FixedArray<Graph::Format, 2> formats{srgbFmt, linearFmt};
+    const TKit::FixedArray<Graph::ImageViewSpecs, 2> views{{.Format = srgbFmt}, {.Format = linearFmt}};
 
     Graph::ImageSpecs specs{};
     specs.Formats = formats;
