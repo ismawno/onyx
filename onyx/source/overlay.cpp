@@ -407,6 +407,7 @@ enum ResizeFlagBit : ResizeFlags
 };
 enum NativeWindowFlagBit : NativeWindowFlags
 {
+    // events this frame
     NativeWindowFlag_LeftMousePressed = 1U << 0,
     NativeWindowFlag_LeftMouseReleased = 1U << 1,
 
@@ -419,20 +420,22 @@ enum NativeWindowFlagBit : NativeWindowFlags
     NativeWindowFlag_PressingLeftMouse = 1U << 4,
     //
 
-    // used when os window updates size so that child overlay window can follow along
+    // used when os window updates size so that child overlay window can follow along. the opposite direction (the
+    // overlay window changed size and the os window must follow) is WindowInternalFlag_WantUpdateSize
     NativeWindowFlag_WantUpdateSize = 1U << 6,
 
+    // this native is the borderless os window of a float element. it draws nothing on its own and forwards mouse, char
+    // and scroll events to its parent native
     NativeWindowFlag_RepresentsFloatElement = 1U << 7,
+    // the float element was drawn this frame. float natives without it are destroyed in manageWindowPromotions()
     NativeWindowFlag_ActivePromotedFloatElement = 1U << 8,
 
     // this flag allows for persisting the m_Grabbed field when promoting windows. this currently doesnt work in linux
     // as glfw fires a mouse release event on window creation
     NativeWindowFlag_CheckParentForGrab = 1U << 9,
-    NativeWindowFlag_CursorWasSet = 1U << 10,
 
     NativeWindowFlagPersist = NativeWindowFlag_PressingLeftMouse | NativeWindowFlag_RepresentsFloatElement |
-                              NativeWindowFlag_ActivePromotedFloatElement | NativeWindowFlag_CheckParentForGrab |
-                              NativeWindowFlag_CursorWasSet,
+                              NativeWindowFlag_ActivePromotedFloatElement | NativeWindowFlag_CheckParentForGrab,
 };
 
 enum WindowInternalFlagBit : OverlayWindowFlags
@@ -1349,17 +1352,22 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
     const bool isDocked = active->IsDocked();
     OverlayWindow *dockHost = isDocked ? active->DockRoot->Host : nullptr;
 
-    // we need to detect if we need to bail because of our dock host not being active AND being unable to be started by
-    // us. how can this happen?
-    // - first of course we need to be docked
-    // - then, the host must not be a root. if it is a root, its layout is independent and it is perfectly fine for us
-    // to submit it. if this is a manual dockspace, it means the user stopped submitting it and this is the first frame
-    // it started not being submitted. so for a single frame we will submit it, and then likely be undocked if the
-    // OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted is set
-    // - if the host is not a root (i.e. a child window embedded in another window), we cannot submit it ourselves _with
-    // one exception_. ignoring that exception for now, we have no idea where that child window is wrt its parent layout
-    // - the exception is if we are not roots ourselves. because of the invariant: only one child window is allowed per
-    // dock tree and if so, the dock host must have that parent exactly, we are definitely able to submit the dockhost!
+    // a docked window has no panel of its own: it opens the panel of its dock node, which the host builds when it is
+    // begun, in the host's root layout. so if the host has not been begun yet this frame, someone has to begin it right
+    // now, and at the spot in the layout where the host lives. can we?
+    // - the host is a root: yes. its panel is a top level panel of its own layout, positioned on its own, so it can be
+    // begun from anywhere. we do it below (beginDockHost(), redirected). this includes a root dockspace the user
+    // stopped submitting: we keep drawing it ourselves, and undockMarked() undocks us at the end of the frame if it has
+    // OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted. without that flag, its windows keep it alive
+    // - the host is a child (a dockspace submitted inside a window, or an automatic host made from a child window): its
+    // panel goes inside its parent's layout, exactly where the parent's code puts it, and that spot only exists while
+    // the parent is between Begin/End, at that call. if we are a root, we are not there. so we bail and stay docked but
+    // hidden this frame
+    // - the host is a child and we are a child too: the invariant says a dock tree holds at most one child window, and
+    // if it does, that window and the host are children of the same parent window (dockspaces hold no child windows at
+    // all). child windows cannot be moved, so they are never dock sources, only targets. so this host is the automatic
+    // host created when something was dropped onto us: it took our place in our parent. and child windows can only be
+    // begun inside their parent, so our Begin() call is the host's spot. we can begin it right here
     if (isDocked && !dockHost->IsRoot() && !(dockHost->Flags & WindowInternalFlag_Active) && active->IsRoot())
         return false;
 
@@ -7009,8 +7017,8 @@ f32 Overlay::getLineHeight() const
     return m_Style[OverlayStyle_FontSize] * getFontInfo().LineHeight;
 }
 
-// used when having menu bars with windows that are not brought to focus. in those cases popups created by such
-// window will be blocked if there is another window existing with a greater layer. so in that case, we allow the
+// used when having menu bars with windows that are not brought to focus when grabbed. in those cases popups created by
+// such window will be blocked if there is another window existing with a greater layer. so in that case, we allow the
 // hover, apart from additional overloads used sometimes
 OverlayFocusFlags Overlay::standardHoverAllowance() const
 {

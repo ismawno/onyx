@@ -10,6 +10,79 @@
 #endif
 
 // in general, elements beginning with OverlayXXX are to be used by the public
+// note that ive used llms support to help me with the documentation
+
+// important overlay concepts:
+// - Layout: turns the panels and text appended during a frame into positioned elements. every root window owns one, and
+// everything begun inside a window (widgets, child windows, docked windows) ends up in its root's layout. queries
+// return last frame's results, which is why a lot of things here run one frame behind
+//
+// - OverlayWindow: a window managed by the overlay system driven by a Layout object. it persists across frames and is
+// found by its id, so beginning the same id in two places means the same window (unless
+// OverlayWindowFlag_MergeIdWithStack is set)
+//
+// - root window: a window without a parent. it owns its layout, its layer and its position, so while undocked it is
+// the only kind of window that can be moved, brought to focus or promoted. once docked, it appends to its host's root
+// layout instead, and loses all of that until undocked
+//
+// - child window: a window begun for the first time inside another window's Begin/End region. its parent is fixed at
+// that moment. it has no layout of its own: it is just a panel in its root's layout, at the spot where it is begun. so
+// it can only be begun inside its parent, and it cannot move, be promoted, be brought to focus or be undocked
+//
+// - active layout: the layout a window appends to (GetActiveLayout()). a root's own one, its root's for a child window,
+// and its dock host's root's for a docked window. a window "owns the active layout" when that layout is its own
+//
+// - NativeWindow: an OS window, with a view and a render context, able to draw geometry. it can either host multiple
+// OverlayWindows or dedicate itself to a single one, adapting its size and position to it. this feature can be enabled
+// with OverlayFlag_WindowPromotions
+//
+// - main native window: the native of the window the overlay was created on. there is none in floating mode
+// (CreateFloatingOverlay()), where every root window gets a native of its own
+//
+// - promotion: a root window dragged out of its native gets a native of its own (it now owns its native). dragging it
+// back in demotes it
+//
+// - float element: a floating panel drawn on top (drop downs, menus) that sticks out of its native. it gets a
+// borderless OS window for as long as it is drawn so that it does not get clipped, and that window forwards its input
+// to the parent
+//
+// - active window: a window begun this frame that is on screen. collapsed windows are active (their header shows), a
+// docked window whose tab is not selected is not. most per frame state is cleared and rebuilt from active windows
+//
+// - layer: the draw and hover order of root windows. pressing a window brings it to the top layer, so does appearing.
+// child and docked windows use their root's layer
+//
+// - hovered window: the top most window under the mouse, plus the windows sharing its layout up to the layout owner
+//
+// - focused window: the top most layered window, plus the windows sharing its layout. nothing to do with keyboard
+// focus. widgets of a window that is neither hovered nor focused are blocked
+//
+// - popup: a root window opened by id that stays open across frames until a press lands outside of it or it is closed.
+// popups stack, and every window and widget has a popup depth (0 for regular windows). only widgets at the deepest
+// depth interact, so an open popup blocks everything below it
+//
+// - hovered/pressed/active/dragged ids: the widget under the mouse, the one held by the mouse, the one owning input (an
+// input box being typed into, a slider being dragged) and the one dragged past the drag threshold. one of each at most.
+// they block other widgets and window grabs, unless that widget allows it with the _AllowsInteraction flags
+// - last item: the last widget submitted, along with its interaction and focus results. IsItem*() queries read it
+//
+// docking:
+// - dock tree: a binary tree of dock nodes describing how windows are split and tabbed inside a dock host
+// - dock node: an interior node splits its area in two, along an axis and with a ratio. a leaf holds windows as tabs. a
+// node is not a window, just panel structure its host draws
+// - dock host: the window owning a dock tree (DockRoot->Host == window), never docked itself. when begun, it builds one
+// panel per node, and docked windows draw inside those. there are two kinds:
+//   - dockspace: a host submitted by the user with DockSpace() or FullScreenDockSpace(). it is a root if submitted
+//   outside any window (FullScreenDockSpace() always is) and a child if submitted inside one. it draws a background,
+//   its nodes may be left empty (OverlayDockNodeFlag_CanBeEmpty) and it cannot hold child windows
+//   - automatic dock host: an invisible host created when a window is dropped onto an undocked window, taking the
+//   target's place. it is a root if the target was a root. if the target was a child, it becomes a child of the same
+//   parent and sits exactly where the target is begun. it goes away once a single window is left in it
+// - docked window: a window living in a leaf of a dock tree (DockParent set). it has no panel of its own: it opens its
+// leaf's panel and draws in it as a tab, in its host's root layout. so its host must be begun before it every frame
+// - dock source/target: the window being dragged by its header, and the window under it that would take it on release
+// - submission order: the order windows are begun in a frame. docking into a child window or a dockspace is only
+// allowed if the target is begun before the source, otherwise the source could not draw into it (see beginWindow())
 
 #ifndef ONYX_INPUT_NUMERIC_BUFFER_SIZE
 #    define ONYX_INPUT_NUMERIC_BUFFER_SIZE 128
@@ -449,23 +522,20 @@ struct OverlayColorHandle
 
 enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
-    // a dock node that can be empty will not removed from its tree when the last window is undocked
+    // the node stays when its last window leaves. dockspace nodes only, other nodes are removed when emptied
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
-    // prevents the docknode from being resized. has only an effect for split dock nodes
+    // the axis between its children cannot be dragged
     OverlayDockNodeFlag_NoResize = 1U << 1,
-    // hides the window tab bar. has only an effect for leaf dock nodes
+    // tab bar hidden for good, with no strip to bring it back
     OverlayDockNodeFlag_HideTabBar = 1U << 2,
-    // starts with the window tab bar hidden. has only an effect for leaf dock nodes
+    // tab bar starts hidden, but the strip under it can still toggle it
     OverlayDockNodeFlag_StartWithTabBarHidden = 1U << 3,
-    // disable tab bar horizontal scroll. has only an effect for leaf dock nodes
     OverlayDockNodeFlag_NoHorizontalScroll = 1U << 4,
 
-    // internal. marks a dock node to be detached from its tree and become an independent tree the next time it has the
-    // chance
+    // deferred undock of the whole node, processed at the end of the frame (undocking mid frame would break the layout
+    // being built). set when ctrl dragging a dock axis
     DockNodeFlag_MustUndock = 1U << 5,
-    // internal. marks a dock node such that, once detached from its tree and become an independent tree the next time
-    // it has the chance, it will be grabbed by the user automatically. used when the user is dragging a dockspace with
-    // the mouse
+    // after undocking, the node's new host is grabbed under the mouse so that the drag goes on
     DockNodeFlag_MustGrabWhenUndocked = 1U << 6,
 };
 
@@ -636,38 +706,59 @@ enum OverlayCondition : OverlayConditions
     OverlayCondition_Appearing = 1U << 3,
 };
 
+// some of these are forced by the overlay: docked windows get _NoBorders and _NoResize and lose _AutoResize and
+// _MoveWithHeader, windows that do not own their layout get _NoPromotion and _NoBringToFocus and lose _PopupModal, and
+// child windows get _NoUndocking
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
-    // if a dockspace is not submitted during a frame, all its docked windows will be automatically undocked
+    // dockspaces only. if DockSpace() is not called during a frame, all its docked windows will be undocked at the end
+    // of it. careful: a dockspace inside a window that is not drawn (collapsed, or an unselected tab) is not submitted
+    // either
     OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 38,
-    // by default, windows do not get their id merged with the id stack. this flag enables such feature
+    // by default, a window's id is just its label's, so beginning it from anywhere gives the same window. this flag
+    // merges it with the id stack, so that the same label under different PushId() calls gives different windows
     OverlayWindowFlag_MergeIdWithStack = 1ULL << 39,
-    // window will not report WantCaptureMouse if not explicitly activating a widget
+    // window will not report WantCaptureMouse if not explicitly activating a widget. useful for full screen dockspaces
+    // drawn over a scene
     OverlayWindowFlag_MousePassThrough = 1ULL << 40,
-    // child windows only
+    // child windows only. take the parent's remaining width/height instead of the window's own size. growing in height
+    // also disables collapsing
     OverlayWindowFlag_ChildGrowWidth = 1ULL << 41,
     OverlayWindowFlag_ChildGrowHeight = 1ULL << 42,
     OverlayWindowFlag_ChildGrow = OverlayWindowFlag_ChildGrowWidth | OverlayWindowFlag_ChildGrowHeight,
+    // tab cannot be torn off its dock node, and the nodes holding it cannot be pulled out
     OverlayWindowFlag_NoUndocking = 1ULL << 43,
     OverlayWindowFlag_NoBackground = 1ULL << 44,
+    // implies _NoResize, as resizing is done by grabbing the borders
     OverlayWindowFlag_NoBorders = 1ULL << 45,
+    // cannot be docked nor docked into. if already docked, it will be undocked at the end of the frame
     OverlayWindowFlag_NoDocking = 1ULL << 46,
     OverlayWindowFlag_NoScrollBar = 1ULL << 47,
     OverlayWindowFlag_NoVerticalScroll = 1ULL << 48,
+    // horizontal scrolling is off by default
     OverlayWindowFlag_HorizontalScroll = 1ULL << 49,
     OverlayWindowFlag_NoResize = 1ULL << 50,
     OverlayWindowFlag_NoMove = 1ULL << 51,
     OverlayWindowFlag_NoCollapse = 1ULL << 52,
     OverlayWindowFlag_NoHeaderBar = 1ULL << 53,
+    // pressing the window or it appearing does not bring it to the top layer
     OverlayWindowFlag_NoBringToFocus = 1ULL << 54,
+    // never gets its own native, even when dragged out of it
     OverlayWindowFlag_NoPromotion = 1ULL << 55,
+    // size follows the content, with a frame of delay. not supported when docked or full screen
     OverlayWindowFlag_AutoResize = 1ULL << 56,
+    // brought to the top layer this frame. set automatically on windows that were not active last frame
     OverlayWindowFlag_BringToTop = 1ULL << 57,
+    // popups are placed at the mouse when opened. this keeps the window's own position instead
     OverlayWindowFlag_PopupDoNotPlaceAtMouse = 1ULL << 58,
     OverlayWindowFlag_PopupModalNoDimmingOverlay = 1ULL << 59,
+    // presses outside do not close it, and nothing below its popup depth can be interacted with. only useful when used
+    // with BeginPopup()
     OverlayWindowFlag_PopupModal = 1ULL << 60,
     OverlayWindowFlag_NoCloseButton = 1ULL << 61,
+    // reserves a menu bar under the header, to be filled with BeginMenuBar()
     OverlayWindowFlag_MenuBar = 1ULL << 62,
+    // only the header moves the window. otherwise any spot not covered by a widget does
     OverlayWindowFlag_MoveWithHeader = 1ULL << 63,
 };
 
@@ -948,44 +1039,67 @@ struct OverlayWindow
 enum OverlayInteractionQueryFlagBit : OverlayInteractionQueryFlags
 {
     OverlayInteractionQueryFlag_Hovered = 1U << 0,
+    // held down this frame, mouse button or activation key
     OverlayInteractionQueryFlag_Pressed = 1U << 1,
+    // released over the item after being pressed on it (or pressed, for _ClickedOnMousePress items)
     OverlayInteractionQueryFlag_LeftClicked = 1U << 2,
     OverlayInteractionQueryFlag_RightClicked = 1U << 3,
     OverlayInteractionQueryFlag_DoubleClicked = 1U << 4,
+    // owns input (active id), like an input box being typed into
     OverlayInteractionQueryFlag_Active = 1U << 5,
+    // became pressed this frame, not active last frame
     OverlayInteractionQueryFlag_Activated = 1U << 6,
+    // was active last frame, not anymore
     OverlayInteractionQueryFlag_Deactivated = 1U << 7,
     OverlayInteractionQueryFlag_PopupOpen = 1U << 8,
+    // being dragged past the drag threshold
     OverlayInteractionQueryFlag_DragSource = 1U << 9,
+    // hovered while something else is being dragged
     OverlayInteractionQueryFlag_DragTarget = 1U << 10,
+    // released while being a drag target
     OverlayInteractionQueryFlag_DragPayloadDropped = 1U << 11,
+    // the query actually ran. an item that does not exist yet (first frame) reports only this
     OverlayInteractionQueryFlag_Queried = 1U << 12,
 };
 
 // internal interaction flags -> these configure how querying interaction behave
 enum InteractionFlagBit : InteractionFlags
 {
+    // or the results into the last item instead of overwriting it. for widgets made of several queried parts (sliders),
+    // so that IsItem*() queries see the whole widget
     InteractionFlag_CombineFlagsOnLastItem = 1U << 6,
+    // query without touching the last item. for helper parts of a widget that should not be what IsItem*() reports
     InteractionFlag_DoNotSetLastItem = 1U << 7,
+    // stays pressed while the mouse is held, even after leaving the item. for anything dragged: sliders, scroll bars,
+    // color pickers
     InteractionFlag_PressedEvenWhenAwayFromHover = 1U << 8,
+    // report the click on press instead of release. input boxes, so that the cursor lands right away
     InteractionFlag_ClickedOnMousePress = 1U << 9,
+    // an active item is deactivated by any press. with this, pressing the item itself keeps it active
     InteractionFlag_KeepActiveOnPressed = 1U << 10,
+    // an active item is deactivated on release. with this, it stays active until a press lands elsewhere (input boxes)
     InteractionFlag_KeepActiveOnRelease = 1U << 11,
-    InteractionFlag_SetActiveOnRelease = 1U << 12,
-    InteractionFlag_ToggleActiveOnRelease = 1U << 13,
-    InteractionFlag_HoveredAllowsInteraction = 1U << 14,
-    InteractionFlag_PressedAllowsInteraction = 1U << 15,
-    InteractionFlag_ActiveAllowsInteraction = 1U << 16,
-    InteractionFlag_LeftClickOpensPopup = 1U << 17,
-    InteractionFlag_RightClickOpensPopup = 1U << 18,
-    InteractionFlag_HoverOpensPopup = 1U << 19,
-    InteractionFlag_HoverRequestsPopupCollapse = 1U << 20,
-    InteractionFlag_DoNotSetHoveredId = 1U << 21,
-    InteractionFlag_DoNotSetPressedId = 1U << 22,
-    InteractionFlag_DoNotSetDraggedId = 1U << 23,
-    InteractionFlag_DoNotSetActiveId = 1U << 24,
-    InteractionFlag_DoNotProtectPopup = 1U << 25,
-    InteractionFlag_AllowPressedOnEnter = 1U << 26,
+    // by default a hovered, pressed or active item blocks window grabs (and an active one blocks other items). these
+    // let them through. dock axes use them so that windows can still be dragged around them
+    InteractionFlag_HoveredAllowsInteraction = 1U << 12,
+    InteractionFlag_PressedAllowsInteraction = 1U << 13,
+    InteractionFlag_ActiveAllowsInteraction = 1U << 14,
+    InteractionFlag_LeftClickOpensPopup = 1U << 15,
+    InteractionFlag_RightClickOpensPopup = 1U << 16,
+    // menus once one of them is open. must come with _HoverRequestsPopupCollapse, otherwise hovering would keep
+    // stacking popups (asserted)
+    InteractionFlag_HoverOpensPopup = 1U << 17,
+    // hovering collapses the popups deeper than this item's depth, so that moving between menus closes the old one
+    InteractionFlag_HoverRequestsPopupCollapse = 1U << 18,
+    InteractionFlag_DoNotSetHoveredId = 1U << 19,
+    InteractionFlag_DoNotSetPressedId = 1U << 20,
+    InteractionFlag_DoNotSetDraggedId = 1U << 21,
+    InteractionFlag_DoNotSetActiveId = 1U << 22,
+    // every press requests a popup collapse, and hovered items protect the popups up to their depth from it. this item
+    // does not, so a press on it closes the popups it is in
+    InteractionFlag_DoNotProtectPopup = 1U << 23,
+    // pressed as soon as the mouse enters while held, even if the press started elsewhere
+    InteractionFlag_AllowPressedOnEnter = 1U << 24,
     InteractionFlag_ReadOnly = InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
                                InteractionFlag_DoNotSetDraggedId | InteractionFlag_DoNotSetActiveId |
                                InteractionFlag_DoNotProtectPopup | InteractionFlag_DoNotSetLastItem
@@ -997,6 +1111,14 @@ enum OverlayInteractionFlagBit : OverlayInteractionFlags
     OverlayInteractionFlag_PressedEvenWhenAwayFromHover = InteractionFlag_PressedEvenWhenAwayFromHover
 };
 
+// an item is hovered when the mouse is over it and nothing blocks it. the _AllowBlockedBy flags ignore one reason:
+// - window: its window is neither hovered nor focused
+// - window grab: a window is being moved or resized
+// - pressed/active item, drag: another item is pressed, active or being dragged
+// - popup: a popup deeper than the item's depth is open
+// - popup collapse: the press that just closed some popups. blocks until release, so that the press closing a popup
+// does not also click whatever is under it
+// - disabled: inside a BeginDisabled()/BeginReadOnly() region
 enum OverlayFocusFlagBit : OverlayFocusFlags
 {
     OverlayFocusFlag_AllowBlockedByWindow = 1U << 0,
@@ -1007,9 +1129,13 @@ enum OverlayFocusFlagBit : OverlayFocusFlags
     OverlayFocusFlag_AllowBlockedByPopupCollapse = 1U << 5,
     OverlayFocusFlag_AllowBlockedByDisabled = 1U << 6,
     OverlayFocusFlag_AllowBlockedByDrag = 1U << 7,
+    // the hover delay clock is shared, so moving from one delayed item to another shows the next tooltip right away.
+    // this restarts the delay for every new item
     OverlayFocusFlag_NoSharedDelay = 1U << 8,
+    // hovered only after the mouse stays over it for OverlayStyle_HoverDelayShort/Normal
     OverlayFocusFlag_ShortDelay = 1U << 9,
     OverlayFocusFlag_NormalDelay = 1U << 10,
+    // the mouse must stay still (OverlayStyle_HoverStationaryThreshold), any movement restarts the delay
     OverlayFocusFlag_Stationary = 1U << 11,
 };
 
@@ -1024,6 +1150,7 @@ enum OverlayFocusQueryFlagBit : OverlayFocusQueryFlags
     OverlayFocusQueryFlag_BlockedByDisabled = OverlayFocusFlag_AllowBlockedByDisabled,
     OverlayFocusQueryFlag_BlockedByDrag = OverlayFocusFlag_AllowBlockedByDrag,
     OverlayFocusQueryFlag_Queried = 1U << 14,
+    // the mouse is over the item, blocked or not
     OverlayFocusQueryFlag_Hovered = 1U << 15,
 };
 
@@ -1039,22 +1166,28 @@ enum OverlayButtonFlagBit : OverlayButtonFlags
 {
     OverlayButtonFlag_SpanFullWidth = 1U << 0,
     OverlayButtonFlag_Small = 1U << 1,
+    // at least as wide as it is tall
     OverlayButtonFlag_TryKeepSquare = 1U << 2,
 };
 
 enum OverlayColorFlagBit : OverlayColorFlags
 {
     OverlayColorFlag_NoAlpha = 1U << 0,
+    // no drag boxes next to the color, only the preview
     OverlayColorFlag_NoInput = 1U << 1,
+    // no red/green/blue/alpha marker on each drag box. always off in HSV
     OverlayColorFlag_NoColorMarkers = 1U << 2,
+    // clicking the preview does not open the picker popup
     OverlayColorFlag_NoPicker = 1U << 3,
     OverlayColorFlag_NoTooltip = 1U << 4,
     OverlayColorFlag_NoPreview = 1U << 5,
     OverlayColorFlag_NoTooltipLabel = 1U << 6,
+    // tooltip without the numeric values
     OverlayColorFlag_NoTooltipColorInfo = 1U << 7,
     OverlayColorFlag_NoDragDrop = 1U << 8,
     OverlayColorFlag_HSV = 1U << 9,
     OverlayColorFlag_Hex = 1U << 10,
+    // values as floats in [0, 1] instead of bytes
     OverlayColorFlag_Float = 1U << 11,
 };
 
@@ -1062,42 +1195,59 @@ enum OverlayDragDropFlagBit : OverlayDragDropFlags
 {
     OverlayDragDropFlag_SourceNoTooltip = 1U << 0,
 
+    // hides the source's tooltip while hovering this target
     OverlayDragDropFlag_TargetNoTooltip = 1U << 1,
     OverlayDragDropFlag_TargetNoOutline = 1U << 2,
+    // no "not allowed" cursor when the payload's identifier does not match
     OverlayDragDropFlag_TargetNoNotAllowedCursor = 1U << 3,
+    // AcceptDragDropPayload() returns the payload while hovering, not only on drop. for previews
     OverlayDragDropFlag_TargetAcceptOnHover = 1U << 4,
 
+    // the payload was released on the current target, so AcceptDragDropPayload() can hand it over
     DragDropFlag_PayloadDropped = 1U << 5,
+    // a target asked to hide the tooltip, so EndDragDropSource() trashes it
     DragDropFlag_MustClearTooltip = 1U << 6,
 };
 
 enum OverlayDropDownFlagBit : OverlayDropDownFlags
 {
     OverlayDropDownFlag_NoArrowButton = 1U << 0,
+    // no current value in the box, just the arrow
     OverlayDropDownFlag_NoPreview = 1U << 1,
+    // max height of the list before it scrolls (OverlayStyle_DropDownHeightSmall/Regular). regular by default
     OverlayDropDownFlag_HeightSmall = 1U << 2,
     OverlayDropDownFlag_HeightRegular = 1U << 3,
+    // no max height, the list fits every element
     OverlayDropDownFlag_HeightLargest = 1U << 4,
+    // no padding or gap in the list
     OverlayDropDownFlag_Tight = 1U << 5,
 };
 
 enum OverlayInputFlagBit : OverlayInputFlags
 {
+    // the buffer still updates as you type, but the widget only returns true on enter
     OverlayInputFlag_EnterReturnsTrue = 1U << 0,
+    // edits stay in an internal buffer and only reach yours on enter
     OverlayInputFlag_EnterCommitsBuffer = 1U << 1,
     OverlayInputFlag_EscapeClearsAll = 1U << 2,
+    // activating the box selects all of its text
     OverlayInputFlag_AutoSelectAll = 1U << 3,
     OverlayInputFlag_NoHorizontalScroll = 1U << 4,
+    // when not editing and the text does not fit, show its end instead of its start
     OverlayInputFlag_ElideLeft = 1U << 5,
     OverlayInputFlag_StepButtons = 1U << 6,
     OverlayInputFlag_NoUndoRedo = 1U << 7,
 };
 
+// flex sizing is fit and grow at once: it takes the free space, but its content also counts towards the size of a fit
+// parent. so in auto resize windows, flex items push the window wider and grow items do not
 enum OverlayScrollFlagBit : OverlayScrollFlags
 {
     OverlayScrollFlag_Borders = 1U << 0,
+    // label drawn as a title above the area
     OverlayScrollFlag_Title = 1U << 1,
     OverlayScrollFlag_NoBackground = 1U << 2,
+    // no padding around the content
     OverlayScrollFlag_Tight = 1U << 3,
     OverlayScrollFlag_NoScrollBar = 1U << 4,
     OverlayScrollFlag_NoVerticalScroll = 1U << 5,
@@ -1113,53 +1263,80 @@ enum OverlayPopupFlagBit : OverlayPopupFlags
 
 enum OverlaySelectableFlagBit : OverlaySelectableFlags
 {
+    // as wide as its label instead of the whole row
     OverlaySelectableFlag_SpanLabelWidth = 1U << 0,
+    // an unselected item needs a double click to be selected
     OverlaySelectableFlag_SelectOnDoubleClick = 1U << 1,
+    // drawn as hovered even when it is not
     OverlaySelectableFlag_Highlight = 1U << 2,
+    // a check box shows the selected state instead of the background
     OverlaySelectableFlag_CheckBox = 1U << 3,
+    // see the flex note above OverlayScrollFlagBit. implied in auto resize windows
     OverlaySelectableFlag_FlexWidth = 1U << 4,
+    // content laid out in a row instead of a column
     OverlaySelectableFlag_LeftToRight = 1U << 5,
+    // ListBox() only. clicking the selected element unselects it, leaving the max value of the index type
     OverlaySelectableFlag_ListBoxUnselect = 1U << 6,
 };
 
 enum OverlaySliderFlagBit : OverlaySliderFlags
 {
+    // values typed in (ctrl click or double click) are clamped to the range too. otherwise only dragging is
     OverlaySliderFlag_ClampOnInput = 1U << 0,
     OverlaySliderFlag_Logarithmic = 1U << 1,
+    // dragging rounds the value to the format's decimals by default
     OverlaySliderFlag_NoRoundToFormat = 1U << 2,
+    // cannot be turned into an input box
     OverlaySliderFlag_NoInput = 1U << 3,
+    // the box is at least as wide as its value label by default. with this it can get narrower and the label is clipped
     OverlaySliderFlag_NoValueLabelClamp = 1U << 4,
 };
 
 enum OverlayTabBarFlagBit : OverlayTabBarFlags
 {
+    // tabs can be dragged to swap places
     OverlayTabBarFlag_Reorderable = 1U << 0,
     OverlayTabBarFlag_NoBottomLine = 1U << 1,
+    // hidden for good, with no strip to bring it back
     OverlayTabBarFlag_HideTabBar = 1U << 2,
     OverlayTabBarFlag_NoHorizontalScroll = 1U << 3,
 
+    // the tab bar of a dock leaf. adds the node menu button, and tabs dragged off the bar undock their window
     TabBarFlag_ForDocking = 1U << 4,
+    // hidden by the user clicking the strip under the bar. persists, and clicking the strip again shows it
     TabBarFlag_HideTabBar = 1U << 5,
 };
 
 enum OverlayTabFlagBit : OverlayTabFlags
 {
     OverlayTabFlag_StartOpen = 1U << 0,
+    // BeginTab() does not push the tab's id. docked windows use it, as their own id is already pushed
     OverlayTabFlag_NoPushId = 1U << 1,
 
+    // submitted this frame. tabs that were not are skipped when drawing the bar, and lose the open tab to another one
     TabFlag_Enabled = 1U << 2,
+    // set when BeginTab() gets an opened pointer
     TabFlag_DrawCloseButton = 1U << 3,
+    // the close button is drawn after BeginTab() already ran (the bar is built in EndTabBar()), so the click is stored
+    // here and the next BeginTab() writes it to the opened pointer
     TabFlag_RequestClose = 1U << 4,
+    // a dragged tab that just swapped places must get back inside its own bounds before swapping again. otherwise it
+    // would keep swapping back and forth every frame
     TabFlag_JustPermuted = 1U << 5,
+    // the tab of a docked window
     TabFlag_ForDocking = 1U << 6,
+    // releasing a dragged tab counts as a click. this eats that click so that reordering does not select the tab
     TabFlag_Unselectable = 1U << 7,
 };
 
 enum OverlayTreeFlagBit : OverlayTreeFlags
 {
     OverlayTreeFlag_DrawLines = 1U << 0,
+    // only the arrow toggles it, the rest of the header just reports clicks. can be combined with _OpenOnDoubleClick
     OverlayTreeFlag_ToggleOnArrow = 1U << 1,
+    // opening needs a double click, closing does not
     OverlayTreeFlag_OpenOnDoubleClick = 1U << 2,
+    // header as wide as its label instead of the whole row
     OverlayTreeFlag_SpanLabelWidth = 1U << 3,
     OverlayTreeFlag_Framed = 1U << 4,
     OverlayTreeFlag_NoIndent = 1U << 5,
@@ -1168,29 +1345,37 @@ enum OverlayTreeFlagBit : OverlayTreeFlags
 
 enum OverlayTooltipFlagBit : OverlayTooltipFlags
 {
+    // every tooltip appends to the same window. this throws away what earlier tooltips appended this frame
     OverlayTooltipFlag_Reset = 1U << 0,
     OverlayTooltipFlag_NoPromotion = 1U << 1
 };
 
+// drags and sliders turn into an input box on ctrl click (or double click if allowed), and stay one while active
 enum InputConvertFlagBit : InputConvertInfoFlags
 {
     InputConvertFlag_Hovered = OverlayInteractionQueryFlag_Hovered,
+    // draw the input box this frame instead of the drag/slider
     InputConvertFlag_MustConvert = 1U << 1,
+    // the box was not active last frame. the converting press was eaten by the drag/slider, so the box would never see
+    // its own activation. this makes it act as activated (selection, undo state) anyway
     InputConvertFlag_MustOverrideHighlight = 1U << 2,
     InputConvertFlag_AllowDoubleClick = 1U << 3,
 };
 
 // NOTE(Isma, 25/06/06): Consider exposing these through a function QueryWidgetState or something like this
+// per id state that must outlive a frame
 enum WidgetStateFlagBit : WidgetStateFlags
 {
+    // trees, menu bars, color picker popups (to save the original color once, when it opens)
     WidgetStateFlag_Opened = 1U << 0,
-    // only used if OnHover interaction flags are used
-    WidgetStateFlag_Hovering = 1U << 1,
 };
 
+// set by SetNext*() calls and consumed by the next item
 enum NextItemFlagBit : NextWindowFlags
 {
+    // texts have no id by default. this gives the next one an id, so it can be queried as the last item (tooltips)
     NextItemFlag_HasTextId = 1 << 0,
+    // the next item can also be pressed and clicked with a key
     NextItemFlag_HasActivationKey = 1 << 1,
 };
 
