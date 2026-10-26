@@ -2,9 +2,19 @@
 #include "onyx/onyx.hpp"
 #include "onyx/sanitizer_options.hpp"
 #include <imgui.h>
+
+using Onyx::D2;
+using Onyx::D3;
+
 int main()
 {
-    Onyx::Initialize();
+    Onyx::Specs specs{};
+    specs.MaxImGuiVertices = 65536;
+    specs.MaxImGuiIndices = 98304;
+    specs.Specs2 = Onyx::CreateEmptySpecs<D2>();
+    specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
+    Onyx::Initialize(specs);
+
     Onyx::Window *win = Onyx::OpenWindow(
         {.Flags = Onyx::OpenWindowFlag_EnableImGui, .ImGuiConfigFlags = ImGuiConfigFlags_DockingEnable});
     while (Onyx::Running())

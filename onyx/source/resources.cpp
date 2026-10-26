@@ -293,13 +293,15 @@ template <typename Vertex> static void meshes_Terminate(MeshResourceData<Vertex>
 template <Dimension D> static void materials_Terminate()
 {
     MaterialResourceData<D> &materials = getData<D>().Materials;
-    Graph::Buffer_Destroy(materials.Buffer);
+    if (materials.Buffer != Graph::NullHandle)
+        Graph::Buffer_Destroy(materials.Buffer);
 }
 
 template <Dimension D> static void bounds_Terminate()
 {
-    BoundsResourceData<D> &data = getData<D>().BoundingBoxes;
-    Graph::Buffer_Destroy(data.Buffer);
+    BoundsResourceData<D> &bounds = getData<D>().BoundingBoxes;
+    if (bounds.Buffer != Graph::NullHandle)
+        Graph::Buffer_Destroy(bounds.Buffer);
 }
 
 template <Dimension D> static void terminate()
@@ -709,6 +711,11 @@ void Texture_UpdateRenderTexture(const Resource handle, const Graph::ImageView v
 
 template <Dimension D> static u32 bounds_Create(const BoundsData<D> &data)
 {
+    TKIT_ASSERT(getData<D>().BoundingBoxes.Elements.GetSize() < GetSpecs().GetSpecific<D>().MaxBounds,
+                "[ONYX][RESOURCES] Every {}D static and parametric mesh registers its bounds, and there are already "
+                ".Specs{}.MaxBounds = {} of them (Resources_CreateDefault registers 4 meshes in 2D and 10 in 3D). "
+                "Raise it in the specs given to Onyx::Initialize",
+                u8(D), u8(D), GetSpecs().GetSpecific<D>().MaxBounds);
     return resource_CreateWithHive(Resource_Bounds, data, getData<D>().BoundingBoxes);
 }
 
@@ -737,6 +744,11 @@ static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshR
 {
     constexpr Dimension D = Vertex::Dim;
     const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
+
+    TKIT_ASSERT(specs.MaxVerticesPerResourcePool != 0 && specs.MaxIndicesPerResourcePool != 0,
+                "[ONYX][RESOURCES] Cannot create a {}D '{}' pool: .Specs{}.MaxVerticesPerResourcePool ({}) and "
+                ".MaxIndicesPerResourcePool ({}) must not be 0. Fonts live in 2D pools, whatever their use",
+                u8(D), ToString(rtype), u8(D), specs.MaxVerticesPerResourcePool, specs.MaxIndicesPerResourcePool);
     const Graph::Buffer vbuffer = Graph::Buffer_Create(specs.MaxVerticesPerResourcePool * sizeof(Vertex),
                                                        Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
     const Graph::Buffer ibuffer = Graph::Buffer_Create(specs.MaxIndicesPerResourcePool * sizeof(Index),
@@ -1220,6 +1232,10 @@ template <Dimension D> ParametricShape Mesh_GetParametricShape(const Resource ha
 template <Dimension D> Resource DynamicMesh_Register()
 {
     TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
+    TKIT_ASSERT(meshes.GetSize() < GetSpecs().GetSpecific<D>().MaxDynamicMeshes,
+                "[ONYX][RESOURCES] There are already .Specs{}.MaxDynamicMeshes = {} {}D dynamic meshes (every overlay "
+                "registers 96 2D ones). Raise it in the specs given to Onyx::Initialize",
+                u8(D), GetSpecs().GetSpecific<D>().MaxDynamicMeshes, u8(D));
     const u32 mid = meshes.Insert();
 
     return Handle_CreateForResource(Resource_DynamicMesh, mid);
@@ -1292,6 +1308,10 @@ template <typename T> static void resource_DestroyWithHive(const Resource handle
 
 template <Dimension D> Resource Material_Register(const MaterialData<D> &data)
 {
+    TKIT_ASSERT(getData<D>().Materials.Elements.GetSize() < GetSpecs().GetSpecific<D>().MaxMaterials,
+                "[ONYX][RESOURCES] There are already .Specs{}.MaxMaterials = {} {}D materials. Raise it in the specs "
+                "given to Onyx::Initialize",
+                u8(D), GetSpecs().GetSpecific<D>().MaxMaterials, u8(D));
     return resource_CreateWithHive(Resource_Material, data, getData<D>().Materials);
 }
 
@@ -1474,7 +1494,11 @@ static void resources_CreateDefault(SpecificDefaultResources<D> &def, const Spec
 template <Dimension D> const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
 {
     DefaultResources &def = s_DefaultResources;
-    resources_CreateDefault(def, opts);
+
+    // the font and sampler are shared by both dimensions: calling this once per dimension creates them once. we use the
+    // sampler handle as a sentry here, but we might as well use the font pool, doesnt matter
+    if (def.Sampler == NullHandle)
+        resources_CreateDefault(def, opts);
     resources_CreateDefault<D>(def.GetResources<D>(), opts.GetOptions<D>());
     SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
@@ -1482,6 +1506,7 @@ template <Dimension D> const DefaultResources &Resources_CreateDefault(const Def
 #endif
 
     Resources_Sync(flags);
+    return def;
 }
 
 const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
@@ -1683,6 +1708,15 @@ template <typename T> static void uploadFromHost(Graph::Buffer &buffer, const TK
 
 template <typename Vertex> static void uploadMeshPool(MeshPool<Vertex> &mpool)
 {
+    [[maybe_unused]] const SpecificSpecs<Vertex::Dim> &specs = GetSpecs().GetSpecific<Vertex::Dim>();
+    TKIT_ASSERT(mpool.Vertices.GetSize() <= specs.MaxVerticesPerResourcePool &&
+                    mpool.Indices.GetSize() <= specs.MaxIndicesPerResourcePool,
+                "[ONYX][RESOURCES] A {}D '{}' pool holds {} vertices and {} indices, but "
+                ".Specs{}.MaxVerticesPerResourcePool is {} and .MaxIndicesPerResourcePool is {}. Raise them in the "
+                "specs given to Onyx::Initialize, or split the meshes across more pools",
+                u8(Vertex::Dim), ToString(Vertex::Resource), mpool.Vertices.GetSize(), mpool.Indices.GetSize(),
+                u8(Vertex::Dim), specs.MaxVerticesPerResourcePool, specs.MaxIndicesPerResourcePool);
+
     uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices);
     uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices);
 
@@ -1968,6 +2002,9 @@ template MeshRange Mesh_GetRange<D3>(Resource handle);
 
 template Resource Mesh_GetBounds<D2>(Resource mesh);
 template Resource Mesh_GetBounds<D3>(Resource mesh);
+
+template const DefaultResources &Resources_CreateDefault<D2>(const DefaultResourcesOptions &opts);
+template const DefaultResources &Resources_CreateDefault<D3>(const DefaultResourcesOptions &opts);
 
 template const BoundsData<D2> &Bounds_GetData(Resource bounds);
 template const BoundsData<D3> &Bounds_GetData(Resource bounds);

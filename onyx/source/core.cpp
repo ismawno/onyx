@@ -225,7 +225,7 @@ static void createDescriptorData()
                                   ONYX_MAX_TEXTURE_MAPS, pbound));
     shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_MAPS_BINDING_POINT, sampledImage, fragment,
                                   ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
     s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded);
 
     BindingArray shadow{};
@@ -238,7 +238,7 @@ static void createDescriptorData()
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
 
-    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment, 1, pbound));
     s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
 
     // NOTE(Isma): Removed bind unused here

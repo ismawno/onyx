@@ -181,6 +181,29 @@ template <> struct SpecificSpecs<D3>
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 
+template <Dimension D> constexpr SpecificSpecs<D> CreateEmptySpecs()
+{
+    SpecificSpecs<D> specs{};
+    specs.MaxInstances = 0;
+    specs.MaxLightInstances = 0;
+    specs.MaxDrawCommands = 0;
+    specs.MaxVerticesPerResourcePool = 0;
+    specs.MaxIndicesPerResourcePool = 0;
+    specs.MaxDynamicVertices = 0;
+    specs.MaxDynamicIndices = 0;
+    specs.MaxDynamicMeshes = 0;
+    specs.MaxMaterials = 0;
+    specs.MaxBounds = 0;
+    if constexpr (D == D2)
+    {
+        specs.MaxShadowMaps = 0;
+        specs.MaxOcclusionMaps = 0;
+    }
+    else
+        specs.MaxShadowMaps = {0, 0, 0};
+    return specs;
+}
+
 struct Specs
 {
     const char *LoaderPath = nullptr;

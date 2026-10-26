@@ -82,7 +82,8 @@ template <> struct LightResources<D2>
     void Destroy() const
     {
         for (u32 i = 0; i < LightTypeCount<D2>; ++i)
-            Graph::Buffer_Destroy(Buffers[i]);
+            if (Buffers[i] != Graph::NullHandle)
+                Graph::Buffer_Destroy(Buffers[i]);
         ShadowMaps.Destroy();
         OcclusionMaps.Destroy();
     }
@@ -110,7 +111,8 @@ template <> struct LightResources<D3>
     {
         for (u32 i = 0; i < LightTypeCount<D3>; ++i)
         {
-            Graph::Buffer_Destroy(Buffers[i]);
+            if (Buffers[i] != Graph::NullHandle)
+                Graph::Buffer_Destroy(Buffers[i]);
             ShadowMaps[i].Destroy();
         }
     }
@@ -1077,7 +1079,7 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
         TKIT_ASSERT(specs.MaxShadowMaps + specs.MaxOcclusionMaps <= ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS,
                     "[ONYX][RENDERER] Max shadow and occlusion map entries must not exceed together more than "
                     "ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS = {}, but {} + {} = {}. Decrease the 2D values of "
-                    ".MaxShadowMaps and .MaxOcclusionMaps fields",
+                    ".MaxShadowMaps and .MaxOcclusionMaps fields given to Onyx::Initialize",
                     ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, specs.MaxShadowMaps, specs.MaxOcclusionMaps,
                     specs.MaxShadowMaps + specs.MaxOcclusionMaps);
 
@@ -1177,7 +1179,7 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
             const u32 maxMaps = specs.MaxShadowMaps[ltype];
             TKIT_ASSERT(maxMaps <= ONYX_MAX_TEXTURE_MAPS,
                         "[ONYX][RENDERER] Max shadow map entries must not exceed ONYX_MAX_TEXTURE_MAPS = {}, but is "
-                        "{}. Decrease the 3D value of the .MaxShadowMaps[{}] field",
+                        "{}. Decrease the 3D value of the .MaxShadowMaps[{}] field given to Onyx::Initialize",
                         ONYX_MAX_TEXTURE_MAPS, maxMaps, u32(ltype));
 
             l3.ShadowMaps[ltype].Maps.Reserve(maxMaps);
@@ -1777,6 +1779,7 @@ SpotLightData createLightData(const ViewMask vmask, const u32 shadowMapOffset, c
 
 template <Dimension D> static void transfer()
 {
+    [[maybe_unused]] const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     RendererData<D> &rdata = getRendererData<D>();
     LightData<D> &ldata = rdata.Lights;
     ldata.Clear();
@@ -1802,6 +1805,13 @@ template <Dimension D> static void transfer()
                     return;
 
                 InstanceDeviceBuffer &buff = group->InstanceBuffers[geo];
+
+                TKIT_ASSERT(offsets[geo] / GetInstanceSize<D>(geo) + idata.Instances <= specs.MaxInstances,
+                            "[ONYX][RENDERER] This frame draws at least {} {}D instances of geometry '{}', but "
+                            ".Specs{}.MaxInstances is {}. Raise it in the specs given to Onyx::Initialize",
+                            offsets[geo] / GetInstanceSize<D>(geo) + idata.Instances, u8(D), ToString(geo), u8(D),
+                            specs.MaxInstances);
+
                 InstanceRange &range = buff.Ranges.Append();
                 range.Blend = BlendPass(bpass);
                 range.Offset = offsets[geo];
@@ -1812,6 +1822,16 @@ template <Dimension D> static void transfer()
                 if (handle != NullHandle && Handle_GetResourceType(handle) == Resource_DynamicMesh)
                 {
                     const DynamicMeshData<D> &data = DynamicMesh_GetData<D>(handle);
+
+                    TKIT_ASSERT(vertexOffset + data.Vertices.GetSize() <= specs.MaxDynamicVertices &&
+                                    firstIndex + data.Indices.GetSize() <= specs.MaxDynamicIndices,
+                                "[ONYX][RENDERER] This frame draws at least {} {}D dynamic mesh vertices and {} "
+                                "indices, but .Specs{}.MaxDynamicVertices is {} and .MaxDynamicIndices is {}. Every "
+                                "draw of a dynamic mesh copies its vertices and indices again. Raise them in the specs "
+                                "given to Onyx::Initialize",
+                                vertexOffset + data.Vertices.GetSize(), u8(D), firstIndex + data.Indices.GetSize(),
+                                u8(D), specs.MaxDynamicVertices, specs.MaxDynamicIndices);
+
                     range.VertexOffset = vertexOffset;
                     range.FirstIndex = firstIndex;
                     range.IndexCount = data.Indices.GetSize();
@@ -1880,12 +1900,23 @@ template <Dimension D> static void transfer()
                         LightResources<D2> &l2 = group->LightData;
                         shadowMapOffset = l2.ShadowMaps.Cursor;
                         l2.ShadowMaps.Cursor += count;
+                        TKIT_ASSERT(l2.ShadowMaps.Cursor <= specs.MaxShadowMaps,
+                                    "[ONYX][RENDERER] Shadow casting 2D lights need at least {} shadow maps this frame "
+                                    "(one per light and per view its context targets), but .Specs2.MaxShadowMaps is "
+                                    "{}. Raise it in the specs given to Onyx::Initialize",
+                                    l2.ShadowMaps.Cursor, specs.MaxShadowMaps);
                     }
                     else
                     {
                         LightResources<D3> &l3 = group->LightData;
                         shadowMapOffset = l3.ShadowMaps[ltype].Cursor;
                         l3.ShadowMaps[ltype].Cursor += count;
+                        TKIT_ASSERT(l3.ShadowMaps[ltype].Cursor <= specs.MaxShadowMaps[ltype],
+                                    "[ONYX][RENDERER] Shadow casting 3D {} lights need at least {} shadow maps this "
+                                    "frame (one per light and per view its context targets), but "
+                                    ".Specs3.MaxShadowMaps[{}] is {}. Raise it in the specs given to Onyx::Initialize",
+                                    ToString(ltype), l3.ShadowMaps[ltype].Cursor, u32(ltype),
+                                    specs.MaxShadowMaps[ltype]);
                     }
                 }
                 clights.Parameters.Append(params);
@@ -1900,6 +1931,13 @@ template <Dimension D> static void transfer()
     }
     const auto copyLights = [&]<typename LightParams>(const LightType ltype,
                                                       const ContextLights<LightParams> &clights) {
+        if (clights.Data.IsEmpty())
+            return;
+
+        TKIT_ASSERT(clights.Data.GetSize() <= specs.MaxLightInstances,
+                    "[ONYX][RENDERER] This frame has {} {}D {} lights, but .Specs{}.MaxLightInstances is {}. Raise it "
+                    "in the specs given to Onyx::Initialize",
+                    clights.Data.GetSize(), u8(D), ToString(ltype), u8(D), specs.MaxLightInstances);
         Graph::Buffer_Write(group->LightData.Buffers[ltype], clights.Data.GetData(), clights.Data.GetBytes());
     };
     copyLights(Light_Point, ldata.Points);
@@ -2118,6 +2156,13 @@ static void recordDrawCommands(const Graph::CommandBuffer cmd, const RenderPass 
         setupPipelineState<D>(cmd, rpass, Geometry_Circle, playout, pipelines[Geometry_Circle]);
 
         const usz offset = drawBuffer.Offset;
+        TKIT_ASSERT(offset + circleCmdSize <=
+                        GetSpecs().GetSpecific<D>().MaxDrawCommands * sizeof(Graph::DrawIndirectCommand),
+                    "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} circle draw commands. "
+                    "There is one per context, blend pass, render mode and pass, in every view and shadow map render. "
+                    "Raise it in the specs given to Onyx::Initialize",
+                    u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
+
         Graph::Buffer_Write(drawBuffer.Buffer, circleCmds.GetData(), {.Size = circleCmdSize, .DstOffset = offset});
         drawBuffer.Offset += circleCmdSize;
 
@@ -2133,6 +2178,12 @@ static void recordDrawCommands(const Graph::CommandBuffer cmd, const RenderPass 
 
         const usz size = cmds.GetBytes();
         const usz offset = indexedDrawBuffer.Offset;
+        TKIT_ASSERT(offset + size <=
+                        GetSpecs().GetSpecific<D>().MaxDrawCommands * sizeof(Graph::DrawIndexedIndirectCommand),
+                    "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} mesh draw commands. "
+                    "There is one per mesh, context, blend pass, render mode and pass, in every view and shadow map "
+                    "render. Raise it in the specs given to Onyx::Initialize",
+                    u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
         Graph::Buffer_Write(indexedDrawBuffer.Buffer, cmds.GetData(), {.Size = size, .DstOffset = offset});
         indexedDrawBuffer.Offset += size;
 
@@ -2301,6 +2352,13 @@ template <Dimension D> static void renderShadows(const Graph::CommandBuffer cmd,
             {
                 LightResources<D2> &l2 = group->LightData;
                 const u32 ocindex = l2.OcclusionMaps.Cursor++;
+
+                TKIT_ASSERT(ocindex < l2.OcclusionMaps.Maps.GetSize(),
+                            "[ONYX][RENDERER] Shadow casting 2D lights need at least {} occlusion maps this frame (one "
+                            "per light and per view that renders shadows), but .Specs2.MaxOcclusionMaps is {}. Raise "
+                            "it in the specs given to Onyx::Initialize",
+                            ocindex + 1, l2.OcclusionMaps.Maps.GetSize());
+
                 const Graph::Image ocmap = l2.OcclusionMaps.Maps[ocindex];
 
                 beginShadowTransitionLayout<D2>(cmd, ocmap);

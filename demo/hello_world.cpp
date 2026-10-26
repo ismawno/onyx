@@ -5,12 +5,21 @@
 #include "onyx/sanitizer_options.hpp"
 
 using Onyx::D2;
+using Onyx::D3;
 using namespace TKit::Alias;
 
 int main()
 {
-    Onyx::Initialize({.Specs3 = {.MaxInstances = 0}});
-    Onyx::Resources_CreateDefault();
+    Onyx::Specs specs{};
+    specs.Specs2 = Onyx::CreateEmptySpecs<D2>();
+    specs.Specs2.MaxInstances = 16;
+    specs.Specs2.MaxDrawCommands = 16;
+    specs.Specs2.MaxVerticesPerResourcePool = 1024;
+    specs.Specs2.MaxIndicesPerResourcePool = 2048;
+    specs.Specs2.MaxBounds = 4;
+    specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
+    Onyx::Initialize(specs);
+    Onyx::Resources_CreateDefault<D2>();
 
     Onyx::Window *win = Onyx::OpenWindow();
 

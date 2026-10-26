@@ -302,7 +302,7 @@ struct Category
     bool Open = false;
 
     TKit::StaticArray<AutoCheck, 32> Checks{};
-    TKit::StaticArray<VisualCheck, 16> Visuals{};
+    TKit::StaticArray<VisualCheck, 24> Visuals{};
 
     // checks that failed last frame, and since when. a check is logged only when it goes from passing to failing, so a
     // check that stays red does not flood the log
@@ -603,7 +603,46 @@ struct RenderSettings
     Onyx::AntiAliasing FXAAMode = Onyx::FXAA_QualityMedium;
     f32 OutlineWidth = 0.08f;
     f32 Alpha = 0.6f;
+    f32 Alpha3 = 0.45f; // the translucent shapes in front of the 3D gallery
     Onyx::CircleParameters Circle{.Hollowness = 0.3f, .UpperAngle = 1.6f * Math::Pi<f32>()};
+};
+
+// how lights filter their shadow maps. soft shadows (PCSS) take precedence over PCF when both flags are set
+enum ShadowFilter : u8
+{
+    Filter_Hard,
+    Filter_PCF,
+    Filter_Soft,
+    Filter_Count,
+};
+constexpr Onyx::LightFlags FilterFlags[Filter_Count] = {Onyx::LightFlag_CastShadows,
+                                                        Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF,
+                                                        Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCSS};
+constexpr const char *FilterNames = "Hard#PCF#Soft (PCSS)";
+constexpr const char *FilterLabels[Filter_Count] = {"hard", "PCF", "soft (PCSS)"};
+constexpr Onyx::LightFlags FilterMask = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF | Onyx::LightFlag_PCSS;
+
+// frame pacing: the target delta time asked for with SetTargetDeltaTime. Onyx sleeps until a window is due, and in
+// vsync it resets the target to the monitor's own when the swapchain is recreated or the window moves
+enum PacingMode : u8
+{
+    Pacing_None, // no target: the present mode alone paces frames
+    Pacing_Monitor,
+    Pacing_Custom,
+    Pacing_Count,
+};
+
+struct PacingSettings
+{
+    PacingMode Mode = Pacing_None; // the window opens without a target
+    u32 Rate = 30;
+    bool Dirty = false;
+    TKit::Timespan Requested{};
+    // set when onyx replaced the request with the monitor's delta time, which is kept in ResetTo
+    bool Reset = false;
+    TKit::Timespan ResetTo{};
+    TKit::Timespan Active{};
+    u32 FramesAtActive = 0;
 };
 
 struct LightSettings
@@ -617,6 +656,10 @@ struct LightSettings
     f32 ConeExtent = 0.2f; // half of the cone, as a fraction of half a turn
     f32 ConeDecay = 0.6f;
     bool Sweep = false;
+    // soft shadows widen with the light's size: a world size for point lights, an angular one for directional lights
+    ShadowFilter Filter2 = Filter_PCF;
+    f32 LightSize2 = 0.15f;
+    f32 SunAngle2 = Math::Radians(2.f);
 
     bool Lights3 = true;
     bool SunDown = false; // the 3D directional light points straight down
@@ -628,7 +671,77 @@ struct LightSettings
     f32 SpotRange = 8.f;
     f32 SpotTilt = 0.f; // away from straight down
     f32 SpotTurn = 0.f; // which way it tilts, around the vertical axis
+    ShadowFilter Filter3 = Filter_PCF;
+    f32 PointSize3 = 0.2f;
+    f32 SpotSize3 = 0.1f;
+    f32 SunAngle3 = Math::Radians(1.f);
 };
+
+// what a frame asks of the renderer, per dimension, next to the Initialize maximum each meter is bounded by. the
+// first five are the instance buffers, one per geometry and in Onyx::Geometry order
+enum UsageMeter : u8
+{
+    Usage_Circles,
+    Usage_StaticMeshes,
+    Usage_ParametricMeshes,
+    Usage_Glyphs,
+    Usage_DynamicMeshInstances,
+    Usage_Lights,
+    Usage_ShadowMaps, // 2D: one pool for every light type
+    Usage_OcclusionMaps,
+    Usage_PointShadowMaps, // 3D: one maximum per light type
+    Usage_DirectionalShadowMaps,
+    Usage_SpotShadowMaps,
+    Usage_DynamicVertices,
+    Usage_DynamicIndices,
+    Usage_DrawCommands,
+    Usage_PoolVertices,
+    Usage_PoolIndices,
+    Usage_DynamicMeshes,
+    Usage_Count,
+};
+struct UsageInfo
+{
+    const char *Name;
+    const char *Spec; // the Onyx::SpecificSpecs field that bounds it
+};
+constexpr UsageInfo UsageInfos[Usage_Count] = {
+    {"Circles ", "MaxInstances"},
+    {"Static meshes ", "MaxInstances"},
+    {"Parametric meshes ", "MaxInstances"},
+    {"Glyphs ", "MaxInstances"},
+    {"Dynamic mesh draws ", "MaxInstances"},
+    {"Lights, busiest type ", "MaxLightInstances"},
+    {"Shadow maps ", "MaxShadowMaps"},
+    {"Occlusion maps ", "MaxOcclusionMaps"},
+    {"Point light shadow maps ", "MaxShadowMaps[Light_Point]"},
+    {"Directional light shadow maps ", "MaxShadowMaps[Light_Directional]"},
+    {"Spot light shadow maps ", "MaxShadowMaps[Light_Spot]"},
+    {"Dynamic vertices ", "MaxDynamicVertices"},
+    {"Dynamic indices ", "MaxDynamicIndices"},
+    {"Draw commands (bound) ", "MaxDrawCommands"},
+    {"Pool vertices, fullest pool ", "MaxVerticesPerResourcePool"},
+    {"Pool indices, fullest pool ", "MaxIndicesPerResourcePool"},
+    {"Registered dynamic meshes ", "MaxDynamicMeshes"},
+};
+
+struct UsageMeters
+{
+    TKit::FixedArray<u32, Usage_Count> Now{};
+    TKit::FixedArray<u32, Usage_Count> Peak{};
+    TKit::FixedArray<u32, Usage_Count> Limit{}; // 0 is a valid maximum: nothing may be used then
+    TKit::FixedArray<bool, Usage_Count> Applies{};
+};
+
+// how full a meter got, relative to its maximum. anything used against a maximum of 0 is an overflow
+static f32 usageFill(const UsageMeters &meters, const u32 meter)
+{
+    const u32 peak = meters.Peak[meter];
+    const u32 limit = meters.Limit[meter];
+    if (limit == 0)
+        return peak == 0 ? 0.f : TKIT_F32_MAX;
+    return f32(peak) / f32(limit);
+}
 
 // the view lab: one more 2D view on the window, reconfigured from its panel and checked against these settings
 enum LabPlacement : u8
@@ -827,6 +940,7 @@ struct App
     Onyx::RenderContext<D2> *TexturesCtx = nullptr;
     Onyx::RenderContext<D2> *RtCtx = nullptr;
     Onyx::RenderContext<D2> *ScratchCtx = nullptr; // never renders. used to test context state logic
+    Onyx::RenderContext<D3> *Scratch3 = nullptr;
     Onyx::RenderContext<D2> *LabCtx = nullptr;
 
     Onyx::RenderTexture *RtScaled = nullptr;
@@ -864,6 +978,7 @@ struct App
     // window properties set by us, read back by checks
     char Title[128]{};
     u32 PresentMode = Onyx::PresentMode_VSync;
+    PacingSettings Pacing{};
     f32 Opacity = 1.f;
     u32v2 RequestedSize = InitialWindowSize;
 
@@ -896,6 +1011,9 @@ struct App
 
     CategoryArray Categories{};
     TKit::StaticArray<FailureRecord, 48> FailureLog{};
+
+    // renderer usage per dimension, measured every frame right before the transfer
+    TKit::FixedArray<UsageMeters, 2> Usage{};
 };
 
 // =====================================================================================================================
@@ -1012,6 +1130,7 @@ static void setup(App &app)
     app.RtCtx->AddTarget(app.RtScaledView);
     app.RtCtx->AddTarget(app.RtFixedView);
     app.ScratchCtx = Onyx::CreateRenderContext<D2>();
+    app.Scratch3 = Onyx::CreateRenderContext<D3>();
     app.LabCtx = Onyx::CreateRenderContext<D2>();
     app.LabCtx->AddTarget(app.LabView);
 
@@ -1028,7 +1147,7 @@ static void setup(App &app)
 
 // moves every scene context to the views of the requested layout. hidden views neither render nor composite. a
 // context is never left targeting both sets: every shadow casting light takes one shadow map per targeted view, and
-// 2D only has four
+// the default specs have just enough of them
 static void setLayout(App &app, const LayoutMode mode)
 {
     const LayoutMode old = mode == Mode_Direct ? Mode_Docked : Mode_Direct;
@@ -1249,6 +1368,42 @@ static void updateLab(App &app)
     app.LabCam.OrthoParameters.Size = lab.OrthoSize;
     app.LabCam.View.Translation = lab.CameraPosition;
     app.LabCam.View.Rotation = lab.Rotation;
+}
+
+// requests from the platform panel apply right before Render, which then scans the same events as below and resets
+// the target to the monitor's in vsync. mirroring it here tells the checks when the request was replaced
+static void updatePacing(App &app)
+{
+    PacingSettings &pc = app.Pacing;
+    Onyx::Window *win = app.Window;
+    const TKit::Timespan monitor = win->GetMonitorDeltaTime();
+    if (pc.Mode == Pacing_Monitor && pc.Requested != monitor) // follows the monitor the window is on
+        pc.Dirty = true;
+    if (pc.Dirty)
+    {
+        pc.Requested = pc.Mode == Pacing_None      ? TKit::Timespan{}
+                       : pc.Mode == Pacing_Monitor ? monitor
+                                                   : Onyx::ToDeltaTime(pc.Rate);
+        Onyx::SetTargetDeltaTime(win, pc.Requested);
+        pc.Reset = false;
+        pc.Dirty = false;
+    }
+    if (win->GetPresentMode() == Onyx::PresentMode_VSync)
+        for (const Onyx::Event &event : win->GetNewEvents())
+            if (event.Type == Onyx::Event_SwapchainRecreated || event.Type == Onyx::Event_WindowMoved)
+            {
+                pc.Reset = true;
+                pc.ResetTo = monitor;
+            }
+
+    const TKit::Timespan active = Onyx::GetTargetDeltaTime(win);
+    if (active != pc.Active)
+    {
+        pc.Active = active;
+        pc.FramesAtActive = 0;
+    }
+    else
+        ++pc.FramesAtActive;
 }
 
 // scenarios exercise related checks on demand
@@ -1579,6 +1734,22 @@ static void checkRendering(App &app)
                opaque ? "opaque" : "transparent", fromColor ? "transparent" : "opaque");
     ctx->Flush();
 
+    Onyx::RenderContext<D3> *ctx3 = app.Scratch3;
+    ctx3->Flush();
+    ctx3->Alpha(0.4f);
+    const bool translucent3 = ctx3->GetState().Blend == Onyx::BlendPass_Transparent;
+    ctx3->Alpha(1.f);
+    const bool opaque3 = ctx3->GetState().Blend == Onyx::BlendPass_Opaque;
+    ctx3->FillColor(Onyx::Color{Onyx::Color_Sky, 0.5f});
+    const bool fromColor3 = ctx3->GetState().Blend == Onyx::BlendPass_Transparent;
+    ctx3->Flush();
+    cat.Expect("3D translucent fills go to the transparent pass", translucent3 && opaque3 && fromColor3,
+               "The same routing in 3D: alpha below 1 sends the following draws to the transparent pass, alpha 1 "
+               "back to the opaque one. Without it, translucent 3D shapes would be drawn opaque",
+               "Alpha(0.4) -> {}, Alpha(1) -> {}, FillColor(a = 0.5) -> {}", translucent3 ? "transparent" : "opaque",
+               opaque3 ? "opaque" : "transparent", fromColor3 ? "transparent" : "opaque")
+        .Pane = Pane_Gallery3;
+
     Onyx::RenderViewFlags wanted = Onyx::RenderViewFlag_Transparency;
     if (app.Render.Outlines)
         wanted |= Onyx::RenderViewFlag_Outlines;
@@ -1787,6 +1958,28 @@ static void checkLights(App &app)
         cat.Skip("2D directional light keeps its angle", dirRule, "the 2D directional light is off").Pane =
             Pane_Gallery2;
 
+    const char *filter2Rule =
+        "Shadow filtering is chosen per light, through its flags: PCF averages shadow map samples and PCSS (soft "
+        "shadows, which wins over PCF) also widens the penumbra with LightSize for point lights and AngleSize for "
+        "directional ones. The recorded flags and sizes must be the ones picked in the Lights panel";
+    if (points2 + dirs2 > 0)
+    {
+        const Onyx::LightFlags want = FilterFlags[ls.Filter2];
+        u32 wrong = 0;
+        for (const Onyx::PointLightParameters<D2> &p : app.GalleryCtx->GetPointLightParams())
+            if ((p.Flags & FilterMask) != want || !Math::Approximately(p.LightSize, ls.LightSize2, Epsilon))
+                ++wrong;
+        for (const Onyx::DirectionalLightParameters<D2> &d : app.GalleryCtx->GetDirectionalLightParams())
+            if ((d.Flags & FilterMask) != want || !Math::Approximately(d.AngleSize, ls.SunAngle2, Epsilon))
+                ++wrong;
+        cat.Expect("2D lights carry the shadow filter", wrong == 0, filter2Rule,
+                   "{} of {} lights differ from {}, light size {:.2f}, angular size {:.1f} deg", wrong, points2 + dirs2,
+                   FilterLabels[ls.Filter2], ls.LightSize2, Math::Degrees(ls.SunAngle2))
+            .Pane = Pane_Gallery2;
+    }
+    else
+        cat.Skip("2D lights carry the shadow filter", filter2Rule, "2D lights are off").Pane = Pane_Gallery2;
+
     const u32 points3 = app.Ctx3->GetPointLightParams().GetSize();
     const u32 spots3 = app.Ctx3->GetSpotLightParams().GetSize();
     const u32 dirs3 = app.Ctx3->GetDirectionalLightParams().GetSize();
@@ -1834,6 +2027,29 @@ static void checkLights(App &app)
     else
         cat.Skip("3D spot light keeps its position and direction", spotRule, "the spot light is off").Pane =
             Pane_Gallery3;
+
+    const char *filter3Rule = "The same per light flags in 3D. PCSS reads LightSize for point and spot lights and "
+                              "AngleSize for directional ones. Every recorded 3D light must carry the filter and the "
+                              "sizes picked in the Lights panel";
+    if (points3 + spots3 + dirs3 > 0)
+    {
+        const Onyx::LightFlags want = FilterFlags[ls.Filter3];
+        u32 wrong = 0;
+        for (const Onyx::PointLightParameters<D3> &p : app.Ctx3->GetPointLightParams())
+            if ((p.Flags & FilterMask) != want || !Math::Approximately(p.LightSize, ls.PointSize3, Epsilon))
+                ++wrong;
+        for (const Onyx::SpotLightParameters &sp : app.Ctx3->GetSpotLightParams())
+            if ((sp.Flags & FilterMask) != want || !Math::Approximately(sp.LightSize, ls.SpotSize3, Epsilon))
+                ++wrong;
+        for (const Onyx::DirectionalLightParameters<D3> &d : app.Ctx3->GetDirectionalLightParams())
+            if ((d.Flags & FilterMask) != want || !Math::Approximately(d.AngleSize, ls.SunAngle3, Epsilon))
+                ++wrong;
+        cat.Expect("3D lights carry the shadow filter", wrong == 0, filter3Rule, "{} of {} lights differ from {}",
+                   wrong, points3 + spots3 + dirs3, FilterLabels[ls.Filter3])
+            .Pane = Pane_Gallery3;
+    }
+    else
+        cat.Skip("3D lights carry the shadow filter", filter3Rule, "3D lights are off").Pane = Pane_Gallery3;
 
     // the renderer builds every 3D directional light's frame with the one argument CreateOrthogonalBase, which picks
     // its own helper vector. a sun pointing straight down is common, so vertical directions must work too
@@ -2112,41 +2328,43 @@ static void checkResources(App &app)
 {
     Category &cat = app.Categories[Category_Resources];
     const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
+    const Onyx::SpecificDefaultResources<D2> &res2 = res.Resources2;
+    const Onyx::SpecificDefaultResources<D3> &res3 = res.Resources3;
 
-    const bool meshes2 = Onyx::IsResourceValid<D2>(res.Triangle2, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D2>(res.Quad2, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D2>(res.Stadium2, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D2>(res.RoundedRect2, Onyx::Resource_ParametricMesh);
+    const bool meshes2 = Onyx::IsResourceValid<D2>(res2.Triangle, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D2>(res2.Quad, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D2>(res2.Stadium, Onyx::Resource_ParametricMesh) &&
+                         Onyx::IsResourceValid<D2>(res2.RoundedRect, Onyx::Resource_ParametricMesh);
     cat.Expect("Default 2D meshes are valid", meshes2,
                "Resources_CreateDefault registers the built in 2D meshes: triangle and quad (static), stadium and "
                "rounded rect (parametric, their shape is controlled per instance)",
                "triangle, quad, stadium, rounded rect");
 
-    const bool meshes3 = Onyx::IsResourceValid<D3>(res.Triangle3, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Quad3, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Box, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Sphere, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Cylinder, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Stadium3, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res.RoundedRect3, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Capsule, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res.RoundedBox, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res.Torus, Onyx::Resource_ParametricMesh);
+    const bool meshes3 = Onyx::IsResourceValid<D3>(res3.Triangle, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Quad, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Box, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Sphere, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Cylinder, Onyx::Resource_StaticMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Stadium, Onyx::Resource_ParametricMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.RoundedRect, Onyx::Resource_ParametricMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Capsule, Onyx::Resource_ParametricMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.RoundedBox, Onyx::Resource_ParametricMesh) &&
+                         Onyx::IsResourceValid<D3>(res3.Torus, Onyx::Resource_ParametricMesh);
     cat.Expect("Default 3D meshes are valid", meshes3,
                "The built in 3D meshes: triangle, quad, box, sphere, cylinder (static), stadium, rounded rect, "
                "capsule, rounded box and torus (parametric)",
                "10 meshes checked");
 
     cat.Expect("Default pools are valid",
-               Onyx::IsResourcePoolValid(res.StaticPool2) && Onyx::IsResourcePoolValid(res.ParametricPool2) &&
-                   Onyx::IsResourcePoolValid(res.StaticPool3) && Onyx::IsResourcePoolValid(res.ParametricPool3) &&
+               Onyx::IsResourcePoolValid(res2.StaticPool) && Onyx::IsResourcePoolValid(res2.ParametricPool) &&
+                   Onyx::IsResourcePoolValid(res3.StaticPool) && Onyx::IsResourcePoolValid(res3.ParametricPool) &&
                    Onyx::IsResourcePoolValid(res.FontPool),
                "Meshes and fonts live in resource pools. The default ones hold the default resources",
                "static 2D: {} meshes, parametric 2D: {}, static 3D: {}, parametric 3D: {}",
-               Onyx::ResourcePool_GetResourceCount<D2>(res.StaticPool2),
-               Onyx::ResourcePool_GetResourceCount<D2>(res.ParametricPool2),
-               Onyx::ResourcePool_GetResourceCount<D3>(res.StaticPool3),
-               Onyx::ResourcePool_GetResourceCount<D3>(res.ParametricPool3));
+               Onyx::ResourcePool_GetResourceCount<D2>(res2.StaticPool),
+               Onyx::ResourcePool_GetResourceCount<D2>(res2.ParametricPool),
+               Onyx::ResourcePool_GetResourceCount<D3>(res3.StaticPool),
+               Onyx::ResourcePool_GetResourceCount<D3>(res3.ParametricPool));
 
     cat.Expect("Default font and sampler are valid",
                Onyx::IsResourceValid(res.Font, Onyx::Resource_Font) &&
@@ -2194,6 +2412,271 @@ static void checkResources(App &app)
                    Onyx::IsResourceValid<D3>(app.Mat3, Onyx::Resource_Material),
                "Material handles must validate as materials of their own dimension",
                "2 materials in 2D, 1 in 3D (plus the probe)");
+
+    // the fullest meter, relative to its maximum
+    u32 over = 0;
+    f32 fullest = -1.f;
+    u32 fullestDim = 0;
+    u32 fullestMeter = 0;
+    for (u32 dim = 0; dim < 2; ++dim)
+        for (u32 i = 0; i < Usage_Count; ++i)
+        {
+            const UsageMeters &meters = app.Usage[dim];
+            if (!meters.Applies[i])
+                continue;
+            over += meters.Peak[i] > meters.Limit[i];
+            const f32 fill = usageFill(meters, i);
+            if (fill > fullest)
+            {
+                fullest = fill;
+                fullestDim = dim;
+                fullestMeter = i;
+            }
+        }
+    const UsageMeters &worst = app.Usage[fullestDim];
+    cat.Expect(
+        "Frame usage fits the Initialize specs", over == 0,
+        "Onyx sizes every per frame buffer from the Specs given to Initialize, and overflowing one asserts. This "
+        "demo asks for what it uses, and the Resources panel measures every frame against it: no peak since "
+        "start may exceed its maximum. Draw commands are an upper bound",
+        "{} over, fullest: {}D {}{} of {} {}", over, fullestDim + 2, UsageInfos[fullestMeter].Name,
+        worst.Peak[fullestMeter], worst.Limit[fullestMeter], UsageInfos[fullestMeter].Spec);
+}
+
+// Initialize sizes every per frame renderer buffer from Onyx::Specs, and a frame that overflows one asserts. what a
+// frame asks for is measured here from every context, the way Renderer_Transfer copies it. draw commands are an upper
+// bound: hidden views count, and every 3D directional light is assumed to render all its cascades in every view
+template <Onyx::Dimension D> struct UsageTally
+{
+    TKit::FixedArray<u32, Onyx::Geometry_Count> Instances{};
+    TKit::FixedArray<u32, Onyx::LightTypeCount<D>> Lights{};
+    TKit::FixedArray<u32, Onyx::LightTypeCount<D>> ShadowMaps{}; // 2D has a single pool, in the first slot
+    u32 DynamicVertices = 0;
+    u32 DynamicIndices = 0;
+    // per view: commands of its own passes, shaded ranges (drawn again by every shadow map render) and shadow map
+    // renders, split into the plain (circles) and indexed (meshes) command buffers
+    TKit::FixedArray<u32, ONYX_MAX_VIEWS> CircleCommands{};
+    TKit::FixedArray<u32, ONYX_MAX_VIEWS> MeshCommands{};
+    TKit::FixedArray<u32, ONYX_MAX_VIEWS> ShadedCircles{};
+    TKit::FixedArray<u32, ONYX_MAX_VIEWS> ShadedMeshes{};
+    TKit::FixedArray<u32, ONYX_MAX_VIEWS> ShadowRenders{};
+};
+
+template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, const Onyx::RenderContext<D> &ctx)
+{
+    constexpr Onyx::Geometry poolGeometries[Onyx::Resource_MeshPoolCount] = {
+        Onyx::Geometry_Static, Onyx::Geometry_Parametric, Onyx::Geometry_Glyph};
+    const Onyx::ContextInstanceData &data = ctx.GetInstanceData();
+
+    // every non empty range is one draw command per pipeline pass it uses, in every view the context targets
+    u32 circleCommands = 0;
+    u32 meshCommands = 0;
+    u32 shadedCircles = 0;
+    u32 shadedMeshes = 0;
+    const auto addRange = [&](const Onyx::Geometry geo, const u32 instances, const u32 mode) {
+        if (instances == 0)
+            return;
+        tally.Instances[geo] += instances;
+        const Onyx::RenderModeFlags flags = Onyx::GetRenderModeFlags(Onyx::RenderMode(mode));
+        const bool shaded = flags & Onyx::RenderModeFlag_Shaded;
+        const u32 passes = u32(shaded) + u32((flags & Onyx::RenderModeFlag_Flat) != 0) +
+                           u32((flags & Onyx::RenderModeFlag_Outlined) != 0);
+        if (geo == Onyx::Geometry_Circle)
+        {
+            circleCommands += passes;
+            shadedCircles += shaded;
+        }
+        else
+        {
+            meshCommands += passes;
+            shadedMeshes += shaded;
+        }
+    };
+    for (u32 blend = 0; blend < Onyx::BlendPass_Count; ++blend)
+        for (u32 mode = 0; mode < Onyx::RenderMode_Count; ++mode)
+        {
+            addRange(Onyx::Geometry_Circle, data.Circles[blend][mode].Instances, mode);
+
+            // a dynamic mesh's vertices and indices are copied again for every range that draws it
+            const Onyx::InstanceResourceGroup &dynamic = data.DynamicMeshes[blend][mode];
+            for (const u32 rid : dynamic.Registry.ResourceIds)
+            {
+                const u32 instances = dynamic.Buffers[rid].Instances;
+                addRange(Onyx::Geometry_Dynamic, instances, mode);
+                if (instances == 0)
+                    continue;
+                const Onyx::DynamicMeshData<D> &mesh =
+                    Onyx::DynamicMesh_GetData<D>(Onyx::Handle_CreateForResource(Onyx::Resource_DynamicMesh, rid));
+                tally.DynamicVertices += mesh.Vertices.GetSize();
+                tally.DynamicIndices += mesh.Indices.GetSize();
+            }
+
+            for (u32 type = 0; type < Onyx::Resource_MeshPoolCount; ++type)
+                for (const u32 pid : Onyx::ResourcePool_GetIds<D>(Onyx::ResourceType(type)))
+                {
+                    const Onyx::InstanceResourceGroup &meshes = data.Meshes[blend][mode][type][pid];
+                    for (const u32 rid : meshes.Registry.ResourceIds)
+                        addRange(poolGeometries[type], meshes.Buffers[rid].Instances, mode);
+                }
+        }
+
+    // a shadow casting light takes one shadow map per targeted view, and renders it once per cube face or cascade
+    const u32 views = u32(std::popcount(ctx.ViewMask));
+    u32 renders = 0;
+    const auto addLights = [&]<typename Params>(const Onyx::LightType type, const TKit::TierArray<Params> &lights) {
+        tally.Lights[type] += lights.GetSize();
+        for (const Params &light : lights)
+        {
+            if (!(light.Flags & Onyx::LightFlag_CastShadows))
+                continue;
+            tally.ShadowMaps[D == D2 ? 0 : type] += views;
+            if constexpr (std::is_same_v<Params, Onyx::PointLightParameters<D3>>)
+                renders += 6;
+            else if constexpr (std::is_same_v<Params, Onyx::DirectionalLightParameters<D3>>)
+                renders += light.Cascades.Count;
+            else
+                ++renders;
+        }
+    };
+    addLights(Onyx::Light_Point, ctx.GetPointLightParams());
+    addLights(Onyx::Light_Directional, ctx.GetDirectionalLightParams());
+    if constexpr (D == D3)
+        addLights(Onyx::Light_Spot, ctx.GetSpotLightParams());
+
+    for (u32 view = 0; view < ONYX_MAX_VIEWS; ++view)
+        if (ctx.ViewMask & (Onyx::ViewMask(1) << view))
+        {
+            tally.CircleCommands[view] += circleCommands;
+            tally.MeshCommands[view] += meshCommands;
+            tally.ShadedCircles[view] += shadedCircles;
+            tally.ShadedMeshes[view] += shadedMeshes;
+            tally.ShadowRenders[view] += renders;
+        }
+}
+
+// the fill of the fullest default mesh pool, in vertices and indices. this demo registers no meshes of its own, and
+// the default font lives in a 2D pool
+static void addPoolFill(u32 &vertices, u32 &indices, const Onyx::MeshRange &range)
+{
+    vertices = Math::Max(vertices, range.VertexOffset + range.VertexCount);
+    indices = Math::Max(indices, range.IndexOffset + range.IndexCount);
+}
+
+template <Onyx::Dimension D> static void measurePools(UsageMeters &meters)
+{
+    const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
+    u32 vertices = 0;
+    u32 indices = 0;
+    const auto pool = [&](const TKit::Span<const Onyx::Resource> meshes) {
+        u32 v = 0;
+        u32 i = 0;
+        for (const Onyx::Resource mesh : meshes)
+            addPoolFill(v, i, Onyx::Mesh_GetRange<D>(mesh));
+        vertices = Math::Max(vertices, v);
+        indices = Math::Max(indices, i);
+    };
+    if constexpr (D == D2)
+    {
+        const Onyx::SpecificDefaultResources<D2> &res2 = res.Resources2;
+        const Onyx::Resource statics[] = {res2.Triangle, res2.Quad};
+        const Onyx::Resource parametrics[] = {res2.Stadium, res2.RoundedRect};
+        pool(TKit::Span<const Onyx::Resource>(statics));
+        pool(TKit::Span<const Onyx::Resource>(parametrics));
+        if (res.Font != Onyx::NullHandle)
+            addPoolFill(vertices, indices, Onyx::Font_GetRange(res.Font));
+    }
+    else
+    {
+        const Onyx::SpecificDefaultResources<D3> &res3 = res.Resources3;
+        const Onyx::Resource statics[] = {res3.Triangle, res3.Quad, res3.Box, res3.Sphere, res3.Cylinder};
+        const Onyx::Resource parametrics[] = {res3.Stadium, res3.RoundedRect, res3.Capsule, res3.RoundedBox,
+                                              res3.Torus};
+        pool(TKit::Span<const Onyx::Resource>(statics));
+        pool(TKit::Span<const Onyx::Resource>(parametrics));
+    }
+    meters.Now[Usage_PoolVertices] = vertices;
+    meters.Now[Usage_PoolIndices] = indices;
+}
+
+template <Onyx::Dimension D>
+static void measureUsage(UsageMeters &meters, const TKit::Span<const Onyx::RenderContext<D> *const> contexts)
+{
+    UsageTally<D> tally{};
+    for (const Onyx::RenderContext<D> *ctx : contexts)
+        if (ctx)
+            tallyContext(tally, *ctx);
+
+    TKit::FixedArray<u32, Usage_Count> &now = meters.Now;
+    for (u32 geo = 0; geo < Onyx::Geometry_Count; ++geo)
+        now[Usage_Circles + geo] = tally.Instances[geo];
+    now[Usage_Lights] = 0;
+    for (u32 type = 0; type < Onyx::LightTypeCount<D>; ++type)
+        now[Usage_Lights] = Math::Max(now[Usage_Lights], tally.Lights[type]);
+    if constexpr (D == D2)
+    {
+        now[Usage_ShadowMaps] = tally.ShadowMaps[0];
+        // the 2D shadow pass renders one occlusion map for every shadow map it fills
+        now[Usage_OcclusionMaps] = tally.ShadowMaps[0];
+    }
+    else
+        for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
+            now[Usage_PointShadowMaps + type] = tally.ShadowMaps[type];
+    now[Usage_DynamicVertices] = tally.DynamicVertices;
+    now[Usage_DynamicIndices] = tally.DynamicIndices;
+    u32 circleCommands = 0;
+    u32 meshCommands = 0;
+    for (u32 view = 0; view < ONYX_MAX_VIEWS; ++view)
+    {
+        circleCommands += tally.CircleCommands[view] + tally.ShadowRenders[view] * tally.ShadedCircles[view];
+        meshCommands += tally.MeshCommands[view] + tally.ShadowRenders[view] * tally.ShadedMeshes[view];
+    }
+    now[Usage_DrawCommands] = Math::Max(circleCommands, meshCommands);
+    measurePools<D>(meters);
+    now[Usage_DynamicMeshes] = Onyx::DynamicMesh_GetCount<D>();
+
+    const Onyx::SpecificSpecs<D> &specs = Onyx::GetSpecs().GetSpecific<D>();
+    TKit::FixedArray<u32, Usage_Count> &limit = meters.Limit;
+    for (u32 geo = 0; geo < Onyx::Geometry_Count; ++geo)
+        limit[Usage_Circles + geo] = specs.MaxInstances;
+    limit[Usage_Lights] = specs.MaxLightInstances;
+    for (bool &applies : meters.Applies)
+        applies = true;
+    if constexpr (D == D2)
+    {
+        limit[Usage_ShadowMaps] = specs.MaxShadowMaps;
+        limit[Usage_OcclusionMaps] = specs.MaxOcclusionMaps;
+        for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
+            meters.Applies[Usage_PointShadowMaps + type] = false;
+    }
+    else
+    {
+        for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
+            limit[Usage_PointShadowMaps + type] = specs.MaxShadowMaps[type];
+        meters.Applies[Usage_ShadowMaps] = false;
+        meters.Applies[Usage_OcclusionMaps] = false;
+    }
+    limit[Usage_DynamicVertices] = specs.MaxDynamicVertices;
+    limit[Usage_DynamicIndices] = specs.MaxDynamicIndices;
+    limit[Usage_DrawCommands] = specs.MaxDrawCommands;
+    limit[Usage_PoolVertices] = specs.MaxVerticesPerResourcePool;
+    limit[Usage_PoolIndices] = specs.MaxIndicesPerResourcePool;
+    limit[Usage_DynamicMeshes] = specs.MaxDynamicMeshes;
+
+    for (u32 i = 0; i < Usage_Count; ++i)
+        meters.Peak[i] = Math::Max(meters.Peak[i], now[i]);
+}
+
+// every context the renderer transfers. the overlay's floating windows, when promoted to windows of their own, have
+// contexts of their own that are not reachable from here
+static void measureUsage(App &app)
+{
+    const Onyx::NativeWindow *native = app.Ui->GetMainNativeWindow();
+    const Onyx::RenderContext<D2> *contexts2[] = {
+        app.PixelCtx, app.GalleryCtx, app.LabelCtx, app.TexturesCtx,
+        app.RtCtx,    app.ScratchCtx, app.LabCtx,   native ? native->Context : nullptr};
+    const Onyx::RenderContext<D3> *contexts3[] = {app.Ctx3, app.Scratch3};
+    measureUsage<D2>(app.Usage[0], TKit::Span<const Onyx::RenderContext<D2> *const>(contexts2));
+    measureUsage<D3>(app.Usage[1], TKit::Span<const Onyx::RenderContext<D3> *const>(contexts3));
 }
 
 static void checkToolkit(App &app)
@@ -2369,6 +2852,37 @@ static void checkPlatform(App &app)
     cat.Expect("Delta time is positive", app.DeltaTime > 0.f,
                "Every frame takes some time. A zero or negative delta time breaks camera movement and animations",
                "{:.3f} ms", 1000.f * app.DeltaTime);
+
+    const PacingSettings &pc = app.Pacing;
+    const TKit::Timespan target = Onyx::GetTargetDeltaTime(win);
+    // the reset is accepted, not required: either value is a correct read back after one
+    const bool reset = pc.Reset && target == pc.ResetTo && target != pc.Requested;
+    cat.Expect("Target delta time reads back", target == pc.Requested || reset,
+               "GetTargetDeltaTime returns what SetTargetDeltaTime was given. In vsync, Onyx may reset it to the "
+               "monitor's delta time when the swapchain is recreated or the window moves",
+               "active {:.3f} ms, requested {:.3f} ms{}", target.AsMilliseconds(), pc.Requested.AsMilliseconds(),
+               reset ? ", reset to the monitor's by onyx" : "");
+
+    // one sided: a slow machine or a long vsync interval may stretch frames, but pacing must never let them run faster
+    // than the target. the last 30 frames must all have run at the current target
+    constexpr u32 window = 30;
+    const char *pacingRule = "With a target delta time, Onyx sleeps until the window is due, whatever the present "
+                             "mode. Frames may come slower than the target (vsync, a busy GPU) but on average never "
+                             "more than 10% faster";
+    if (target > TKit::Timespan{} && pc.FramesAtActive > window + 8)
+    {
+        const u32 count = app.FrameTimes.GetSize();
+        f32 avg = 0.f;
+        for (u32 i = 1; i <= window; ++i)
+            avg += app.FrameTimes[(app.FrameTimeHead + count - i) % count];
+        avg /= f32(window);
+        cat.Expect("Frames are not faster than the target", avg >= 0.9f * target.AsSeconds(), pacingRule,
+                   "average of the last {} frames {:.2f} ms, target {:.2f} ms", window, 1000.f * avg,
+                   target.AsMilliseconds());
+    }
+    else
+        cat.Skip("Frames are not faster than the target", pacingRule, "{}",
+                 target > TKit::Timespan{} ? "the target changed less than 40 frames ago" : "no target delta time");
 }
 
 static void runChecks(App &app)
@@ -2559,13 +3073,14 @@ static void drawGallery2(App &app)
         ctx->Translate(f32v2{5.f, -7.f});
         ctx->PointLight({.Position = req.Point2,
                          .Tint = Onyx::Color_Honey,
+                         .LightSize = ls.LightSize2,
                          .LightRadius = 4.f,
                          .ShadowRadius = 8.f,
                          .Angle = ls.Cone ? req.ConeAim : 0.f,
                          .Decay = ls.Cone ? ls.ConeDecay : 0.f,
                          .Extent = ls.Cone ? ls.ConeExtent : 1.f,
                          .Intensity = 1.2f,
-                         .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+                         .Flags = FilterFlags[ls.Filter2]});
         // a band of light along its direction, wide enough to cover the gallery. its shadows run from the occluders in
         // the direction it travels
         if (ls.Directional2)
@@ -2573,8 +3088,9 @@ static void drawGallery2(App &app)
                                    .LightExtent = 12.f,
                                    .ShadowExtent = 12.f,
                                    .Angle = ls.DirectionalAngle,
+                                   .AngleSize = ls.SunAngle2,
                                    .Intensity = 0.55f,
-                                   .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+                                   .Flags = FilterFlags[ls.Filter2]});
         ctx->Pop();
 
         ctx->Push();
@@ -2795,8 +3311,9 @@ static void drawGallery3(App &app)
     if (others)
         ctx->DirectionalLight({.Direction = ls.SunDown ? f32v3{0.f, -1.f, 0.f} : f32v3{-0.6f, -1.f, -0.4f},
                                .Cascades = {.View = app.View3[app.Mode]},
+                               .AngleSize = ls.SunAngle3,
                                .Intensity = 0.7f,
-                               .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+                               .Flags = FilterFlags[ls.Filter3]});
     if (others && ls.Point3)
     {
         req.Point3 = f32v3{3.5f * Math::Cosine(app.Time), 2.5f, 3.5f * Math::Sine(app.Time)};
@@ -2807,10 +3324,11 @@ static void drawGallery3(App &app)
         ctx->Translate(f32v3{1.f, 2.f, 3.f});
         ctx->PointLight({.Position = req.Point3,
                          .Tint = Onyx::Color_Honey,
+                         .LightSize = ls.PointSize3,
                          .LightRadius = 6.f,
                          .ShadowRadius = 14.f,
                          .Intensity = 1.6f,
-                         .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+                         .Flags = FilterFlags[ls.Filter3]});
         ctx->Pop();
 
         // a flat marker: a shaded sphere around the light would block its own shadows
@@ -2835,11 +3353,12 @@ static void drawGallery3(App &app)
         ctx->SpotLight({.Position = req.SpotPosition,
                         .Direction = req.SpotDirection,
                         .Tint = Onyx::Color_Sky,
+                        .LightSize = ls.SpotSize3,
                         .FieldOfView = ls.SpotFov,
                         .LightRange = ls.SpotRange,
                         .ShadowRange = 20.f,
                         .Intensity = 1.8f,
-                        .Flags = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF});
+                        .Flags = FilterFlags[ls.Filter3]});
         ctx->Pop();
         drawSpotCone(ctx, req.SpotPosition, req.SpotDirection, ls.SpotFov, floorY);
     }
@@ -2896,6 +3415,22 @@ static void drawGallery3(App &app)
     ctx->Translate(f32v3{req.SpotPosition[0], 0.3f, req.SpotPosition[2]});
     ctx->Box();
     ctx->Pop();
+
+    // translucent shapes in front, at staggered depths: they overlap each other and the opaque row behind them
+    for (u32 i = 0; i < 3; ++i)
+    {
+        ctx->Push();
+        ctx->FillColor(Theme::Shapes[2 * i]);
+        ctx->Alpha(rs.Alpha3);
+        ctx->Scale(1.1f);
+        ctx->RotateY(0.3f * app.Time + f32(i));
+        ctx->Translate(f32v3{2.6f + 0.8f * f32(i), 0.2f, 4.f - 0.8f * f32(i)});
+        if (i == 1)
+            ctx->Sphere();
+        else
+            ctx->Box();
+        ctx->Pop();
+    }
 
 #ifdef ONYX_ENABLE_AUDIO
     // the 3D spatial orbit circles the camera, which is the listener: it crosses the view when it passes in front
@@ -3667,7 +4202,9 @@ static void drawManual(App &app)
 static void drawFrameTimes(App &app)
 {
     Onyx::Overlay *ui = app.Ui;
-    const f32 target = Math::Max(app.Window->GetMonitorDeltaTime().AsSeconds(), 1e-4f);
+    const TKit::Timespan active = Onyx::GetTargetDeltaTime(app.Window);
+    const TKit::Timespan reference = active > TKit::Timespan{} ? active : app.Window->GetMonitorDeltaTime();
+    const f32 target = Math::Max(reference.AsSeconds(), 1e-4f);
     const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>(Theme::FrameTimeStops)};
     constexpr f32 height = 44.f;
 
@@ -3702,6 +4239,10 @@ static void drawDashboard(App &app, const GuideStep &step)
                 app.RequestedMode = Mode_Direct;
             if (ui->MenuItem("Docked: every view in its own panel", app.Mode == Mode_Docked))
                 app.RequestedMode = Mode_Docked;
+            tooltip(
+                ui, Theme::Accent, "Panels dock into All panels",
+                "Drag a panel by its tab and drop it in the middle of the whole window's docking guides: it becomes "
+                "a full screen tab next to All panels.");
             ui->EndMenu();
         }
         if (ui->BeginMenu("Panels"))
@@ -3853,12 +4394,15 @@ static void drawDashboard(App &app, const GuideStep &step)
     }
     avg /= f32(app.FrameTimes.GetSize());
     text(ui, Theme::Info,
-         formatLine("{:.0f} fps   avg {:.2f} ms   worst {:.2f} ms   monitor {:.2f} ms", avg > 0.f ? 1.f / avg : 0.f,
-                    1000.f * avg, 1000.f * worst, app.Window->GetMonitorDeltaTime().AsMilliseconds())
+         formatLine("{:.0f} fps   avg {:.2f} ms   worst {:.2f} ms   monitor {:.2f} ms   target {:.2f} ms",
+                    avg > 0.f ? 1.f / avg : 0.f, 1000.f * avg, 1000.f * worst,
+                    app.Window->GetMonitorDeltaTime().AsMilliseconds(),
+                    Onyx::GetTargetDeltaTime(app.Window).AsMilliseconds())
              .View());
     drawFrameTimes(app);
     tooltip(ui, Theme::Accent, "The last frames",
-            "Green is on the monitor's refresh interval, red is twice as slow or worse.");
+            "Green is on the target delta time (the monitor's refresh interval without one), red is twice as slow or "
+            "worse.");
 
     // -- categories ------------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Categories");
@@ -4283,6 +4827,7 @@ static void panelRendering(App &app)
     ui->HorizontalSlider("Outline width", &rs.OutlineWidth, 0.f, 0.3f);
     ui->CheckBox("Rotate shapes", &rs.Rotate);
     ui->HorizontalSlider("Alpha (middle row)", &rs.Alpha, 0.05f, 1.f);
+    ui->HorizontalSlider("3D alpha (front shapes)", &rs.Alpha3, 0.05f, 1.f);
     ui->HorizontalSlider("Circle hollowness", &rs.Circle.Hollowness, 0.f, 0.95f);
     ui->HorizontalSlider("Circle arc end", &rs.Circle.UpperAngle, 0.1f, 2.f * Math::Pi<f32>());
     ui->HorizontalSlider("Circle inner fade", &rs.Circle.InnerFade, 0.f, 1.f);
@@ -4356,6 +4901,18 @@ static void panelLights(App &app)
         ui->HorizontalSlider("Edge softness (decay)", &ls.ConeDecay, 0.f, 1.f);
     }
 
+    ui->DropDown("2D shadow filter", &ls.Filter2, FilterNames);
+    tooltip(ui, Theme::Accent, "Hard, PCF or soft",
+            "PCF averages several shadow map samples for smooth edges. Soft shadows (PCSS) also widen the edges with "
+            "the distance to the occluder and the light's size.");
+    if (ls.Filter2 == Filter_Soft)
+    {
+        ui->HorizontalSlider("2D light size", &ls.LightSize2, 0.01f, 1.f);
+        f32 sun = Math::Degrees(ls.SunAngle2);
+        if (ui->HorizontalSlider("2D directional angular size (deg)", &sun, 0.1f, 10.f))
+            ls.SunAngle2 = Math::Radians(sun);
+    }
+
     ui->HorizontalSeparator("3D gallery");
     ui->CheckBox("3D lights", &ls.Lights3);
     ui->CheckBox("Point light", &ls.Point3);
@@ -4385,6 +4942,16 @@ static void panelLights(App &app)
     }
     tooltip(ui, Theme::Accent, "No tilt, no swing",
             "The same corner case for the spot: the box under it must keep its shadow.");
+
+    ui->DropDown("3D shadow filter", &ls.Filter3, FilterNames);
+    if (ls.Filter3 == Filter_Soft)
+    {
+        ui->HorizontalSlider("Point light size", &ls.PointSize3, 0.01f, 1.f);
+        ui->HorizontalSlider("Spot light size", &ls.SpotSize3, 0.01f, 0.5f);
+        f32 sun = Math::Degrees(ls.SunAngle3);
+        if (ui->HorizontalSlider("Sun angular size (deg)", &sun, 0.1f, 5.f))
+            ls.SunAngle3 = Math::Radians(sun);
+    }
 }
 
 static void panelTextures(App &app)
@@ -4545,6 +5112,33 @@ static void panelResources(App &app)
           formatLine("{} fonts, {} glyphs", Onyx::FontPool_GetFontCount(res.FontPool),
                      Onyx::FontPool_GetGlyphCount(res.FontPool))
               .View());
+
+    for (u32 dim = 0; dim < 2; ++dim)
+    {
+        ui->HorizontalSeparator(dim == 0 ? "Frame usage, 2D" : "Frame usage, 3D");
+        const UsageMeters &meters = app.Usage[dim];
+        for (u32 i = 0; i < Usage_Count; ++i)
+        {
+            if (!meters.Applies[i])
+                continue;
+            const f32 fill = usageFill(meters, i);
+            ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+            text(ui, Theme::Dim, UsageInfos[i].Name);
+            text(ui, fill > 1.f ? Theme::Fail : (fill > 0.75f ? Theme::Todo : Theme::Info),
+                 meters.Limit[i] == 0
+                     ? formatLine("{} now, {} peak, {} is 0", meters.Now[i], meters.Peak[i], UsageInfos[i].Spec).View()
+                     : formatLine("{} now, {} peak of {} {} ({:.0f}%)", meters.Now[i], meters.Peak[i], meters.Limit[i],
+                                  UsageInfos[i].Spec, 100.f * fill)
+                           .View());
+            ui->PopPanel();
+        }
+    }
+    if (ui->Button("Reset peaks"))
+        for (UsageMeters &meters : app.Usage)
+            meters.Peak = meters.Now;
+    tooltip(ui, Theme::Accent, "Measured right before the transfer",
+            "From every context, the way the renderer copies them. Open every panel, switch layouts and turn on the "
+            "lab to find the real peaks. Draw commands are an upper bound.");
 }
 
 static void panelToolkit([[maybe_unused]] App &app)
@@ -4600,6 +5194,27 @@ static void panelPlatform(App &app)
               .View());
     if (ui->DropDown("Present mode", &app.PresentMode, "Immediate#Mailbox#VSync"))
         win->SetPresentMode(Graph::PresentMode(app.PresentMode));
+
+    PacingSettings &pc = app.Pacing;
+    pc.Dirty |= ui->DropDown("Frame pacing", &pc.Mode, "Present mode only#Monitor refresh rate#Custom rate");
+    tooltip(ui, Theme::Accent, "SetTargetDeltaTime",
+            "A target delta time makes Onyx sleep until the window is due. Without one, the present mode alone paces "
+            "frames: vsync waits for the monitor, immediate and mailbox run as fast as they can.");
+    if (pc.Mode == Pacing_Custom)
+        pc.Dirty |= ui->HorizontalSlider("Target rate (Hz)", &pc.Rate, 5u, 360u);
+    const TKit::Timespan target = Onyx::GetTargetDeltaTime(win);
+    field(ui, "Active target ",
+          target > TKit::Timespan{}
+              ? formatLine("{:.2f} ms ({} Hz)", target.AsMilliseconds(), Onyx::ToFrequency(target)).View()
+              : TKit::StringView{"none"});
+    if (pc.Reset && target != pc.Requested)
+    {
+        text(ui, Theme::Dim,
+             "Onyx reset the target to the monitor's: in vsync it does so when the swapchain is recreated or the "
+             "window moves.");
+        if (ui->Button("Apply again"))
+            pc.Dirty = true;
+    }
     if (ui->HorizontalSlider("Opacity", &app.Opacity, 0.2f, 1.f))
         win->SetOpacity(app.Opacity);
 
@@ -4665,17 +5280,39 @@ static void drawOverlay(App &app)
 {
     Onyx::Overlay *ui = app.Ui;
 
-    // dockspaces must be submitted before any window that docks into them. every docked session gets a fresh full
-    // screen one, which undocks its windows once it stops being submitted. its tree is submitted once
+    // the docked layout nests two dockspaces, like the editor. a full screen parent, its tab bar hidden, holds a single
+    // window: All panels, whose own dockspace holds every panel. a panel dropped on the parent becomes a full screen
+    // tab next to All panels. dockspaces must be submitted before any window that docks into them, and every docked
+    // session gets fresh ones, which undock their windows once they stop being submitted. the trees are submitted once
     if (app.Mode == Mode_Docked)
     {
-        const Line name = formatLine("Docked layout {}", app.DockSessions);
-        const Onyx::LayoutId dock{name.View()};
-        ui->FullScreenDockSpace(dock, 0, Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
+        const Line parentName = formatLine("Docked layout {}", app.DockSessions);
+        const Line hostName = formatLine("All panels {}", app.DockSessions);
+        const Line panelsName = formatLine("Docked panels {}", app.DockSessions);
+        const Onyx::LayoutId parent{parentName.View()};
+        const Onyx::LayoutId host{hostName.View()};
+        const Onyx::LayoutId panels{panelsName.View()};
+        ui->FullScreenDockSpace(parent,
+                                Onyx::OverlayDockNodeFlag_CanBeEmpty | Onyx::OverlayDockNodeFlag_StartWithTabBarHidden,
+                                Onyx::OverlayWindowFlag_NoBackground | Onyx::OverlayWindowFlag_MousePassThrough |
+                                    Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
         if (app.DockTreePending)
         {
-            submitDockTree(app, dock);
+            ui->DeclareWindow(host);
+            ui->DeclareDockSpace(panels, host);
+            ui->SubmitDockTree(parent, Onyx::DockTabBar(host));
+            submitDockTree(app, panels);
             app.DockTreePending = false;
+        }
+        ui->PushStyleVar(Onyx::OverlayStyle_ContentAreaPadding, 0.f);
+        const bool open =
+            ui->BeginWindow(Onyx::OverlayLabel{host, "All panels"}, Onyx::OverlayWindowFlag_NoCloseButton);
+        ui->PopStyleVar();
+        if (open)
+        {
+            ui->DockSpace(panels, Onyx::OverlayDockNodeFlag_CanBeEmpty,
+                          Onyx::OverlayWindowFlag_ChildGrow | Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
+            ui->EndWindow();
         }
     }
 
@@ -4970,6 +5607,16 @@ static void setupCategories(App &app)
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
     rendering.Visuals.Append(VisualCheck{
+        .Name = "3D transparency blends from any angle",
+        .Do = "3D gallery, front right: three translucent shapes. Each shows what is behind it, other translucent "
+              "shapes included, and the 3D alpha slider fades them. Look from several sides with WASD and LShift.",
+        .More = "Translucent 3D draws go to the transparent pass, which blends them without sorting (weighted, order "
+                "independent). Overlaps must look the same whatever the drawing order, with no popping as the camera "
+                "moves. They keep their lighting and, with outlines on, their outlines.",
+        .Priority = 28,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    rendering.Visuals.Append(VisualCheck{
         .Name = "Circle parameters are respected",
         .Do = "Drag the circle sliders of the Rendering panel: the circle follows hollowness, arc and fades exactly.",
         .More = "Circles are analytic: hollowness, the arc's angles and the inner and outer fades are evaluated per "
@@ -5025,16 +5672,19 @@ static void setupCategories(App &app)
 
     Category &lights = app.Categories[Category_Lights];
     lights.Title = "Lights and shadows";
-    lights.Summary = "2D point, cone and directional lights, occluders, 3D point and spot lights";
+    lights.Summary = "2D point, cone and directional lights, occluders, 3D point and spot lights, shadow filters";
     lights.Concepts =
         "Lights only affect shaded draws, through their material. In 2D, occluder materials block light: for every "
         "shadow casting light and view, the shadow pass draws the shaded occluders into an occlusion map around the "
-        "light, and a compute pass ray marches it into a 1D shadow map. There are four of those per frame, shared by "
-        "every 2D light and view. A 2D point light can be a cone (Angle, Extent and Decay), and a 2D directional light "
+        "light, and a compute pass ray marches it into a 1D shadow map. Initialize sets how many of each there are per "
+        "frame (MaxShadowMaps, MaxOcclusionMaps), shared by every 2D light and view: two by default. A 2D "
+        "point light can be a cone (Angle, Extent and Decay), and a 2D directional light "
         "is a band of light along an angle.\n\nIn 3D every shaded mesh casts and receives: directional lights use "
         "cascades bound to a view (asserted), point lights a cube map up to ShadowRadius and spot lights a perspective "
         "map up to ShadowRange. 3D point and spot shadows fade over the last 10% of that range. Light positions, "
-        "directions and radii are in world space: the context transform does not apply to lights.";
+        "directions and radii are in world space: the context transform does not apply to lights.\n\nShadow filtering "
+        "is per light: hard by default, LightFlag_PCF for smooth edges, LightFlag_PCSS for soft shadows that widen "
+        "with LightSize (point and spot lights) or AngleSize (directional lights). PCSS wins when both are set.";
     lights.Check = checkLights;
     lights.Panel = panelLights;
     lights.Visuals.Append(VisualCheck{
@@ -5108,6 +5758,16 @@ static void setupCategories(App &app)
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
     lights.Visuals.Append(VisualCheck{
+        .Name = "PCF smooths shadow edges",
+        .Do = "Switch 2D shadow filter between Hard and PCF in the Lights panel: hard shadow edges are crisp and turn "
+              "jagged far from the light, PCF blends them into a thin gradient. The 3D shadow filter does the same on "
+              "the floor shadows.",
+        .More = "PCF averages a few shadow map samples around each lookup, a fixed number of texels wide: the light's "
+                "size does not change it.",
+        .Priority = 38,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
         .Name = "3D point light is visible and its shadows are complete",
         .Do = "A small yellow sphere marks the orbiting point light. Its shadows stay solid wherever it is.",
         .More = "No hole may open from the middle of a shadow as the light moves away. Shadows only fade near "
@@ -5169,6 +5829,17 @@ static void setupCategories(App &app)
         .Priority = 46,
         .Pane = Pane_Gallery3,
         .Needs = Requires_Nothing});
+    lights.Visuals.Append(VisualCheck{
+        .Name = "Soft shadows harden near the occluder",
+        .Do = "Pick Soft (PCSS) as the 3D shadow filter: shadows are sharp where they leave the shape that casts them "
+              "and blur farther away. Raise Point light size, Spot light size or Sun angular size and the blur grows. "
+              "2D shadows do the same with 2D light size.",
+        .More = "PCSS first searches the shadow map for blockers, then widens the filter with the distance between "
+                "blocker and receiver times the light's size. Where a shape touches what it shadows, that distance is "
+                "zero and the edge stays sharp.",
+        .Priority = 47,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
 
     Category &textures = app.Categories[Category_Textures];
     textures.Title = "Render textures";
@@ -5199,6 +5870,16 @@ static void setupCategories(App &app)
                 "scale, one frame after the panel changes.",
         .Priority = 15,
         .Pane = Pane_None,
+        .Needs = Requires_DockedLayout});
+    textures.Visuals.Append(VisualCheck{
+        .Name = "A panel docked on the parent fills the window",
+        .Do = "Drag the 3D gallery's tab and drop it in the middle of the whole window's docking guides: it fills the "
+              "window as a tab next to All panels, and the gallery redraws at that size.",
+        .More = "The docked layout nests a parent dockspace, holding All panels, which holds every panel. Docking on "
+                "the parent gives a panel the whole window. Switching to the direct layout and back must put every "
+                "panel in place again.",
+        .Priority = 17,
+        .Pane = Pane_Gallery3,
         .Needs = Requires_DockedLayout});
 
     Category &input = app.Categories[Category_Input];
@@ -5280,12 +5961,15 @@ static void setupCategories(App &app)
 
     Category &resources = app.Categories[Category_Resources];
     resources.Title = "Resources";
-    resources.Summary = "Default resources, materials, fonts, pools";
+    resources.Summary = "Default resources, materials, fonts, pools, frame usage against the specs";
     resources.Concepts =
         "Meshes, fonts, materials, samplers, images and textures are referred to by handles (Onyx::Resource). Unlike "
         "raw Graphite handles, they are bound and ready to use: give a handle to a context or a material and it just "
         "works. Meshes and fonts are grouped in pools. Registering a resource only records it: Resources_Sync uploads "
-        "everything pending to the GPU, so sync after a batch of registrations.";
+        "everything pending to the GPU, so sync after a batch of registrations.\n\nOnyx::Initialize sizes the "
+        "renderer's per frame buffers from Onyx::Specs: instance buffers per geometry, lights, shadow maps, dynamic "
+        "vertices, draw commands. Each is created once per resource group, so their cost multiplies by "
+        "ResourceGroupCount. Overflowing one asserts.";
     resources.Check = checkResources;
     resources.Panel = panelResources;
 
@@ -5306,9 +5990,23 @@ static void setupCategories(App &app)
     platform.Concepts =
         "Graphite (Graph) is the layer between Onyx and the system: a platform backend (GLFW) for windows, monitors "
         "and input, and a render backend (Vulkan) for devices, swapchains, pipelines and resources. Onyx windows wrap "
-        "a Graphite window and own its swapchain. Changing the present mode or the size recreates the swapchain.";
+        "a Graphite window and own its swapchain. Changing the present mode or the size recreates the swapchain.\n\n"
+        "Frame pacing is per window: with a target delta time (SetTargetDeltaTime), Render skips a window until it "
+        "is due and sleeps until the next one is. A window opened in immediate mode targets the monitor's refresh "
+        "rate unless OpenWindowFlag_NoDefaultDeltaTime is given. In vsync, a swapchain recreation or a window move "
+        "resets the target to the monitor's.";
     platform.Check = checkPlatform;
     platform.Panel = panelPlatform;
+    platform.Visuals.Append(VisualCheck{
+        .Name = "Frame pacing follows the target",
+        .Do = "In the Platform panel pick Immediate, then Custom rate at 30 Hz: the dashboard reads about 30 fps and "
+              "animations keep their speed. Monitor refresh rate brings it to the monitor's rate, Present mode only "
+              "lets immediate run as fast as it can.",
+        .More = "Animations advance by the window's delta time, so they must look the same at any rate, only less "
+                "smooth. In vsync a target above the monitor's rate changes nothing.",
+        .Priority = 90,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
 
     app.LoadedVerdicts = loadVerdicts(app.Categories);
 }
@@ -5319,7 +6017,21 @@ static void setupCategories(App &app)
 
 int main()
 {
-    Onyx::Initialize({.Platform = DemoPlatform, .MaxImages = 512});
+    // the defaults cover most of this demo: only what differs is asked for, and the Resources panel measures every
+    // maximum against what a frame uses. the per dimension maxima size real buffers once per resource group, while
+    // pool caps such as MaxImages only reserve handles
+    Onyx::Initialize({.Platform = DemoPlatform,
+                      .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
+                      .ListenerCount = 1,
+                      // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
+                      .Specs2 = {.MaxInstances = 16384},
+                      // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
+                      // so the default single shadow map per light type is enough
+                      .Specs3 = {.MaxInstances = 1024,
+                                 .MaxDrawCommands = 1024,
+                                 .MaxDynamicVertices = 0,
+                                 .MaxDynamicIndices = 0,
+                                 .MaxDynamicMeshes = 0}});
     Onyx::Resources_CreateDefault();
 
     App app{};
@@ -5355,6 +6067,8 @@ int main()
         runChecks(app);
         drawOverlay(app);
         app.Ui->Draw();
+        measureUsage(app);
+        updatePacing(app);
 
         Onyx::Transfer();
         Onyx::Render();

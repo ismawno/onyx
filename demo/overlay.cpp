@@ -4,6 +4,8 @@
 #include "onyx/overlay.hpp"
 #include "onyx/sanitizer_options.hpp"
 
+using Onyx::D2;
+using Onyx::D3;
 using namespace TKit::Alias;
 
 static bool runDemo(const bool floating)
@@ -60,8 +62,19 @@ static bool runDemo(const bool floating)
 
 int main()
 {
-    Onyx::Initialize();
-    Onyx::Resources_CreateDefault();
+    Onyx::Specs specs{};
+    specs.Specs2 = Onyx::CreateEmptySpecs<D2>();
+    specs.Specs2.MaxInstances = 16384;
+    specs.Specs2.MaxDrawCommands = 2048;
+    specs.Specs2.MaxVerticesPerResourcePool = 1024;
+    specs.Specs2.MaxIndicesPerResourcePool = 2048;
+    specs.Specs2.MaxDynamicVertices = 8192;
+    specs.Specs2.MaxDynamicIndices = 32768;
+    specs.Specs2.MaxDynamicMeshes = 96; // registered by the overlay
+    specs.Specs2.MaxBounds = 4;
+    specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
+    Onyx::Initialize(specs);
+    Onyx::Resources_CreateDefault<D2>();
 
     bool floating = false;
     for (;;)

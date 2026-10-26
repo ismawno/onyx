@@ -8,6 +8,7 @@
 #include <misc/cpp/imgui_stdlib.h>
 
 using Onyx::D2;
+using Onyx::D3;
 using namespace TKit::Alias;
 
 template <typename T> bool Combo(const char *label, T *index, const char *items)
@@ -139,8 +140,16 @@ void DrawPanels(Onyx::Layout &layout, const PanelInfo &info, const TKit::StackAr
 
 int main()
 {
-    Onyx::Initialize();
-    Onyx::Resources_CreateDefault();
+    Onyx::Specs specs{};
+    specs.Specs2 = Onyx::CreateEmptySpecs<D2>();
+    specs.Specs2.MaxInstances = 2048;
+    specs.Specs2.MaxDrawCommands = 512;
+    specs.Specs2.MaxVerticesPerResourcePool = 1024;
+    specs.Specs2.MaxIndicesPerResourcePool = 2048;
+    specs.Specs2.MaxBounds = 4;
+    specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
+    Onyx::Initialize(specs);
+    Onyx::Resources_CreateDefault<D2>();
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 
