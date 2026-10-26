@@ -140,45 +140,44 @@ template <Dimension D> struct SpecificSpecs;
 
 template <> struct SpecificSpecs<D2>
 {
-    u32 ResourceGroupCount = 4;
+    u32 ResourceGroupCount = 3;
     u32 MaxInstances = 10000;
-    u32 MaxLightInstances = 100;
-    u32 MaxDrawCommands = 500;
+    u32 MaxLightInstances = 32;
+    u32 MaxDrawCommands = 2048;
 
-    u32 MaxVerticesPerResourcePool = 15000;
-    u32 MaxIndicesPerResourcePool = 30000;
+    u32 MaxVerticesPerResourcePool = 4096;
+    u32 MaxIndicesPerResourcePool = 8192;
 
-    u32 MaxDynamicVertices = 15000;
-    u32 MaxDynamicIndices = 30000;
+    u32 MaxDynamicVertices = 8192;
+    u32 MaxDynamicIndices = 32768;
 
-    u32 MaxShadowMaps = 4;
-    u32 MaxOcclusionMaps = 4;
+    u32 MaxShadowMaps = 2;
+    u32 MaxOcclusionMaps = 2;
     u32 ShadowResolution = 1024;
     u32 OcclusionResolution = 1024;
 
-    u32 MaxDynamicMeshes = 1024;
-    u32 MaxMaterials = 256;
-    u32 MaxBounds = 1024;
+    u32 MaxDynamicMeshes = 128;
+    u32 MaxMaterials = 64;
+    u32 MaxBounds = 256;
 };
 template <> struct SpecificSpecs<D3>
 {
-    u32 ResourceGroupCount = 4;
-    u32 MaxInstances = 10000;
-    u32 MaxLightInstances = 100;
-    u32 MaxDrawCommands = 500;
+    u32 ResourceGroupCount = 3;
+    u32 MaxInstances = 4096;
+    u32 MaxLightInstances = 32;
+    u32 MaxDrawCommands = 2048;
 
     u32 MaxVerticesPerResourcePool = 15000;
     u32 MaxIndicesPerResourcePool = 30000;
 
-    u32 MaxDynamicVertices = 15000;
-    u32 MaxDynamicIndices = 30000;
+    u32 MaxDynamicVertices = 4096;
+    u32 MaxDynamicIndices = 8192;
 
-    u32 MaxShadowMaps = 4;
+    u32 MaxDynamicMeshes = 64;
+    u32 MaxMaterials = 64;
+    u32 MaxBounds = 256;
 
-    u32 MaxDynamicMeshes = 1024;
-    u32 MaxMaterials = 256;
-    u32 MaxBounds = 1024;
-
+    TKit::FixedArray<u32, LightTypeCount<D3>> MaxShadowMaps{1, 1, 1};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 

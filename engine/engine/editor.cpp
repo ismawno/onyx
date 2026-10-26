@@ -1818,15 +1818,15 @@ template <Dimension D> static void entityWindow_DisplayComponents(const Entity e
         TKit::StackArray<Onyx::Resource> defShapes{};
 
         defShapes.Reserve(5);
-        defShapes.Append(defRes.GetTriangle<D>());
-        defShapes.Append(defRes.GetQuad<D>());
+        defShapes.Append(defRes.GetResources<D>().Triangle);
+        defShapes.Append(defRes.GetResources<D>().Quad);
         if constexpr (D == D2)
             ov->DropDown("Shape", &statMesh->Type, "Triangle#Quad");
         else
         {
-            defShapes.Append(defRes.Box);
-            defShapes.Append(defRes.Sphere);
-            defShapes.Append(defRes.Cylinder);
+            defShapes.Append(defRes.Resources3.Box);
+            defShapes.Append(defRes.Resources3.Sphere);
+            defShapes.Append(defRes.Resources3.Cylinder);
             ov->DropDown("Shape", &statMesh->Type, "Triangle#Quad#Box#Sphere#Cylinder");
         }
         statMesh->Mesh = defShapes[statMesh->Type];
@@ -1887,8 +1887,8 @@ static void entityWindow_Draw()
         {
             const Onyx::DefaultResources &defRes = Onyx::Resources_GetDefault();
 
-            const StaticMeshComponent<D2> defSt2 = {defRes.Quad2, Onyx::Color_White, StaticMesh_Quad};
-            const StaticMeshComponent<D3> defSt3 = {defRes.Quad3, Onyx::Color_White, StaticMesh_Quad};
+            const StaticMeshComponent<D2> defSt2 = {defRes.Resources2.Quad, Onyx::Color_White, StaticMesh_Quad};
+            const StaticMeshComponent<D3> defSt3 = {defRes.Resources3.Quad, Onyx::Color_White, StaticMesh_Quad};
 
             RenderContextComponent<D2> defCtx2 = {scene.Contexts2.IsEmpty() ? nullptr
                                                                             : scene.Contexts2.AtByIndex(0).Handle};

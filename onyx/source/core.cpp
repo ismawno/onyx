@@ -193,22 +193,23 @@ static void createDescriptorData()
     constexpr Graph::DescriptorBindingFlags updateAfterBind = Graph::DescriptorBindingFlag_UpdateUnusedWhilePending;
 
     BindingArray flat{};
-    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    // pbound for instance, materials, light and bounds so that they can be skipped if user sets its max count to 0
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS,
                                 pbound | updateAfterBind));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
                                 pbound | updateAfterBind));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
-    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex));
+    flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex, 1, pbound));
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
     s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
 
     // flat is also the common prefix of the shaded bindings
     BindingArray shaded = flat;
-    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment));
-    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_POINT_LIGHTS_BINDING_POINT, buffer, fragment));
-    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_DIRECTIONAL_LIGHTS_BINDING_POINT, buffer, fragment));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment, 1, pbound));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_POINT_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
+    shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_DIRECTIONAL_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT, sampler, fragment));
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_COMPARE_SAMPLER_BINDING_POINT, sampler, fragment));
 
@@ -228,12 +229,12 @@ static void createDescriptorData()
     s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded);
 
     BindingArray shadow{};
-    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
     shadow.Append(
         Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
     shadow.Append(
         Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
-    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex, 1, pbound));
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
 

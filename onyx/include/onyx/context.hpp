@@ -413,20 +413,20 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Triangle()
     {
-        StaticMesh(m_DefaultResources.GetTriangle<D>());
+        StaticMesh(m_DefaultResources.GetResources<D>().Triangle);
     }
     void Triangle(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        StaticMesh(m_DefaultResources.GetTriangle<D>(), transform, mode);
+        StaticMesh(m_DefaultResources.GetResources<D>().Triangle, transform, mode);
     }
 
     void Quad()
     {
-        StaticMesh(m_DefaultResources.GetQuad<D>());
+        StaticMesh(m_DefaultResources.GetResources<D>().Quad);
     }
     void Quad(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        StaticMesh(m_DefaultResources.GetQuad<D>(), transform, mode);
+        StaticMesh(m_DefaultResources.GetResources<D>().Quad, transform, mode);
     }
 
     void ParametricMesh(const Resource mesh, const InstanceParameters &params)
@@ -476,22 +476,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Stadium(const StadiumParameters &params = {1.f, 0.5f})
     {
-        ParametricMesh(m_DefaultResources.GetStadium<D>(), params);
+        ParametricMesh(m_DefaultResources.GetResources<D>().Stadium, params);
     }
     void Stadium(const StadiumParameters &params, const f32m<D> &transform,
                  const TransformMode mode = Transform_Extrinsic)
     {
-        ParametricMesh(m_DefaultResources.GetStadium<D>(), params, transform, mode);
+        ParametricMesh(m_DefaultResources.GetResources<D>().Stadium, params, transform, mode);
     }
 
     void RoundedRect(const RoundedRectParameters &params = {1.f, 1.f, 0.5f})
     {
-        ParametricMesh(m_DefaultResources.GetRoundedRect<D>(), params);
+        ParametricMesh(m_DefaultResources.GetResources<D>().RoundedRect, params);
     }
     void RoundedRect(const RoundedRectParameters &params, const f32m<D> &transform,
                      const TransformMode mode = Transform_Extrinsic)
     {
-        ParametricMesh(m_DefaultResources.GetRoundedRect<D>(), params, transform, mode);
+        ParametricMesh(m_DefaultResources.GetResources<D>().RoundedRect, params, transform, mode);
     }
 
     void Circle(const CircleParameters &params = {})
@@ -564,24 +564,24 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Line(const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f)
     {
         if constexpr (D == D2)
-            Line(m_DefaultResources.Quad2, start, end, thickness);
+            Line(m_DefaultResources.Resources2.Quad, start, end, thickness);
         else
-            Line(m_DefaultResources.Box, start, end, thickness);
+            Line(m_DefaultResources.Resources3.Box, start, end, thickness);
     }
     void RoundedLine(const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f)
     {
         if constexpr (D == D2)
-            Line(m_DefaultResources.Stadium2, start, end, thickness);
+            Line(m_DefaultResources.Resources2.Stadium, start, end, thickness);
         else
-            Line(m_DefaultResources.Capsule, start, end, thickness);
+            Line(m_DefaultResources.Resources3.Capsule, start, end, thickness);
     }
 
     void Axes(const AxesParameters &params = {})
     {
         if constexpr (D == D2)
-            Axes(m_DefaultResources.Quad2, params);
+            Axes(m_DefaultResources.Resources2.Quad, params);
         else
-            Axes(m_DefaultResources.Cylinder, params);
+            Axes(m_DefaultResources.Resources3.Cylinder, params);
     }
 
     void Push(const ContextState<D> &state)
@@ -928,58 +928,58 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
 
     void Box()
     {
-        StaticMesh(m_DefaultResources.Box);
+        StaticMesh(m_DefaultResources.Resources3.Box);
     }
     void Box(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        StaticMesh(m_DefaultResources.Box, transform, mode);
+        StaticMesh(m_DefaultResources.Resources3.Box, transform, mode);
     }
 
     void Sphere()
     {
-        StaticMesh(m_DefaultResources.Sphere);
+        StaticMesh(m_DefaultResources.Resources3.Sphere);
     }
     void Sphere(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        StaticMesh(m_DefaultResources.Sphere, transform, mode);
+        StaticMesh(m_DefaultResources.Resources3.Sphere, transform, mode);
     }
 
     void Cylinder()
     {
-        StaticMesh(m_DefaultResources.Cylinder);
+        StaticMesh(m_DefaultResources.Resources3.Cylinder);
     }
     void Cylinder(const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        StaticMesh(m_DefaultResources.Cylinder, transform, mode);
+        StaticMesh(m_DefaultResources.Resources3.Cylinder, transform, mode);
     }
 
     void Capsule(const CapsuleParameters &params = {1.f, 0.5f})
     {
-        ParametricMesh(m_DefaultResources.Capsule, params);
+        ParametricMesh(m_DefaultResources.Resources3.Capsule, params);
     }
     void Capsule(const CapsuleParameters &params, const f32m4 &transform,
                  const TransformMode mode = Transform_Extrinsic)
     {
-        ParametricMesh(m_DefaultResources.Capsule, params, transform, mode);
+        ParametricMesh(m_DefaultResources.Resources3.Capsule, params, transform, mode);
     }
 
     void RoundedBox(const RoundedBoxParameters &params = {1.f, 1.f, 1.f, 0.5f})
     {
-        ParametricMesh(m_DefaultResources.RoundedBox, params);
+        ParametricMesh(m_DefaultResources.Resources3.RoundedBox, params);
     }
     void RoundedBox(const RoundedBoxParameters &params, const f32m4 &transform,
                     const TransformMode mode = Transform_Extrinsic)
     {
-        ParametricMesh(m_DefaultResources.RoundedBox, params, transform, mode);
+        ParametricMesh(m_DefaultResources.Resources3.RoundedBox, params, transform, mode);
     }
 
     void Torus(const TorusParameters &params = {0.5f, 0.5f})
     {
-        ParametricMesh(m_DefaultResources.Torus, params);
+        ParametricMesh(m_DefaultResources.Resources3.Torus, params);
     }
     void Torus(const TorusParameters &params, const f32m4 &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        ParametricMesh(m_DefaultResources.Torus, params, transform, mode);
+        ParametricMesh(m_DefaultResources.Resources3.Torus, params, transform, mode);
     }
 
     void SpotLight(const SpotLightParameters &params = {})

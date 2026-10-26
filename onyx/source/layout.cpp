@@ -988,8 +988,8 @@ void Layout::applySpecDefaults()
             res = fallback;
     };
     assign(m_Specs.Font, def.Font);
-    assign(m_Specs.RectangleMesh, def.Quad2);
-    assign(m_Specs.RoundedRectangleMesh, def.RoundedRect2);
+    assign(m_Specs.RectangleMesh, def.Resources2.Quad);
+    assign(m_Specs.RoundedRectangleMesh, def.Resources2.RoundedRect);
 }
 } // namespace Onyx
 // NOLINTEND(performance-unnecessary-value-param)

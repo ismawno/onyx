@@ -205,22 +205,28 @@ template <Dimension D> static void bounds_WriteDescriptors()
 
 // NOTE(Isma): Because we create the underlying buffer to the capacity, in theory no resizes will be triggered for both
 // materials and bounds. however, when adding a new resource, the check is done still because the codepath is the same
-template <typename T> static void resource_InitializeWithHive(const u32 capacity, DeviceHive<T> &hive)
+template <typename T> static bool resource_InitializeWithHive(const u32 capacity, DeviceHive<T> &hive)
 {
-    hive.Elements.Reserve(capacity);
-    hive.Buffer = Graph::Buffer_Create(capacity * sizeof(T), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
+    if (capacity != 0)
+    {
+        hive.Elements.Reserve(capacity);
+        hive.Buffer =
+            Graph::Buffer_Create(capacity * sizeof(T), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
+        return true;
+    }
+    return false;
 }
 
 template <Dimension D> static void materials_Initialize()
 {
-    resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxMaterials, getData<D>().Materials);
-    materials_WriteDescriptors<D>();
+    if (resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxMaterials, getData<D>().Materials))
+        materials_WriteDescriptors<D>();
 }
 
 template <Dimension D> static void bounds_Initialize()
 {
-    resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxBounds, getData<D>().BoundingBoxes);
-    bounds_WriteDescriptors<D>();
+    if (resource_InitializeWithHive(GetSpecs().GetSpecific<D>().MaxBounds, getData<D>().BoundingBoxes))
+        bounds_WriteDescriptors<D>();
 }
 
 static void texture_WriteOffsetDescriptors()
@@ -1421,18 +1427,8 @@ MeshRange Glyph_GetRange(const Resource handle)
     return MeshRange{.VertexOffset = 4 * gid, .VertexCount = 4, .IndexOffset = 0, .IndexCount = 6};
 }
 
-const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
+static void resources_CreateDefault(DefaultResources &def, const DefaultResourcesOptions &opts)
 {
-    // NOTE(Isma): Resource checks are weak for the moment, meaning that if the user passes a bad resource, it will be
-    // used
-
-    DefaultResources &def = s_DefaultResources;
-    resourcePool_CreateDefault<D2>(def.StaticPool2, opts.StaticPool2, Resource_StaticMesh);
-    resourcePool_CreateDefault<D3>(def.StaticPool3, opts.StaticPool3, Resource_StaticMesh);
-
-    resourcePool_CreateDefault<D2>(def.ParametricPool2, opts.ParametricPool2, Resource_ParametricMesh);
-    resourcePool_CreateDefault<D3>(def.ParametricPool3, opts.ParametricPool3, Resource_ParametricMesh);
-
     if (opts.FontPool == NullHandle)
         def.FontPool = FontPool_Create();
     else
@@ -1452,26 +1448,48 @@ const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &o
     }
 #endif
     def.Sampler = Sampler_Create(opts.SamplerData);
+}
+template <Dimension D>
+static void resources_CreateDefault(SpecificDefaultResources<D> &def, const SpecificDefaultResourcesOptions<D> &opts)
+{
+    resourcePool_CreateDefault<D>(def.StaticPool, opts.StaticPool, Resource_StaticMesh);
+    resourcePool_CreateDefault<D>(def.ParametricPool, opts.ParametricPool, Resource_ParametricMesh);
 
-    def.Triangle2 = ResourcePool_RegisterMesh(def.StaticPool2, opts.TriangleData2);
-    def.Triangle3 = ResourcePool_RegisterMesh(def.StaticPool3, opts.TriangleData3);
+    def.Triangle = ResourcePool_RegisterMesh(def.StaticPool, opts.TriangleData);
+    def.Quad = ResourcePool_RegisterMesh(def.StaticPool, opts.QuadData);
+    def.Stadium = ResourcePool_RegisterMesh(def.ParametricPool, opts.StadiumData);
+    def.RoundedRect = ResourcePool_RegisterMesh(def.ParametricPool, opts.RoundedRectData);
 
-    def.Quad2 = ResourcePool_RegisterMesh(def.StaticPool2, opts.QuadData2);
-    def.Quad3 = ResourcePool_RegisterMesh(def.StaticPool3, opts.QuadData3);
+    if constexpr (D == D3)
+    {
+        def.Box = ResourcePool_RegisterMesh(def.StaticPool, opts.BoxData);
+        def.Sphere = ResourcePool_RegisterMesh(def.StaticPool, opts.SphereData);
+        def.Cylinder = ResourcePool_RegisterMesh(def.StaticPool, opts.CylinderData);
+        def.Capsule = ResourcePool_RegisterMesh(def.ParametricPool, opts.CapsuleData);
+        def.RoundedBox = ResourcePool_RegisterMesh(def.ParametricPool, opts.RoundedBoxData);
+        def.Torus = ResourcePool_RegisterMesh(def.ParametricPool, opts.TorusData);
+    }
+}
 
-    def.Box = ResourcePool_RegisterMesh(def.StaticPool3, opts.BoxData);
-    def.Sphere = ResourcePool_RegisterMesh(def.StaticPool3, opts.SphereData);
-    def.Cylinder = ResourcePool_RegisterMesh(def.StaticPool3, opts.CylinderData);
+template <Dimension D> const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
+{
+    DefaultResources &def = s_DefaultResources;
+    resources_CreateDefault(def, opts);
+    resources_CreateDefault<D>(def.GetResources<D>(), opts.GetOptions<D>());
+    SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
+#ifdef ONYX_INCLUDE_DEFAULT_FONT
+    flags |= SyncFlag_Fonts;
+#endif
 
-    def.Stadium2 = ResourcePool_RegisterMesh(def.ParametricPool2, opts.StadiumData2);
-    def.Stadium3 = ResourcePool_RegisterMesh(def.ParametricPool3, opts.StadiumData3);
+    Resources_Sync(flags);
+}
 
-    def.RoundedRect2 = ResourcePool_RegisterMesh(def.ParametricPool2, opts.RoundedRectData2);
-    def.RoundedRect3 = ResourcePool_RegisterMesh(def.ParametricPool3, opts.RoundedRectData3);
-
-    def.Capsule = ResourcePool_RegisterMesh(def.ParametricPool3, opts.CapsuleData);
-    def.RoundedBox = ResourcePool_RegisterMesh(def.ParametricPool3, opts.RoundedBoxData);
-    def.Torus = ResourcePool_RegisterMesh(def.ParametricPool3, opts.TorusData);
+const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts)
+{
+    DefaultResources &def = s_DefaultResources;
+    resources_CreateDefault(def, opts);
+    resources_CreateDefault<D2>(def.Resources2, opts.Options2);
+    resources_CreateDefault<D3>(def.Resources3, opts.Options3);
 
     SyncFlags flags = SyncFlag_StaticMeshes | SyncFlag_ParametricMeshes;
 #ifdef ONYX_INCLUDE_DEFAULT_FONT

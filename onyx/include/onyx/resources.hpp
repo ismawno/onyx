@@ -29,81 +29,93 @@ enum SyncFlagBit : SyncFlags
     SyncFlag_All = TKIT_U8_MAX,
 };
 
+template <Dimension D> struct SpecificDefaultResources;
+
+template <> struct SpecificDefaultResources<D2>
+{
+    ResourcePool StaticPool = NullHandle;
+    ResourcePool ParametricPool = NullHandle;
+
+    Resource Triangle = NullHandle;
+    Resource Quad = NullHandle;
+
+    Resource Stadium = NullHandle;
+    Resource RoundedRect = NullHandle;
+};
+
+template <> struct SpecificDefaultResources<D3>
+{
+    ResourcePool StaticPool = NullHandle;
+    ResourcePool ParametricPool = NullHandle;
+
+    Resource Triangle = NullHandle;
+    Resource Quad = NullHandle;
+    Resource Box = NullHandle;
+    Resource Sphere = NullHandle;
+    Resource Cylinder = NullHandle;
+
+    Resource Stadium = NullHandle;
+    Resource RoundedRect = NullHandle;
+    Resource Capsule = NullHandle;
+    Resource RoundedBox = NullHandle;
+    Resource Torus = NullHandle;
+};
+
 struct DefaultResources
 {
-    ResourcePool StaticPool2 = NullHandle;
-    ResourcePool ParametricPool2 = NullHandle;
-
-    ResourcePool StaticPool3 = NullHandle;
-    ResourcePool ParametricPool3 = NullHandle;
-
     ResourcePool FontPool = NullHandle;
 
     Resource Font = NullHandle;
     Resource Sampler = NullHandle;
 
-    Resource Triangle2 = NullHandle;
-    Resource Triangle3 = NullHandle;
+    SpecificDefaultResources<D2> Resources2;
+    SpecificDefaultResources<D3> Resources3;
 
-    Resource Quad2 = NullHandle;
-    Resource Quad3 = NullHandle;
-
-    Resource Box = NullHandle;
-    Resource Sphere = NullHandle;
-    Resource Cylinder = NullHandle;
-
-    Resource Stadium2 = NullHandle;
-    Resource Stadium3 = NullHandle;
-
-    Resource RoundedRect2 = NullHandle;
-    Resource RoundedRect3 = NullHandle;
-
-    Resource Capsule = NullHandle;
-    Resource RoundedBox = NullHandle;
-    Resource Torus = NullHandle;
-
-    template <Dimension D> Resource GetTriangle() const
+    template <Dimension D> constexpr const SpecificDefaultResources<D> &GetResources() const
     {
         if constexpr (D == D2)
-            return Triangle2;
+            return Resources2;
         else
-            return Triangle3;
+            return Resources3;
     }
-    template <Dimension D> Resource GetQuad() const
+    template <Dimension D> constexpr SpecificDefaultResources<D> &GetResources()
     {
         if constexpr (D == D2)
-            return Quad2;
+            return Resources2;
         else
-            return Quad3;
+            return Resources3;
     }
-    template <Dimension D> Resource GetStadium() const
-    {
-        if constexpr (D == D2)
-            return Stadium2;
-        else
-            return Stadium3;
-    }
-    template <Dimension D> Resource GetRoundedRect() const
-    {
-        if constexpr (D == D2)
-            return RoundedRect2;
-        else
-            return RoundedRect3;
-    }
-    template <Dimension D> ResourcePool GetStaticPool() const
-    {
-        if constexpr (D == D2)
-            return StaticPool2;
-        else
-            return StaticPool3;
-    }
-    template <Dimension D> ResourcePool GetParametricPool() const
-    {
-        if constexpr (D == D2)
-            return ParametricPool2;
-        else
-            return ParametricPool3;
-    }
+};
+
+template <Dimension D> struct SpecificDefaultResourcesOptions;
+
+template <> struct SpecificDefaultResourcesOptions<D2>
+{
+    ResourcePool StaticPool = NullHandle;
+    ResourcePool ParametricPool = NullHandle;
+
+    StaticMeshData<D2> TriangleData = Mesh_CreateTriangleData<D2>();
+    StaticMeshData<D2> QuadData = Mesh_CreateQuadData<D2>();
+
+    ParametricMeshData<D2> StadiumData = Mesh_CreateStadiumData<D2>();
+    ParametricMeshData<D2> RoundedRectData = Mesh_CreateRoundedRectData<D2>();
+};
+template <> struct SpecificDefaultResourcesOptions<D3>
+{
+    ResourcePool StaticPool = NullHandle;
+    ResourcePool ParametricPool = NullHandle;
+
+    StaticMeshData<D3> TriangleData = Mesh_CreateTriangleData<D3>();
+    StaticMeshData<D3> QuadData = Mesh_CreateQuadData<D3>();
+    StaticMeshData<D3> BoxData = Mesh_CreateBoxData();
+    StaticMeshData<D3> SphereData = Mesh_CreateSphereData();
+    StaticMeshData<D3> CylinderData = Mesh_CreateCylinderData();
+
+    ParametricMeshData<D3> StadiumData = Mesh_CreateStadiumData<D3>();
+    ParametricMeshData<D3> RoundedRectData = Mesh_CreateRoundedRectData<D3>();
+    ParametricMeshData<D3> CapsuleData = Mesh_CreateCapsuleData();
+    ParametricMeshData<D3> RoundedBoxData = Mesh_CreateRoundedBoxData();
+    ParametricMeshData<D3> TorusData = Mesh_CreateTorusData();
 };
 
 constexpr CodePoint CodePoint_ArrowDown = 0x25BC;
@@ -123,12 +135,6 @@ struct DefaultResourcesOptions
         FontOpts.CharSet.Load(CodePoint_Cross);
     }
 #endif
-    ResourcePool StaticPool2 = NullHandle;
-    ResourcePool ParametricPool2 = NullHandle;
-
-    ResourcePool StaticPool3 = NullHandle;
-    ResourcePool ParametricPool3 = NullHandle;
-
     ResourcePool FontPool = NullHandle;
     Resource DefaultFont = NullHandle; // If null, will load default font if enabled
 
@@ -137,25 +143,16 @@ struct DefaultResourcesOptions
     FontLoadOptions FontOpts;
 #endif
 
-    StaticMeshData<D2> TriangleData2 = Mesh_CreateTriangleData<D2>();
-    StaticMeshData<D3> TriangleData3 = Mesh_CreateTriangleData<D3>();
+    SpecificDefaultResourcesOptions<D2> Options2;
+    SpecificDefaultResourcesOptions<D3> Options3;
 
-    StaticMeshData<D2> QuadData2 = Mesh_CreateQuadData<D2>();
-    StaticMeshData<D3> QuadData3 = Mesh_CreateQuadData<D3>();
-
-    StaticMeshData<D3> BoxData = Mesh_CreateBoxData();
-    StaticMeshData<D3> SphereData = Mesh_CreateSphereData();
-    StaticMeshData<D3> CylinderData = Mesh_CreateCylinderData();
-
-    ParametricMeshData<D2> StadiumData2 = Mesh_CreateStadiumData<D2>();
-    ParametricMeshData<D3> StadiumData3 = Mesh_CreateStadiumData<D3>();
-
-    ParametricMeshData<D2> RoundedRectData2 = Mesh_CreateRoundedRectData<D2>();
-    ParametricMeshData<D3> RoundedRectData3 = Mesh_CreateRoundedRectData<D3>();
-
-    ParametricMeshData<D3> CapsuleData = Mesh_CreateCapsuleData();
-    ParametricMeshData<D3> RoundedBoxData = Mesh_CreateRoundedBoxData();
-    ParametricMeshData<D3> TorusData = Mesh_CreateTorusData();
+    template <Dimension D> constexpr const SpecificDefaultResourcesOptions<D> &GetOptions() const
+    {
+        if constexpr (D == D2)
+            return Options2;
+        else
+            return Options3;
+    }
 };
 } // namespace Onyx
 
@@ -244,6 +241,7 @@ Resource Glyph_GetFont(Resource glyph);
 const GlyphData &Glyph_GetData(Resource glyph);
 MeshRange Glyph_GetRange(Resource glyph);
 
+template <Dimension D> const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts = {});
 const DefaultResources &Resources_CreateDefault(const DefaultResourcesOptions &opts = {});
 const DefaultResources &Resources_GetDefault();
 

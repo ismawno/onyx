@@ -1074,6 +1074,13 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
         ispecs.Type = Graph::ImageType_1D;
         ispecs.Formats = sdata.ShadowFormat;
 
+        TKIT_ASSERT(specs.MaxShadowMaps + specs.MaxOcclusionMaps <= ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS,
+                    "[ONYX][RENDERER] Max shadow and occlusion map entries must not exceed together more than "
+                    "ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS = {}, but {} + {} = {}. Decrease the 2D values of "
+                    ".MaxShadowMaps and .MaxOcclusionMaps fields",
+                    ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, specs.MaxShadowMaps, specs.MaxOcclusionMaps,
+                    specs.MaxShadowMaps + specs.MaxOcclusionMaps);
+
         u32 maxMaps = specs.MaxShadowMaps;
         l2.ShadowMaps.Maps.Reserve(maxMaps);
         for (u32 i = 0; i < maxMaps; ++i)
@@ -1167,7 +1174,12 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
 
             ispecs.ImageViews = views;
 
-            const u32 maxMaps = specs.MaxShadowMaps;
+            const u32 maxMaps = specs.MaxShadowMaps[ltype];
+            TKIT_ASSERT(maxMaps <= ONYX_MAX_TEXTURE_MAPS,
+                        "[ONYX][RENDERER] Max shadow map entries must not exceed ONYX_MAX_TEXTURE_MAPS = {}, but is "
+                        "{}. Decrease the 3D value of the .MaxShadowMaps[{}] field",
+                        ONYX_MAX_TEXTURE_MAPS, maxMaps, u32(ltype));
+
             l3.ShadowMaps[ltype].Maps.Reserve(maxMaps);
             for (u32 i = 0; i < maxMaps; ++i)
             {
@@ -1218,10 +1230,13 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
     group.VertexBuffer = createVertexBuffer<D>(specs.MaxDynamicVertices);
     group.IndexBuffer = createIndexBuffer<D>(specs.MaxDynamicIndices);
 
-    group.DrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndirectCommand>(
-        specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
-    group.IndexedDrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndexedIndirectCommand>(
-        specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
+    if (specs.MaxDrawCommands != 0)
+    {
+        group.DrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndirectCommand>(
+            specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
+        group.IndexedDrawBuffer.Buffer = Graph::Buffer_Create<Graph::DrawIndexedIndirectCommand>(
+            specs.MaxDrawCommands, Graph::BufferFlag_HostMapped | Graph::BufferFlag_Indirect);
+    }
 
     return group;
 }
@@ -1291,6 +1306,9 @@ template <Dimension D> static void initialize()
     }
     else
         getRendererData<D3>().Shadows.ShadowResolutions = specs.ShadowResolutions;
+
+    TKIT_ASSERT(specs.ResourceGroupCount != 0,
+                "[ONYX][RENDERER] Resource group count (.ResourceGroupCount field) must be at least 1");
 
     RendererData<D> &rdata = getRendererData<D>();
     rdata.ResourceGroups.Reserve(specs.ResourceGroupCount);
