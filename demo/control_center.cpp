@@ -5283,7 +5283,10 @@ static void drawOverlay(App &app)
     // the docked layout nests two dockspaces, like the editor. a full screen parent, its tab bar hidden, holds a single
     // window: All panels, whose own dockspace holds every panel. a panel dropped on the parent becomes a full screen
     // tab next to All panels. dockspaces must be submitted before any window that docks into them, and every docked
-    // session gets fresh ones, which undock their windows once they stop being submitted. the trees are submitted once
+    // session gets fresh ones. the parent undocks its windows once it stops being submitted, but the inner one must
+    // not: it is not submitted while another tab of the parent is shown. leaving the docked layout undocks the panels
+    // anyway (NoDocking), and the next session undocks the galleries before applying its tree. the trees are submitted
+    // once
     if (app.Mode == Mode_Docked)
     {
         const Line parentName = formatLine("Docked layout {}", app.DockSessions);
@@ -5310,8 +5313,7 @@ static void drawOverlay(App &app)
         ui->PopStyleVar();
         if (open)
         {
-            ui->DockSpace(panels, Onyx::OverlayDockNodeFlag_CanBeEmpty,
-                          Onyx::OverlayWindowFlag_ChildGrow | Onyx::OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted);
+            ui->DockSpace(panels, Onyx::OverlayDockNodeFlag_CanBeEmpty, Onyx::OverlayWindowFlag_ChildGrow);
             ui->EndWindow();
         }
     }
