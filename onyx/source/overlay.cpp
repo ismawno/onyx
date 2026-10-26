@@ -5342,6 +5342,8 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         };
 
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
+        const u32 charCount = str.GetSize();
+        const u32 advCount = charCount + 1;
 
         if (escapeClears && nw->EventKeys[Graph::Key_Escape])
         {
@@ -5350,6 +5352,20 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             updated = true;
             m_CursorStart = 0;
             m_CursorEnd = 0;
+        }
+
+        if (nw->EventKeys[Graph::Key_Home])
+        {
+            pushUndo();
+            m_CursorStart = 0;
+            m_CursorEnd = 0;
+        }
+
+        if (nw->EventKeys[Graph::Key_End])
+        {
+            pushUndo();
+            m_CursorStart = charCount;
+            m_CursorEnd = charCount;
         }
 
         TKit::StackArray<f32> advances{};
@@ -5375,8 +5391,6 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const bool clicked = iflags & OverlayInteractionQueryFlag_LeftClicked;
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
-        const u32 charCount = str.GetSize();
-        const u32 advCount = charCount + 1;
 
         if (pressed || clicked)
         {
@@ -5450,9 +5464,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                         m_CursorStart += diff;
                 }
                 else if (diff * hlen > 0)
-                    m_CursorEnd = m_CursorStart;
-                else
                     m_CursorStart = m_CursorEnd;
+                else
+                    m_CursorEnd = m_CursorStart;
             }
         }
 
@@ -5517,7 +5531,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 nw->TextInput = cp;
         }
 
-        if (toRemoveBegin < toRemoveEnd && !str.IsEmpty())
+        if (!str.IsEmpty())
         {
             if (ctrl && nw->EventKeys[Graph::Key_C])
             {
@@ -5525,21 +5539,31 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
                 Graph::SetClipboard(clipboard.CString());
             }
 
-            if (nw->EventKeys[Graph::Key_Backspace] || (!nw->TextInput.IsEmpty() && hasHighlight))
-            {
+            const bool backSpace = nw->EventKeys[Graph::Key_Backspace];
+            const bool del = nw->EventKeys[Graph::Key_Delete];
+            const auto eraseRange = [&](const u32 begin, const u32 end, const bool shiftCursor) {
                 pushUndo();
 
                 updated = true;
-                str.RemoveOrdered(str.begin() + toRemoveBegin, str.begin() + toRemoveEnd);
+                str.RemoveOrdered(str.begin() + begin, str.begin() + end);
 
-                const u32 removeCount = toRemoveEnd - toRemoveBegin;
-                if (!hasHighlight || negSel)
-                    m_CursorStart -= removeCount;
-                if (!hasHighlight || !negSel)
-                    m_CursorEnd -= removeCount;
+                if (shiftCursor)
+                {
+                    const u32 removeCount = toRemoveEnd - toRemoveBegin;
+                    if (!hasHighlight || negSel)
+                        m_CursorStart -= removeCount;
+                    if (!hasHighlight || !negSel)
+                        m_CursorEnd -= removeCount;
+                }
 
                 selEnd = toRemoveBegin;
-            }
+            };
+            // when at the start of the string, toRemoveBegin is u32 max, and so backspace cannot go through. however,
+            // del does. and precisely, adding 1 to u32 max brings us back to 0
+            if (toRemoveBegin < toRemoveEnd && (backSpace || ((del || !nw->TextInput.IsEmpty()) && hasHighlight)))
+                eraseRange(toRemoveBegin, toRemoveEnd, true);
+            else if (del && toRemoveEnd < str.GetSize())
+                eraseRange(toRemoveBegin + 1, toRemoveEnd + 1, false);
         }
 
         const u32 insertionsLeft = capacity - 1 - str.GetSize();
@@ -5559,7 +5583,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
 
         if (enterCommits)
-            updated = nw->EventKeys[Graph::Key_Enter];
+            updated = nw->EventKeys[Graph::Key_Enter] || nw->EventKeys[Graph::Key_KPEnter];
         if (updated)
         {
             // copy the new string into the buffer and we are done :)
@@ -5573,7 +5597,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         {
             const bool enterTrue = flags & OverlayInputFlag_EnterReturnsTrue;
             if (enterTrue)
-                updated = nw->EventKeys[Graph::Key_Enter];
+                updated = nw->EventKeys[Graph::Key_Enter] || nw->EventKeys[Graph::Key_KPEnter];
         }
     }
     else
@@ -6928,12 +6952,10 @@ void Overlay::Draw()
             dockInsertAndDrawPreview(dockTargetWin, dockTargetCtx);
     };
 
-    static constexpr u64 framesUntilPromotionsAreAvailable = 60;
     const auto runWindowPromotions = [&] {
         if (!windowPromotions)
             demoteAllWindows();
-        else if ((Flags & OverlayFlag_FloatingMode) || !(Flags & OverlayFlag_WindowPromotionInitialFrameCooldown) ||
-                 m_FrameCount > framesUntilPromotionsAreAvailable)
+        else if (Flags & OverlayFlag_FloatingMode)
             manageWindowPromotions();
     };
 

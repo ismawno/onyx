@@ -17,6 +17,12 @@
 
 namespace Onyx
 {
+// important overlay concepts:
+// - OverlayWindow: a window managed by the overlay system driven by a Layout object
+// - NativeWindow: an OS window, with a view and a render context, able to draw geometry. it can either host multiple
+// OverlayWindows or dedicate itself to a single one, adapting its size and position to it. this feature can be enabled
+// with OverlayFlag_WindowPromotions
+
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 namespace fs = std::filesystem;
 #endif
@@ -68,6 +74,8 @@ concept RadioButtonType = TKit::IntegerOrEnum<T> || std::is_same_v<std::remove_c
 struct OverlayWindow;
 struct DockNode;
 
+// a title is the text that will be displayed that represents the name of a specific widget or ui element. it does not
+// represent an id
 struct OverlayTitle
 {
     OverlayTitle() = default;
@@ -102,6 +110,8 @@ struct OverlayTitle
     u32 CodePoint = TKIT_U32_MAX;
 };
 
+// a label is the combination of two parts: the id and title of a ui element. it has several constructors to ease out
+// the extraction of boths, so that an id and title can be derived from multiple ways
 struct OverlayLabel
 {
     OverlayLabel() = default;
@@ -134,14 +144,18 @@ struct OverlayLabel
 
 enum OverlayFlagBit : OverlayFlags
 {
+    // enables windows to be able to be promoted to their own OS windows when they clip against the main window they are
+    // hosted in
     OverlayFlag_WindowPromotions = 1U << 0,
+    // enables the docking feature: dock windows into other windows or into the main OS window, submit custom dockspaces
+    // etc.
     OverlayFlag_Docking = 1U << 1,
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
+    // auto serialize window and dockspace positions on shutdown (overlay destructor)
     OverlayFlag_AutoSerialize = 1U << 2,
 #endif
-    OverlayFlag_WindowPromotionInitialFrameCooldown = 1U << 3,
-
-    // internal
+    // internal. enables floating mode, meaning the overlay does not live in any OS main window. all overlay windows are
+    // automatically promoted and independent
     OverlayFlag_FloatingMode = 1U << 4,
 };
 
@@ -435,13 +449,23 @@ struct OverlayColorHandle
 
 enum OverlayDockNodeFlagBit : OverlayDockNodeFlags
 {
+    // a dock node that can be empty will not removed from its tree when the last window is undocked
     OverlayDockNodeFlag_CanBeEmpty = 1U << 0,
+    // prevents the docknode from being resized. has only an effect for split dock nodes
     OverlayDockNodeFlag_NoResize = 1U << 1,
+    // hides the window tab bar. has only an effect for leaf dock nodes
     OverlayDockNodeFlag_HideTabBar = 1U << 2,
+    // starts with the window tab bar hidden. has only an effect for leaf dock nodes
     OverlayDockNodeFlag_StartWithTabBarHidden = 1U << 3,
+    // disable tab bar horizontal scroll. has only an effect for leaf dock nodes
     OverlayDockNodeFlag_NoHorizontalScroll = 1U << 4,
 
+    // internal. marks a dock node to be detached from its tree and become an independent tree the next time it has the
+    // chance
     DockNodeFlag_MustUndock = 1U << 5,
+    // internal. marks a dock node such that, once detached from its tree and become an independent tree the next time
+    // it has the chance, it will be grabbed by the user automatically. used when the user is dragging a dockspace with
+    // the mouse
     DockNodeFlag_MustGrabWhenUndocked = 1U << 6,
 };
 
@@ -483,6 +507,7 @@ struct TabBarData
     }
 };
 
+// public representation of a docknode, it is mostly use to declare a dock layout
 struct OverlayDockNode
 {
     TKit::FixedArray<const OverlayDockNode *, 2> Children{nullptr, nullptr};
@@ -498,6 +523,7 @@ struct OverlayDockNode
     }
 };
 
+// you can build a dock layout with these
 const OverlayDockNode *DockSplit(LayoutAxis axis, f32 ratio, const OverlayDockNode *child0,
                                  const OverlayDockNode *child1, OverlayDockNodeFlags flags = 0);
 const OverlayDockNode *DockTabBar(TKit::Span<const LayoutId> windows, OverlayDockNodeFlags flags = 0);
@@ -506,6 +532,7 @@ inline const OverlayDockNode *DockTabBar(const LayoutId window, const OverlayDoc
 {
     return DockTabBar(TKit::Span<const LayoutId>(&window, 1), flags);
 }
+//
 
 struct DockTreeDescription
 {
@@ -513,12 +540,15 @@ struct DockTreeDescription
     const OverlayDockNode *Root;
 };
 
+// private (internal) representation of a dock node
 struct DockNode
 {
     LayoutId ContentId = NullLayoutId;
     LayoutId BorderId = NullLayoutId;
 
     DockNode *Parent = nullptr;
+    // the host window is the window (which can be a manually submitted dockspace) that owns the tree that this docknode
+    // belongs to
     OverlayWindow *Host = nullptr;
 
     TKit::FixedArray<DockNode *, 2> Children{nullptr, nullptr};
@@ -528,10 +558,14 @@ struct DockNode
     // position is in world coords, not screen
     f32v2 ReadOnlyPosition;
     f32v2 ReadOnlySize;
+    //
 
+    // the Ratio is the real ratio this split node holds. however, if one of its children is empty (meaning none of
+    // their windows, recursively, are active), we want the other children to take up the whole space. we declare
+    // EffectiveRatio to be 0 or 1 when this happens, and Ratio otherwise
     f32 Ratio;
-    // may be 1 or 0 when a children is empty
     f32 EffectiveRatio;
+    //
     LayoutAxis Axis;
 
     TabBarData TabData{};
@@ -549,7 +583,10 @@ struct DockNode
     {
         return !Parent;
     }
+
+    // a dock node is empty when all of its windows (recursively down the tree) are not active
     bool IsEmpty() const;
+
     bool CanUndock() const;
 
     u32 ChildIndex(const DockNode *child) const
@@ -601,9 +638,13 @@ enum OverlayCondition : OverlayConditions
 
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    // if a dockspace is not submitted during a frame, all its docked windows will be automatically undocked
     OverlayWindowFlag_DockSpaceUndockWhenNotSubmitted = 1ULL << 38,
+    // by default, windows do not get their id merged with the id stack. this flag enables such feature
     OverlayWindowFlag_MergeIdWithStack = 1ULL << 39,
+    // window will not report WantCaptureMouse if not explicitly activating a widget
     OverlayWindowFlag_MousePassThrough = 1ULL << 40,
+    // child windows only
     OverlayWindowFlag_ChildGrowWidth = 1ULL << 41,
     OverlayWindowFlag_ChildGrowHeight = 1ULL << 42,
     OverlayWindowFlag_ChildGrow = OverlayWindowFlag_ChildGrowWidth | OverlayWindowFlag_ChildGrowHeight,
