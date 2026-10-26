@@ -1273,7 +1273,7 @@ class Overlay
     static constexpr vec2<Alignment> TopRight = {Alignment_Right, Alignment_Top};
     static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Center};
 
-    static constexpr vec2<Alignment> TopCenter = {Alignment_Center, Alignment_Left};
+    static constexpr vec2<Alignment> TopCenter = {Alignment_Center, Alignment_Top};
     static constexpr vec2<Alignment> Center = Alignment_Center;
 
     Overlay(Window *win, const OverlaySpecs &specs);
