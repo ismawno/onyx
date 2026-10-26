@@ -1499,10 +1499,10 @@ static void editorWindow_Draw()
     ov->PushStyleVar(Onyx::OverlayStyle_ContentAreaPadding, 0.f);
     const bool opened = ov->BeginWindow({idData.EditorWindow, s_Editor->ProjectName}, Onyx::OverlayWindowFlag_MenuBar);
     ov->PopStyleVar();
-    ov->SetNextWindowPosition(ov->GetActiveNativeWindow()->GetLocalScreenCenter(), Onyx::OverlayCondition_Appearing,
-                              -0.5f);
     if (opened)
     {
+        ov->SetNextWindowPosition(ov->GetActiveNativeWindow()->GetLocalScreenCenter(), Onyx::OverlayCondition_Appearing,
+                                  -0.5f);
         if (ov->BeginPopup("Launcher", Onyx::OverlayWindowFlag_AutoResize | Onyx::OverlayWindowFlag_PopupModal |
                                            Onyx::OverlayWindowFlag_PopupDoNotPlaceAtMouse))
         {
