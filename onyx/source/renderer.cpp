@@ -941,24 +941,32 @@ static constexpr Graph::BufferFlags s_IndexBufferFlags = Graph::BufferFlag_Index
 
 template <Dimension D> static Graph::Buffer createInstanceBuffer(const Geometry geo, const u32 instances)
 {
+    if (instances == 0)
+        return Graph::NullHandle;
     return createBuffer(instances * GetInstanceSize<D>(geo), s_InstanceBufferFlags,
                         "onyx-renderer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
 }
 
 template <Dimension D> static Graph::Buffer createLightBuffer(const LightType light, const u32 instances)
 {
+    if (instances == 0)
+        return Graph::NullHandle;
     return createBuffer(instances * getLightSize<D>(light), s_LightBufferFlags,
                         "onyx-renderer-light-buffer-{}D-type-{}", u8(D), ToString(light));
 }
 
 template <Dimension D> static Graph::Buffer createVertexBuffer(const u32 instances)
 {
+    if (instances == 0)
+        return Graph::NullHandle;
     return createBuffer(instances * sizeof(DynamicVertex<D>), s_VertexBufferFlags, "onyx-renderer-vertex-buffer-{}D",
                         u8(D));
 }
 
 template <Dimension D> static Graph::Buffer createIndexBuffer(const u32 instances)
 {
+    if (instances == 0)
+        return Graph::NullHandle;
     return createBuffer(instances * sizeof(Index), s_IndexBufferFlags, "onyx-renderer-index-buffer-{}D", u8(D));
 }
 
@@ -1216,15 +1224,20 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
 
 template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &group)
 {
+    const auto destroy = [](const Graph::Buffer buff) {
+        if (buff != Graph::NullHandle)
+            Graph::Buffer_Destroy(buff);
+    };
+
     for (const InstanceDeviceBuffer &buff : group.InstanceBuffers)
-        Graph::Buffer_Destroy(buff.Buffer);
+        destroy(buff.Buffer);
     group.LightData.Destroy();
 
-    Graph::Buffer_Destroy(group.VertexBuffer);
-    Graph::Buffer_Destroy(group.IndexBuffer);
+    destroy(group.VertexBuffer);
+    destroy(group.IndexBuffer);
 
-    Graph::Buffer_Destroy(group.DrawBuffer.Buffer);
-    Graph::Buffer_Destroy(group.IndexedDrawBuffer.Buffer);
+    destroy(group.DrawBuffer.Buffer);
+    destroy(group.IndexedDrawBuffer.Buffer);
 }
 
 template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
