@@ -5632,7 +5632,7 @@ void Overlay::TextIconRaw(const CodePoint icon, const LayoutTextMode mode, const
     PopPanel();
 }
 
-void Overlay::BeginDisabled(const bool enabled)
+bool Overlay::BeginDisabled(const bool enabled)
 {
     m_DisabledStack.Append(m_Style[OverlayStyle_Alpha], u32(enabled));
     if (enabled)
@@ -5640,6 +5640,7 @@ void Overlay::BeginDisabled(const bool enabled)
         ++m_DisabledDepth;
         m_Style.Variables[OverlayStyle_Alpha] *= m_Style[OverlayStyle_DisabledAlpha];
     }
+    return enabled;
 }
 void Overlay::EndDisabled()
 {
@@ -5650,10 +5651,11 @@ void Overlay::EndDisabled()
     m_DisabledStack.Pop();
 }
 
-void Overlay::BeginReadOnly(const bool enabled)
+bool Overlay::BeginReadOnly(const bool enabled)
 {
     m_ReadOnlyStack.Append(u32(enabled));
     m_ReadOnlyDepth += enabled;
+    return enabled;
 }
 void Overlay::EndReadOnly()
 {

@@ -1804,10 +1804,10 @@ class Overlay
         return Image(id, texture, sfix(size), offset, scale);
     }
 
-    void BeginDisabled(bool enabled = true);
+    bool BeginDisabled(bool enabled = true);
     void EndDisabled();
 
-    void BeginReadOnly(bool enabled = true);
+    bool BeginReadOnly(bool enabled = true);
     void EndReadOnly();
 
     /////////////////////////////////////////////
