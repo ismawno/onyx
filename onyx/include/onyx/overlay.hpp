@@ -354,6 +354,7 @@ enum OverlayStyleVariable : u8
     OverlayStyle_UnicodeSize,
     OverlayStyle_IndentWidth,
     OverlayStyle_ChildGap,
+    OverlayStyle_CursorBlinkFrequency,
 
     OverlayStyle_HeaderRadius,
     OverlayStyle_MenuBarRadius,
@@ -825,7 +826,6 @@ struct NativeWindow
     TKit::StaticBitSet<Graph::Key_Count> EventKeys{Graph::Key_Count};
     TKit::TierString TextInput{};
 
-    TKit::TierString InputWidgetBuffer{};
     TKit::Clock PressClock{};
     TKit::Clock ReleaseClock{};
 
@@ -1246,6 +1246,7 @@ enum OverlayInputFlagBit : OverlayInputFlags
     OverlayInputFlag_ElideLeft = 1U << 7,
     OverlayInputFlag_StepButtons = 1U << 8,
     OverlayInputFlag_NoUndoRedo = 1U << 9,
+    OverlayInputFlag_CursorBlink = 1U << 10,
 };
 
 // flex sizing is fit and grow at once: it takes the free space, but its content also counts towards the size of a fit
@@ -3052,6 +3053,8 @@ class Overlay
     u32 m_CursorStart = 0;
     u32 m_CursorEnd = 0;
     f32 m_InputTextScroll = 0.f;
+    TKit::Clock m_CursorBlinkClock{};
+    bool m_CursorVisible = true;
 
     LastItemData m_LastItem{};
     NextItemData m_NextItem{};

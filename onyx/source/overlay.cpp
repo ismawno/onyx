@@ -94,6 +94,7 @@ OverlayStyleVariables CreateDefaultOverlayVariables()
     vars[OverlayStyle_UnicodeSize] = 14.f;
     vars[OverlayStyle_IndentWidth] = 16.f;
     vars[OverlayStyle_ChildGap] = 8.f;
+    vars[OverlayStyle_CursorBlinkFrequency] = 2.f;
 
     vars[OverlayStyle_HeaderRadius] = 0.f;
     vars[OverlayStyle_MenuBarRadius] = 0.f;
@@ -5323,6 +5324,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             m_UndoStack.Clear();
             m_RedoStack.Clear();
             m_InputTextScroll = 0.f;
+
+            m_CursorBlinkClock.Restart();
+            m_CursorVisible = true;
         }
 
         if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Graph::Key_Z])
@@ -5431,6 +5435,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
         if (pressed || clicked)
         {
+            m_CursorVisible = true;
+            m_CursorBlinkClock.Restart();
+
             const f32 onPress = nw->WorldMouseOnPress[0] - boxPos - m_InputTextScroll;
             const f32 mpos = nw->WorldMouse[0] - boxPos - m_InputTextScroll;
 
@@ -5560,9 +5567,19 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
             cursorOffset += 0.1f;
 
-        ly->Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]},
-                          .Sizing = {sfix(cwidth), grow()},
-                          .SelfOffset = ofix({cursorOffset, 0.f})});
+        const bool blink = flags & OverlayInputFlag_CursorBlink;
+        const bool visible = !blink || m_CursorVisible;
+        if (m_CursorBlinkClock.GetElapsed().AsSeconds() >= 1.f / m_Style[OverlayStyle_CursorBlinkFrequency])
+        {
+            m_CursorVisible = !m_CursorVisible;
+            m_CursorBlinkClock.Restart();
+        }
+
+        ly->Panel(
+            LyPnPar{.FillColor = visible ? Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]}
+                                         : Color_Transparent,
+                    .Sizing = {sfix(cwidth), grow()},
+                    .SelfOffset = ofix({cursorOffset, 0.f})});
         if (hasHighlight)
         {
             const f32 hoffset = negSel ? cursorOffset : (cursorOffset - hLength);
@@ -7518,6 +7535,7 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
         ov->CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
         ov->CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
+        ov->CheckBoxFlags("OverlayInputFlag_CursorBlink", &iflags, Onyx::OverlayInputFlag_CursorBlink);
 
         static char buf1[128] = "This is some nice text";
         ov->InputText("Text 1", buf1, 128, "I am a little hint", iflags);
@@ -8322,6 +8340,7 @@ void Overlay::ShowStyleEditor()
         varSlider("UnicodeSize", OverlayStyle_UnicodeSize, 1.f, 100.f);
         varSlider("IndentWidth", OverlayStyle_IndentWidth, 1.f, 100.f);
         varSlider("ChildGap", OverlayStyle_ChildGap, 0.f, 50.f);
+        varSlider("CursorBlinkFrequency", OverlayStyle_CursorBlinkFrequency, 0.f, 50.f);
         varSlider("HeaderRadius", OverlayStyle_HeaderRadius, 0.f, 50.f);
         varSlider("MenuBarRadius", OverlayStyle_MenuBarRadius, 0.f, 50.f);
         varSlider("DropDownRadius", OverlayStyle_DropDownRadius, 0.f, 50.f);
