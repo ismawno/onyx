@@ -320,7 +320,9 @@ OverlayColors CreateOverlayColorsFromPalette(const OverlayPalette &palette)
 
     colors[OverlayColor_InputCursor] = palette[OverlayPalette_Text0];
     colors[OverlayColor_InputHighlight] = palette[OverlayPalette_Pressed0];
-    colors[OverlayColor_InputBackground] = palette[OverlayPalette_Background2];
+    colors[OverlayColor_InputBackgroundIdle] = palette[OverlayPalette_Background2];
+    colors[OverlayColor_InputBackgroundHovered] = palette[OverlayPalette_Background2];
+    colors[OverlayColor_InputBackgroundActive] = palette[OverlayPalette_Background2];
 
     colors[OverlayColor_WindowBorderIdle] = palette[OverlayPalette_Idle0];
     colors[OverlayColor_WindowBorderHovered] = palette[OverlayPalette_Hovered0];
@@ -4390,7 +4392,6 @@ bool Overlay::ColorEditor(const OverlayLabel label, const OverlayColorHandle col
                                      "OverlayColorFlag_NoAlpha flag to avoid memory corruption");
 
     bool changed = false;
-
     const Color col =
         alpha ? Color{colPtr[0], colPtr[1], colPtr[2], colPtr[3]} : Color{colPtr[0], colPtr[1], colPtr[2]};
 
@@ -5268,8 +5269,17 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         interFlags |= InteractionFlag_AllowPressedOnEnter;
 
     const OverlayInteractionQueryFlags iflags = queryAndSetInteraction(ibox, interFlags);
+    const bool pressed = iflags & OverlayInteractionQueryFlag_Pressed;
+    const bool hovered = iflags & OverlayInteractionQueryFlag_Hovered;
+    const bool active = iflags & OverlayInteractionQueryFlag_Active;
 
-    ly->BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[OverlayColor_InputBackground],
+    OverlayColor col = OverlayColor_InputBackgroundIdle;
+    if (active)
+        col = OverlayColor_InputBackgroundActive;
+    else if (hovered)
+        col = OverlayColor_InputBackgroundHovered;
+
+    ly->BeginPanel(iboxId, LyPnPar{.FillColor = m_Style[col],
                                    .Alignment = CenterLeft,
                                    .Sizing = {grow(), fit()},
                                    .Shape = rect(m_Style[OverlayStyle_InputBoxRadius]),
@@ -5289,8 +5299,6 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     const f32 fs = m_Style[OverlayStyle_FontSize];
 
     LyTxPar tparams = getTextParams();
-    const bool pressed = iflags & OverlayInteractionQueryFlag_Pressed;
-    const bool hovered = iflags & OverlayInteractionQueryFlag_Hovered;
     if (pressed || hovered)
         m_Active->Flags |= WindowInternalFlag_InputHovered;
 
@@ -5314,6 +5322,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
             m_UndoStack.Clear();
             m_RedoStack.Clear();
+            m_InputTextScroll = 0.f;
         }
 
         if (undoRedo && ctrl && !m_UndoStack.IsEmpty() && nw->EventKeys[Graph::Key_Z])
@@ -5349,6 +5358,11 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             }
         };
 
+        const bool escapeEnds = flags & OverlayInputFlag_EscapeEndsEdit;
+        const bool enterEnds = flags & OverlayInputFlag_EnterEndsEdit;
+        if ((escapeEnds && nw->EventKeys[Graph::Key_Escape]) || (enterEnds && nw->EventKeys[Graph::Key_Enter]))
+            m_ActiveId = NullLayoutId;
+
         const bool escapeClears = flags & OverlayInputFlag_EscapeClearsAll;
         const u32 charCount = str.GetSize();
         const u32 advCount = charCount + 1;
@@ -5377,33 +5391,48 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         }
 
         TKit::StackArray<f32> advances{};
-        advances.Reserve(str.GetSize() + 1);
-        advances.Append(0.f);
+        // advances may be regenerated with more characters, up to the current text input
+        const u32 advCap = str.GetSize() + 1 + nw->TextInput.GetSize();
+        advances.Reserve(advCap);
 
         TKit::StackArray<f32> midAdvances{};
-        midAdvances.Reserve(str.GetSize() + 1);
-        midAdvances.Append(0.f);
+        midAdvances.Reserve(advCap);
 
-        f32 textWidth = 0.f;
-        finfo.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
-            const f32 width = fs * w;
-            // widths.Append(width);
+        f32 textWidth;
+        // advances may be regenerated when inserting, as they are needed to advance or lower scrolling
+        const auto generateAdvances = [&] {
+            textWidth = 0.f;
+            advances.Clear();
+            midAdvances.Clear();
 
-            midAdvances.Append(textWidth + 0.5f * width);
-            textWidth += width;
-            advances.Append(textWidth);
-            return true;
-        });
+            advances.Append(0.f);
+            midAdvances.Append(0.f);
+            finfo.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
+                const f32 width = fs * w;
+                // widths.Append(width);
+
+                midAdvances.Append(textWidth + 0.5f * width);
+                textWidth += width;
+                advances.Append(textWidth);
+                return true;
+            });
+        };
+        generateAdvances();
 
         const f32 boxPos = box ? (box->Position[0] + m_Style[OverlayStyle_WidgetPadding]) : 0.f;
         const bool clicked = iflags & OverlayInteractionQueryFlag_LeftClicked;
 
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
 
+        const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
+        const bool horScroll = !(flags & OverlayInputFlag_NoHorizontalScroll);
+        // const f32 textOffset =
+        //     noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
+
         if (pressed || clicked)
         {
-            const f32 onPress = nw->WorldMouseOnPress[0] - boxPos;
-            const f32 mpos = nw->WorldMouse[0] - boxPos;
+            const f32 onPress = nw->WorldMouseOnPress[0] - boxPos - m_InputTextScroll;
+            const f32 mpos = nw->WorldMouse[0] - boxPos - m_InputTextScroll;
 
             const bool mustUseCurrent = !clicked && Math::Approximately(mpos, onPress, 1.f);
             const f32 pixelStartPos = mustUseCurrent ? advances[m_CursorStart] : onPress;
@@ -5430,6 +5459,18 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             if (!endReady)
                 m_CursorEnd = charCount;
         }
+
+        const auto scrollLeftIfNeeded = [&] {
+            if (horScroll)
+            {
+                const u32 idx = m_CursorStart <= m_CursorEnd ? m_CursorStart : m_CursorEnd;
+                m_InputTextScroll -= Math::Min(0.f, advances[idx] + m_InputTextScroll);
+            }
+        };
+        const auto scrollRightIfNeeded = [&] {
+            if (horScroll)
+                m_InputTextScroll -= Math::Max(0.f, advances[m_CursorEnd] - boxSize + m_InputTextScroll + cwidth);
+        };
 
         if (nw->OverflowReleases == 2 || (activated && autoSelectAll))
         {
@@ -5459,22 +5500,30 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
             const u32 limit = left ? 0 : charCount;
             const i32 hlen = i32(m_CursorEnd) - i32(m_CursorStart);
-            if (m_CursorEnd != limit)
+
+            const bool lshift = nw->Window->IsKeyPressed(Graph::Key_LeftShift);
+            const i32 diff = left ? -1 : 1;
+            if (!lshift && hlen != 0)
             {
-                const bool lshift = nw->Window->IsKeyPressed(Graph::Key_LeftShift);
-                const i32 diff = left ? -1 : 1;
+                if (diff * hlen > 0)
+                    m_CursorStart = m_CursorEnd;
+                else
+                    m_CursorEnd = m_CursorStart;
+            }
+            else if (m_CursorEnd != limit)
+            {
                 if (lshift)
                     m_CursorEnd += diff;
-                else if (hlen == 0)
+                else
                 {
                     m_CursorEnd += diff;
                     if (m_CursorStart != limit)
                         m_CursorStart += diff;
                 }
-                else if (diff * hlen > 0)
-                    m_CursorStart = m_CursorEnd;
+                if (left)
+                    scrollLeftIfNeeded();
                 else
-                    m_CursorEnd = m_CursorStart;
+                    scrollRightIfNeeded();
             }
         }
 
@@ -5489,11 +5538,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const f32 hLength = selEndAdv - selStartAdv;
         const bool hasHighlight = hLength != 0.f;
 
-        const bool noHorScroll = flags & OverlayInputFlag_NoHorizontalScroll;
-        const f32 textOffset =
-            noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
-
-        tparams.Offset[0] = ofix(textOffset);
+        tparams.Offset[0] = ofix(m_InputTextScroll);
         const bool useHint = str.IsEmpty() && !hint.IsEmpty();
         if (useHint)
         {
@@ -5508,20 +5553,19 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         // back", that is, if cursor is in front of the first char (advance == 0), we need to offset it by
         // -textWidth. same goes for highlight
 
-        f32 offset = textEndAdv - textWidth + textOffset;
+        f32 cursorOffset = textEndAdv - textWidth + m_InputTextScroll;
         if (useHint)
-            offset -= fs * finfo.ComputeTextWidth(hint);
+            cursorOffset -= fs * finfo.ComputeTextWidth(hint);
         else
             // the 0.1f is because some rounding errors clipping the cursor against the left edge of the input box
-            offset += 0.1f;
+            cursorOffset += 0.1f;
 
-        const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
         ly->Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputCursor], m_Style[OverlayStyle_CursorOpacity]},
                           .Sizing = {sfix(cwidth), grow()},
-                          .SelfOffset = ofix({offset, 0.f})});
+                          .SelfOffset = ofix({cursorOffset, 0.f})});
         if (hasHighlight)
         {
-            const f32 hoffset = negSel ? offset : (offset - hLength);
+            const f32 hoffset = negSel ? cursorOffset : (cursorOffset - hLength);
             ly->Panel(LyPnPar{.FillColor = Color{m_Style[OverlayColor_InputHighlight], 0.4f},
                               .Sizing = {sfix(hLength), grow()},
                               .SelfOffset = ofix({hoffset - cwidth, 0.f})});
@@ -5569,7 +5613,11 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
             // when at the start of the string, toRemoveBegin is u32 max, and so backspace cannot go through. however,
             // del does. and precisely, adding 1 to u32 max brings us back to 0
             if (toRemoveBegin < toRemoveEnd && (backSpace || ((del || !nw->TextInput.IsEmpty()) && hasHighlight)))
+            {
                 eraseRange(toRemoveBegin, toRemoveEnd, true);
+                if (!hasHighlight)
+                    scrollLeftIfNeeded();
+            }
             else if (del && toRemoveEnd < str.GetSize())
                 eraseRange(toRemoveBegin + 1, toRemoveEnd + 1, false);
         }
@@ -5577,16 +5625,18 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const u32 insertionsLeft = capacity - 1 - str.GetSize();
         const u32 insertions = Math::Min(nw->TextInput.GetSize(), insertionsLeft);
 
-        updated |= insertions != 0;
         if (insertions != 0)
         {
             pushUndo();
             for (u32 i = 0; i < insertions; ++i)
                 str.Insert(str.begin() + selEnd + i, nw->TextInput[i]);
+            updated = true;
+            generateAdvances();
         }
 
         m_CursorStart += insertions;
         m_CursorEnd += insertions;
+        scrollRightIfNeeded();
 
         const bool enterCommits = flags & OverlayInputFlag_EnterCommitsBuffer;
 
@@ -5611,7 +5661,9 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
     else
     {
         const bool elide = flags & OverlayInputFlag_ElideLeft;
-        const f32 textOffset = elide ? Math::Min(0.f, boxSize - fs * finfo.ComputeTextWidth(buf)) : 0.f;
+        const f32 textOffset =
+            elide ? Math::Min(0.f, boxSize - fs * finfo.ComputeTextWidth(buf) - m_Style[OverlayStyle_CursorWidth])
+                  : 0.f;
         const bool useHint = bufSize == 0 && !hint.IsEmpty();
 
         tparams.Offset[0] = ofix(textOffset);
@@ -7459,14 +7511,16 @@ static void drawDemoContents(Overlay *ov, OverlayFlags &flags, const OverlayWind
         ov->CheckBoxFlags("OverlayInputFlag_EnterReturnsTrue", &iflags, Onyx::OverlayInputFlag_EnterReturnsTrue);
         ov->CheckBoxFlags("OverlayInputFlag_EnterCommitsBuffer", &iflags, Onyx::OverlayInputFlag_EnterCommitsBuffer);
         ov->CheckBoxFlags("OverlayInputFlag_EscapeClearsAll", &iflags, Onyx::OverlayInputFlag_EscapeClearsAll);
+        ov->CheckBoxFlags("OverlayInputFlag_EscapeEndsEdit", &iflags, Onyx::OverlayInputFlag_EscapeEndsEdit);
+        ov->CheckBoxFlags("OverlayInputFlag_EnterEndsEdit", &iflags, Onyx::OverlayInputFlag_EnterEndsEdit);
         ov->CheckBoxFlags("OverlayInputFlag_AutoSelectAll", &iflags, Onyx::OverlayInputFlag_AutoSelectAll);
         ov->CheckBoxFlags("OverlayInputFlag_NoHorizontalScroll", &iflags, Onyx::OverlayInputFlag_NoHorizontalScroll);
         ov->CheckBoxFlags("OverlayInputFlag_ElideLeft", &iflags, Onyx::OverlayInputFlag_ElideLeft);
         ov->CheckBoxFlags("OverlayInputFlag_StepButtons", &iflags, Onyx::OverlayInputFlag_StepButtons);
         ov->CheckBoxFlags("OverlayInputFlag_NoUndoRedo", &iflags, Onyx::OverlayInputFlag_NoUndoRedo);
 
-        static char buf1[32] = "This is some nice text";
-        ov->InputText("Text 1", buf1, 32, "I am a little hint", iflags);
+        static char buf1[128] = "This is some nice text";
+        ov->InputText("Text 1", buf1, 128, "I am a little hint", iflags);
 
         static i32 iival = 4;
         ov->InputNumeric("Some integer", &iival, "{}", "Add a number!", iflags);
@@ -8188,7 +8242,9 @@ void Overlay::ShowStyleEditor()
         colorEditor("DragOutline", OverlayColor_DragOutline);
         colorEditor("InputCursor", OverlayColor_InputCursor);
         colorEditor("InputHighlight", OverlayColor_InputHighlight);
-        colorEditor("InputBackground", OverlayColor_InputBackground);
+        colorEditor("InputBackgroundIdle", OverlayColor_InputBackgroundIdle);
+        colorEditor("InputBackgroundHovered", OverlayColor_InputBackgroundHovered);
+        colorEditor("InputBackgroundActive", OverlayColor_InputBackgroundActive);
         colorEditor("WindowBorderIdle", OverlayColor_WindowBorderIdle);
         colorEditor("WindowBorderHovered", OverlayColor_WindowBorderHovered);
         colorEditor("WindowBorderPressed", OverlayColor_WindowBorderPressed);

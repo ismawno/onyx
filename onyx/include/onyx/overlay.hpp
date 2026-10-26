@@ -113,7 +113,7 @@ using OverlayInteractionQueryFlags = u16;
 using OverlayInteractionFlags = u32;
 using OverlayFocusFlags = u16;
 using OverlayFocusQueryFlags = OverlayFocusFlags;
-using OverlayInputFlags = u8;
+using OverlayInputFlags = u16;
 using OverlayPopupFlags = OverlayInteractionQueryFlags;
 using OverlayScrollFlags = u8;
 using OverlaySelectableFlags = u8;
@@ -280,7 +280,10 @@ enum OverlayColor : u8
 
     OverlayColor_InputCursor,
     OverlayColor_InputHighlight,
-    OverlayColor_InputBackground,
+
+    OverlayColor_InputBackgroundIdle,
+    OverlayColor_InputBackgroundHovered,
+    OverlayColor_InputBackgroundActive,
 
     OverlayColor_WindowBorderIdle,
     OverlayColor_WindowBorderHovered,
@@ -1079,27 +1082,31 @@ enum InteractionFlagBit : InteractionFlags
     InteractionFlag_KeepActiveOnPressed = 1U << 10,
     // an active item is deactivated on release. with this, it stays active until a press lands elsewhere (input boxes)
     InteractionFlag_KeepActiveOnRelease = 1U << 11,
+    // become active on release instead of press
+    InteractionFlag_SetActiveOnRelease = 1U << 12,
+    // a click toggles the active state
+    InteractionFlag_ToggleActiveOnRelease = 1U << 13,
     // by default a hovered, pressed or active item blocks window grabs (and an active one blocks other items). these
     // let them through. dock axes use them so that windows can still be dragged around them
-    InteractionFlag_HoveredAllowsInteraction = 1U << 12,
-    InteractionFlag_PressedAllowsInteraction = 1U << 13,
-    InteractionFlag_ActiveAllowsInteraction = 1U << 14,
-    InteractionFlag_LeftClickOpensPopup = 1U << 15,
-    InteractionFlag_RightClickOpensPopup = 1U << 16,
+    InteractionFlag_HoveredAllowsInteraction = 1U << 14,
+    InteractionFlag_PressedAllowsInteraction = 1U << 15,
+    InteractionFlag_ActiveAllowsInteraction = 1U << 16,
+    InteractionFlag_LeftClickOpensPopup = 1U << 17,
+    InteractionFlag_RightClickOpensPopup = 1U << 18,
     // menus once one of them is open. must come with _HoverRequestsPopupCollapse, otherwise hovering would keep
     // stacking popups (asserted)
-    InteractionFlag_HoverOpensPopup = 1U << 17,
+    InteractionFlag_HoverOpensPopup = 1U << 19,
     // hovering collapses the popups deeper than this item's depth, so that moving between menus closes the old one
-    InteractionFlag_HoverRequestsPopupCollapse = 1U << 18,
-    InteractionFlag_DoNotSetHoveredId = 1U << 19,
-    InteractionFlag_DoNotSetPressedId = 1U << 20,
-    InteractionFlag_DoNotSetDraggedId = 1U << 21,
-    InteractionFlag_DoNotSetActiveId = 1U << 22,
+    InteractionFlag_HoverRequestsPopupCollapse = 1U << 20,
+    InteractionFlag_DoNotSetHoveredId = 1U << 21,
+    InteractionFlag_DoNotSetPressedId = 1U << 22,
+    InteractionFlag_DoNotSetDraggedId = 1U << 23,
+    InteractionFlag_DoNotSetActiveId = 1U << 24,
     // every press requests a popup collapse, and hovered items protect the popups up to their depth from it. this item
     // does not, so a press on it closes the popups it is in
-    InteractionFlag_DoNotProtectPopup = 1U << 23,
+    InteractionFlag_DoNotProtectPopup = 1U << 25,
     // pressed as soon as the mouse enters while held, even if the press started elsewhere
-    InteractionFlag_AllowPressedOnEnter = 1U << 24,
+    InteractionFlag_AllowPressedOnEnter = 1U << 26,
     InteractionFlag_ReadOnly = InteractionFlag_DoNotSetHoveredId | InteractionFlag_DoNotSetPressedId |
                                InteractionFlag_DoNotSetDraggedId | InteractionFlag_DoNotSetActiveId |
                                InteractionFlag_DoNotProtectPopup | InteractionFlag_DoNotSetLastItem
@@ -1230,13 +1237,15 @@ enum OverlayInputFlagBit : OverlayInputFlags
     // edits stay in an internal buffer and only reach yours on enter
     OverlayInputFlag_EnterCommitsBuffer = 1U << 1,
     OverlayInputFlag_EscapeClearsAll = 1U << 2,
+    OverlayInputFlag_EscapeEndsEdit = 1U << 3,
+    OverlayInputFlag_EnterEndsEdit = 1U << 4,
     // activating the box selects all of its text
-    OverlayInputFlag_AutoSelectAll = 1U << 3,
-    OverlayInputFlag_NoHorizontalScroll = 1U << 4,
+    OverlayInputFlag_AutoSelectAll = 1U << 5,
+    OverlayInputFlag_NoHorizontalScroll = 1U << 6,
     // when not editing and the text does not fit, show its end instead of its start
-    OverlayInputFlag_ElideLeft = 1U << 5,
-    OverlayInputFlag_StepButtons = 1U << 6,
-    OverlayInputFlag_NoUndoRedo = 1U << 7,
+    OverlayInputFlag_ElideLeft = 1U << 7,
+    OverlayInputFlag_StepButtons = 1U << 8,
+    OverlayInputFlag_NoUndoRedo = 1U << 9,
 };
 
 // flex sizing is fit and grow at once: it takes the free space, but its content also counts towards the size of a fit
@@ -2279,6 +2288,10 @@ class Overlay
         EndPanel();
     }
 
+    void DisableActiveItem()
+    {
+        m_ActiveId = NullLayoutId;
+    }
     OverlayWindow *GetActiveWindow() const
     {
         return m_Active;
@@ -2777,7 +2790,8 @@ class Overlay
 
             if (cflags & InputConvertFlag_MustConvert)
             {
-                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                inputNumericBox(value, nullptr, nullptr,
+                                OverlayInputFlag_AutoSelectAll | OverlayInputFlag_EscapeEndsEdit, cflags);
                 if (flags & OverlaySliderFlag_ClampOnInput)
                     *value = Math::Clamp(*value, T(mn), T(mx));
                 return *value != pval;
@@ -2933,7 +2947,8 @@ class Overlay
 
             if (cflags & InputConvertFlag_MustConvert)
             {
-                inputNumericBox(value, nullptr, nullptr, OverlayInputFlag_AutoSelectAll, cflags);
+                inputNumericBox(value, nullptr, nullptr,
+                                OverlayInputFlag_AutoSelectAll | OverlayInputFlag_EscapeEndsEdit, cflags);
                 if (flags & OverlaySliderFlag_ClampOnInput)
                     *value = Math::Clamp(*value, T(mn), T(mx));
                 return *value != pval;
@@ -3036,6 +3051,7 @@ class Overlay
     TKit::TierString m_InputWidgetBuffer{};
     u32 m_CursorStart = 0;
     u32 m_CursorEnd = 0;
+    f32 m_InputTextScroll = 0.f;
 
     LastItemData m_LastItem{};
     NextItemData m_NextItem{};
