@@ -9,7 +9,7 @@ using namespace TKit::Alias;
 
 int main()
 {
-    Onyx::Initialize();
+    Onyx::Initialize({.Specs3 = {.MaxInstances = 0}});
     Onyx::Resources_CreateDefault();
 
     Onyx::Window *win = Onyx::OpenWindow();

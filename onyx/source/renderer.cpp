@@ -909,6 +909,8 @@ template <Dimension D> static u32 getLightSize(const LightType light)
 
 template <Dimension D> static void updateInstanceDescriptorSets(const ResourceGroup<D> &group, const Geometry geo)
 {
+    if (group.InstanceBuffers[geo].Buffer == Graph::NullHandle)
+        return;
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(group.InstanceBuffers[geo].Buffer);
     for (u32 i = 0; i < RenderPass_Count; ++i)
         Graph::DescriptorSet_Write(group.Descriptors[i][geo], ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, info);
@@ -916,6 +918,8 @@ template <Dimension D> static void updateInstanceDescriptorSets(const ResourceGr
 
 template <Dimension D> static void updateLightDescriptorSets(const ResourceGroup<D> &group, const LightType light)
 {
+    if (group.LightData.Buffers[light] == Graph::NullHandle)
+        return;
     const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(group.LightData.Buffers[light]);
     for (const Graph::DescriptorSet set : group.Descriptors[RenderPass_Shaded])
         Graph::DescriptorSet_Write(set, lightToBinding(light), info);
