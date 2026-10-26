@@ -21,8 +21,8 @@ static ViewImage createColorAttachment(const u32v2 &ext, const TKit::Span<const 
     if (samples != Graph::SampleCount_1)
     {
         // here, we assume formats[0] is the writing format
-        img.MultiSampled = Graph::Image_Create(ext, {.Formats = formats[0], .Samples = samples},
-                                               Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_TransientAttachment);
+        img.MultiSampled =
+            Graph::Image_Create(ext, {.Formats = formats[0], .Samples = samples}, Graph::ImageFlag_ColorAttachment);
         Graph::Image_AddView(img.MultiSampled);
     }
     return img;
@@ -41,8 +41,7 @@ static ViewImage createDepthStencilAttachment(const u32v2 &ext, const Graph::Sam
     if (samples != Graph::SampleCount_1)
     {
         img.MultiSampled = Graph::Image_Create(ext, {.Formats = fmt, .Samples = samples},
-                                               Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment |
-                                                   Graph::ImageFlag_TransientAttachment);
+                                               Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment);
         Graph::Image_AddView(img.MultiSampled);
     }
     return img;
@@ -70,7 +69,9 @@ static ViewImage createAttachment(const u32v2 &ext, const AttachmentRole role)
         return createColorAttachment(ext, formats, sc);
 
     formats.Append(GetAttachmentFormat(AttachmentKind_LinearColor));
-    return createColorAttachment(ext, formats, sc);
+    // color1 is the first standard color attachment target that receives rasterized geometry. color0 is never such
+    // target, so no need to have multisampled images
+    return createColorAttachment(ext, formats, role == AttachmentRole_Color1 ? sc : Graph::SampleCount_1);
 }
 
 // NOTE(Isma): Consider having 2D and 3D view sets
@@ -374,6 +375,29 @@ static Graph::AttachmentInfo attachmentInfo(const Graph::Image image, const Grap
     return att;
 }
 
+static Graph::AttachmentInfo attachmentInfo(const ViewImage &image, const Graph::ImageLayout layout,
+                                            const Graph::LoadOp load, Graph::StoreOp storeResolve,
+                                            const Graph::StoreOp storeMs)
+{
+    const bool msaa = image.MultiSampled != Graph::NullHandle;
+
+    // if there is no MSAA (so the same handle is used for the "multisampled" and "resolve" slots) and the user has
+    // specified the multisampled image to be store, we are forced to give the single sample image the store option even
+    // if the resolve is dont care, because in a single sample, the .Image field acts as both the resolve and
+    // multisample slot (even tho its only sampled once)
+    if (!msaa && storeMs == Graph::StoreOp_Store)
+        storeResolve = Graph::StoreOp_Store;
+
+    Graph::AttachmentInfo att = attachmentInfo(image.GetWriteImage(), layout, load, msaa ? storeMs : storeResolve);
+    if (msaa && storeResolve != Graph::StoreOp_DontCare)
+    {
+        att.Resolve.View = Graph::Image_GetView(image.Image);
+        att.Resolve.Layout = layout;
+        att.Resolve.Mode =
+            layout == Graph::ImageLayout_DepthStencilAttachment ? Graph::Resolve_SampleZero : Graph::Resolve_Average;
+    }
+    return att;
+}
 static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Graph::LoadOp load,
                                              const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f},
                                              const u32 viewIdx = 0)
@@ -384,34 +408,18 @@ static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Gra
 }
 
 static Graph::AttachmentInfo colorAttachment(const ViewImage &image, const Graph::LoadOp load,
-                                             const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f})
+                                             const Graph::StoreOp storeResolve, const Graph::StoreOp storeMs,
+                                             const f32v4 &clear = f32v4{0.f})
 {
-    const bool msaa = image.MultiSampled != Graph::NullHandle;
-    Graph::AttachmentInfo att = attachmentInfo(image.GetWriteImage(), Graph::ImageLayout_ColorAttachment, load,
-                                               msaa ? Graph::StoreOp_DontCare : store);
+    Graph::AttachmentInfo att = attachmentInfo(image, Graph::ImageLayout_ColorAttachment, load, storeResolve, storeMs);
     att.ClearValue.Color = clear;
-    if (msaa && store != Graph::StoreOp_DontCare)
-    {
-        att.Resolve.View = Graph::Image_GetView(image.Image);
-        att.Resolve.Layout = Graph::ImageLayout_ColorAttachment;
-        att.Resolve.Mode = Graph::Resolve_Average;
-    }
     return att;
 }
 
 static Graph::AttachmentInfo depthAttachment(const ViewImage &image, const Graph::LoadOp load,
-                                             const Graph::StoreOp store)
+                                             const Graph::StoreOp storeResolve, const Graph::StoreOp storeMs)
 {
-    const bool msaa = image.MultiSampled != Graph::NullHandle;
-    Graph::AttachmentInfo att = attachmentInfo(image.GetWriteImage(), Graph::ImageLayout_DepthStencilAttachment, load,
-                                               msaa ? Graph::StoreOp_DontCare : store);
-    if (msaa && store != Graph::StoreOp_DontCare)
-    {
-        att.Resolve.View = Graph::Image_GetView(image.Image);
-        att.Resolve.Layout = Graph::ImageLayout_DepthStencilAttachment;
-        att.Resolve.Mode = Graph::Resolve_Average;
-    }
-    return att;
+    return attachmentInfo(image, Graph::ImageLayout_DepthStencilAttachment, load, storeResolve, storeMs);
 }
 
 static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
@@ -454,23 +462,94 @@ template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
     return sc;
 }
 
-// a bit of a pass overview
+// clang-format off
+// =====================================================================================================================
+//  PASS LAYOUT
+// =====================================================================================================================
 //
-// shadow passes are done directly in the renderer so they are not contemplated here
+// Shadow passes run before these, in the renderer. Each frame, a view takes the first framebuffer the GPU is done with
+// (findAvailableFramebuffer), so its attachments are never shared between frames in flight.
 //
-// first pass is the opaque pass. renders opaque geometry to either the intermediate attachment or the final attachment
-// (latter if outlines are disabled. we skip one pass this way). this pass takes srgb textures -> linearizes ->
-// does math with linear colors -> stores as srgb
+// ATTACHMENTS (one set per framebuffer)
 //
-// if transparency is enabled, transparent pass is executed. same deal as the opaque pass in terms of colorspace. the
-// blend pass merges both opaque and transparent directly into the opaque's target (either intermediate attchm or final)
+//   Color0        srgb + linear view   single sample   post process target only, never rasterized into
+//   Color1        srgb + linear view   + ms twin       geometry target
+//   OutlineColor  srgb                 + ms twin       outline color, width in alpha, of outlined draws
+//   DepthStencil  depth + stencil view + ms twin       stencil counts outlined draws
+//   Accumulation  transparency only    + ms twin       weighted blended transparency
+//   Revealage     transparency only    + ms twin
 //
-// if outlines are enabled, the pass is executed with intermediate as input and final as output
+//   ms twins exist only when Specs::SampleCount > 1. Geometry passes rasterize into them and resolve into the single
+//   sample images. Every later pass is single sample and full screen.
 //
-// the final image format is a bit special because it supports both: unorm and srgb. throughout all this pipeline, the
-// format (view) used is srgb however, for the final window composite pass that merges all views, the format that is
-// used for the final image is unorm. this is because the surface format is unorm (this is required for good imgui
-// support)
+// FLOW
+//
+//   OPAQUE        clear --> Color1 -----------------------------------------------+
+//     |                     OutlineColor, DepthStencil (resolved) ----------+     |
+//     |  ms OutlineColor, ms DepthStencil                                   |     |
+//     |  (kept only with transparency)                                      |     |
+//     v                                                                     |     |
+//   TRANSPARENT   clear --> Accumulation, Revealage --+                     |     |
+//                 loads the ms twins, resolves        |                     |     |
+//                 OutlineColor, DepthStencil again ---|-------------------->+     |
+//                                                     v                     |     v
+//   BLEND         samples Accumulation, Revealage, blends into Color1 (load, store)
+//                                                                           |     |
+//                                                                           v     v
+//   OUTLINE       samples Color1, OutlineColor, stencil ------------------------> Color0
+//                                                                                 |
+//   FXAA          samples the previous color (linear view) ---------------------> the other one
+//                                                                                 |
+//   COMPOSITOR    in the target's own pass, samples the last color (linear view) <+
+//
+//   transparent and blend run only with RenderViewFlag_Transparency, outline with RenderViewFlag_Outlines, FXAA with
+//   RenderViewFlag_FXAA. Without transparency, opaque writes Color1 and the post process passes follow directly
+//
+// PING-PONG
+//
+//   m_PingPong restarts at 0 every frame. Every pass that writes a new color image moves it to the other one
+//
+//   pass               writes     reads       m_PingPong
+//   opaque, blend      Color1     -           1
+//   outline            Color0     Color1      0
+//   fxaa               last read  last write  flips
+//
+//   the compositor samples:      no fxaa    fxaa
+//                no outlines     Color1     Color0
+//                outlines        Color0     Color1
+//
+//   createFrameBuffers writes each descriptor by walking the same sequence from 0, for every framebuffer
+//
+// LOADS AND STORES (geometry passes, * = only with outlines, otherwise don't care)
+//
+//                  load      store resolve      store ms
+//   OPAQUE
+//   Color1         clear     store              don't care
+//   OutlineColor   clear*    store*             store if transparency*
+//   DepthStencil   clear     store if outlines  store if transparency
+//   TRANSPARENT
+//   Accumulation   clear     store              don't care
+//   Revealage      clear     store              don't care
+//   OutlineColor   load*     store*             don't care
+//   DepthStencil   load      store if outlines  don't care
+//
+//   without msaa there is one image per attachment, stored if either column says store. blend loads and stores
+//   Color1. outline and FXAA overwrite their whole target, so they don't care about its old contents
+//
+// LAYOUT HANDOFFS
+//
+//   every pass first moves its targets to attachment layout
+//   end of transparent:               Accumulation, Revealage                   -> shader read, for blend
+//   end of blend, or of opaque
+//   without transparency:             Color1, + OutlineColor and DepthStencil*  -> shader read (applyPostProcessBarriers)
+//   end of outline and of FXAA:       their output                              -> shader read, for the next pass
+//
+// COLOR SPACE
+//
+//   geometry, blend and outline go through the srgb views: they do their math in linear space and store srgb.
+//   FXAA and the compositor use the linear (unorm) view of the same bytes. FXAA then sees perceptual values, as it
+//   expects, and the compositor copies them as they are into the unorm swapchain
+//   clang-format on
 
 template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandBuffer cmd)
 {
@@ -485,8 +564,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     const ViewImage &depthImg = fb.Attachments[AttachmentRole_DepthStencil];
 
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
-    const bool transparent = m_Flags & RenderViewFlag_Transparency;
-    const bool keepDepth = transparent || hasOutline;
+    const bool hasTransp = m_Flags & RenderViewFlag_Transparency;
 
     TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 6> barriers{};
     barriers.Append(toColorAttachment(colorImg.Image));
@@ -504,13 +582,26 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 
     const Color ccolor = ClearColor.ToLinear();
     TKit::FixedArray<Graph::AttachmentInfo, 2> atts{};
-    atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store,
-                              f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
-    atts[1] = colorAttachment(outlImg, hasOutline ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare,
-                              hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
 
-    const Graph::AttachmentInfo depth =
-        depthAttachment(depthImg, Graph::LoadOp_Clear, keepDepth ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+    atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
+                              f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
+
+    // hasTransp pass may read the multisampled image for outlines (only if outlines are enabled), to continue to
+    // append to it
+    const Graph::StoreOp outlStoreMs = (hasTransp && hasOutline) ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    // outline pass will read the resolve attachment
+    const Graph::StoreOp outlStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    // we dont care about the outlines if they wont be read later
+    const Graph::LoadOp outlLoad = hasOutline ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare;
+
+    atts[1] = colorAttachment(outlImg, outlLoad, outlStoreRes, outlStoreMs);
+
+    // transarent pass will load the multisampled depth attachment
+    const Graph::StoreOp depStoreMs = hasTransp ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    // outline pass will load the resolved depth attachment
+    const Graph::StoreOp depStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+
+    const Graph::AttachmentInfo depth = depthAttachment(depthImg, Graph::LoadOp_Clear, depStoreRes, depStoreMs);
     beginRendering(cmd, atts, &depth, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
@@ -556,13 +647,19 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
 
     TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
-    atts[0] = colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store);
-    atts[1] = colorAttachment(outlImg, hasOutline ? Graph::LoadOp_Load : Graph::LoadOp_DontCare,
-                              hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
-    atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, f32v4{1.f, 0.f, 0.f, 0.f});
+    atts[0] = colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare);
 
+    // here, we only keep the resolve attachments, we dont have any use for the multisampled anymore, their lives end
+    // here
+    const Graph::StoreOp outlStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    const Graph::LoadOp outlLoad = hasOutline ? Graph::LoadOp_Load : Graph::LoadOp_DontCare;
+    atts[1] = colorAttachment(outlImg, outlLoad, outlStoreRes, Graph::StoreOp_DontCare);
+    atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
+                              f32v4{1.f, 0.f, 0.f, 0.f});
+
+    const Graph::StoreOp depStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     const Graph::AttachmentInfo depth =
-        depthAttachment(depthImg, Graph::LoadOp_Load, hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare);
+        depthAttachment(depthImg, Graph::LoadOp_Load, depStoreRes, Graph::StoreOp_DontCare);
     beginRendering(cmd, atts, &depth, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
@@ -603,12 +700,12 @@ template <Dimension D> void RenderView<D>::BeginOutlinePass(const Graph::Command
 
     m_PingPong = (m_PingPong + 1) & 1;
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
-    const Graph::Image colorImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
+    const Graph::Image outlImg = fb.Attachments[s_ColorAtts[m_PingPong]].Image;
 
-    const Graph::ImageMemoryBarrierInfo barrier = toColorAttachment(colorImg);
+    const Graph::ImageMemoryBarrierInfo barrier = toColorAttachment(outlImg);
     Graph::Command_ImageBarrier(cmd, barrier);
 
-    const Graph::AttachmentInfo color = colorAttachment(colorImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
+    const Graph::AttachmentInfo color = colorAttachment(outlImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store);
     beginRendering(cmd, color, nullptr, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 

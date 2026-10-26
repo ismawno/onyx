@@ -19,6 +19,7 @@ demo/performance/*yaml
 demo/performance/results/
 generate-shaders.sh
 generate-spirv.sh
+onyx-control-center-verdicts.txt
 
 # Prerequisites
 *.d

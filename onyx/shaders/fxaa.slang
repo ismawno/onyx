@@ -242,5 +242,5 @@ f32v4 mainFS(const FragInput input) : SV_Target
         result = fxaaQuality(colors, uv, texel, 12);
         break;
     }
-    return f32v4(result, colors.Sample(uv).a);
+    return f32v4(result, colors.SampleLevel(uv, 0.0).a);
 }
