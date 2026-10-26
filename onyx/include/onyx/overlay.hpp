@@ -1268,13 +1268,16 @@ class Overlay
     using LyAlg2 = vec2<LyAlg>;
 
     static constexpr vec2<Alignment> TopLeft = {Alignment_Left, Alignment_Top};
-    static constexpr vec2<Alignment> BottomLeft = {Alignment_Left, Alignment_Bottom};
-
-    static constexpr vec2<Alignment> TopRight = {Alignment_Right, Alignment_Top};
     static constexpr vec2<Alignment> CenterLeft = {Alignment_Left, Alignment_Center};
+    static constexpr vec2<Alignment> BottomLeft = {Alignment_Left, Alignment_Bottom};
 
     static constexpr vec2<Alignment> TopCenter = {Alignment_Center, Alignment_Top};
     static constexpr vec2<Alignment> Center = Alignment_Center;
+    static constexpr vec2<Alignment> BottomCenter = {Alignment_Center, Alignment_Bottom};
+
+    static constexpr vec2<Alignment> TopRight = {Alignment_Right, Alignment_Top};
+    static constexpr vec2<Alignment> CenterRight = {Alignment_Right, Alignment_Center};
+    static constexpr vec2<Alignment> BottomRight = {Alignment_Right, Alignment_Bottom};
 
     Overlay(Window *win, const OverlaySpecs &specs);
     ~Overlay();
