@@ -41,7 +41,7 @@ include(FetchContent)
 FetchContent_Declare(
   graphite
   GIT_REPOSITORY https://github.com/ismawno/graphite.git
-  GIT_TAG v0.1.x
+  GIT_TAG main
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(graphite)
