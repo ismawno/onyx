@@ -97,7 +97,7 @@ f32 CircleFade(const CircleBounds bounds, const FadeData fade)
     const f32 outerFade = 1.0 - fade.OuterFade * fade.OuterFade;
     const f32 shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
-    f32 alpha;
+    f32 alpha = 1.0;
     if (shiftLen < innerFade)
         alpha = shiftLen / innerFade;
     if (shiftLen > outerFade)
