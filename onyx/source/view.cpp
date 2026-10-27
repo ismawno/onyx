@@ -454,6 +454,9 @@ template <Dimension D> void RenderView<D>::applyPostProcessBarriers(const Graph:
     {
         barriers.Append(colorToShaderRead(fb.Attachments[AttachmentRole_OutlineColor].Image));
         barriers.Append(depthToShaderRead(fb.Attachments[AttachmentRole_DepthStencil].Image));
+        // the last pass resolved into this image, and resolves happen at color output, even for depth
+        barriers[2].SrcAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+        barriers[2].SrcStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
     }
     Graph::Command_ImageBarrier(cmd, barriers);
 }
@@ -578,9 +581,12 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 
     if (msaa)
     {
-        // resolves happen at color output, even for depth
-        barriers[2].DstAccess |= Graph::AccessFlag_ColorAttachmentWrite;
-        barriers[2].DstStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+        if (hasOutline)
+        {
+            // resolves happen at color output, even for depth
+            barriers[2].DstAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+            barriers[2].DstStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+        }
         barriers.Append(toColorAttachment(colorImg.MultiSampled, false));
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
@@ -638,6 +644,8 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     const ViewImage &outlImg = fb.Attachments[AttachmentRole_OutlineColor];
     const ViewImage &depthImg = fb.Attachments[AttachmentRole_DepthStencil];
 
+    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
+
     TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 8> barriers{};
     barriers.Append(toColorAttachment(accImg.Image));
     barriers.Append(toColorAttachment(revImg.Image));
@@ -645,6 +653,14 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     barriers.Append(toDepthAttachment(depthImg.Image));
     if (msaa)
     {
+        if (hasOutline)
+        {
+            // the opaque pass resolved into this image, and resolves happen at color output, even for depth
+            barriers[3].SrcAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+            barriers[3].SrcStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+            barriers[3].DstAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+            barriers[3].DstStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+        }
         barriers.Append(toColorAttachment(accImg.MultiSampled, false));
         barriers.Append(toColorAttachment(revImg.MultiSampled, false));
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
@@ -652,7 +668,6 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     }
     Graph::Command_ImageBarrier(cmd, barriers);
 
-    const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
 
     TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
     atts[0] = colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare);
