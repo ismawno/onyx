@@ -1449,11 +1449,6 @@ static void checkDpi(App &app)
                "size in physical pixels (rounding may differ by one)",
                "logical {} x {}  x {:.3f}  = {} x {}, framebuffer {} x {}", size[0], size[1], scale[0], expected[0],
                expected[1], pixels[0], pixels[1]);
-    cat.Expect("Logical size survives a scale round trip",
-               Math::Approximately(f32v2{Onyx::UnapplyScale(Onyx::ApplyScale(size, scale), scale)}, f32v2{size}, 1.f),
-               "ApplyScale and UnapplyScale convert between logical and physical sizes. Going there and back must "
-               "return the original size (within rounding)",
-               "{} x {} -> {} x {} -> back", size[0], size[1], expected[0], expected[1]);
 
     // the swapchain is recreated lazily, so it may lag for a few frames. it must not stay out of sync
     const bool mismatch = extent != pixels;

@@ -130,7 +130,7 @@ class Window final : public RenderTarget
     }
     i32v2 GetPosition() const
     {
-        return Graph::Window_GetPosition(m_Window);
+        return ApplyScale(Graph::Window_GetPosition(m_Window), 1.f / getScreenFactor());
     }
     u32v2 GetSize() const
     {
@@ -152,16 +152,11 @@ class Window final : public RenderTarget
     }
     void SetPosition(const i32v2 &pos)
     {
-        Graph::Window_SetPosition(m_Window, pos);
+        Graph::Window_SetPosition(m_Window, ApplyScale(pos, getScreenFactor()));
     }
     void SetSize(const u32v2 &size)
     {
-        // we convert to logical. parameter "size" is also logical. in different OS, screen size can be logical or
-        // pixel (physical). this factor is 1 when the former, and bigger than one in case screen is pixel, and size
-        // must transition from logical to physical pixels
-        const f32v2 factor = GetContentScale() * f32v2{Graph::Window_GetScreenSize(m_Window)} /
-                             f32v2{Graph::Window_GetPixelSize(m_Window)};
-        Graph::Window_SetScreenSize(m_Window, ApplyScale(size, factor));
+        Graph::Window_SetScreenSize(m_Window, ApplyScale(size, getScreenFactor()));
     }
     void SetAspect(const u32 numer, const u32 denom)
     {
@@ -311,6 +306,16 @@ class Window final : public RenderTarget
     }
 
   private:
+    // screen coordinates are logical on some platforms (macos) and physical pixels on others (windows, x11). this is 1
+    // on the former and the content scale on the latter: screen = logical * factor. a minimized window has no pixels to
+    // compare with, and its position means nothing anyway, so it falls back to 1
+    f32v2 getScreenFactor() const
+    {
+        const u32v2 pixels = Graph::Window_GetPixelSize(m_Window);
+        if (pixels[0] == 0 || pixels[1] == 0)
+            return f32v2{1.f};
+        return GetContentScale() * f32v2{Graph::Window_GetScreenSize(m_Window)} / f32v2{pixels};
+    }
     u32v2 getSize() const override
     {
         return GetSize();

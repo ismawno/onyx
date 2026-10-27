@@ -8,13 +8,9 @@
 
 namespace Onyx
 {
-constexpr u32v2 ApplyScale(const u32v2 &size, const f32v2 &contentScale)
+template <TKit::Integer T> constexpr vec2<T> ApplyScale(const vec2<T> &vec, const f32v2 &contentScale)
 {
-    return u32v2{Math::Round(f32v2{size} * contentScale)};
-}
-constexpr u32v2 UnapplyScale(const u32v2 &size, const f32v2 &contentScale)
-{
-    return u32v2{Math::Round(f32v2{size} / contentScale)};
+    return vec2<T>{Math::Round(f32v2{vec} * contentScale)};
 }
 
 TKIT_REFLECT_DECLARE_ENUM(SizingPolicy)

@@ -683,8 +683,7 @@ static void platform_CreateWindow(ImGuiViewport *viewport)
     const Graph::Window handle = vdata->Window->GetHandle();
     platform_MapAdd(handle, pdata);
 
-    vdata->Window->SetPosition(u32v2{viewport->Pos.x, viewport->Pos.y});
-
+    Graph::Window_SetPosition(handle, i32v2{i32(viewport->Pos.x), i32(viewport->Pos.y)});
     Graph::Window_Callback_Focus(handle, platform_WindowFocusCallback);
     Graph::Window_Callback_CursorEnter(handle, platform_CursorEnterCallback);
     Graph::Window_Callback_CursorPos(handle, platform_CursorPosCallback);
@@ -725,14 +724,14 @@ static void platform_DestroyWindow(ImGuiViewport *viewport)
 static i32v2 platform_GetWindowPos(const ImGuiViewport *viewport)
 {
     const Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    return vdata->Window->GetPosition();
+    return Graph::Window_GetPosition(vdata->Window->GetHandle());
 }
 
 static void platform_SetWindowPos(const ImGuiViewport *viewport, const f32v2 &pos)
 {
     Platform_ViewportData *vdata = platform_GetViewportData(viewport);
     vdata->IgnoreWindowPosEventFrame = u32(ImGui::GetFrameCount());
-    vdata->Window->SetPosition(pos);
+    Graph::Window_SetPosition(vdata->Window->GetHandle(), i32v2{pos});
 }
 
 static u32v2 platform_GetWindowSize(const ImGuiViewport *viewport)
@@ -914,7 +913,7 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
                     // mouse is on the upper-left corner of the app window) Multi-viewport mode: mouse position in OS
                     // absolute coordinates (io.MousePos is (0,0) when the mouse is on the upper-left of the primary
                     // monitor)
-                    const i32v2 wpos = window->GetPosition();
+                    const i32v2 wpos = Graph::Window_GetPosition(window->GetHandle());
                     mpos[0] += f32(wpos[0]);
                     mpos[1] += f32(wpos[1]);
                 }

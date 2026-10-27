@@ -43,7 +43,7 @@ bool Window::IsFullScreen() const
     const i32v2 mpos = Graph::Monitor_GetPosition(monitor);
 
     const u32v2 size = Graph::Window_GetScreenSize(m_Window);
-    const i32v2 pos = GetPosition();
+    const i32v2 pos = Graph::Window_GetPosition(m_Window);
 
     return pos[0] == mpos[0] && pos[1] == mpos[1] && size[0] == mode.Size[0] && size[1] == mode.Size[1];
 }
@@ -130,11 +130,10 @@ Window::Window(const WindowSpecs &specs)
     const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi |
                                       Graph::WindowFlag_ScaleToMonitor | Graph::WindowFlag_ScaleFramebuffer;
 
-    m_Window = Graph::Window_Create({.Title = specs.Title,
-                                     .Position = specs.Position,
-                                     .ScreenSize = specs.ScreenSize,
-                                     .Flags = wflags,
-                                     .UserData = this});
+    m_Window =
+        Graph::Window_Create({.Title = specs.Title, .ScreenSize = specs.ScreenSize, .Flags = wflags, .UserData = this});
+    if (specs.Position != i32v2{TKIT_I32_MAX} && Graph::GetPlatformBackendInfo().Platform != Graph::Platform_Wayland)
+        SetPosition(specs.Position);
 
     m_PresentMode = specs.PresentMode;
 
@@ -343,13 +342,13 @@ void Window::DestroyOverlay(const Overlay *overlay)
                "CreateOverlay() window function");
 }
 
-static void windowMoveCallback(const Graph::Window win, const i32v2 pos)
+static void windowMoveCallback(const Graph::Window win, const i32v2)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_WindowMoved;
 
-    event.WindowPos = pos;
+    event.WindowPos = window->GetPosition();
 
     window->PushEvent(event);
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
