@@ -2222,7 +2222,6 @@ static void recordDrawCommands(const Graph::CommandBuffer cmd, const RenderPass 
 
     if (!dynMeshCmds[CullMode_None].IsEmpty() || !dynMeshCmds[CullMode_Back].IsEmpty())
     {
-        RendererData<D> &rdata = getRendererData<D>();
         setupPipelineState<D>(cmd, rpass, Geometry_Dynamic, playout, pipelines[Geometry_Dynamic]);
         Graph::Command_BindVertexBuffers(cmd, rdata.ActiveResourceGroup->VertexBuffer);
         Graph::Command_BindIndexBuffer(cmd, rdata.ActiveResourceGroup->IndexBuffer, s_IndexType);
