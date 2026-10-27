@@ -454,9 +454,12 @@ template <Dimension D> void RenderView<D>::applyPostProcessBarriers(const Graph:
     {
         barriers.Append(colorToShaderRead(fb.Attachments[AttachmentRole_OutlineColor].Image));
         barriers.Append(depthToShaderRead(fb.Attachments[AttachmentRole_DepthStencil].Image));
-        // the last pass resolved into this image, and resolves happen at color output, even for depth
-        barriers[2].SrcAccess |= Graph::AccessFlag_ColorAttachmentWrite;
-        barriers[2].SrcStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+        if (IsMultiSampled())
+        {
+            // the last pass resolved into this image, and resolves happen at color output, even for depth
+            barriers[2].SrcAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+            barriers[2].SrcStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
+        }
     }
     Graph::Command_ImageBarrier(cmd, barriers);
 }
