@@ -86,6 +86,10 @@ namespace Math = TKit::Math;
 // because each backend reports screen coordinates differently
 constexpr Graph::Platform DemoPlatform = Graph::Platform_Auto;
 
+// window titles double as their ids: the dock tree and the layout switch refer to them
+constexpr const char *ControlCenterTitle = "Control center";
+constexpr const char *ManualTitle = "Where do I start?";
+constexpr const char *GuideTitle = "Guided checks";
 constexpr u32v2 InitialWindowSize{1600, 900};
 constexpr u32v2 RenderTextureSize{160, 160};
 // docked galleries resize their textures to their panels. this is only the size before the first panel is known
@@ -474,9 +478,10 @@ static void field(Onyx::Overlay *ui, const char *label, const TKit::StringView v
 // explanations live in tooltips, so they take no room from the scene. they are drawn in the main view on Wayland,
 // where windows are not promoted: NoPromotion keeps them inside the window elsewhere too, and the overlay clamps them
 // to its right and bottom edges. the fixed maximum width keeps long ones from stretching
-static void tooltip(Onyx::Overlay *ui, const Onyx::Color &color, const char *heading, const TKit::StringView body)
+static void tooltip(Onyx::Overlay *ui, const Onyx::Color &color, const char *heading, const TKit::StringView body,
+                    const Onyx::OverlayFocusFlags flags = 0)
 {
-    if (!ui->IsItemHovered(Onyx::OverlayFocusFlag_ShortDelay))
+    if (!ui->IsItemHovered(Onyx::OverlayFocusFlag_ShortDelay | flags))
         return;
     ui->BeginTooltip(Onyx::OverlayTooltipFlag_Reset | Onyx::OverlayTooltipFlag_NoPromotion);
     ui->BeginPanel({.Direction = Onyx::LayoutDirection_TopToBottom,
@@ -1148,6 +1153,21 @@ static void setup(App &app)
 //  6. LAYOUTS, EVENTS AND CAMERA CONTROL
 // =====================================================================================================================
 
+// every window the docked layout docks. a window still docked cannot join a new tree (asserted), and leaving the docked
+// layout must undock them: a window docked in a child dockspace that is no longer submitted bails out of Begin() every
+// frame, so it would never show again. undocking happens at the end of the frame
+static void undockPanels(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    for (const Category &cat : app.Categories)
+        ui->UndockWindow(Onyx::LayoutId{cat.Title});
+    ui->UndockWindow(Onyx::LayoutId{ControlCenterTitle});
+    ui->UndockWindow(Onyx::LayoutId{ManualTitle});
+    ui->UndockWindow(Onyx::LayoutId{GuideTitle});
+    for (const PaneInfo &info : PaneInfos)
+        ui->UndockWindow(Onyx::LayoutId{info.Name});
+}
+
 // moves every scene context to the views of the requested layout. hidden views neither render nor composite. a
 // context is never left targeting both sets: every shadow casting light takes one shadow map per targeted view, and
 // the default specs have just enough of them
@@ -1178,7 +1198,10 @@ static void setLayout(App &app, const LayoutMode mode)
         app.DockTreePending = true;
     }
     else
+    {
+        undockPanels(app);
         app.PlacePanels = 2;
+    }
 }
 
 // docked textures follow the logical size of their panels at the window's content scale, and the mouse is mapped from
@@ -3867,9 +3890,6 @@ static void updateAudio(App &app)
 //  10. OVERLAY PANELS
 // =====================================================================================================================
 
-constexpr const char *ControlCenterTitle = "Control center";
-constexpr const char *ManualTitle = "Where do I start?";
-constexpr const char *GuideTitle = "Guided checks";
 constexpr const char *LegendPopup = "Legend##popup";
 
 constexpr u32v2 SizePresets[3] = {{1280, 720}, {1600, 900}, {960, 540}};
@@ -4235,12 +4255,21 @@ static void drawDashboard(App &app, const GuideStep &step)
         {
             if (ui->MenuItem("Direct: views in window quadrants", app.Mode == Mode_Direct))
                 app.RequestedMode = Mode_Direct;
-            if (ui->MenuItem("Docked: every view in its own panel", app.Mode == Mode_Docked))
+            const bool docking = ui->Flags & Onyx::OverlayFlag_Docking;
+            ui->BeginDisabled(!docking);
+            if (ui->MenuItem("Docked: every view in its own panel", app.Mode == Mode_Docked) && docking)
                 app.RequestedMode = Mode_Docked;
-            tooltip(
-                ui, Theme::Accent, "Panels dock into All panels",
-                "Drag a panel by its tab and drop it in the middle of the whole window's docking guides: it becomes "
-                "a full screen tab next to All panels.");
+            ui->EndDisabled();
+            if (docking)
+                tooltip(ui, Theme::Accent, "Panels dock into All panels",
+                        "Drag a panel by its tab and drop it in the middle of the whole window's docking guides: it "
+                        "becomes "
+                        "a full screen tab next to All panels.");
+            else
+                tooltip(ui, Theme::Accent, "Docking is off",
+                        "OverlayFlag_Docking was turned off (the overlay demo's Configuration section can do it). Turn "
+                        "it back on to use the docked layout.",
+                        Onyx::OverlayFocusFlag_AllowBlockedByDisabled);
             ui->EndMenu();
         }
         if (ui->BeginMenu("Panels"))
@@ -5251,13 +5280,7 @@ static void submitDockTree(App &app, const Onyx::LayoutId dock)
     for (u32 i = 0; i < Pane_Count; ++i)
         galleries[i] = Onyx::LayoutId{PaneInfos[i].Name};
 
-    for (const Onyx::LayoutId &id : panels)
-        ui->UndockWindow(id);
-    for (const Onyx::LayoutId &id : side)
-        ui->UndockWindow(id);
-    for (const Onyx::LayoutId &id : galleries)
-        ui->UndockWindow(id);
-    ui->UndockWindow(guide);
+    undockPanels(app);
 
     const Onyx::OverlayDockNode *left =
         Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.62f, Onyx::DockTabBar(TKit::Span<const Onyx::LayoutId>(side)),
@@ -6051,6 +6074,10 @@ int main()
         trackFramebuffers(app);
 
         // a layout change asked for last frame applies before anything is drawn, so the whole frame is consistent
+        // the overlay's flags can change at runtime (the overlay demo has checkboxes for them). without docking, the
+        // docked layout cannot hold, so it falls back to the direct one
+        if (app.RequestedMode == Mode_Docked && !(app.Ui->Flags & Onyx::OverlayFlag_Docking))
+            app.RequestedMode = Mode_Direct;
         if (app.RequestedMode != app.Mode)
             setLayout(app, app.RequestedMode);
         updatePanes(app);
