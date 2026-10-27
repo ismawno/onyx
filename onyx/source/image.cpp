@@ -89,7 +89,7 @@ usz ImageData::ComputeSize() const
 
 void ImageData::Manipulate(const ImageOperation op)
 {
-    const u32 bpp = Graph::Format_GetBytesPerPixel(Format);
+    const u32 bpp = u32(Graph::Format_GetBytesPerPixel(Format));
     switch (op)
     {
     case ImageOperation_FlipX:

@@ -32,16 +32,20 @@ static ViewImage createDepthStencilAttachment(const u32v2 &ext, const Graph::Sam
 {
     ViewImage img;
     const Graph::Format fmt = GetAttachmentFormat(AttachmentKind_DepthStencil);
-    img.Image = Graph::Image_Create(ext, {.Formats = fmt},
-                                    Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment |
-                                        Graph::ImageFlag_Sampled);
+
+    Graph::ImageSpecs specs{};
+    specs.Formats = fmt;
+
+    img.Image = Graph::Image_Create(
+        ext, specs, Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment | Graph::ImageFlag_Sampled);
     Graph::Image_AddView(img.Image);
     Graph::Image_AddView(img.Image, {.Range = {.Aspect = Graph::ImageAspectFlag_Stencil}});
 
     if (samples != Graph::SampleCount_1)
     {
-        img.MultiSampled = Graph::Image_Create(ext, {.Formats = fmt, .Samples = samples},
-                                               Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment);
+        specs.Samples = samples;
+        img.MultiSampled =
+            Graph::Image_Create(ext, specs, Graph::ImageFlag_DepthAttachment | Graph::ImageFlag_StencilAttachment);
         Graph::Image_AddView(img.MultiSampled);
     }
     return img;

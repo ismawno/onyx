@@ -1886,7 +1886,7 @@ template <Dimension D> static void transfer()
     for (RenderContext<D> *ctx : contexts)
     {
         const ViewMask vmask = ctx->ViewMask;
-        const auto gatherLights = [&]<typename LightParams>(const LightType ltype,
+        const auto gatherLights = [&]<typename LightParams>([[maybe_unused]] const LightType ltype,
                                                             const TKit::TierArray<LightParams> &lightParams,
                                                             ContextLights<LightParams> &clights) {
             for (const LightParams &params : lightParams)

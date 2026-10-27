@@ -4,6 +4,7 @@
 #include "tkit/container/hive.hpp"
 #define MA_IMPLEMENTATION
 #include <miniaudio.h>
+#undef ERROR
 #include <filesystem>
 
 #define CHECK_RESOURCE_HANDLE(handle, rtype)                                                                           \
@@ -249,13 +250,14 @@ void audio_Initialize(const u32 listenerCount)
     cfg.notificationCallback = notificationCallback;
     cfg.pLog = &s_Data->Log;
 
-    const ma_result res = ma_engine_init(&cfg, &s_Data->Engine);
-    s_Available = res == MA_SUCCESS;
+    const ma_result engRes = ma_engine_init(&cfg, &s_Data->Engine);
+    s_Available = engRes == MA_SUCCESS;
     if (!s_Available)
     {
         TKIT_LOG_ERROR(
             "[ONYX][AUDIO] Failed to initialize audio engine with error code {}. NULL backend will be initialized...",
-            u32(res));
+            u32(engRes));
+
         const ma_backend bk = ma_backend_null;
         ma_context_config ctxCfg = ma_context_config_init();
         ctxCfg.pLog = &s_Data->Log;
