@@ -369,6 +369,8 @@ using CategoryArray = TKit::FixedArray<Category, Category_Count>;
 // verdicts survive across runs: one "verdict<tab>name" line per judged visual check
 static void saveVerdicts(const CategoryArray &categories)
 {
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4996)
     std::FILE *file = std::fopen(VerdictFile, "w");
     if (!file)
         return;
@@ -377,6 +379,7 @@ static void saveVerdicts(const CategoryArray &categories)
             if (check.Mark != Verdict_Unseen)
                 std::fprintf(file, "%s\t%s\n", VerdictNames[check.Mark], check.Name);
     std::fclose(file);
+    TKIT_COMPILER_WARNING_IGNORE_POP()
 }
 
 static u32 loadVerdicts(CategoryArray &categories)
