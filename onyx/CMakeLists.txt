@@ -35,7 +35,7 @@ if(ONYX_ENABLE_AUDIO)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.11.x\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.12.x\")
 
 include(FetchContent)
 FetchContent_Declare(
