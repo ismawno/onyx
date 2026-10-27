@@ -355,12 +355,12 @@ static void windowMoveCallback(const Graph::Window win, const i32v2 pos)
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
 }
 
-static void windowSizeCallback(const Graph::Window win, const u32v2 size)
+static void windowSizeCallback(const Graph::Window win, const u32v2)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_WindowResized;
-    event.WindowSize = size;
+    event.WindowSize = window->GetSize();
 
     window->RequestSwapchainRecreation();
     window->PushEvent(event);
@@ -372,18 +372,18 @@ static void contentScaleCallback(const Graph::Window win, const f32v2 scale)
     Window *window = Window::FromHandle(win);
     event.Type = Event_ContentScaleChanged;
     event.ContentScale = scale;
+    event.WindowSize = window->GetSize();
 
     window->RequestSwapchainRecreation();
     window->PushEvent(event);
 }
 
-static void framebufferSizeCallback(const Graph::Window win, const u32v2 size)
+static void framebufferSizeCallback(const Graph::Window win, const u32v2)
 {
     Event event{};
     Window *window = Window::FromHandle(win);
     event.Type = Event_FramebufferResized;
-
-    event.WindowSize = size;
+    event.WindowSize = window->GetSize();
 
     window->RequestSwapchainRecreation();
     window->PushEvent(event);
