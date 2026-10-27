@@ -1183,7 +1183,7 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
                         ONYX_MAX_TEXTURE_MAPS, maxMaps, u32(ltype));
 
             l3.ShadowMaps[ltype].Maps.Reserve(maxMaps);
-            for (u32 i = 0; i < maxMaps; ++i)
+            for (u32 j = 0; j < maxMaps; ++j)
             {
                 const Graph::Image img = l3.ShadowMaps[ltype].Maps.Append(
                     Graph::Image_Create(u32v2{sdata.ShadowResolutions[ltype]}, ispecs, flags));
@@ -1191,14 +1191,14 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
                 if (Graph::IsValidationEnabled())
                 {
                     Graph::Image_SetName(
-                        img, TKit::StackString::Format("onyx-texture-map-3D-'{}'-{}", ToString(ltype), i).CString());
+                        img, TKit::StackString::Format("onyx-texture-map-3D-'{}'-{}", ToString(ltype), j).CString());
                     Graph::Image_SetViewNames(
                         img,
-                        TKit::StackString::Format("onyx-texture-map-view-3D-'{}'-{}", ToString(ltype), i).CString());
+                        TKit::StackString::Format("onyx-texture-map-view-3D-'{}'-{}", ToString(ltype), j).CString());
                 }
                 const Graph::DescriptorImageInfo info = Graph::DescriptorImageInfo::Create(
                     Graph::Image_GetView(img, mainViewIndex), Graph::ImageLayout_ShaderReadOnly);
-                writeDescriptor<D>(group, binding, info, RenderPass_Shaded, i);
+                writeDescriptor<D>(group, binding, info, RenderPass_Shaded, j);
             }
         }
     }
