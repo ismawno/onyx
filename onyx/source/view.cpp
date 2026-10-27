@@ -578,6 +578,9 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 
     if (msaa)
     {
+        // resolves happen at color output, even for depth
+        barriers[2].DstAccess |= Graph::AccessFlag_ColorAttachmentWrite;
+        barriers[2].DstStages |= Graph::PipelineStageFlag_ColorAttachmentOutput;
         barriers.Append(toColorAttachment(colorImg.MultiSampled, false));
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
