@@ -2758,11 +2758,13 @@ class Overlay
         if ((iflags & OverlayInteractionQueryFlag_Pressed) && !nw->Window->IsKeyPressed(Graph::Key_LeftControl))
         {
             f32 relPos = nw->WorldMouse[idx] - elm->Position[idx] - 0.5f * length;
-            if constexpr (TKit::Integer<T>)
-                relPos += 0.5f * innerWidth;
-
             offset = Math::Clamp(relPos, -maxOffset, maxOffset);
-            *value = T(map(offset, -maxOffset, maxOffset, f32(mn), f32(mx)));
+
+            const f32 mapped = map(offset, -maxOffset, maxOffset, f32(mn), f32(mx));
+            if constexpr (TKit::Integer<T>)
+                *value = T(Math::Round(mapped));
+            else
+                *value = T(mapped);
 
             if (!(flags & OverlaySliderFlag_NoRoundToFormat))
                 *value = roundToFormat(*value, format);

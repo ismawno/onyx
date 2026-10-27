@@ -2098,7 +2098,8 @@ u32 Overlay::processWindows()
         nw->Flags &= NativeWindowFlagPersist;
         for (const Event &ev : nw->Window->GetNewEvents())
         {
-            if (ev.Type == Event_WindowResized)
+            if (ev.Type == Event_WindowResized || ev.Type == Event_FramebufferResized ||
+                ev.Type == Event_ContentScaleChanged)
             {
                 nw->Size = ev.WindowSize;
                 nw->Flags |= NativeWindowFlag_WantUpdateSize;
@@ -7032,7 +7033,7 @@ void Overlay::Draw()
     const auto runWindowPromotions = [&] {
         if (!windowPromotions)
             demoteAllWindows();
-        else if (Flags & OverlayFlag_FloatingMode)
+        else
             manageWindowPromotions();
     };
 
