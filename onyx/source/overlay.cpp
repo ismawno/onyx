@@ -766,6 +766,7 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
         m_DynamicMeshes[i] = DynamicMesh_Register<D2>();
 
     Resources_Sync(SyncFlag_DynamicMeshes);
+    m_FontStack.Append(Resources_GetDefault().Font);
 }
 
 Overlay::~Overlay()

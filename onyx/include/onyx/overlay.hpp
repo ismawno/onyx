@@ -2354,6 +2354,15 @@ class Overlay
     /// STYLE PUBLIC
     /////////////////////////////////////////////
 
+    void PushFont(const Resource font)
+    {
+        m_FontStack.Append(font);
+    }
+    void PopFont()
+    {
+        m_FontStack.Pop();
+    }
+
     void PushStyleVar(const OverlayStyleVariable var, const f32 val)
     {
         m_StyleStack.Append(m_Style[var], var);
@@ -3154,8 +3163,10 @@ class Overlay
 
     OverlayStyle m_Style;
     OverlayStyle m_DefaultStyle;
+
     TKit::TierArray<ColorBackup> m_ColorStack{};
     TKit::TierArray<StyleBackup> m_StyleStack{};
+    TKit::TierArray<Resource> m_FontStack{};
 
     /////////////////////////////////////////////
     /// END STYLE PRIVATE
@@ -3282,11 +3293,15 @@ class Overlay
 
     LyTxPar getTextParams() const
     {
-        return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_FontSize]};
+        return {.FillColor = m_Style[OverlayColor_Text],
+                .FontSize = m_Style[OverlayStyle_FontSize],
+                .Font = m_FontStack.GetBack()};
     }
     LyUnPar getUnicodeParams() const
     {
-        return {.FillColor = m_Style[OverlayColor_Text], .FontSize = m_Style[OverlayStyle_UnicodeSize]};
+        return {.FillColor = m_Style[OverlayColor_Text],
+                .FontSize = m_Style[OverlayStyle_UnicodeSize],
+                .Font = m_FontStack.GetBack()};
     }
     void titleText(Layout *ly, const OverlayTitle &title) const
     {
