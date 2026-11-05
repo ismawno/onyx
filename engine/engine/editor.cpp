@@ -420,16 +420,12 @@ static ProjectLauncherResult runProjectLauncher()
 // TODO(Isma): Implement a way of selecting entities from the viewport
 // TODO(Isma): Implement guizmos
 
-static bool submitUserLauncherDecision(const ProjectLauncherResult &res)
+static void setProject(const EditorProject &p)
 {
-    if (res.Canceled)
-        return false;
-
     s_Editor->Project.Destroy();
     s_Editor->UndoRedo.Clear();
     s_Editor->Console.Clear();
-    s_Editor->Project = res.Project;
-    return true;
+    s_Editor->Project = p;
 }
 
 bool Initialize()
@@ -441,14 +437,14 @@ bool Initialize()
     s_Editor.Construct();
 
     const ProjectLauncherResult res = runProjectLauncher();
-    if (!submitUserLauncherDecision(res))
+    if (res.Canceled)
     {
         Terminate();
         return false;
     }
-
     s_Editor->Window = createMainWindow();
     s_Editor->Overlay = createMainOverlay(s_Editor->Window, s_Editor->Project.GetOverlayLayoutPath());
+    setProject(res.Project);
 
     SetConsoleLogCallback(s_Editor->Console);
     return true;
@@ -473,7 +469,8 @@ static void drawEditorWindow()
             ProjectLauncherResult res;
             if (!drawProjectLauncher(ov, launcherInfo, res))
             {
-                submitUserLauncherDecision(res);
+                if (!res.Canceled)
+                    setProject(res.Project);
                 ov->CloseCurrentPopup();
             }
 
