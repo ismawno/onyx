@@ -24,7 +24,7 @@ static void pushPop(Stack &pusher, Stack &popper, const CommandAction action)
     pusher.Push(cmd);
 }
 
-void UndoRedoData::Clear()
+void UndoRedo::Clear()
 {
     clearStack(UndoStack);
     clearStack(RedoStack);
@@ -33,11 +33,11 @@ void UndoRedoData::Clear()
     RedoStack.Clear();
 }
 
-void UndoRedoData::Undo()
+void UndoRedo::Undo()
 {
     pushPop(RedoStack, UndoStack, Command_Undo);
 }
-void UndoRedoData::Redo()
+void UndoRedo::Redo()
 {
     pushPop(UndoStack, RedoStack, Command_Redo);
 }

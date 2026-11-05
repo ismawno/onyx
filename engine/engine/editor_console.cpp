@@ -2,7 +2,7 @@
 
 namespace Engine
 {
-void SetConsoleLogCallback(ConsoleData &data)
+void SetConsoleLogCallback(Console &console)
 {
     TKit::SetLogCallback([&](const TKit::LogInfo &info) {
         if (info.Message.size() > ONYX_MAX_LOG_ENTRY_MESSAGE)
@@ -21,7 +21,7 @@ void SetConsoleLogCallback(ConsoleData &data)
         entry.Message = info.Message;
         entry.Level = info.Level;
 
-        data.Push(entry);
+        console.Push(entry);
     });
 }
 } // namespace Engine

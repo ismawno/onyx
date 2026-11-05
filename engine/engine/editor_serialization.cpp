@@ -1,5 +1,5 @@
 #include "editor_scene.hpp"
-#include "editor.hpp"
+#include "editor_project.hpp"
 #include "onyx/onyx.hpp"
 #include "tkit/preprocessor/utils.hpp"
 #include "tkit/serialization/yaml/codec.hpp"
@@ -188,8 +188,8 @@ template <Dimension D> Result<> deserializeContexts(EditorScene &scene, const ch
         return Result<>::Ok();
 
     const ConstYamlNode contexts = root[name];
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, contexts, "Indices", EditorData);
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, contexts, "Ids", EditorData);
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, contexts, "Indices", );
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, contexts, "Ids", );
 
     TKit::TierHive<EditorContext<D>> ctxs{indices, ids};
     if (contexts.HasChild("Contexts"))
@@ -238,8 +238,8 @@ static Result<> deserializeViews(const EditorScene &scene, EditorViewport &viewp
         return Result<>::Ok();
 
     const ConstYamlNode views = root[name];
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, views, "Indices", EditorData);
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, views, "Ids", EditorData);
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, views, "Indices", );
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, views, "Ids", );
 
     TKit::TierHive<EditorView<D>> rviews{indices, ids};
     if (views.HasChild("Views"))
@@ -379,75 +379,71 @@ Result<EditorScene> EditorScene::Deserialize(const fs::path &path)
     return scene;
 }
 
-Result<> serializeEditor(const EditorData &editor, const fs::path &ppath)
+void EditorProject::Serialize(const fs::path &ppath)
 {
     TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.string());
 
-    const fs::path scenePath = editor.GetProjectScenesPath();
+    const fs::path scenePath = GetScenesPath();
 
     fs::create_directories(ppath);
     fs::create_directories(scenePath);
-    fs::create_directories(editor.GetProjectDataPath());
+    fs::create_directories(GetDataPath());
 
-    for (const Scene sc : editor.Scenes.GetValidIds())
-        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", editor.Scenes[sc].Name).CString());
-
-    if (editor.Overlay)
-        editor.Overlay->Serialize(editor.GetOverlayLayoutPath());
+    for (const Scene sc : Scenes.GetValidIds())
+        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", Scenes[sc].Name).CString());
 
     YamlTree tree{};
     YamlNode root = tree.GetRoot();
 
     YamlNode scenes = root["Scenes"];
-    scenes["Indices"] << editor.Scenes.GetIndices();
-    scenes["Ids"] << editor.Scenes.GetIds();
-    scenes["Active"] << editor.ActiveScene;
+    scenes["Indices"] << Scenes.GetIndices();
+    scenes["Ids"] << Scenes.GetIds();
+    scenes["Active"] << ActiveScene;
 
-    root["Settings"] << editor.Settings;
+    root["Settings"] << Settings;
 
-    tree.ToFile(editor.GetProjectSettingsPath());
-    return Result<>::Ok();
+    tree.ToFile(GetSettingsPath());
 }
 
-Result<EditorData> deserializeEditor(const fs::path &ppath)
+Result<EditorProject> EditorProject::Deserialize(const fs::path &ppath)
 {
     ONYX_GENERATE_ERROR_DIRECTORY_NOT_FOUND(ppath, , "[ONYX][EDITOR] The directory {} was not found");
-    EditorData editor{};
-    editor.ProjectName = ppath.filename().string();
-    editor.ProjectPath = ppath;
+    EditorProject project{};
+    project.Name = ppath.filename().string();
+    project.Path = ppath;
 
     TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at {}", ppath.string());
 
-    const fs::path scenePath = editor.GetProjectScenesPath();
+    const fs::path scenePath = project.GetScenesPath();
 
-    const auto res = YamlTree::FromFile(editor.GetProjectSettingsPath());
+    const auto res = YamlTree::FromFile(project.GetSettingsPath());
     if (!res)
         return Result<>::Error(Error_DeserializationFailed, res.GetError());
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
 
-    ONYX_CHECK_HAS_CHILD(root, "Scenes", EditorData);
+    ONYX_CHECK_HAS_CHILD(root, "Scenes", EditorProject);
 
     const ConstYamlNode scenes = root["Scenes"];
 
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, scenes, "Indices", EditorData);
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, scenes, "Ids", EditorData);
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, scenes, "Indices", EditorProject);
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, scenes, "Ids", EditorProject);
 
-    editor.Scenes = TKit::TierHive<EditorScene>{indices, ids};
+    project.Scenes = TKit::TierHive<EditorScene>{indices, ids};
 
-    ONYX_TRY_READ(editor.ActiveScene, scenes, "Active", EditorData);
-    ONYX_TRY_READ(editor.Settings, root, "Settings", EditorData);
+    ONYX_TRY_READ(project.ActiveScene, scenes, "Active", EditorProject);
+    ONYX_TRY_READ(project.Settings, root, "Settings", EditorProject);
 
     for (const fs::directory_entry &dir : fs::directory_iterator(scenePath))
         if (!dir.is_directory())
         {
             const auto res = EditorScene::Deserialize(dir.path());
             TKIT_RETURN_ON_ERROR(res);
-            editor.CreateScene(*res);
+            project.CreateScene(*res);
         }
 
-    return editor;
+    return project;
 }
 
 } // namespace Engine

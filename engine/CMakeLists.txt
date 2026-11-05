@@ -7,6 +7,7 @@ set(EDITOR_SOURCES
     engine/editor.cpp
     engine/editor_console.cpp
     engine/editor_scene.cpp
+    engine/editor_project.cpp
     engine/editor_undo_redo.cpp
     engine/editor_serialization.cpp
     engine/utils.cpp)

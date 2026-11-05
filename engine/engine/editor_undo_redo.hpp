@@ -49,7 +49,7 @@ struct LambdaCommand final : Command
     }
 };
 
-struct UndoRedoData
+struct UndoRedo
 {
     CircularStack<Command *, ONYX_MAX_UNDO_REDO_COMMANDS> UndoStack{};
     CircularStack<Command *, ONYX_MAX_UNDO_REDO_COMMANDS> RedoStack{};

@@ -16,7 +16,7 @@ struct LogEntry
     Onyx::Color Color;
 };
 
-using ConsoleData = CircularStack<LogEntry, ONYX_MAX_LOG_ENTRY_MESSAGE>;
+using Console = CircularStack<LogEntry, ONYX_MAX_LOG_ENTRY_MESSAGE>;
 
-void SetConsoleLogCallback(ConsoleData &data);
+void SetConsoleLogCallback(Console &console);
 } // namespace Engine

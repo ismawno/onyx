@@ -104,7 +104,7 @@ struct EditorScene
     template <Dimension D> RenderContext CreateRenderContext();
     template <Dimension D> void DestroyRenderContext(RenderContext ctx);
 
-    void Clear();
+    void Destroy();
 
     void Serialize(const fs::path &path) const;
     static Result<EditorScene> Deserialize(const fs::path &path);

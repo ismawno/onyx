@@ -109,7 +109,7 @@ template <Dimension D> void EditorScene::DestroyRenderContext(const RenderContex
     ctxs.Remove(ctx);
 }
 
-void EditorScene::Clear()
+void EditorScene::Destroy()
 {
     const TKit::StackArray<Viewport> vps = Viewports.GetValidIds();
 
