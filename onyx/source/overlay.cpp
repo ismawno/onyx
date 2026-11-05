@@ -892,15 +892,18 @@ bool Overlay::Serialize()
     tree.ToFile(m_SerializationPath);
     return true;
 }
-bool Overlay::Deserialize()
+Result<> Overlay::Deserialize()
 {
-    if (m_SerializationPath.empty() || !fs::exists(m_SerializationPath))
-        return false;
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(m_SerializationPath, , "[ONYX][OVERLAY] Failed to deserialize from {}");
 
     using ConstYamlNode = TKit::ConstYamlNode;
     using YamlTree = TKit::YamlTree;
 
-    const YamlTree tree = YamlTree::FromFile(m_SerializationPath);
+    const auto res = YamlTree::FromFile(m_SerializationPath);
+    if (!res)
+        return Result<>::Error(Error_SerializationFailed, res.GetError());
+
+    const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
     if (root["Windows"])
     {
@@ -946,7 +949,7 @@ bool Overlay::Deserialize()
             ApplyDockTree(hostId, nroot);
         }
     }
-    return true;
+    return Result<>::Ok();
 }
 #endif
 

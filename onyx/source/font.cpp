@@ -58,7 +58,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
     const i32 left = packer.pack(glyphs.data(), i32(glyphs.size()));
     if (left != 0)
         return Result<FontData>::Error(
-            Error_LoadFailed,
+            Error_FontPackFailed,
             TKit::Format("[ONYX][FONT] The atlas packer was not able to pack all the glyphs. Remaining: {}", left));
 
     i32v2 dims;
@@ -168,14 +168,11 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
 }
 Result<FontData> Font_LoadDataFromFile(const char *path, const FontLoadOptions &opts)
 {
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, FontData, "[ONYX][FONT] File at {} does not exist or is a directory");
+
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft)
         return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
-
-    if (!fs::exists(path) || fs::is_directory(path))
-        return Result<>::Error(
-            Error_FileNotFound,
-            TKit::TierString::Format("[ONYX][FONT] File at {} does not exist or is a directory", path));
 
     msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
     if (!font)

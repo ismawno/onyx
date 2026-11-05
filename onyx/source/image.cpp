@@ -136,10 +136,7 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
     if (args.Path)
     {
         const char *path = args.Path;
-        if (!fs::exists(path) || fs::is_directory(path))
-            return Result<>::Error(
-                Error_FileNotFound,
-                TKit::TierString::Format("[ONYX][IMAGE] File at {} does not exist or is a directory", path));
+        ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, ImageData, "[ONYX][IMAGE] File at {} does not exist or is a directory");
 
         if (stbi_is_hdr(path))
         {

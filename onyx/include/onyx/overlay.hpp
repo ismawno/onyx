@@ -1542,8 +1542,8 @@ class Overlay
         SetSerializationPath(p);
         return Serialize();
     }
-    bool Deserialize();
-    bool Deserialize(const fs::path &p)
+    Result<> Deserialize();
+    Result<> Deserialize(const fs::path &p)
     {
         SetSerializationPath(p);
         return Deserialize();

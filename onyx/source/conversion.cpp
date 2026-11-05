@@ -223,10 +223,21 @@ const char *ToString(const ErrorCode code)
         return "LoadFailed";
     case Error_FileNotFound:
         return "FileNotFound";
-    case Error_EntryPointNotFound:
-        return "EntryPointNotFound";
-    case Error_ShaderCompilationFailed:
-        return "ShaderCompilationFailed";
+    case Error_FontPackFailed:
+        return "FontPackFailed";
+    case Error_AudioPlayFailed:
+        return "AudioPlayFailed";
+    case Error_AudioDecodeFailed:
+        return "AudioDecodeFailed";
+    case Error_AudioFail:
+        return "AudioFail";
+    case Error_SerializationFailed:
+        return "SerializationFailed";
+    case Error_DeserializationFailed:
+        return "DeserializationFailed";
+    case Error_Unknown:
+        return "Unknown";
+    case Error_Count:
     default:
         return "Unknown";
     }

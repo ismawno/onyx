@@ -58,18 +58,16 @@ template <typename Vertex> static void mesh_ValidateData(MeshData<Vertex> &data,
 
 template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, const u32 maxVertices)
 {
-    if (!fs::exists(path) || fs::is_directory(path))
-        return Result<>::Error(
-            Error_FileNotFound,
-            TKit::TierString::Format("[ONYX][MESH] File at {} does not exist or is a directory", path));
-
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, StaticMeshData<D>,
+                                       "[ONYX][MESH] File at {} does not exist or is a directory");
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, path))
         return Result<StaticMeshData<D>>::Error(
-            Error_FileNotFound, TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
+            Error_LoadFailed, TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
+
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][MESH] {}", warn);
     if (!err.empty())
         return Result<StaticMeshData<D>>::Error(Error_LoadFailed,

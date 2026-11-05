@@ -72,10 +72,12 @@ enum ErrorCode : u8
 {
     Error_LoadFailed,
     Error_FileNotFound,
-    Error_EntryPointNotFound,
-    Error_ShaderCompilationFailed,
-    Error_PlayFailed,
+    Error_FontPackFailed,
+    Error_AudioPlayFailed,
+    Error_AudioDecodeFailed,
     Error_AudioFail,
+    Error_SerializationFailed,
+    Error_DeserializationFailed,
     Error_Unknown,
     Error_Count
 };
@@ -113,7 +115,17 @@ class Error
 template <typename T = void> using Result = TKit::Result<T, Error>;
 using Task = TKit::Task<void>;
 
-template <typename T> T CheckResult(Result<T> &&result)
+#define ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, type, msg, ...)                                                       \
+    if (!fs::exists(path) || fs::is_directory(path))                                                                   \
+    return Onyx::Result<type>::Error(Onyx::Error_FileNotFound,                                                         \
+                                     TKit::TierString::Format(msg, std::string{path} __VA_OPT__(, ) __VA_ARGS__))
+
+#define ONYX_GENERATE_ERROR_DIRECTORY_NOT_FOUND(path, type, msg, ...)                                                  \
+    if (!fs::exists(path) || !fs::is_directory(path))                                                                  \
+    return Onyx::Result<type>::Error(Onyx::Error_FileNotFound,                                                         \
+                                     TKit::TierString::Format(msg, std::string{path} __VA_OPT__(, ) __VA_ARGS__))
+
+template <typename T> T CheckResult(const Result<T> &result)
 {
     TKIT_ASSERT(result, "{}", result.GetError().ToString());
     if constexpr (!std::same_as<T, void>)

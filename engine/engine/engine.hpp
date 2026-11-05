@@ -7,16 +7,9 @@
 
 namespace Engine
 {
-namespace fs = std::filesystem;
-
 bool Initialize();
 void Terminate();
 void Run();
-
-using Scene = u32;
-using Viewport = u32;
-using RenderView = u32;
-using RenderContext = u32;
 
 constexpr Scene NullScene = TKit::Limits<Scene>::Max();
 constexpr Viewport NullViewport = TKit::Limits<Viewport>::Max();
@@ -30,17 +23,17 @@ Viewport Scene_CreateViewport(Scene sc, const u32v2 &size);
 void Scene_DestroyViewport(Scene sc, Viewport vp);
 
 template <Dimension D> RenderContext Scene_CreateRenderContext(Scene sc);
-template <Dimension D> void Scene_DestroyRenderContext(Scene sc, RenderContext rc);
+template <Dimension D> void Scene_DestroyRenderContext(Scene sc, RenderContext ctx);
 
 void Scene_FlushContexts(Scene sc);
 void Scene_Render(Scene sc);
 
 void Scene_Serialize(Scene sc, const fs::path &path);
-void Scene_Deserialize(Scene sc, const fs::path &path);
-inline Scene Scene_Deserialize(const fs::path &path)
+Result<> Scene_Deserialize(Scene sc, const fs::path &path);
+inline Result<Scene> Scene_Deserialize(const fs::path &path)
 {
     const Scene sc = Scene_Create();
-    Scene_Deserialize(sc, path);
+    TKIT_RETURN_IF_FAILED(Scene_Deserialize(sc, path));
     return sc;
 }
 

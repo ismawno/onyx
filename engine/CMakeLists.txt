@@ -2,7 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx-engine)
 
 set(ENGINE_SOURCES engine/engine.cpp)
-set(EDITOR_SOURCES engine/main.cpp engine/editor.cpp)
+set(EDITOR_SOURCES
+    engine/main.cpp
+    engine/editor.cpp
+    engine/editor_console.cpp
+    engine/editor_scene.cpp
+    engine/editor_undo_redo.cpp
+    engine/editor_serialization.cpp
+    engine/utils.cpp)
 
 add_library(onyx-engine STATIC ${ENGINE_SOURCES})
 add_executable(onyx-editor ${EDITOR_SOURCES})

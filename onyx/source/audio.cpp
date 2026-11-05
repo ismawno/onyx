@@ -432,12 +432,9 @@ Resource Audio_Create(const AudioData &data, const AudioFlags flags)
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
-Result<Resource> Audio_Create(const char *path, const AudioFlags flags)
+Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
 {
-    if (!fs::exists(path) || fs::is_directory(path))
-        return Result<>::Error(
-            Error_FileNotFound,
-            TKit::TierString::Format("[ONYX][AUDIO] File at {} does not exist or is a directory", path));
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, Resource, "[ONYX][AUDIO] File at {} does not exist or is a directory");
 
     TKit::TierAllocator *tier = TKit::GetTier();
     Audio *audio = tier->Create<Audio>();
@@ -447,7 +444,7 @@ Result<Resource> Audio_Create(const char *path, const AudioFlags flags)
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    ENSURE_SUCCESS(ma_sound_init_from_file(&s_Data->Engine, path, MA_SOUND_FLAG_STREAM | f, &s_Data->Group, nullptr,
+    ENSURE_SUCCESS(ma_sound_init_from_file(&s_Data->Engine, filepath, MA_SOUND_FLAG_STREAM | f, &s_Data->Group, nullptr,
                                            &audio->Sound),
                    "[ONYX][AUDIO] Sound initialization failed with error code {}");
 
@@ -634,31 +631,25 @@ void Audio_SeekFrame(const Resource handle, const u64 frame)
                    "[ONYX][AUDIO] Failed to seek audio with error code {}");
 }
 
-Result<> Audio_Play(const char *path)
+Result<> Audio_Play(const char *filepath)
 {
-    if (!fs::exists(path) || fs::is_directory(path))
-        return Result<>::Error(
-            Error_FileNotFound,
-            TKit::TierString::Format("[ONYX][AUDIO] File at {} does not exist or is a directory", path));
-
-    const ma_result res = ma_engine_play_sound(&s_Data->Engine, path, &s_Data->Group);
-    CHECK_ERROR(res, , Error_PlayFailed, "[ONYX][AUDIO] Failed to play sound with error code {}");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, , "[ONYX][AUDIO] File at {} does not exist or is a directory");
+    const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath, &s_Data->Group);
+    CHECK_ERROR(res, , Error_AudioPlayFailed, "[ONYX][AUDIO] Failed to play sound with error code {}");
 
     return Result<>::Ok();
 }
 
-Result<AudioData> Audio_LoadData(const char *path)
+Result<AudioData> Audio_LoadData(const char *filepath)
 {
-    if (!fs::exists(path) || fs::is_directory(path))
-        return ERROR_FMT(AudioData, Error_FileNotFound, "[ONYX][AUDIO] File at {} does not exist or is a directory",
-                         path);
-
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, AudioData,
+                                       "[ONYX][AUDIO] File at {} does not exist or is a directory");
     AudioData data;
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, ma_engine_get_channels(&s_Data->Engine),
                                                    ma_engine_get_sample_rate(&s_Data->Engine));
     ma_uint64 frameCount;
-    const ma_result res = ma_decode_file(path, &cfg, &frameCount, &data.Data);
-    CHECK_ERROR(res, AudioData, Error_LoadFailed, "[ONYX][AUDIO] File decode failed with error code {}");
+    const ma_result res = ma_decode_file(filepath, &cfg, &frameCount, &data.Data);
+    CHECK_ERROR(res, AudioData, Error_AudioDecodeFailed, "[ONYX][AUDIO] File decode failed with error code {}");
 
     data.FrameCount = u64(frameCount);
     return Result<AudioData>::Ok(data);
