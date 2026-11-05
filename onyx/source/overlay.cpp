@@ -1409,12 +1409,7 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
         active->Flags &= ~(OverlayWindowFlag_AutoResize | OverlayWindowFlag_MoveWithHeader);
         active->Flags |= OverlayWindowFlag_NoBorders | OverlayWindowFlag_NoResize;
     }
-    if (!activeOwnsLayout)
-    {
-        active->Flags |= OverlayWindowFlag_NoPromotion | OverlayWindowFlag_NoBringToFocus;
-        active->Flags &= ~OverlayWindowFlag_PopupModal;
-    }
-    else
+    if (activeOwnsLayout)
     {
         if (active->IsFullscreenBlocked())
             active->Flags &= ~OverlayWindowFlag_AutoResize;
@@ -1424,6 +1419,11 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
             active->Flags |= OverlayWindowFlag_BringToTop;
             active->AvailableConditions |= OverlayCondition_Appearing;
         }
+    }
+    else
+    {
+        active->Flags |= OverlayWindowFlag_NoPromotion | OverlayWindowFlag_NoBringToFocus;
+        active->Flags &= ~OverlayWindowFlag_PopupModal;
     }
 
     const bool ownsNative = active->Flags & WindowInternalFlag_OwnsNative;
