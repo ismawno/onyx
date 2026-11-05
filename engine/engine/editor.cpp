@@ -496,9 +496,11 @@ template <Dimension D> static void setupDefaultScene(const Scene sc)
 }
 
 // TODO(Isma): Waited blabla for blabla, should be a warning, and tell the user what to do
+// TODO(Isma): Editor as a full class. Remove Data suffix from EditorData, ConsoleData etc
 // TODO(Isma): Overlay needs to abort if deserialization failed
 // TODO(Isma): userLaunchDecision, the part where we create a default scene, that must move do the draw stuff, so that
 // we dont serialize twice
+// TODO(Isma): Improve error messages, tell the user what to do etc
 // TODO(Isma): Fix naming
 // TODO(Isma): Forward serializeEditor/deserializeEditor errors
 // TODO(Isma): Expose errors when serializing/deserializing. create a macro to use TryRead, so that editor

@@ -1034,7 +1034,15 @@ static void resetCameras(App &app)
     app.GalleryCam.OrthoParameters.Size = 10.f;
     app.Cam3.View = {};
     app.Cam3.View.Translation = f32v3{0.f, 1.5f, 9.5f};
+    app.Cam3.Mode = Onyx::CameraMode_Perspective;
     app.Cam3.PerspParameters.FieldOfView = Math::Radians(75.f);
+    app.Cam3.PerspParameters.Near = 0.1f;
+    app.Cam3.PerspParameters.Far = 100.f;
+    // orthographic near and far are view space depths around the camera. the defaults (-5 to 5) would clip the gallery,
+    // which sits about 10 units in front of the camera. the size frames it about like the perspective camera does
+    app.Cam3.OrthoParameters.Size = 14.f;
+    app.Cam3.OrthoParameters.Near = -10.f;
+    app.Cam3.OrthoParameters.Far = 50.f;
 }
 
 static void setup(App &app)
@@ -1645,6 +1653,66 @@ static void checkViews(App &app)
                    "translation, even after moving or rotating it (WASD/QE)",
                    "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", center[0], center[1], camPos[0], camPos[1])
             .Pane = Pane_Gallery2;
+    }
+
+    // one check per 3D camera mode, the two others are skipped. probes are taken at the middle of the depth range: any
+    // depth works for the orthographic and viewport cameras, and the perspective one is checked by angle
+    {
+        const Onyx::RenderView<D3> *rv = app.View3[app.Mode];
+        const Onyx::Camera<D3> &cam = app.Cam3;
+        const Onyx::Viewport &vp = rv->GetViewport();
+        const char *modeNames[3] = {"orthographic", "viewport", "perspective"};
+        const char *orthoName = "3D orthographic camera: viewport height = ortho size";
+        const char *orthoRule = "An orthographic 3D camera shows OrthoParameters.Size world units from the top to the "
+                                "bottom of its viewport, at any depth";
+        const char *viewportName = "3D viewport camera: 1 world unit = 1 logical pixel";
+        const char *viewportRule =
+            "CameraMode_Viewport in 3D is an orthographic camera sized to the viewport: one logical pixel on screen is "
+            "one world unit, at any depth";
+        const char *perspName = "3D perspective camera: vertical angle = field of view";
+        const char *perspRule = "A perspective camera's field of view is vertical: the rays through the top and bottom "
+                                "centers of its viewport meet at the camera with that angle";
+        const Line reason = formatLine("the 3D camera is {}", modeNames[cam.Mode]);
+
+        const f32v2 center = vp.Position + 0.5f * vp.Size;
+        const f32v3 top = rv->ScreenToWorld(f32v3{vp.Position + f32v2{0.5f * vp.Size[0], 0.f}, 0.5f});
+        const f32v3 bottom = rv->ScreenToWorld(f32v3{vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]}, 0.5f});
+
+        if (cam.Mode == Onyx::CameraMode_Orthographic)
+        {
+            const f32 span = Math::Norm(top - bottom);
+            const f32 size = cam.OrthoParameters.Size;
+            cat.Expect(orthoName, Math::Approximately(span, size, 1e-3f * size), orthoRule,
+                       "top to bottom = {:.4f} units, ortho size = {:.4f}", span, size)
+                .Pane = Pane_Gallery3;
+        }
+        else
+            cat.Skip(orthoName, orthoRule, "{}", reason.View()).Pane = Pane_Gallery3;
+
+        if (cam.Mode == Onyx::CameraMode_Viewport)
+        {
+            const f32v3 p = rv->ScreenToWorld(f32v3{center, 0.5f});
+            const f32 dx = Math::Norm(rv->ScreenToWorld(f32v3{center + f32v2{1.f, 0.f}, 0.5f}) - p);
+            const f32 dy = Math::Norm(rv->ScreenToWorld(f32v3{center + f32v2{0.f, 1.f}, 0.5f}) - p);
+            cat.Expect(viewportName, Math::Approximately(dx, 1.f, 1e-3f) && Math::Approximately(dy, 1.f, 1e-3f),
+                       viewportRule, "1 px right -> {:.4f} units, 1 px down -> {:.4f} units", dx, dy)
+                .Pane = Pane_Gallery3;
+        }
+        else
+            cat.Skip(viewportName, viewportRule, "{}", reason.View()).Pane = Pane_Gallery3;
+
+        if (cam.Mode == Onyx::CameraMode_Perspective)
+        {
+            const f32v3 &eye = cam.View.Translation;
+            const f32 cosine = Math::Dot(Math::Normalize(top - eye), Math::Normalize(bottom - eye));
+            const f32 angle = Math::AntiCosine(Math::Clamp(cosine, -1.f, 1.f));
+            const f32 fov = cam.PerspParameters.FieldOfView;
+            cat.Expect(perspName, Math::Approximately(angle, fov, Math::Radians(0.1f)), perspRule,
+                       "angle {:.2f} deg, field of view {:.2f} deg", Math::Degrees(angle), Math::Degrees(fov))
+                .Pane = Pane_Gallery3;
+        }
+        else
+            cat.Skip(perspName, perspRule, "{}", reason.View()).Pane = Pane_Gallery3;
     }
 
     const auto sorted = win->GetSortedViews<D2>();
@@ -4710,14 +4778,45 @@ static void panelViews(App &app)
     inspectView(app, Inspect_RtFixed, app.RtFixedView, "the fixed render texture", false, mouse);
     inspectView(app, Inspect_Lab, app.LabView, "the window", app.LabMouseInside, mouse);
 
-    const f32v3 &pos = app.Cam3.View.Translation;
-    field(ui, "3D camera ",
-          formatLine("({:.2f}, {:.2f}, {:.2f}), fov {:.1f} deg", pos[0], pos[1], pos[2],
-                     Math::Degrees(app.Cam3.PerspParameters.FieldOfView))
-              .View());
-
-    ui->HorizontalSeparator("Controls");
+    ui->HorizontalSeparator("2D gallery camera");
     ui->HorizontalSlider("2D ortho size", &app.GalleryCam.OrthoParameters.Size, 1.f, 40.f);
+
+    ui->HorizontalSeparator("3D gallery camera");
+    Onyx::Camera<D3> &cam = app.Cam3;
+    ui->DropDown("3D camera mode", &cam.Mode, "Orthographic#Viewport#Perspective");
+    tooltip(ui, Theme::Accent, "Orthographic, viewport or perspective",
+            "Orthographic shows Size world units from top to bottom, viewport one world unit per logical pixel (so the "
+            "gallery looks tiny), perspective a field of view. Near and far bound what is drawn, and the sun's shadow "
+            "cascades are split between them.");
+    if (cam.Mode == Onyx::CameraMode_Perspective)
+    {
+        Onyx::PerspectiveParameters &persp = cam.PerspParameters;
+        f32 fov = Math::Degrees(persp.FieldOfView);
+        if (ui->HorizontalSlider("Field of view (deg)", &fov, 10.f, 150.f, "{:.0f}"))
+            persp.FieldOfView = Math::Radians(fov);
+        ui->HorizontalSlider("Near##persp", &persp.Near, 0.01f, 5.f, "{:.2f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
+        ui->HorizontalSlider("Far##persp", &persp.Far, 5.f, 500.f, "{:.0f}", 1, Onyx::OverlaySliderFlag_Logarithmic);
+        persp.Far = Math::Max(persp.Far, persp.Near + 0.01f);
+    }
+    else
+    {
+        Onyx::OrthographicParameters<D3> &ortho = cam.OrthoParameters;
+        if (cam.Mode == Onyx::CameraMode_Orthographic)
+            ui->HorizontalSlider("Ortho size", &ortho.Size, 1.f, 60.f);
+        ui->HorizontalSlider("Near##ortho", &ortho.Near, -50.f, 20.f);
+        ui->HorizontalSlider("Far##ortho", &ortho.Far, 1.f, 200.f);
+        ortho.Far = Math::Max(ortho.Far, ortho.Near + 0.01f);
+        tooltip(
+            ui, Theme::Accent, "View space depths",
+            "Measured along the view direction from the camera, so they can be negative: a negative near also draws "
+            "what is behind the camera, which an orthographic camera can see.");
+    }
+    ui->HorizontalSlider("3D position", &cam.View.Translation, -30.f, 30.f);
+    tooltip(
+        ui, Theme::Accent, "WASD, space and ctrl move it too",
+        "Hover the 3D gallery and hold shift to look around. The scroll wheel zooms: the ortho size in orthographic "
+        "mode, the field of view in perspective.");
+
     if (ui->Button("Reset cameras"))
         resetCameras(app);
 }
@@ -5485,6 +5584,17 @@ static void setupCategories(App &app)
                 "not move. In the docked layout the cursor goes through the panel's image mapping first.",
         .Priority = 51,
         .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    views.Visuals.Append(VisualCheck{
+        .Name = "Orthographic 3D camera keeps shading and shadows",
+        .Do = "In the Render views panel set 3D camera mode to Orthographic: the 3D gallery loses its perspective "
+              "(parallel edges stay parallel), but every shape stays lit and keeps its shadows. Scrolling zooms by "
+              "changing the ortho size.",
+        .More =
+            "Near and far are view space depths around the camera and can be negative. The sun's shadow cascades "
+            "are split between them, so they must cover the gallery: with a much larger range, cascades get coarse.",
+        .Priority = 54,
+        .Pane = Pane_Gallery3,
         .Needs = Requires_Nothing});
     views.Visuals.Append(VisualCheck{
         .Name = "Overlay stays on top",
