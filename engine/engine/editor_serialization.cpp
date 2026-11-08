@@ -353,10 +353,13 @@ Result<EditorScene> EditorScene::Deserialize(const TKit::TierPath &path)
     if (viewports.HasChild("Viewports"))
         for (const ConstYamlNode node : viewports["Viewports"])
         {
+            EDITOR_TRY_READ_DECLARE(u32v2, resolution, node, "Resolution");
             EditorViewport &vp = scene.Viewports[scene.Viewports.Insert()];
-            vp.Target = Onyx::CreateRenderTexture(vp.Resolution);
+
+            vp.Target = Onyx::CreateRenderTexture(resolution);
+            vp.Resolution = resolution;
+
             EDITOR_TRY_READ(vp.Name, node, "Name");
-            EDITOR_TRY_READ(vp.Resolution, node, "Resolution");
             EDITOR_TRY_READ(vp.Aspect, node, "Aspect");
             EDITOR_TRY_READ(vp.Visible, node, "Visible");
 
@@ -411,7 +414,8 @@ Result<> EditorProject::Serialize(const TKit::TierPath &ppath)
     if (projectExisted)
     {
         const auto tempRes = TKit::GetTempDirectoryPath<TKit::StackPath>();
-        ONYX_RETURN_ERROR_IF(!tempRes, "[ONYX][EDITOR] Failed to save project: Could not query a temp directory");
+        ONYX_RETURN_ERROR_IF(!tempRes, Error_SerializationFailed,
+                             "[ONYX][EDITOR] Failed to save project: Could not query a temp directory");
 
         temp = *tempRes / "onyx-temp-project";
         ONYX_CHECK_FILESYSTEM_ERROR(TKit::Copy(ppath, temp, TKit::CopyOptionFlag_OverwriteExisting),
