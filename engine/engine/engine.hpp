@@ -3,7 +3,6 @@
 #include "alias.hpp"
 #include "onyx/overlay.hpp"
 #include "tkit/container/ecs.hpp"
-#include <filesystem>
 
 namespace Engine
 {
@@ -28,9 +27,9 @@ template <Dimension D> void Scene_DestroyRenderContext(Scene sc, RenderContext c
 void Scene_FlushContexts(Scene sc);
 void Scene_Render(Scene sc);
 
-void Scene_Serialize(Scene sc, const fs::path &path);
-Result<> Scene_Deserialize(Scene sc, const fs::path &path);
-inline Result<Scene> Scene_Deserialize(const fs::path &path)
+ONYX_NO_DISCARD Result<> Scene_Serialize(Scene sc, const TKit::TierPath &path);
+ONYX_NO_DISCARD Result<> Scene_Deserialize(Scene sc, const TKit::TierPath &path);
+ONYX_NO_DISCARD inline Result<Scene> Scene_Deserialize(const TKit::TierPath &path)
 {
     const Scene sc = Scene_Create();
     TKIT_RETURN_IF_FAILED(Scene_Deserialize(sc, path));

@@ -4,7 +4,6 @@
 #include "tkit/utils/bit.hpp"
 #include "tkit/container/hive.hpp"
 #include "tkit/container/stack_array.hpp"
-#include <filesystem>
 
 namespace Engine
 {
@@ -106,9 +105,9 @@ template <typename T> TKit::StackArray<TKit::StackString> CreateNameArray(const 
     return names;
 }
 
-fs::path GetHomePath();
-fs::path GetConfigPath();
+TKit::TierPath GetHomePath();
+TKit::TierPath GetConfigPath();
 
-Result<TKit::StackArray<fs::path>> LoadRecentProjects();
-Result<> UpdateRecentProjects(const fs::path &path);
+ONYX_NO_DISCARD Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects();
+ONYX_NO_DISCARD Result<> UpdateRecentProjects(const TKit::TierPath &path);
 } // namespace Engine

@@ -2,10 +2,10 @@
 #include "onyx/audio.hpp"
 #include "onyx/resources.hpp"
 #include "tkit/container/hive.hpp"
+#include "tkit/filesystem/filesystem.hpp"
 #define MA_IMPLEMENTATION
 #include <miniaudio.h>
 #undef ERROR
-#include <filesystem>
 
 #define CHECK_RESOURCE_HANDLE(handle, rtype)                                                                           \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
@@ -28,8 +28,6 @@
 
 namespace Onyx
 {
-namespace fs = std::filesystem;
-
 enum AudioType : u8
 {
     Audio_Buffer,
@@ -434,7 +432,8 @@ Resource Audio_Create(const AudioData &data, const AudioFlags flags)
 
 Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, Resource, "[ONYX][AUDIO] File at {} does not exist or is a directory");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
+                                       "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
 
     TKit::TierAllocator *tier = TKit::GetTier();
     Audio *audio = tier->Create<Audio>();
@@ -633,7 +632,9 @@ void Audio_SeekFrame(const Resource handle, const u64 frame)
 
 Result<> Audio_Play(const char *filepath)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, , "[ONYX][AUDIO] File at {} does not exist or is a directory");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
+                                       "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
+
     const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath, &s_Data->Group);
     CHECK_ERROR(res, , Error_AudioPlayFailed, "[ONYX][AUDIO] Failed to play sound with error code {}");
 
@@ -642,8 +643,8 @@ Result<> Audio_Play(const char *filepath)
 
 Result<AudioData> Audio_LoadData(const char *filepath)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, AudioData,
-                                       "[ONYX][AUDIO] File at {} does not exist or is a directory");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
+                                       "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
     AudioData data;
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, ma_engine_get_channels(&s_Data->Engine),
                                                    ma_engine_get_sample_rate(&s_Data->Engine));

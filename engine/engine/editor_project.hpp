@@ -10,7 +10,7 @@ namespace Engine
 struct EditorProject
 {
     TKit::TierString Name;
-    fs::path Path{};
+    TKit::TierPath Path{};
     ProjectSettings Settings{};
 
     TKit::TierHive<EditorScene> Scenes{};
@@ -22,30 +22,30 @@ struct EditorProject
     void DestroyScene(Scene sc);
     void Destroy();
 
-    void Serialize(const fs::path &path);
-    void Serialize()
+    ONYX_NO_DISCARD Result<> Serialize(const TKit::TierPath &path);
+    ONYX_NO_DISCARD Result<> Serialize()
     {
-        Serialize(Path);
+        return Serialize(Path);
     }
-    static Result<EditorProject> Deserialize(const fs::path &path);
+    ONYX_NO_DISCARD static Result<EditorProject> Deserialize(const TKit::TierPath &path);
 
     EditorScene &GetActiveScene()
     {
         return Scenes[ActiveScene];
     }
-    fs::path GetScenesPath() const
+    TKit::TierPath GetScenesPath() const
     {
         return Path / "scenes";
     }
-    fs::path GetDataPath() const
+    TKit::TierPath GetDataPath() const
     {
         return Path / "data";
     }
-    fs::path GetSettingsPath() const
+    TKit::TierPath GetSettingsPath() const
     {
         return GetDataPath() / "settings.yaml";
     }
-    fs::path GetOverlayLayoutPath() const
+    TKit::TierPath GetOverlayLayoutPath() const
     {
         return GetDataPath() / "ui-layout.yaml";
     }

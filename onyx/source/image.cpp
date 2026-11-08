@@ -2,14 +2,13 @@
 #include "onyx/image.hpp"
 #include "conversion.hpp"
 #include "graph/resources.hpp"
+#include "tkit/filesystem/filesystem.hpp"
 #ifdef ONYX_ENABLE_IMAGE_LOAD
 #    include <stb_image.h>
 #endif
-#include <filesystem>
 
 namespace Onyx
 {
-namespace fs = std::filesystem;
 static void flipX(const u32 bpp, std::byte *data, const u32 width, const u32 height)
 {
     const u32 stride = width * bpp;
@@ -136,7 +135,8 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
     if (args.Path)
     {
         const char *path = args.Path;
-        ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, ImageData, "[ONYX][IMAGE] File at {} does not exist or is a directory");
+        ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, "[ONYX][IMAGE] Image file '{}' does not exist",
+                                           "[ONYX][IMAGE] Expected an image file at '{}', but found a directory");
 
         if (stbi_is_hdr(path))
         {
@@ -193,10 +193,10 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
     return data;
 }
 
-Result<ImageData> Image_LoadDataFromFile(const char *path, const ImageComponentFormat requiredComponents,
+Result<ImageData> Image_LoadDataFromFile(const char *filepath, const ImageComponentFormat requiredComponents,
                                          const LoadImageDataFlags flags)
 {
-    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = path});
+    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = filepath});
 }
 Result<ImageData> Image_LoadDataFromMemory(const std::byte *memory, const u32 size,
                                            const ImageComponentFormat requiredComponents,

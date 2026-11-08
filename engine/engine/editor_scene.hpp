@@ -106,8 +106,8 @@ struct EditorScene
 
     void Destroy();
 
-    void Serialize(const fs::path &path) const;
-    static Result<EditorScene> Deserialize(const fs::path &path);
+    ONYX_NO_DISCARD Result<> Serialize(const TKit::TierPath &path) const;
+    ONYX_NO_DISCARD static Result<EditorScene> Deserialize(const TKit::TierPath &path);
 
     template <Dimension D> void FlushContexts()
     {

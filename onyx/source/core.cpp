@@ -371,9 +371,8 @@ static void allocators_Initialize(const Specs &specs)
             libAlloc.Tier = userAlloc.Tier;
         else if (!libAlloc.Tier)
         {
-            const TKit::TierDescriptions desc{{.Allocator = libAlloc.Arena,
-                                               .MaxAllocation = i == 0 ? 2_mib : 4_kib,
-                                               .TierSlotDecay = i == 0 ? 0.8f : 0.85f}};
+            const TKit::TierDescriptions desc{
+                {.MaxAllocation = i == 0 ? 2_mib : 4_kib, .TierSlotDecay = i == 0 ? 0.8f : 0.85f}};
             if (i == 0)
             {
                 TKIT_LOG_INFO("[ONYX][CORE] Tier allocator for the main thread has allocated {:L} bytes of memory",
@@ -546,7 +545,7 @@ void Terminate()
 
 TKit::TierString Error::ToString() const
 {
-    TKit::TierString str = TKit::TierString::Format("[ONYX] Error code: '{}'", Onyx::ToString(m_ErrorCode));
+    TKit::TierString str = TKit::TierString::Format("[ONYX][FAILURE] Error code: '{}'", Onyx::ToString(m_ErrorCode));
     if (m_CheapMessage)
         str += TKit::TierString::Format(" - Message: '{}'", m_CheapMessage);
     else if (!m_FormattedMessage.IsEmpty())

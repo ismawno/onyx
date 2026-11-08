@@ -220,26 +220,32 @@ const char *ToString(const ErrorCode code)
     switch (code)
     {
     case Error_LoadFailed:
-        return "LoadFailed";
+        return "Error_LoadFailed";
     case Error_FileNotFound:
-        return "FileNotFound";
+        return "Error_FileNotFound";
+    case Error_DirectoryNotFound:
+        return "Error_DirectoryNotFound";
+    case Error_IsNotFile:
+        return "Error_IsNotFile";
+    case Error_IsNotDirectory:
+        return "Error_IsNotDirectory";
     case Error_FontPackFailed:
-        return "FontPackFailed";
+        return "Error_FontPackFailed";
     case Error_AudioPlayFailed:
-        return "AudioPlayFailed";
+        return "Error_AudioPlayFailed";
     case Error_AudioDecodeFailed:
-        return "AudioDecodeFailed";
+        return "Error_AudioDecodeFailed";
     case Error_AudioFail:
-        return "AudioFail";
+        return "Error_AudioFail";
     case Error_SerializationFailed:
-        return "SerializationFailed";
+        return "Error_SerializationFailed";
     case Error_DeserializationFailed:
-        return "DeserializationFailed";
+        return "Error_DeserializationFailed";
     case Error_Unknown:
-        return "Unknown";
+        return "Error_Unknown";
     case Error_Count:
     default:
-        return "Unknown";
+        return "Error_Unknown";
     }
 }
 } // namespace Onyx

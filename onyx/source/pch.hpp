@@ -15,7 +15,6 @@
 #include <string_view>
 #include <fstream>
 #include <cstdlib>
-#include <filesystem>
 #include "tkit/preprocessor/system.hpp"
 #include "tkit/preprocessor/utils.hpp"
 #include "onyx/alias.hpp"

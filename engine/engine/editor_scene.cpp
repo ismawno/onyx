@@ -60,8 +60,8 @@ template <Dimension D> void EditorScene::DestroyRenderView(const RenderView rv, 
     EditorView<D> &rview = rvs[rv];
     EditorCamera<D> &cam = GetCameras<D>()[rview.EditorCameraIndex];
 
-    TKIT_ASSERT(cam.Handle == rview.Handle->GetCamera(),
-                "[ONYX][EDITOR] When destroying a render view, the passed camera must be attached to the view");
+    TKIT_ASSERT(cam.Handle == rview.Handle->GetCamera(), "[ONYX][EDITOR] When destroying a render view, the camera "
+                                                         "belonging to the camera index must be attached to the view");
     --cam.RefCount;
     viewport.Target->DestroyRenderView(rview.Handle);
     rvs.Remove(rv);
@@ -115,8 +115,6 @@ void EditorScene::Destroy()
 
     for (const Viewport vp : vps)
         DestroyViewport(vp);
-
-    Viewports.Clear();
 
     TKit::TierAllocator *tier = TKit::GetTier();
     for (const EditorCamera<D2> &cam : Cameras2)

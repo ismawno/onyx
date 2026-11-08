@@ -27,6 +27,4 @@ using RenderContext = u32;
 
 template <typename T = void> using Result = Onyx::Result<T>;
 using enum Onyx::ErrorCode;
-
-namespace fs = std::filesystem;
 } // namespace Engine

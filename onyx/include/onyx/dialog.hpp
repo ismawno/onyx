@@ -8,12 +8,10 @@
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"
-#include <filesystem>
+#include "tkit/filesystem/path.hpp"
 
 namespace Onyx
 {
-namespace fs = std::filesystem;
-
 #ifndef TKIT_OS_WINDOWS
 using DialogChar = char;
 #else
@@ -41,10 +39,10 @@ struct Options
 };
 
 template <typename T> using DialogResult = TKit::Result<T, DialogStatus>;
-ONYX_NO_DISCARD DialogResult<fs::path> SaveDialog(const Options &options = {});
-ONYX_NO_DISCARD DialogResult<fs::path> OpenFolderDialog(const Options &options = {});
-ONYX_NO_DISCARD DialogResult<fs::path> OpenSingleDialog(const Options &options = {});
-ONYX_NO_DISCARD DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<TKit::TierPath> SaveDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<TKit::TierPath> OpenFolderDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<TKit::TierPath> OpenSingleDialog(const Options &options = {});
+ONYX_NO_DISCARD DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &options = {});
 const char *GetDialogError();
 void ClearDialogError();
 

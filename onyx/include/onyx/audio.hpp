@@ -64,7 +64,7 @@ void Audio_SetVolume(f32 volume);
 
 Resource Audio_Create(const AudioData &data, AudioFlags flags = 0);
 // audio stream path
-Result<Resource> Audio_Create(const char *filepath, AudioFlags flags = 0);
+ONYX_NO_DISCARD Result<Resource> Audio_Create(const char *filepath, AudioFlags flags = 0);
 Resource Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&specs = {});
 
 void Audio_Destroy(Resource audio);
@@ -100,7 +100,7 @@ void Audio_SetProcessorCallback(Resource audio, AudioProcessorCallback &&cbk);
 u64 Audio_GetFrameCount(Resource audio);
 void Audio_SeekFrame(Resource audio, u64 frame);
 
-Result<AudioData> Audio_LoadData(const char *filepath);
+ONYX_NO_DISCARD Result<AudioData> Audio_LoadData(const char *filepath);
 void Audio_UnloadData(const AudioData &data);
 
 template <Dimension D> f32v<D> Audio_GetPosition(Resource audio);

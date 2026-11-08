@@ -7,7 +7,7 @@ Scene EditorProject::CreateScene(const EditorScene &other)
     const Scene sc = Scenes.Insert(other);
     EditorScene &scene = Scenes[sc];
     scene.Id = sc;
-    scene.Name = ONYX_DEFAULT_NAME("Scene", sc);
+    scene.Name = other.Name.IsEmpty() ? ONYX_DEFAULT_NAME("Scene", sc) : other.Name;
     scene.Registry.RegisterComponents(AllComponents{});
     return sc;
 }

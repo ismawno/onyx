@@ -8,7 +8,6 @@
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 #    include "tkit/serialization/yaml/tensor.hpp"
 #    include "tkit/serialization/yaml/container.hpp"
-#    include <filesystem>
 #endif
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
@@ -773,7 +772,10 @@ Overlay::~Overlay()
 {
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
     if (Flags & OverlayFlag_AutoSerialize)
-        Serialize();
+    {
+        [[maybe_unused]] const auto res = Serialize();
+        TKIT_LOG_ERROR_IF(!res, "{}", res.GetError().ToString());
+    }
 #endif
     for (OverlayWindow *win : m_OverlayWindows)
         destroyOverlayWindow(win, false);
@@ -814,10 +816,11 @@ static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlN
                      createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
                      n["Flags"].Read<u32>());
 }
-bool Overlay::Serialize()
+Result<> Overlay::Serialize()
 {
-    if (m_SerializationPath.empty())
-        return false;
+    if (m_SerializationPath.IsEmpty())
+        return Result<>::Error(Error_SerializationFailed, "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
+                                                          "path is empty. Set is with SetSerializationPath()");
 
     using YamlNode = TKit::YamlNode;
     using YamlTree = TKit::YamlTree;
@@ -889,19 +892,25 @@ bool Overlay::Serialize()
         }
     }
 
-    tree.ToFile(m_SerializationPath);
-    return true;
+    ONYX_CHECK_FILESYSTEM_ERROR(
+        tree.ToFile(m_SerializationPath),
+        "[ONYX][OVERLAY] Failed to serialize: Could not export serialized overlay to '{}' with error: {}",
+        m_SerializationPath, TKit::ToString(res.GetError()));
+
+    return Result<>::Ok();
 }
 Result<> Overlay::Deserialize()
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(m_SerializationPath, , "[ONYX][OVERLAY] Failed to deserialize from {}");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(m_SerializationPath, "[ONYX][OVERLAY] Layout file '{}' does not exist",
+                                       "[ONYX][OVERLAY] Expected a layout file at '{}', but found a directory");
 
     using ConstYamlNode = TKit::ConstYamlNode;
     using YamlTree = TKit::YamlTree;
 
     const auto res = YamlTree::FromFile(m_SerializationPath);
-    if (!res)
-        return Result<>::Error(Error_SerializationFailed, res.GetError());
+    ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+                       "[ONYX][EDITOR] Failed to deserialize: Could not load file at '{}' with error: {}",
+                       m_SerializationPath, TKit::ToString(res.GetError()));
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();

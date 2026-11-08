@@ -227,7 +227,7 @@ struct FontLoadOptions
     f32 EmSize = 40.f;
     u32 AtlasDimensions = 0; // zero means dimensions will be automatic
 };
-ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromFile(const char *path, const FontLoadOptions &opts = {});
+ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptions &opts = {});
 ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromMemory(const std::byte *memory, u32 size,
                                                          const FontLoadOptions &opts = {});
 #    ifdef ONYX_INCLUDE_DEFAULT_FONT

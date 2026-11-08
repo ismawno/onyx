@@ -50,7 +50,7 @@ static Onyx::Window *createMainWindow()
     return Onyx::OpenWindow({.Window = {.Title = title}});
 }
 
-static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const fs::path &deserializePath)
+static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const TKit::TierPath &deserializePath)
 {
     Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_AutoSerialize});
     if (!ov->Deserialize(deserializePath))
@@ -93,15 +93,12 @@ struct ProjectLauncherDrawInfo
         if (res)
             RecentProjects = *res;
     }
-    const char *DialogError = nullptr;
-    TKit::TierString SerializeError{};
-    TKit::TierString DeserializeError{};
+    TKit::TierString LastError{};
+    TKit::TierPath NewProjectDir = GetHomePath();
+    TKit::TierPath ConfigPath = GetConfigPath() / "config.yaml";
+    TKit::TierArray<TKit::TierPath> RecentProjects;
 
-    fs::path NewProjectDir = GetHomePath();
-    fs::path ConfigPath = GetConfigPath() / "config.yaml";
-    TKit::TierArray<fs::path> RecentProjects;
-
-    fs::path ProjectToRemove{};
+    TKit::TierPath ProjectToRemove{};
     u32 RecentIndex = TKIT_U32_MAX;
     u32 StartDimension = D2;
     char NewProjectName[64] = "onyx-project";
@@ -112,35 +109,45 @@ struct ProjectLauncherDrawInfo
 
 static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info, ProjectLauncherResult &res)
 {
+#define CHECK_FILESYSTEM_RESULT(expr, msg, ...)                                                                        \
+    [&] {                                                                                                              \
+        if (const auto result = expr; !result)                                                                         \
+        {                                                                                                              \
+            info.LastError = TKit::TierString::Format(msg, __VA_ARGS__);                                               \
+            return false;                                                                                              \
+        }                                                                                                              \
+        return true;                                                                                                   \
+    }()
+
     bool goOn = true;
-    const auto openDialog = [&](fs::path &dir) {
-        info.DialogError = nullptr;
+    const auto openDialog = [&](TKit::TierPath &dir) {
         Onyx::ClearDialogError();
 
         const auto res = Onyx::OpenFolderDialog();
         if (res)
-            dir = *res;
-        else
         {
-            const Onyx::DialogStatus status = res.GetError();
-            TKIT_ASSERT(status != Onyx::Dialog_Success, "[ONYX][EDITOR] Cannot have a success status on an error path");
-            info.DialogError = status == Onyx::Dialog_Cancel ? "Operation canceled" : Onyx::GetDialogError();
+            dir = *res;
+            return true;
         }
+
+        const Onyx::DialogStatus status = res.GetError();
+        TKIT_ASSERT(status != Onyx::Dialog_Success, "[ONYX][EDITOR] Cannot have a success status on an error path");
+        info.LastError = status == Onyx::Dialog_Cancel ? "Operation canceled" : Onyx::GetDialogError();
+        return false;
     };
-    const auto displayError = [&](const char *err) {
-        if (err)
+    const auto displayLastError = [&] {
+        if (!info.LastError.IsEmpty())
         {
             ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
-            ov->TextRaw(err);
+            ov->TextRaw(info.LastError);
             ov->PopStyleColor();
         }
     };
-
-    const auto displaySerializeError = [&] {
-        displayError(info.SerializeError.IsEmpty() ? nullptr : info.SerializeError.CString());
-    };
-    const auto displayDeserializeError = [&] {
-        displayError(info.DeserializeError.IsEmpty() ? nullptr : info.DeserializeError.CString());
+    const auto checkResult = [&](auto &&result) {
+        if (result)
+            return true;
+        info.LastError = result.GetError().ToString();
+        return false;
     };
 
 #ifdef TKIT_ENABLE_ENSURE
@@ -151,8 +158,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
     ov->PopPanel();
 #endif
 
-    displaySerializeError();
-    displayDeserializeError();
+    displayLastError();
     if (info.Creating)
     {
         ov->InputText("Project name", info.NewProjectName, 64);
@@ -160,11 +166,9 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
         if (ov->Button("Browse"))
             openDialog(info.NewProjectDir);
 
-        const fs::path ppath = info.NewProjectDir / info.NewProjectName;
-        ov->Text("Project path: {}", ppath.string());
+        const TKit::TierPath ppath = info.NewProjectDir / info.NewProjectName;
+        ov->Text("Project path: {}", ppath);
         ov->PopPanel();
-
-        displayError(info.DialogError);
 
         ov->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::LayoutSizing::Fit());
         ov->CheckBox("Default scene", &info.DefaultScene);
@@ -178,10 +182,8 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
         ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
         info.Creating = !ov->Button("Go back", Onyx::OverlayButtonFlag_SpanFullWidth);
 
-        const bool exists = fs::exists(ppath);
+        const bool exists = TKit::PathExists(ppath);
         const auto create = [&] {
-            // this should not fail, and be the end of this loop. thats why we dont bother cleaning up Project:
-            // should be already cleaned
             res.Project.Name = info.NewProjectName;
             res.Project.Path = ppath;
             if (info.DefaultScene)
@@ -191,10 +193,29 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
                 else
                     res.Project.ActiveScene = res.Project.CreateDefaultScene<D3>();
             }
-            res.Project.Serialize(ppath);
-            res.Canceled = false;
-            UpdateRecentProjects(ppath);
 
+            const auto destroyProject = [&](const auto result) {
+                res.Project.Destroy();
+                res.Project = {};
+                info.LastError = result.GetError().ToString();
+            };
+
+            const auto serRes = res.Project.Serialize(ppath);
+            if (!serRes)
+            {
+                destroyProject(serRes);
+                return;
+            }
+
+            // Maybe we should not be so strict and let this fail
+            const auto updateRes = UpdateRecentProjects(ppath);
+            if (!updateRes)
+            {
+                destroyProject(updateRes);
+                return;
+            }
+
+            res.Canceled = false;
             goOn = false;
         };
 
@@ -205,7 +226,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
             ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Honey);
             ov->TextRaw("Warning - The specified path already exists");
             ov->PopStyleColor();
-            ov->Text("Target: {}", ppath.string());
+            ov->Text("Target: {}", ppath);
 
             ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
             if (ov->Button("Cancel", Onyx::OverlayButtonFlag_SpanFullWidth))
@@ -213,11 +234,12 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
 
             ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
 
-            if (ov->Button("Overwrite", Onyx::OverlayButtonFlag_SpanFullWidth))
-            {
+            if (ov->Button("Overwrite", Onyx::OverlayButtonFlag_SpanFullWidth) &&
+                CHECK_FILESYSTEM_RESULT(TKit::RemoveAll(ppath),
+                                        "[ONYX][EDITOR] Failed to create project: Could not overwrite existing project "
+                                        "directory at '{}' with error: {}",
+                                        ppath, TKit::ToString(result.GetError())))
                 create();
-                fs::remove_all(ppath);
-            }
 
             ov->PopStyleColor();
             ov->PopPanel();
@@ -240,35 +262,33 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
         info.Creating = ov->Button("Create project", Onyx::OverlayButtonFlag_SpanFullWidth);
 
         const bool recentSelected =
-            info.RecentIndex != TKIT_U32_MAX && fs::exists(info.RecentProjects[info.RecentIndex]);
+            info.RecentIndex != TKIT_U32_MAX && TKit::PathExists(info.RecentProjects[info.RecentIndex]);
         if (ov->Button({ov, recentSelected ? "Open project" : "Browse projects"},
                        Onyx::OverlayButtonFlag_SpanFullWidth) ||
             info.RequestOpenRecent)
         {
-            fs::path ppath;
+            TKit::TierPath ppath;
+            bool success = true;
             if (recentSelected)
                 ppath = info.RecentProjects[info.RecentIndex];
             else
             {
-                openDialog(ppath);
+                success = openDialog(ppath);
                 TKIT_ASSERT(!info.RequestOpenRecent,
                             "[ONYX][EDITOR] Can only request open a recent project if a recent project is selected");
             }
 
             info.RequestOpenRecent = false;
 
-            if (!info.DialogError)
+            if (success)
             {
                 const auto desRes = EditorProject::Deserialize(ppath);
-                if (desRes)
+                if (checkResult(desRes) && checkResult(UpdateRecentProjects(ppath)))
                 {
                     res.Project = *desRes;
                     res.Canceled = false;
-                    UpdateRecentProjects(ppath);
                     goOn = false;
                 }
-                else
-                    info.DeserializeError = desRes.GetError().ToString();
             }
         }
         ov->PopPanel();
@@ -284,7 +304,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
                 ov->TextRaw("Warning - The project folder and all underlying content will be removed. This action is "
                             "irreversible");
                 ov->PopStyleColor();
-                ov->Text("Target: {}", info.ProjectToRemove.string());
+                ov->Text("Target: {}", info.ProjectToRemove);
 
                 ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
                 if (ov->Button("Cancel", Onyx::OverlayButtonFlag_SpanFullWidth))
@@ -293,7 +313,9 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
                 ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
                 if (ov->Button("Proceed", Onyx::OverlayButtonFlag_SpanFullWidth))
                 {
-                    fs::remove_all(info.ProjectToRemove);
+                    CHECK_FILESYSTEM_RESULT(TKit::RemoveAll(info.ProjectToRemove),
+                                            "[ONYX][EDITOR] Failed to remove project at '{}' with error: {}",
+                                            info.ProjectToRemove, TKit::ToString(result.GetError()));
                     ov->CloseCurrentPopup();
                 }
                 ov->PopStyleColor();
@@ -308,10 +330,10 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
             for (u32 i = 0; i < info.RecentProjects.GetSize(); ++i)
             {
                 const bool selected = i == info.RecentIndex;
-                const fs::path &p = info.RecentProjects[i];
+                const TKit::TierPath &p = info.RecentProjects[i];
                 ov->PushId(&p);
 
-                const bool missing = !fs::exists(p);
+                const bool missing = !TKit::PathExists(p);
 
                 ov->PushPanel(Onyx::LayoutDirection_LeftToRight);
                 ov->BeginDisabled(missing);
@@ -337,7 +359,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
                 if (missing)
                     ov->PushStyleColor(Onyx::OverlayColor_Text, Onyx::Color_Salmon);
 
-                ov->TextRaw(p.filename().string());
+                ov->TextRaw(p.GetFilename());
                 if (missing)
                 {
                     ov->SetItemTooltipRaw("This project has been deleted!", Onyx::OverlayFocusFlag_NormalDelay);
@@ -345,7 +367,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
                 }
 
                 ov->BeginDisabled();
-                ov->TextRaw(p.string());
+                ov->TextRaw(p);
                 ov->EndDisabled();
 
                 ov->PopPanel();
@@ -357,11 +379,10 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
             }
             ov->EndScroll();
         }
-
-        displayError(info.DialogError);
     }
 
     return goOn;
+#undef CHECK_FILESYSTEM_RESULT
 }
 
 static ProjectLauncherResult runProjectLauncher()
@@ -397,6 +418,15 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Fix editor error handling
+// TODO(Isma): Change ONYX_ with EDITOR_ in editor macros
+// TODO(Isma): Remove [EDITOR] blabla from error msgs
+// TODO(Isma): Fix Overlay deserialize
+// TODO(Isma): Try to shorten error handling? do so in vulkit/toolkit/graphite as well?
+// TODO(Isma): Try not to hardcode "python" in codegen
+// TODO(Isma): In the errors at yaml/container etc, use yaml describe, path etc
+// TODO(Isma): Instead of having dialog error, ser error in launcher, just have an error string and thats it
+// TODO(Isma): Improve EditorProject::Deserialize
 // TODO(Isma): Editor as a full class. Remove Data suffix from Editor, ConsoleData etc
 // TODO(Isma): For sliders and drags, input numeric does not work
 // TODO(Isma): Resolution change does nothing
@@ -486,15 +516,19 @@ static void drawEditorWindow()
                     ov->OpenPopup("Launcher");
                     launcherInfo = {};
                 }
+
                 if (ov->MenuItem("Save project"))
-                    s_Editor->Project.Serialize();
+                {
+                    ONYX_LOG_EXPRESSION_ERROR(s_Editor->Project.Serialize());
+                }
+
                 if (ov->MenuItem("Save as..."))
                 {
                     const auto res = Onyx::OpenFolderDialog();
                     if (res)
                     {
-                        const fs::path &ppath = *res;
-                        s_Editor->Project.Serialize(ppath);
+                        const TKit::TierPath &ppath = *res;
+                        ONYX_LOG_EXPRESSION_ERROR(s_Editor->Project.Serialize(ppath));
                     }
                 }
                 ov->EndMenu();
@@ -1568,9 +1602,9 @@ void Scene_FlushContexts(const Scene sc)
 {
     s_Editor->Project.Scenes[sc].FlushContexts();
 }
-void Scene_Serialize(const Scene sc, const fs::path &path)
+Result<> Scene_Serialize(const Scene sc, const TKit::TierPath &path)
 {
-    s_Editor->Project.Scenes[sc].Serialize(path);
+    return s_Editor->Project.Scenes[sc].Serialize(path);
 }
 
 TKit::Registry &Scene_GetRegistry(const Scene sc)

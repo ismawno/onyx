@@ -1,38 +1,66 @@
 #include "editor_scene.hpp"
 #include "editor_project.hpp"
+#include "utils.hpp"
 #include "onyx/onyx.hpp"
 #include "tkit/preprocessor/utils.hpp"
 #include "tkit/serialization/yaml/codec.hpp"
 #include "tkit/serialization/yaml/container.hpp"
 #include "tkit/serialization/yaml/tensor.hpp"
 #include "tkit/serialization/yaml/quaternion.hpp"
-#include "tkit/serialization/yaml/include/onyx/camera.hpp"
 #include "tkit/serialization/yaml/include/onyx/transform.hpp"
 #include "tkit/serialization/yaml/include/onyx/camera.hpp"
 #include "tkit/serialization/yaml/include/onyx/view.hpp"
 #include "tkit/serialization/yaml/engine/components.hpp"
 #include "tkit/serialization/yaml/engine/engine.hpp"
 
-#define ONYX_CHECK_HAS_CHILD(node, child, errtype)                                                                     \
-    if (!node.HasChild(child))                                                                                         \
-        return Result<errtype>::Error(Error_DeserializationFailed,                                                     \
-                                      TKit::TierString::Format("[ONYX][EDITOR] The node '{}' was not "                 \
-                                                               "found",                                                \
-                                                               child));
+#define ONYX_CHECK_HAS_CHILD(node, child)                                                                              \
+    ONYX_EMIT_ERROR_IF(!node.HasChild(child), Onyx::Error_DeserializationFailed,                                       \
+                       "[ONYX][EDITOR] Failed to load scene: '{}' is missing required key '{}'",                       \
+                       TKit::YamlGeneratePath(node), child)
 
 // #define ONYX_TRY_READ(varname, node, child, errtype) node[child].Read(varname)
-#define ONYX_TRY_READ(varname, node, child, errtype)                                                                   \
-    ONYX_CHECK_HAS_CHILD(node, child, errtype)                                                                         \
-    const auto TKIT_CONCAT(res, __LINE__) = node[child].TryRead(varname);                                              \
-    if (!TKIT_CONCAT(res, __LINE__))                                                                                   \
-        return Result<errtype>::Error(Error_DeserializationFailed, TKIT_CONCAT(res, __LINE__).GetError().Message);
+#define ONYX_TRY_READ(varname, node, child) TKIT_RETURN_IF_FAILED(readYamlChild(node, child, varname, #varname))
 
-#define ONYX_TRY_READ_DECLARE(type, varname, node, child, errtype)                                                     \
+#define ONYX_TRY_READ_DECLARE(type, varname, node, child)                                                              \
     type varname;                                                                                                      \
-    ONYX_TRY_READ(varname, node, child, errtype)
+    ONYX_TRY_READ(varname, node, child)
+
+#define ONYX_TRY_READ_INDICES_IDS(indName, idName, node)                                                               \
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indName, node, "Indices");                                            \
+    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, idName, node, "Ids");                                                 \
+    TKIT_RETURN_IF_FAILED(checkHiveLayout(indName, idName, node));
 
 namespace Engine
 {
+template <typename T>
+ONYX_NO_DISCARD static Result<> readYamlChild(const TKit::ConstYamlNode node, const char *key, T &out, const char *what)
+{
+    ONYX_CHECK_HAS_CHILD(node, key);
+    const TKit::ConstYamlNode child = node[key];
+    const auto res = child.TryRead(out);
+    ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+                       "[ONYX][EDITOR] Failed to load scene: Could not read '{}' (into {}): got {} - {}",
+                       TKit::YamlGeneratePath(child), what, TKit::YamlDescribeNode(child), res.GetError().Message);
+    return Result<>::Ok();
+}
+template <typename Id>
+ONYX_NO_DISCARD static Result<> checkHiveLayout(const TKit::StackArray<u32> &indices, const TKit::StackArray<Id> &ids,
+                                                const ConstYamlNode node)
+{
+    if (indices.GetSize() != ids.GetSize())
+        return Result<>::Error(Error_DeserializationFailed,
+                               TKit::TierString::Format("'{}': 'Indices' has {} entries but 'Ids' has {}",
+                                                        TKit::YamlGeneratePath(node), indices.GetSize(),
+                                                        ids.GetSize()));
+    for (u32 id = 0; id < indices.GetSize(); ++id)
+        if (indices[id] >= ids.GetSize() || u32(ids[indices[id]]) != id)
+            return Result<>::Error(
+                Error_DeserializationFailed,
+                TKit::TierString::Format("'{}': 'Indices' and 'Ids' are inconsistent at id {} (file corrupted or "
+                                         "hand-edited?)",
+                                         TKit::YamlGeneratePath(node), id));
+    return Result<>::Ok();
+}
 template <Dimension D> static void serializeCameras(const EditorScene &scene, const char *name, YamlNode root)
 {
     YamlNode cameras = root[name];
@@ -103,7 +131,7 @@ static void serializeRenderContextComponent(const EditorScene &scene, const TKit
         root[name] << scene.FindContextInsertionIndex(comp->Context);
 }
 
-void EditorScene::Serialize(const fs::path &path) const
+Result<> EditorScene::Serialize(const TKit::TierPath &path) const
 {
     const TKit::Registry &r = Registry;
 
@@ -148,14 +176,18 @@ void EditorScene::Serialize(const fs::path &path) const
         serializeComponent<StaticMeshComponent<D3>>(r, e, "StaticMeshComponent3D", node);
 
         serializeRenderContextComponent<D2>(*this, r, e, "RenderContextComponent2D", node);
-        serializeRenderContextComponent<D3>(*this, r, e, "RenderContextComponent2D", node);
+        serializeRenderContextComponent<D3>(*this, r, e, "RenderContextComponent3D", node);
     }
 
-    tree.ToFile(path);
+    ONYX_CHECK_FILESYSTEM_ERROR(
+        tree.ToFile(path),
+        "[ONYX][EDITOR] Failed to save scene: Could not export the serialized scene to '{}' with error: {}", path,
+        TKit::ToString(res.GetError()));
+    return Result<>::Ok();
 }
 
 template <Dimension D>
-static Result<> deserializeCameras(EditorScene &scene, const char *name, const ConstYamlNode root)
+ONYX_NO_DISCARD static Result<> deserializeCameras(EditorScene &scene, const char *name, const ConstYamlNode root)
 {
     if (!root.HasChild(name))
         return Result<>::Ok();
@@ -166,18 +198,17 @@ static Result<> deserializeCameras(EditorScene &scene, const char *name, const C
 
     TKit::StackArray<Onyx::Camera<D>> data{};
     data.Reserve(cameras.GetChildCount());
+
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (const ConstYamlNode node : cameras)
     {
         EditorCamera<D> &cam = cams.Append();
-        ONYX_TRY_READ(cam.Name, node, "Name", );
-        ONYX_TRY_READ(cam.ParentScene, node, "Scene", );
-        ONYX_TRY_READ(cam.RefCount, node, "RefCount", );
-        ONYX_TRY_READ(data.Append(), node, "Camera", );
+        cam.Handle = tier->Create<Onyx::Camera<D>>();
+        ONYX_TRY_READ(cam.Name, node, "Name");
+        ONYX_TRY_READ(cam.ParentScene, node, "Scene");
+        ONYX_TRY_READ(cam.RefCount, node, "RefCount");
+        ONYX_TRY_READ(*cam.Handle, node, "Camera");
     }
-
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (u32 i = 0; i < cams.GetSize(); ++i)
-        cams[i].Handle = tier->Create<Onyx::Camera<D>>(data[i]);
 
     return Result<>::Ok();
 }
@@ -188,133 +219,124 @@ template <Dimension D> Result<> deserializeContexts(EditorScene &scene, const ch
         return Result<>::Ok();
 
     const ConstYamlNode contexts = root[name];
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, contexts, "Indices", );
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, contexts, "Ids", );
+    ONYX_TRY_READ_INDICES_IDS(indices, ids, contexts);
 
     TKit::TierHive<EditorContext<D>> ctxs{indices, ids};
     if (contexts.HasChild("Contexts"))
-    {
-        struct TargetInfo
-        {
-            RenderContext Context;
-            Onyx::ViewMask Mask;
-        };
-        TKit::StackArray<TargetInfo> tinfos{};
-        tinfos.Reserve(contexts["Contexts"].GetChildCount());
         for (const ConstYamlNode node : contexts["Contexts"])
         {
-            const RenderContext rc = ctxs.Insert();
-            EditorContext<D> &ctx = ctxs[rc];
-            ONYX_TRY_READ(ctx.Name, node, "Name", );
-            ONYX_TRY_READ(ctx.ParentScene, node, "Scene", );
-            ONYX_TRY_READ(ctx.DrawAxes, node, "Draw axes", );
+            EditorContext<D> &ctx = ctxs[ctxs.Insert()];
+            ctx.Handle = Onyx::CreateRenderContext<D>();
+            ONYX_TRY_READ(ctx.Name, node, "Name");
+            ONYX_TRY_READ(ctx.ParentScene, node, "Scene");
+            ONYX_TRY_READ(ctx.DrawAxes, node, "Draw axes");
 
             if (node.HasChild("Targets"))
-            {
-                TargetInfo &tinfo = tinfos.Append(rc, 0);
                 for (const ConstYamlNode target : node["Targets"])
                 {
-                    ONYX_TRY_READ_DECLARE(Viewport, vp, target, "Viewport", );
-                    ONYX_TRY_READ_DECLARE(RenderView, rv, target, "View", );
-                    tinfo.Mask |= scene.Viewports[vp].GetViews<D>()[rv].Handle->GetViewBit();
-                }
-            }
-        }
-        for (EditorContext<D> &ctx : ctxs)
-            ctx.Handle = Onyx::CreateRenderContext<D>();
+                    ONYX_TRY_READ_DECLARE(Viewport, vp, target, "Viewport");
+                    ONYX_TRY_READ_DECLARE(RenderView, rv, target, "View");
+                    const EditorViewport *viewport = scene.Viewports.Get(vp);
+                    if (!viewport)
+                        return Result<>::Error(
+                            Error_DeserializationFailed,
+                            TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: '{}' targets viewport id "
+                                                     "{}, which does not exist in this scene",
+                                                     TKit::YamlGeneratePath(target), vp));
 
-        for (const TargetInfo &tinfo : tinfos)
-            ctxs[tinfo.Context].Handle->AddTarget(tinfo.Mask);
-    }
+                    const EditorView<D> *view = viewport->GetViews<D>().Get(rv);
+                    if (!view)
+                        return Result<>::Error(
+                            Error_DeserializationFailed,
+                            TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: '{}' targets {}D view id {} "
+                                                     "in viewport '{}', but that viewport has no such view",
+                                                     TKit::YamlGeneratePath(target), u32(D), rv, viewport->Name));
+                    ctx.Handle->AddTarget(view->Handle);
+                }
+        }
+
     scene.GetContexts<D>() = ctxs;
     return Result<>::Ok();
 }
 
 template <Dimension D>
-static Result<> deserializeViews(const EditorScene &scene, EditorViewport &viewport, const char *name,
-                                 const ConstYamlNode root)
+ONYX_NO_DISCARD static Result<> deserializeViews(const EditorScene &scene, EditorViewport &viewport, const char *name,
+                                                 const ConstYamlNode root)
 {
     if (!root.HasChild(name) || !root[name].HasChild("Indices"))
         return Result<>::Ok();
 
     const ConstYamlNode views = root[name];
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, views, "Indices", );
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, views, "Ids", );
+    ONYX_TRY_READ_INDICES_IDS(indices, ids, views);
 
     TKit::TierHive<EditorView<D>> rviews{indices, ids};
     if (views.HasChild("Views"))
-    {
-        struct ViewInfo
-        {
-            RenderView View;
-            Onyx::Viewport Viewport;
-            Onyx::Scissor Scissor;
-            Onyx::Color Color;
-            Onyx::RenderViewFlags Flags;
-        };
-
-        TKit::StackArray<ViewInfo> vinfos{};
-        vinfos.Reserve(views["Views"].GetChildCount());
         for (const ConstYamlNode node : views["Views"])
         {
+            ONYX_TRY_READ_DECLARE(u32, camIdx, node, "Editor camera");
+            ONYX_TRY_READ_DECLARE(Onyx::RenderViewFlags, flags, node, "Flags");
+            ONYX_TRY_READ_DECLARE(Onyx::Viewport, vp, node, "Viewport data");
+            ONYX_TRY_READ_DECLARE(Onyx::Scissor, sc, node, "Scissor data");
+            ONYX_TRY_READ_DECLARE(TKit::TierString, name, node, "Name");
+            if (camIdx >= scene.GetCameras<D>().GetSize())
+                return Result<>::Error(
+                    Error_DeserializationFailed,
+                    TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: View '{}' at '{}' uses {}D camera "
+                                             "index {}, but the scene only has {} {}D cameras",
+                                             name, TKit::YamlGeneratePath(node), u32(D), camIdx,
+                                             scene.GetCameras<D>().GetSize(), u32(D)));
+
             const RenderView rv = rviews.Insert();
             EditorView<D> &rview = rviews[rv];
-            ViewInfo &vinfo = vinfos.Append();
 
-            ONYX_TRY_READ(rview.Name, node, "Name", );
-            ONYX_TRY_READ(rview.ParentViewport, node, "Viewport", );
-            ONYX_TRY_READ(rview.EditorCameraIndex, node, "Editor camera", );
-            ONYX_TRY_READ(vinfo.Viewport, node, "Viewport data", );
-            ONYX_TRY_READ(vinfo.Scissor, node, "Scissor data", );
-            ONYX_TRY_READ(vinfo.Color, node, "Clear color", );
-            ONYX_TRY_READ(vinfo.Flags, node, "Flags", );
-            vinfo.View = rv;
-        }
+            rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[camIdx].Handle, {.Flags = flags});
+            rview.Handle->SetFixedViewport(vp);
+            rview.Handle->SetFixedScissor(sc);
+            rview.Name = name;
+            rview.EditorCameraIndex = camIdx;
 
-        for (const ViewInfo &vinfo : vinfos)
-        {
-            EditorView<D> &view = rviews[vinfo.View];
-            view.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[view.EditorCameraIndex].Handle,
-                                                               {.Flags = vinfo.Flags});
-            view.Handle->SetFixedViewport(vinfo.Viewport);
-            view.Handle->SetFixedScissor(vinfo.Scissor);
-            view.Handle->ClearColor = vinfo.Color;
+            ONYX_TRY_READ(rview.Handle->ClearColor, node, "Clear color");
+            ONYX_TRY_READ(rview.ParentViewport, node, "Viewport");
         }
-    }
 
     viewport.GetViews<D>() = rviews;
     return Result<>::Ok();
 }
 
 template <typename C>
-static Result<> deserializeComponent(const char *name, const ConstYamlNode node, const Entity e, TKit::Registry &r)
+ONYX_NO_DISCARD static Result<> deserializeComponent(const char *name, const ConstYamlNode node, const Entity e,
+                                                     TKit::Registry &r)
 {
     if (node.HasChild(name))
     {
-        ONYX_TRY_READ_DECLARE(C, comp, node, name, );
+        ONYX_TRY_READ_DECLARE(C, comp, node, name);
         r.AddComponent<C>(e, comp);
     }
     return Result<>::Ok();
 }
 template <Dimension D>
-static Result<> deserializeRenderContextComponent(const char *name, const ConstYamlNode node, const EditorScene &scene,
-                                                  const Entity e, TKit::Registry &r)
+ONYX_NO_DISCARD static Result<> deserializeRenderContextComponent(const char *name, const ConstYamlNode node,
+                                                                  const EditorScene &scene, const Entity e,
+                                                                  TKit::Registry &r)
 {
     if (node.HasChild(name))
     {
-        ONYX_TRY_READ_DECLARE(u32, idx, node, name, );
+        ONYX_TRY_READ_DECLARE(u32, idx, node, name);
         r.AddComponent<RenderContextComponent<D>>(e, idx != TKIT_U32_MAX ? scene.GetContexts<D>().AtByIndex(idx).Handle
                                                                          : nullptr);
     }
     return Result<>::Ok();
 }
 
-Result<EditorScene> EditorScene::Deserialize(const fs::path &path)
+Result<EditorScene> EditorScene::Deserialize(const TKit::TierPath &path)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, EditorScene, "[ONYX][EDITOR] File {} not found");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, "[ONYX][EDITOR] Scene file '{}' does not exist",
+                                       "[ONYX][EDITOR] Expected a scene file at '{}', but found a directory");
+
     const auto res = YamlTree::FromFile(path);
-    if (!res)
-        return Result<>::Error(Error_DeserializationFailed, res.GetError());
+    ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+                       "[ONYX][EDITOR] Failed to load scene: Could not deserialize scene at '{}' with error: {}", path,
+                       TKit::ToString(res.GetError()));
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
@@ -325,24 +347,24 @@ Result<EditorScene> EditorScene::Deserialize(const fs::path &path)
     TKIT_RETURN_IF_FAILED(deserializeCameras<D2>(scene, "2D Cameras", root));
     TKIT_RETURN_IF_FAILED(deserializeCameras<D3>(scene, "3D Cameras", root));
 
+    ONYX_CHECK_HAS_CHILD(root, "Viewports");
     const ConstYamlNode viewports = root["Viewports"];
 
-    const TKit::StackArray<u32> indices = viewports["Indices"].Read<TKit::StackArray<u32>>();
-    const TKit::StackArray<Viewport> ids = viewports["Ids"].Read<TKit::StackArray<Viewport>>();
+    ONYX_TRY_READ_INDICES_IDS(indices, ids, viewports);
 
     TKit::TierHive<EditorViewport> vps{indices, ids};
     if (viewports.HasChild("Viewports"))
         for (const ConstYamlNode node : viewports["Viewports"])
         {
             EditorViewport &vp = vps[vps.Insert()];
-            vp.Name = node["Name"].Read<TKit::TierString>();
-            vp.Resolution = node["Resolution"].Read<u32v2>();
-            vp.Aspect = node["Aspect"].Read<f32>();
-            vp.Visible = node["Visible"].Read<bool>();
+            ONYX_TRY_READ(vp.Name, node, "Name");
+            ONYX_TRY_READ(vp.Resolution, node, "Resolution");
+            ONYX_TRY_READ(vp.Aspect, node, "Aspect");
+            ONYX_TRY_READ(vp.Visible, node, "Visible");
             vp.Target = Onyx::CreateRenderTexture(vp.Resolution);
 
-            deserializeViews<D2>(scene, vp, "2D Views", node);
-            deserializeViews<D3>(scene, vp, "3D Views", node);
+            TKIT_RETURN_IF_FAILED(deserializeViews<D2>(scene, vp, "2D Views", node));
+            TKIT_RETURN_IF_FAILED(deserializeViews<D3>(scene, vp, "3D Views", node));
         }
 
     scene.Viewports = vps;
@@ -352,9 +374,11 @@ Result<EditorScene> EditorScene::Deserialize(const fs::path &path)
 
     if (root.HasChild("Entities") && root["Entities"].HasChild("Indices"))
     {
+        ONYX_CHECK_HAS_CHILD(root, "Entities");
         const ConstYamlNode entities = root["Entities"];
-        const TKit::StackArray<u32> entIdxs = entities["Indices"].Read<TKit::StackArray<u32>>();
-        const TKit::StackArray<RenderContext> entIds = entities["Ids"].Read<TKit::StackArray<RenderContext>>();
+
+        ONYX_TRY_READ_INDICES_IDS(entIdxs, entIds, entities);
+
         r.EstablishEntityIndicesAndIds(entIdxs, entIds);
         for (const ConstYamlNode entity : entities["Entities"])
         {
@@ -379,18 +403,27 @@ Result<EditorScene> EditorScene::Deserialize(const fs::path &path)
     return scene;
 }
 
-void EditorProject::Serialize(const fs::path &ppath)
+Result<> EditorProject::Serialize(const TKit::TierPath &ppath)
 {
-    TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath.string());
+    TKIT_LOG_INFO("[ONYX][EDITOR] Serializing project at '{}'", ppath);
 
-    const fs::path scenePath = GetScenesPath();
+    const TKit::TierPath scenePath = GetScenesPath();
+    const TKit::TierPath dataPath = GetDataPath();
+    const TKit::TierPath settingsPath = GetSettingsPath();
 
-    fs::create_directories(ppath);
-    fs::create_directories(scenePath);
-    fs::create_directories(GetDataPath());
+    ONYX_CHECK_FILESYSTEM_ERROR(
+        TKit::CreateDirectories(scenePath),
+        "[ONYX][EDITOR] Failed to save scene: Could not to create directories at '{}' with error: {}", scenePath,
+        TKit::ToString(res.GetError()));
+    ONYX_CHECK_FILESYSTEM_ERROR(
+        TKit::CreateDirectories(dataPath),
+        "[ONYX][EDITOR] Failed to save scene: Could not to create directories at '{}' with error: {}", dataPath,
+        TKit::ToString(res.GetError()));
 
-    for (const Scene sc : Scenes.GetValidIds())
-        Scene_Serialize(sc, scenePath / TKit::StackString::Format("{}.yaml", Scenes[sc].Name).CString());
+    for (const EditorScene &scene : Scenes)
+    {
+        TKIT_RETURN_IF_FAILED(scene.Serialize(scenePath / TKit::StackString::Format("{}.yaml", scene.Name)));
+    }
 
     YamlTree tree{};
     YamlNode root = tree.GetRoot();
@@ -402,47 +435,88 @@ void EditorProject::Serialize(const fs::path &ppath)
 
     root["Settings"] << Settings;
 
-    tree.ToFile(GetSettingsPath());
+    ONYX_CHECK_FILESYSTEM_ERROR(
+        tree.ToFile(settingsPath),
+        "[ONYX][EDITOR] Failed to save scene: Could not export the serialized settings to '{}' with error: {}",
+        settingsPath, TKit::ToString(res.GetError()));
+
+    return Result<>::Ok();
 }
 
-Result<EditorProject> EditorProject::Deserialize(const fs::path &ppath)
+Result<EditorProject> EditorProject::Deserialize(const TKit::TierPath &ppath)
 {
-    ONYX_GENERATE_ERROR_DIRECTORY_NOT_FOUND(ppath, , "[ONYX][EDITOR] The directory {} was not found");
+    ONYX_GENERATE_ERROR_DIRECTORY_NOT_FOUND(
+        ppath, "[ONYX][EDITOR] Failed to load project: The project directory '{}' does not exist",
+        "[ONYX][EDITOR] Failed to load project: Expected a project directory at '{}', but found a file");
+
     EditorProject project{};
-    project.Name = ppath.filename().string();
+    project.Name = ppath.GetFilename().GetString();
     project.Path = ppath;
 
-    TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at {}", ppath.string());
+    const TKit::TierPath scenePath = project.GetScenesPath();
+    const TKit::TierPath settingsPath = project.GetSettingsPath();
 
-    const fs::path scenePath = project.GetScenesPath();
+    ONYX_EMIT_ERROR_IF(
+        !TKit::PathExists(scenePath) || !TKit::IsDirectory(scenePath), Error_DeserializationFailed,
+        "[ONYX][EDITOR] Failed to load project: '{}' does not look like an Onyx project. Missing directory at '{}{}'",
+        ppath, ppath, scenePath);
 
-    const auto res = YamlTree::FromFile(project.GetSettingsPath());
-    if (!res)
-        return Result<>::Error(Error_DeserializationFailed, res.GetError());
+    ONYX_EMIT_ERROR_IF(
+        !TKit::PathExists(settingsPath) || TKit::IsDirectory(settingsPath), Error_DeserializationFailed,
+        "[ONYX][EDITOR] Failed to load project: '{}' does not look like an Onyx project. Missing file at '{}{}'", ppath,
+        ppath, settingsPath);
+
+    struct MopMop
+    {
+        MopMop(EditorProject &p) : Project(p)
+        {
+        }
+        ~MopMop()
+        {
+            if (DoMop)
+                Project.Destroy();
+        }
+
+        EditorProject &Project;
+        bool DoMop = true;
+    };
+    MopMop mopmop{project};
+
+    TKIT_LOG_INFO("[ONYX][EDITOR] Deserializing project at {}", ppath);
+
+    const auto res = YamlTree::FromFile(settingsPath);
+    ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+                       "[ONYX][EDITOR] Failed to load project: Could not deserialize settings at '{}' with error: {}",
+                       settingsPath, TKit::ToString(res.GetError()));
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
 
-    ONYX_CHECK_HAS_CHILD(root, "Scenes", EditorProject);
+    ONYX_CHECK_HAS_CHILD(root, "Scenes");
 
     const ConstYamlNode scenes = root["Scenes"];
 
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<u32>, indices, scenes, "Indices", EditorProject);
-    ONYX_TRY_READ_DECLARE(TKit::StackArray<RenderContext>, ids, scenes, "Ids", EditorProject);
+    ONYX_TRY_READ_INDICES_IDS(indices, ids, scenes);
 
     project.Scenes = TKit::TierHive<EditorScene>{indices, ids};
 
-    ONYX_TRY_READ(project.ActiveScene, scenes, "Active", EditorProject);
-    ONYX_TRY_READ(project.Settings, root, "Settings", EditorProject);
+    ONYX_TRY_READ(project.ActiveScene, scenes, "Active");
+    ONYX_TRY_READ(project.Settings, root, "Settings");
 
-    for (const fs::directory_entry &dir : fs::directory_iterator(scenePath))
-        if (!dir.is_directory())
+    auto itRes = TKit::IterateDirectory(scenePath);
+    ONYX_EMIT_ERROR_IF(!itRes, Error_DeserializationFailed,
+                       "[ONYX][EDITOR] Failed to load project: Could not iterate scene folder at '{}' with error: {}",
+                       scenePath, TKit::ToString(itRes.GetError()));
+
+    for (const auto &scene : *itRes)
+        if (!scene.IsDirectory())
         {
-            const auto res = EditorScene::Deserialize(dir.path());
+            const auto res = EditorScene::Deserialize(scene);
             TKIT_RETURN_ON_ERROR(res);
             project.CreateScene(*res);
         }
 
+    mopmop.DoMop = false;
     return project;
 }
 

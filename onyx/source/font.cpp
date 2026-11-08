@@ -1,6 +1,7 @@
 #include "pch.hpp"
 #include "onyx/font.hpp"
 #include "onyx/image.hpp"
+#include "tkit/filesystem/filesystem.hpp"
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
@@ -17,11 +18,9 @@ TKIT_COMPILER_WARNING_IGNORE_POP()
 #        include "ttf.hpp"
 #    endif
 #endif
-#include <filesystem>
 
 namespace Onyx
 {
-namespace fs = std::filesystem;
 #ifdef ONYX_ENABLE_FONT_LOAD
 ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, msdfgen::FontHandle *font,
                                                   const FontLoadOptions &opts)
@@ -166,21 +165,22 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FreetypeHandle *ft, m
     msdfgen::deinitializeFreetype(ft);
     return data;
 }
-Result<FontData> Font_LoadDataFromFile(const char *path, const FontLoadOptions &opts)
+Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptions &opts)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, FontData, "[ONYX][FONT] File at {} does not exist or is a directory");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][FONT] Font file '{}' does not exist",
+                                       "[ONYX][FONT] Expected a font file at '{}', but found a directory");
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft)
         return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
 
-    msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
+    msdfgen::FontHandle *font = msdfgen::loadFont(ft, filepath);
     if (!font)
     {
         msdfgen::deinitializeFreetype(ft);
         return Result<FontData>::Error(
             Error_Unknown,
-            TKit::TierString::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
+            TKit::TierString::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", filepath));
     }
     return font_Load(ft, font, opts);
 }

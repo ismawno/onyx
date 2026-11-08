@@ -2,14 +2,13 @@
 #include "onyx/mesh.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/container/hash_map.hpp"
+#include "tkit/filesystem/filesystem.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    include <tiny_obj_loader.h>
 #endif
-#include <filesystem>
 
 namespace Onyx
 {
-namespace fs = std::filesystem;
 template <typename Vertex> static void mesh_TidyData(MeshData<Vertex> &data, const u32 offset = 0)
 {
     TKit::StackArray<u32> counts{};
@@ -56,15 +55,15 @@ template <typename Vertex> static void mesh_ValidateData(MeshData<Vertex> &data,
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
 
-template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, const u32 maxVertices)
+template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *filepath, const u32 maxVertices)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, StaticMeshData<D>,
-                                       "[ONYX][MESH] File at {} does not exist or is a directory");
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][MESH] Mesh file '{}' does not exist",
+                                       "[ONYX][MESH] Expected a mesh file at '{}', but found a directory");
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, path))
+    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filepath))
         return Result<StaticMeshData<D>>::Error(
             Error_LoadFailed, TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
 
@@ -1682,7 +1681,7 @@ template ParametricMeshData<D2> Mesh_CreateRoundedRectData<D2>();
 template ParametricMeshData<D3> Mesh_CreateRoundedRectData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StaticMeshData<D2>> Mesh_LoadDataFromObjFile<D2>(const char *path, u32 maxVertices);
-template Result<StaticMeshData<D3>> Mesh_LoadDataFromObjFile<D3>(const char *path, u32 maxVertices);
+template Result<StaticMeshData<D2>> Mesh_LoadDataFromObjFile<D2>(const char *filepath, u32 maxVertices);
+template Result<StaticMeshData<D3>> Mesh_LoadDataFromObjFile<D3>(const char *filepath, u32 maxVertices);
 #endif
 } // namespace Onyx

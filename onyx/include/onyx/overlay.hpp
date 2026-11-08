@@ -6,7 +6,7 @@
 #include "onyx/window.hpp"
 #include "tkit/container/bitset.hpp"
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-#    include <filesystem>
+#    include "tkit/filesystem/filesystem.hpp"
 #endif
 
 // in general, elements beginning with OverlayXXX are to be used by the public
@@ -96,9 +96,6 @@ namespace Onyx
 // OverlayWindows or dedicate itself to a single one, adapting its size and position to it. this feature can be enabled
 // with OverlayFlag_WindowPromotions
 
-#ifdef TKIT_ENABLE_YAML_SERIALIZATION
-namespace fs = std::filesystem;
-#endif
 /////////////////////////////////////////////
 /// FLAG DEFINITIONS
 /////////////////////////////////////////////
@@ -1523,27 +1520,27 @@ class Overlay
     /////////////////////////////////////////////
 
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-    const fs::path &GetSerializationPath() const
+    const TKit::TierPath &GetSerializationPath() const
     {
         return m_SerializationPath;
     }
-    void SetSerializationPath(const fs::path &p)
+    void SetSerializationPath(const TKit::TierPath &p)
     {
-        if (fs::is_directory(p))
+        if (TKit::IsDirectory(p))
             m_SerializationPath =
                 (Flags & OverlayFlag_FloatingMode) ? p / "onyx-overlay-floating.yaml" : p / "onyx-overlay.yaml";
         else
             m_SerializationPath = p;
     }
 
-    bool Serialize();
-    bool Serialize(const fs::path &p)
+    ONYX_NO_DISCARD Result<> Serialize();
+    ONYX_NO_DISCARD Result<> Serialize(const TKit::TierPath &p)
     {
         SetSerializationPath(p);
         return Serialize();
     }
-    Result<> Deserialize();
-    Result<> Deserialize(const fs::path &p)
+    ONYX_NO_DISCARD Result<> Deserialize();
+    ONYX_NO_DISCARD Result<> Deserialize(const TKit::TierPath &p)
     {
         SetSerializationPath(p);
         return Deserialize();
@@ -2543,7 +2540,7 @@ class Overlay
   private:
     StateFlags m_StateFlags = 0;
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-    fs::path m_SerializationPath{};
+    TKit::TierPath m_SerializationPath{};
 #endif
     u64 m_FrameCount = 0;
 

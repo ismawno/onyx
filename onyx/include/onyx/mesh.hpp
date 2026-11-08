@@ -63,7 +63,7 @@ enum Topology : u8
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template <Dimension D>
-ONYX_NO_DISCARD Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *path, u32 maxVertices = 2048);
+ONYX_NO_DISCARD Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *filepath, u32 maxVertices = 2048);
 #endif
 
 // TODO(Isma): Triangle is a bit up-shifted. bring it down

@@ -32,7 +32,7 @@ struct Guard
     }
 };
 
-DialogResult<fs::path> OpenFolderDialog(const Options &options)
+DialogResult<TKit::TierPath> OpenFolderDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -45,13 +45,13 @@ DialogResult<fs::path> OpenFolderDialog(const Options &options)
     const DialogStatus result = toStatus(NFD_PickFolderN_With(&path, &args));
     if (result == Dialog_Success)
     {
-        const fs::path p = path;
+        const TKit::TierPath p = path;
         NFD_FreePathN(path);
         return p;
     }
-    return DialogResult<fs::path>::Error(result);
+    return DialogResult<TKit::TierPath>::Error(result);
 }
-DialogResult<fs::path> OpenSingleDialog(const Options &options)
+DialogResult<TKit::TierPath> OpenSingleDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -74,13 +74,13 @@ DialogResult<fs::path> OpenSingleDialog(const Options &options)
     DialogStatus result = toStatus(NFD_OpenDialogN_With(&path, &args));
     if (result == Dialog_Success)
     {
-        const fs::path p = path;
+        const TKit::TierPath p = path;
         NFD_FreePathN(path);
-        return DialogResult<fs::path>::Ok(p);
+        return DialogResult<TKit::TierPath>::Ok(p);
     }
-    return DialogResult<fs::path>::Error(result);
+    return DialogResult<TKit::TierPath>::Error(result);
 }
-DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &options)
+DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &options)
 {
     Guard g{};
     const nfdpathset_t *set;
@@ -102,7 +102,7 @@ DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &option
     const DialogStatus result = toStatus(NFD_OpenDialogMultipleN_With(&set, &args));
     if (result == Dialog_Success)
     {
-        TKit::TierArray<fs::path> paths;
+        TKit::TierArray<TKit::TierPath> paths;
         nfdpathsetsize_t count;
         toStatus(NFD_PathSet_GetCount(set, &count));
         for (nfdpathsetsize_t i = 0; i < count; ++i)
@@ -113,12 +113,12 @@ DialogResult<TKit::TierArray<fs::path>> OpenMultipleDialog(const Options &option
             NFD_PathSet_FreePathN(path);
         }
         NFD_PathSet_Free(set);
-        return DialogResult<TKit::TierArray<fs::path>>::Ok(paths);
+        return DialogResult<TKit::TierArray<TKit::TierPath>>::Ok(paths);
     }
-    return DialogResult<TKit::TierArray<fs::path>>::Error(result);
+    return DialogResult<TKit::TierArray<TKit::TierPath>>::Error(result);
 }
 
-DialogResult<fs::path> SaveDialog(const Options &options)
+DialogResult<TKit::TierPath> SaveDialog(const Options &options)
 {
     Guard g{};
     nfdnchar_t *path;
@@ -132,11 +132,11 @@ DialogResult<fs::path> SaveDialog(const Options &options)
     const DialogStatus result = toStatus(NFD_SaveDialogN_With(&path, &args));
     if (result == Dialog_Success)
     {
-        const fs::path p = path;
+        const TKit::TierPath p = path;
         NFD_FreePathN(path);
-        return DialogResult<fs::path>::Ok(p);
+        return DialogResult<TKit::TierPath>::Ok(p);
     }
-    return DialogResult<fs::path>::Error(result);
+    return DialogResult<TKit::TierPath>::Error(result);
 }
 const char *GetDialogError()
 {
