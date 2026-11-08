@@ -125,7 +125,7 @@ using Task = TKit::Task<void>;
 
 #define ONYX_RETURN_ERROR_IF(cnd, err, ...)                                                                            \
     if (cnd)                                                                                                           \
-    return ONYX_EMIT_ERROR(err, __VA_OPT__(, ) __VA_ARGS__)
+    return ONYX_EMIT_ERROR(err __VA_OPT__(, ) __VA_ARGS__)
 
 #define ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, msgNotFound, msgNotFile)                                              \
     ONYX_RETURN_ERROR_IF(!TKit::PathExists(path), Onyx::Error_FileNotFound, msgNotFound, path);                        \
