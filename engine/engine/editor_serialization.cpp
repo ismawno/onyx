@@ -46,18 +46,16 @@ template <typename Id>
 ONYX_NO_DISCARD static Result<> checkHiveLayout(const TKit::StackArray<u32> &indices, const TKit::StackArray<Id> &ids,
                                                 const ConstYamlNode node)
 {
-    if (indices.GetSize() != ids.GetSize())
-        return Result<>::Error(Error_DeserializationFailed,
-                               TKit::TierString::Format("'{}': 'Indices' has {} entries but 'Ids' has {}",
-                                                        TKit::YamlGeneratePath(node), indices.GetSize(),
-                                                        ids.GetSize()));
+    ONYX_EMIT_ERROR_IF(indices.GetSize() != ids.GetSize(), Error_DeserializationFailed,
+                       "'{}': 'Indices' has {} entries but 'Ids' has {}", TKit::YamlGeneratePath(node),
+                       indices.GetSize(), ids.GetSize());
     for (u32 id = 0; id < indices.GetSize(); ++id)
-        if (indices[id] >= ids.GetSize() || u32(ids[indices[id]]) != id)
-            return Result<>::Error(
-                Error_DeserializationFailed,
-                TKit::TierString::Format("'{}': 'Indices' and 'Ids' are inconsistent at id {} (file corrupted or "
-                                         "hand-edited?)",
-                                         TKit::YamlGeneratePath(node), id));
+    {
+        ONYX_EMIT_ERROR_IF(indices[id] >= ids.GetSize() || u32(ids[indices[id]]) != id, Error_DeserializationFailed,
+                           "'{}': 'Indices' and 'Ids' are inconsistent at id {} (file corrupted or "
+                           "hand-edited?)",
+                           TKit::YamlGeneratePath(node), id);
+    }
     return Result<>::Ok();
 }
 template <Dimension D> static void serializeCameras(const EditorScene &scene, const char *name, YamlNode root)
@@ -235,21 +233,19 @@ template <Dimension D> Result<> deserializeContexts(EditorScene &scene, const ch
                 {
                     EDITOR_TRY_READ_DECLARE(Viewport, vp, target, "Viewport");
                     EDITOR_TRY_READ_DECLARE(RenderView, rv, target, "View");
+
                     const EditorViewport *viewport = scene.Viewports.Get(vp);
-                    if (!viewport)
-                        return Result<>::Error(
-                            Error_DeserializationFailed,
-                            TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: '{}' targets viewport id "
-                                                     "{}, which does not exist in this scene",
-                                                     TKit::YamlGeneratePath(target), vp));
+                    ONYX_EMIT_ERROR_IF(!viewport, Error_DeserializationFailed,
+                                       "[ONYX][EDITOR] Failed to load scene: '{}' targets viewport id "
+                                       "{}, which does not exist in this scene",
+                                       TKit::YamlGeneratePath(target), vp);
 
                     const EditorView<D> *view = viewport->GetViews<D>().Get(rv);
-                    if (!view)
-                        return Result<>::Error(
-                            Error_DeserializationFailed,
-                            TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: '{}' targets {}D view id {} "
-                                                     "in viewport '{}', but that viewport has no such view",
-                                                     TKit::YamlGeneratePath(target), u32(D), rv, viewport->Name));
+                    ONYX_EMIT_ERROR_IF(!view, Error_DeserializationFailed,
+                                       "[ONYX][EDITOR] Failed to load scene: '{}' targets {}D view id {} "
+                                       "in viewport '{}', but that viewport has no such view",
+                                       TKit::YamlGeneratePath(target), u32(D), rv, viewport->Name);
+
                     ctx.Handle->AddTarget(view->Handle);
                 }
         }
@@ -277,13 +273,11 @@ ONYX_NO_DISCARD static Result<> deserializeViews(const EditorScene &scene, Edito
             EDITOR_TRY_READ_DECLARE(Onyx::Viewport, vp, node, "Viewport data");
             EDITOR_TRY_READ_DECLARE(Onyx::Scissor, sc, node, "Scissor data");
             EDITOR_TRY_READ_DECLARE(TKit::TierString, name, node, "Name");
-            if (camIdx >= scene.GetCameras<D>().GetSize())
-                return Result<>::Error(
-                    Error_DeserializationFailed,
-                    TKit::TierString::Format("[ONYX][EDITOR] Failed to load scene: View '{}' at '{}' uses {}D camera "
-                                             "index {}, but the scene only has {} {}D cameras",
-                                             name, TKit::YamlGeneratePath(node), u32(D), camIdx,
-                                             scene.GetCameras<D>().GetSize(), u32(D)));
+            ONYX_EMIT_ERROR_IF(camIdx >= scene.GetCameras<D>().GetSize(), Error_DeserializationFailed,
+                               "[ONYX][EDITOR] Failed to load scene: View '{}' at '{}' uses {}D camera "
+                               "index {}, but the scene only has {} {}D cameras",
+                               name, TKit::YamlGeneratePath(node), u32(D), camIdx, scene.GetCameras<D>().GetSize(),
+                               u32(D));
 
             const RenderView rv = rviews.Insert();
             EditorView<D> &rview = rviews[rv];

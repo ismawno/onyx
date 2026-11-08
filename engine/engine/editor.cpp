@@ -417,6 +417,7 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Start using defer plz
 // TODO(Isma): Remove [EDITOR] blabla from error msgs
 // TODO(Isma): Fix Overlay deserialize
 // TODO(Isma): Try to shorten error handling? do so in vulkit/toolkit/graphite as well?

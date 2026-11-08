@@ -818,9 +818,9 @@ static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlN
 }
 Result<> Overlay::Serialize()
 {
-    if (m_SerializationPath.IsEmpty())
-        return Result<>::Error(Error_SerializationFailed, "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
-                                                          "path is empty. Set is with SetSerializationPath()");
+    ONYX_EMIT_ERROR_IF(m_SerializationPath.IsEmpty(), Error_SerializationFailed,
+                       "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
+                       "path is empty. Set is with SetSerializationPath()");
 
     using YamlNode = TKit::YamlNode;
     using YamlTree = TKit::YamlTree;

@@ -12,12 +12,8 @@
     ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
     ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
 
-#define ERROR(type, err, msg) Result<type>::Error(err, msg)
-#define ERROR_FMT(type, err, msg, ...) Result<type>::Error(err, TKit::TierString::Format(msg, __VA_ARGS__))
-#define CHECK_ERROR(res, type, err, msg, ...)                                                                          \
-    if (res != MA_SUCCESS)                                                                                             \
-    return ERROR_FMT(type, err, msg, u32(res) __VA_OPT__(, ) __VA_ARGS__)
-
+// TODO(Isma): We should forward errors instead of asserting them. however, keeping a consistent state after error is
+// such a mess, for now we do this and declare UB continuing after this fails
 #ifdef TKIT_ENABLE_ENSURE
 #    define ENSURE_SUCCESS(expr, msg, ...)                                                                             \
         if (const ma_result res = (expr); res != MA_SUCCESS)                                                           \
@@ -636,7 +632,8 @@ Result<> Audio_Play(const char *filepath)
                                        "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
 
     const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath, &s_Data->Group);
-    CHECK_ERROR(res, , Error_AudioPlayFailed, "[ONYX][AUDIO] Failed to play sound with error code {}");
+    ONYX_EMIT_ERROR_IF(res != MA_SUCCESS, Error_AudioPlayFailed,
+                       "[ONYX][AUDIO] Failed to play sound with error code {}", res);
 
     return Result<>::Ok();
 }
@@ -650,7 +647,8 @@ Result<AudioData> Audio_LoadData(const char *filepath)
                                                    ma_engine_get_sample_rate(&s_Data->Engine));
     ma_uint64 frameCount;
     const ma_result res = ma_decode_file(filepath, &cfg, &frameCount, &data.Data);
-    CHECK_ERROR(res, AudioData, Error_AudioDecodeFailed, "[ONYX][AUDIO] File decode failed with error code {}");
+    ONYX_EMIT_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
+                       "[ONYX][AUDIO] File decode failed with error code {}", res);
 
     data.FrameCount = u64(frameCount);
     return Result<AudioData>::Ok(data);

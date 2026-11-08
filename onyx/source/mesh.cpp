@@ -63,17 +63,13 @@ template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const 
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filepath))
-        return Result<StaticMeshData<D>>::Error(
-            Error_LoadFailed, TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err + warn));
+    ONYX_EMIT_ERROR_IF(!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filepath), Error_LoadFailed,
+                       "[ONYX][MESH] Failed to load mesh: {}", err + warn);
 
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][MESH] {}", warn);
-    if (!err.empty())
-        return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
-                                                TKit::TierString::Format("[ONYX][MESH] Failed to load mesh: {}", err));
-    if (shapes.empty())
-        return Result<StaticMeshData<D>>::Error(Error_LoadFailed,
-                                                "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
+    ONYX_EMIT_ERROR_IF(!err.empty(), Error_LoadFailed, "[ONYX][MESH] Failed to load mesh: {}", err);
+    ONYX_EMIT_ERROR_IF(shapes.empty(), Error_LoadFailed,
+                       "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
 
     TKit::StackHashMap<StaticVertex<D>, Index> uniqueVertices{maxVertices};
     StaticMeshData<D> data;

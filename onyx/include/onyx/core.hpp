@@ -118,11 +118,12 @@ class Error
 template <typename T = void> using Result = TKit::Result<T, Error>;
 using Task = TKit::Task<void>;
 
-#define ONYX_EMIT_ERROR(err, msg, ...) return Onyx::Result<>::Error(err, TKit::TierString::Format(msg, __VA_ARGS__))
+#define ONYX_EMIT_ERROR(err, msg, ...)                                                                                 \
+    return Onyx::Result<>::Error(err, __VA_OPT__(TKit::TierString::Format)(msg __VA_OPT__(, ) __VA_ARGS__))
 
 #define ONYX_EMIT_ERROR_IF(cnd, err, msg, ...)                                                                         \
     if (cnd)                                                                                                           \
-    ONYX_EMIT_ERROR(err, msg, __VA_ARGS__)
+    ONYX_EMIT_ERROR(err, msg __VA_OPT__(, ) __VA_ARGS__)
 
 #define ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, msgNotFound, msgNotFile)                                              \
     ONYX_EMIT_ERROR_IF(!TKit::PathExists(path), Onyx::Error_FileNotFound, msgNotFound, path);                          \
@@ -134,7 +135,7 @@ using Task = TKit::Task<void>;
 
 #define ONYX_CHECK_FILESYSTEM_ERROR(expr, msg, ...)                                                                    \
     if (const auto res = expr; !res)                                                                                   \
-    ONYX_EMIT_ERROR(Onyx::Error_SerializationFailed, msg, __VA_ARGS__)
+    ONYX_EMIT_ERROR(Onyx::Error_SerializationFailed, msg __VA_OPT__(, ) __VA_ARGS__)
 
 template <typename T> T CheckResult(const Result<T> &result)
 {
