@@ -423,23 +423,11 @@ static ProjectLauncherResult runProjectLauncher()
 // TODO(Isma): Try to shorten error handling? do so in vulkit/toolkit/graphite as well?
 // TODO(Isma): Try not to hardcode "python" in codegen
 // TODO(Isma): In the errors at yaml/container etc, use yaml describe, path etc
-// TODO(Isma): Instead of having dialog error, ser error in launcher, just have an error string and thats it
-// TODO(Isma): Improve EditorProject::Deserialize
-// TODO(Isma): Editor as a full class. Remove Data suffix from Editor, ConsoleData etc
 // TODO(Isma): For sliders and drags, input numeric does not work
 // TODO(Isma): Resolution change does nothing
-// TODO(Isma): Overlay needs to abort if deserialization failed
-// TODO(Isma): userLaunchDecision, the part where we create a default scene, that must move do the draw stuff, so that
-// we dont serialize twice
-// TODO(Isma): Improve error messages, tell the user what to do etc. Also, waited blabla for blabla, should be a
-// warning, and tell the user what to do
-// TODO(Isma): Fix naming
-// TODO(Isma): Forward serializeEditor/deserializeEditor errors
-// TODO(Isma): Expose errors when serializing/deserializing. create a macro to use TryRead, so that editor
-// deserialization may fail
 // TODO(Isma): Add a way to edit project settings (window promotions for instance)
 // TODO(Isma): Add a way to open/create new projects from editor (use same popup)
-// TODO(Isma): Disable promotion when parent window is fullscreen
+// TODO(Isma): Disable promotion when parent window is fullscreen, in general (overlay)
 // TODO(Isma): Console is extremely bugged?
 // TODO(Isma): Log the project save action into the console
 // TODO(Isma): Implement undo/redo on all editables
