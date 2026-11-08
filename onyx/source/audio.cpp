@@ -2,7 +2,7 @@
 #include "onyx/audio.hpp"
 #include "onyx/resources.hpp"
 #include "tkit/container/hive.hpp"
-#include "tkit/filesystem/filesystem.hpp"
+#include "tkit/utils/defer.hpp"
 #define MA_IMPLEMENTATION
 #include <miniaudio.h>
 #undef ERROR
@@ -435,13 +435,17 @@ Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
     Audio *audio = tier->Create<Audio>();
     audio->Type = Audio_Stream;
 
+    TKIT_ERROR_DEFER_SCOPE();
+    TKIT_ERROR_DEFER(tier->Destroy(audio));
+
     ma_uint32 f = 0;
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    ENSURE_SUCCESS(ma_sound_init_from_file(&s_Data->Engine, filepath, MA_SOUND_FLAG_STREAM | f, &s_Data->Group, nullptr,
-                                           &audio->Sound),
-                   "[ONYX][AUDIO] Sound initialization failed with error code {}");
+    const ma_result res = ma_sound_init_from_file(&s_Data->Engine, filepath, MA_SOUND_FLAG_STREAM | f, &s_Data->Group,
+                                                  nullptr, &audio->Sound);
+    ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
+                         "[ONYX][AUDIO] Sound initialization failed with error code {}", i32(res));
 
     ma_uint64 fcount;
     if (ma_sound_get_length_in_pcm_frames(&audio->Sound, &fcount) != MA_SUCCESS)
@@ -449,6 +453,7 @@ Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
     audio->FrameCount = u64(fcount);
 
     ma_sound_set_looping(&audio->Sound, bool(flags & AudioFlag_Loop));
+    TKIT_ERROR_DEFER_COMMIT();
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
