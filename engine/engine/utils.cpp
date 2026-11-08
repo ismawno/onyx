@@ -56,7 +56,7 @@ Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects()
                                        "[ONYX][EDITOR] Expected a config file at '{}', but found a directory");
 
     const auto res = YamlTree::FromFile(configPath);
-    ONYX_EMIT_ERROR_IF(
+    ONYX_RETURN_ERROR_IF(
         !res, Error_DeserializationFailed,
         "[ONYX][EDITOR] Failed to load recent projects: Could not deserialize config at '{}' with error: {}",
         configPath, TKit::ToString(res.GetError()));
@@ -72,7 +72,7 @@ Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects()
     {
         TKit::StackString entry;
         const auto res = path.TryRead(entry);
-        ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+        ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                            "[ONYX][EDITOR] Failed to load recent projects: Could not read '{}': got {} - {}",
                            TKit::YamlGeneratePath(path), TKit::YamlDescribeNode(path), res.GetError().Message);
 
@@ -91,7 +91,7 @@ Result<> UpdateRecentProjects(const TKit::TierPath &path)
     if (exists)
     {
         const auto res = YamlTree::FromFile(configPath);
-        ONYX_EMIT_ERROR_IF(
+        ONYX_RETURN_ERROR_IF(
             !res, Error_DeserializationFailed,
             "[ONYX][EDITOR] Failed to update recent projects: Could not deserialize config at '{}' with error: {}",
             configPath, TKit::ToString(res.GetError()));
@@ -117,7 +117,7 @@ Result<> UpdateRecentProjects(const TKit::TierPath &path)
 
             TKit::StackString entry;
             const auto res = p.TryRead(entry);
-            ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+            ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                                "[ONYX][EDITOR] Failed to update recent projects: Could not read '{}': got {} - {}",
                                TKit::YamlGeneratePath(p), TKit::YamlDescribeNode(p), res.GetError().Message);
 

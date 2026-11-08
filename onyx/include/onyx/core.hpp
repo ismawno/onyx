@@ -118,20 +118,22 @@ class Error
 template <typename T = void> using Result = TKit::Result<T, Error>;
 using Task = TKit::Task<void>;
 
-#define ONYX_EMIT_ERROR(err, msg, ...)                                                                                 \
-    Onyx::Result<>::Error(err, __VA_OPT__(TKit::TierString::Format)(msg __VA_OPT__(, ) __VA_ARGS__))
+#define __ONYX_ERROR_FMT_ARGS(msg, ...) __VA_OPT__(TKit::TierString::Format)(msg __VA_OPT__(, ) __VA_ARGS__)
 
-#define ONYX_EMIT_ERROR_IF(cnd, err, msg, ...)                                                                         \
+#define ONYX_EMIT_ERROR(err, ...)                                                                                      \
+    Onyx::Result<>::Error(err __VA_OPT__(, ) __VA_OPT__(__ONYX_ERROR_FMT_ARGS(__VA_ARGS__)))
+
+#define ONYX_RETURN_ERROR_IF(cnd, err, ...)                                                                            \
     if (cnd)                                                                                                           \
-    return ONYX_EMIT_ERROR(err, msg __VA_OPT__(, ) __VA_ARGS__)
+    return ONYX_EMIT_ERROR(err, __VA_OPT__(, ) __VA_ARGS__)
 
 #define ONYX_GENERATE_ERROR_FILE_NOT_FOUND(path, msgNotFound, msgNotFile)                                              \
-    ONYX_EMIT_ERROR_IF(!TKit::PathExists(path), Onyx::Error_FileNotFound, msgNotFound, path);                          \
-    ONYX_EMIT_ERROR_IF(TKit::IsDirectory(path), Onyx::Error_IsNotFile, msgNotFile, path)
+    ONYX_RETURN_ERROR_IF(!TKit::PathExists(path), Onyx::Error_FileNotFound, msgNotFound, path);                        \
+    ONYX_RETURN_ERROR_IF(TKit::IsDirectory(path), Onyx::Error_IsNotFile, msgNotFile, path)
 
 #define ONYX_GENERATE_ERROR_DIRECTORY_NOT_FOUND(path, msgNotFound, msgNotFile)                                         \
-    ONYX_EMIT_ERROR_IF(!TKit::PathExists(path), Onyx::Error_DirectoryNotFound, msgNotFound, path);                     \
-    ONYX_EMIT_ERROR_IF(!TKit::IsDirectory(path), Onyx::Error_IsNotDirectory, msgNotFile, path)
+    ONYX_RETURN_ERROR_IF(!TKit::PathExists(path), Onyx::Error_DirectoryNotFound, msgNotFound, path);                   \
+    ONYX_RETURN_ERROR_IF(!TKit::IsDirectory(path), Onyx::Error_IsNotDirectory, msgNotFile, path)
 
 #define ONYX_CHECK_FILESYSTEM_ERROR(expr, msg, ...)                                                                    \
     if (const auto res = (expr); !res)                                                                                 \

@@ -48,7 +48,7 @@ template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::stri
                         ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
                         : loader.LoadASCIIFromFile(&model, &err, &warn, path);
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][GLTF] {}", warn);
-    ONYX_EMIT_ERROR_IF(!ok, Error_LoadFailed, "[ONYX][GLTF] Failed to load gltf: {}", err);
+    ONYX_RETURN_ERROR_IF(!ok, Error_LoadFailed, "[ONYX][GLTF] Failed to load gltf: {}", err);
 
     GltfData<D> data{};
     for (const auto &mesh : model.meshes)

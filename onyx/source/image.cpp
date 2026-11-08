@@ -175,7 +175,7 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
         }
     }
 
-    ONYX_EMIT_ERROR_IF(!img, Error_LoadFailed, "[ONYX][IMAGE] Failed to load image data: {}", stbi_failure_reason());
+    ONYX_RETURN_ERROR_IF(!img, Error_LoadFailed, "[ONYX][IMAGE] Failed to load image data: {}", stbi_failure_reason());
 
     data.Width = u32(w);
     data.Height = u32(h);

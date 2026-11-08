@@ -818,7 +818,7 @@ static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlN
 }
 Result<> Overlay::Serialize()
 {
-    ONYX_EMIT_ERROR_IF(m_SerializationPath.IsEmpty(), Error_SerializationFailed,
+    ONYX_RETURN_ERROR_IF(m_SerializationPath.IsEmpty(), Error_SerializationFailed,
                        "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
                        "path is empty. Set is with SetSerializationPath()");
 
@@ -908,7 +908,7 @@ Result<> Overlay::Deserialize()
     using YamlTree = TKit::YamlTree;
 
     const auto res = YamlTree::FromFile(m_SerializationPath);
-    ONYX_EMIT_ERROR_IF(!res, Error_DeserializationFailed,
+    ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                        "[ONYX][EDITOR] Failed to deserialize: Could not load file at '{}' with error: {}",
                        m_SerializationPath, TKit::ToString(res.GetError()));
 

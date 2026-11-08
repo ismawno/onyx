@@ -36,7 +36,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FontHandle *font, con
 
     const u32 loaded = u32(fgeo.loadCharset(font, opts.FontScale, chset));
     TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", loaded, chset.size());
-    ONYX_EMIT_ERROR_IF(loaded == 0, Error_LoadFailed, "[ONYX][FONT] No glyph was loaded");
+    ONYX_RETURN_ERROR_IF(loaded == 0, Error_LoadFailed, "[ONYX][FONT] No glyph was loaded");
 
     msdf_atlas::TightAtlasPacker packer{};
     if (opts.AtlasDimensions != 0)
@@ -53,7 +53,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FontHandle *font, con
     packer.setScale(opts.EmSize);
 
     const i32 left = packer.pack(glyphs.data(), i32(glyphs.size()));
-    ONYX_EMIT_ERROR_IF(left != 0, Error_FontPackFailed,
+    ONYX_RETURN_ERROR_IF(left != 0, Error_FontPackFailed,
                        "[ONYX][FONT] The atlas packer was not able to pack all the glyphs. Remaining: {}", left);
 
     i32v2 dims;
@@ -165,11 +165,11 @@ Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptio
                                        "[ONYX][FONT] Expected a font file at '{}', but found a directory");
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    ONYX_EMIT_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+    ONYX_RETURN_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
     TKIT_DEFER(msdfgen::deinitializeFreetype(ft));
 
     msdfgen::FontHandle *font = msdfgen::loadFont(ft, filepath);
-    ONYX_EMIT_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font at '{}' because of an unknown reason",
+    ONYX_RETURN_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font at '{}' because of an unknown reason",
                        filepath);
 
     TKIT_DEFER(msdfgen::destroyFont(font));
@@ -179,11 +179,11 @@ Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptio
 Result<FontData> Font_LoadDataFromMemory(const std::byte *memory, const u32 size, const FontLoadOptions &opts)
 {
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    ONYX_EMIT_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+    ONYX_RETURN_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
     TKIT_DEFER(msdfgen::deinitializeFreetype(ft));
 
     msdfgen::FontHandle *font = msdfgen::loadFontData(ft, rcast<const unsigned char *>(memory), i32(size));
-    ONYX_EMIT_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font because of an unknown reason");
+    ONYX_RETURN_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font because of an unknown reason");
 
     TKIT_DEFER(msdfgen::destroyFont(font));
     return font_Load(font, opts);
@@ -193,12 +193,12 @@ Result<FontData> Font_LoadDataFromMemory(const std::byte *memory, const u32 size
 Result<FontData> Font_LoadDefaultData(const FontLoadOptions &opts)
 {
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    ONYX_EMIT_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+    ONYX_RETURN_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
     TKIT_DEFER(msdfgen::deinitializeFreetype(ft));
 
     msdfgen::FontHandle *font =
         msdfgen::loadFontData(ft, NotoSansSymbols_Merged_ttf, i32(NotoSansSymbols_Merged_ttf_len));
-    ONYX_EMIT_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font because of an unknown reason");
+    ONYX_RETURN_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font because of an unknown reason");
 
     TKIT_DEFER(msdfgen::destroyFont(font));
     return font_Load(font, opts);
