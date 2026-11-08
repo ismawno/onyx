@@ -5,7 +5,7 @@ namespace Engine
 void SetConsoleLogCallback(Console &console)
 {
     TKit::SetLogCallback([&](const TKit::LogInfo &info) {
-        if (info.Message.size() > ONYX_MAX_LOG_ENTRY_MESSAGE)
+        if (info.Message.size() > EDITOR_MAX_LOG_ENTRY_MESSAGE)
             return;
 
         LogEntry entry;

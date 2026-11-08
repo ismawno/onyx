@@ -7,7 +7,7 @@ Scene EditorProject::CreateScene(const EditorScene &other)
     const Scene sc = Scenes.Insert(other);
     EditorScene &scene = Scenes[sc];
     scene.Id = sc;
-    scene.Name = other.Name.IsEmpty() ? ONYX_DEFAULT_NAME("Scene", sc) : other.Name;
+    scene.Name = other.Name.IsEmpty() ? EDITOR_DEFAULT_NAME("Scene", sc) : other.Name;
     scene.Registry.RegisterComponents(AllComponents{});
     return sc;
 }
@@ -16,7 +16,7 @@ template <Dimension D> Scene EditorProject::CreateDefaultScene()
 {
     const Scene sc = CreateScene();
     EditorScene &scene = Scenes[sc];
-    const Viewport vp = scene.CreateViewport(ONYX_DEFAULT_RESOLUTION);
+    const Viewport vp = scene.CreateViewport(EDITOR_DEFAULT_RESOLUTION);
     EditorViewport &viewport = scene.Viewports[vp];
     scene.CreateCamera<D>();
 

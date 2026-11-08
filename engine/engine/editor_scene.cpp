@@ -11,7 +11,7 @@ Viewport EditorScene::CreateViewport(const u32v2 &resolution)
     viewport.Id = vp;
     viewport.ParentScene = Id;
     viewport.Target = Onyx::CreateRenderTexture(resolution);
-    viewport.Name = ONYX_DEFAULT_NAME("Viewport", vp);
+    viewport.Name = EDITOR_DEFAULT_NAME("Viewport", vp);
     viewport.Position = 0.f;
     viewport.Size = 1.f;
     viewport.Resolution = resolution;
@@ -48,7 +48,7 @@ template <Dimension D> RenderView EditorScene::CreateRenderView(EditorViewport &
     EditorView<D> &rview = rvs[rv];
     rview.Id = rv;
     rview.ParentViewport = viewport.Id;
-    rview.Name = ONYX_DEFAULT_NAME("View", rv);
+    rview.Name = EDITOR_DEFAULT_NAME("View", rv);
     rview.Handle = viewport.Target->CreateRenderView<D>(cam.Handle);
     rview.EditorCameraIndex = camIdx;
 
@@ -71,7 +71,7 @@ template <Dimension D> EditorCamera<D> &EditorScene::CreateCamera()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     TKit::TierArray<EditorCamera<D>> &cams = GetCameras<D>();
-    return cams.Append(Id, ONYX_DEFAULT_NAME("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
+    return cams.Append(Id, EDITOR_DEFAULT_NAME("Camera", cams.GetSize()), tier->Create<Onyx::Camera<D>>(), 0);
 }
 template <Dimension D> void EditorScene::DestroyCamera(const u32 camIdx)
 {
@@ -89,7 +89,7 @@ template <Dimension D> RenderContext EditorScene::CreateRenderContext()
     EditorContext<D> &ectx = ctxs[ctx];
     ectx.Id = ctx;
     ectx.ParentScene = Id;
-    ectx.Name = ONYX_DEFAULT_NAME("Context", ctx);
+    ectx.Name = EDITOR_DEFAULT_NAME("Context", ctx);
     ectx.Handle = Onyx::CreateRenderContext<D>();
 
     return ctx;

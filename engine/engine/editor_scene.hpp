@@ -6,13 +6,13 @@
 #include "onyx/overlay.hpp"
 #include "tkit/container/ecs.hpp"
 
-#define ONYX_DIMENSION_GETTER(varname)                                                                                 \
+#define EDITOR_DIMENSION_GETTER(varname)                                                                               \
     if constexpr (D == D2)                                                                                             \
         return varname##2;                                                                                             \
     else                                                                                                               \
         return varname##3
 
-#define ONYX_DEFAULT_NAME(prefix, idx) TKit::TierString::Format(prefix " {}", idx)
+#define EDITOR_DEFAULT_NAME(prefix, idx) TKit::TierString::Format(prefix " {}", idx)
 
 namespace Engine
 {
@@ -65,11 +65,11 @@ struct EditorViewport
 
     template <Dimension D> const TKit::TierHive<EditorView<D>> &GetViews() const
     {
-        ONYX_DIMENSION_GETTER(Views);
+        EDITOR_DIMENSION_GETTER(Views);
     }
     template <Dimension D> TKit::TierHive<EditorView<D>> &GetViews()
     {
-        ONYX_DIMENSION_GETTER(Views);
+        EDITOR_DIMENSION_GETTER(Views);
     }
 };
 
@@ -147,19 +147,19 @@ struct EditorScene
     }
     template <Dimension D> const TKit::TierArray<EditorCamera<D>> &GetCameras() const
     {
-        ONYX_DIMENSION_GETTER(Cameras);
+        EDITOR_DIMENSION_GETTER(Cameras);
     }
     template <Dimension D> TKit::TierArray<EditorCamera<D>> &GetCameras()
     {
-        ONYX_DIMENSION_GETTER(Cameras);
+        EDITOR_DIMENSION_GETTER(Cameras);
     }
     template <Dimension D> const TKit::TierHive<EditorContext<D>> &GetContexts() const
     {
-        ONYX_DIMENSION_GETTER(Contexts);
+        EDITOR_DIMENSION_GETTER(Contexts);
     }
     template <Dimension D> TKit::TierHive<EditorContext<D>> &GetContexts()
     {
-        ONYX_DIMENSION_GETTER(Contexts);
+        EDITOR_DIMENSION_GETTER(Contexts);
     }
 };
 } // namespace Engine

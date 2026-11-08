@@ -2,11 +2,11 @@
 
 namespace Engine
 {
-using Stack = CircularStack<Command *, ONYX_MAX_UNDO_REDO_COMMANDS>;
+using Stack = CircularStack<Command *, EDITOR_MAX_UNDO_REDO_COMMANDS>;
 static void clearStack(Stack &cmds)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (u32 i = 0; i < ONYX_MAX_UNDO_REDO_COMMANDS; ++i)
+    for (u32 i = 0; i < EDITOR_MAX_UNDO_REDO_COMMANDS; ++i)
         if (cmds[i])
         {
             tier->DeallocateWithHeader(cmds[i]);

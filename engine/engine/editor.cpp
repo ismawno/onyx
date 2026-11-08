@@ -7,9 +7,8 @@
 #include "onyx/onyx.hpp"
 #include "onyx/dialog.hpp"
 
-#define ONYX_NAME_BUF_SIZE 64
-
-#define NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
+#define EDITOR_NAME_BUF_SIZE 64
+#define EDITOR_NAME_BY_DIM(dim, name) (scene.HasBothDimensions() ? (dim " " name) : (name))
 
 namespace Engine
 {
@@ -418,8 +417,6 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
-// TODO(Isma): Fix editor error handling
-// TODO(Isma): Change ONYX_ with EDITOR_ in editor macros
 // TODO(Isma): Remove [EDITOR] blabla from error msgs
 // TODO(Isma): Fix Overlay deserialize
 // TODO(Isma): Try to shorten error handling? do so in vulkit/toolkit/graphite as well?
@@ -669,7 +666,7 @@ static void drawHierarchyWindow()
         if (ov->Button("Add entity", Onyx::OverlayButtonFlag_SpanFullWidth))
         {
             const Entity e = r.CreateEntity();
-            r.AddComponent<NameComponent>(e, ONYX_DEFAULT_NAME("Entity", e));
+            r.AddComponent<NameComponent>(e, EDITOR_DEFAULT_NAME("Entity", e));
         }
 
         r.IterateEntitiesByInsertionOrder([&](const Entity e) {
@@ -749,7 +746,7 @@ static void displayComponents(const Entity e, const TKit::Registry &registry)
     Onyx::Overlay *ov = s_Editor->Overlay;
     NameComponent *name = registry.GetComponent<NameComponent>(e);
     if (name)
-        ov->InputText("Name", &name->Name, ONYX_NAME_BUF_SIZE);
+        ov->InputText("Name", &name->Name, EDITOR_NAME_BUF_SIZE);
 }
 template <Dimension D> static void displayComponents(const Entity e, const TKit::Registry &registry)
 {
@@ -1046,7 +1043,7 @@ template <Dimension D> static void displayView(EditorView<D> &view)
     Onyx::Overlay *ov = s_Editor->Overlay;
 
     ov->HorizontalSeparator(view.Name);
-    ov->InputText("Name", &view.Name, ONYX_NAME_BUF_SIZE);
+    ov->InputText("Name", &view.Name, EDITOR_NAME_BUF_SIZE);
 
     // Note(Isma): this is weak bc of id recycling. consider implementing a generation for ids. this only prevents
     // crashing/ub
@@ -1253,7 +1250,7 @@ template <Dimension D> static void displayCamera(EditorCamera<D> &camera)
     const char *elements = D == D2 ? "Orthographic#Viewport" : "Orthographic#Viewport#Perspective";
 
     ov->HorizontalSeparator(camera.Name);
-    ov->InputText("Name", &camera.Name, ONYX_NAME_BUF_SIZE);
+    ov->InputText("Name", &camera.Name, EDITOR_NAME_BUF_SIZE);
 
     Onyx::Camera<D> *cam = camera.Handle;
     ov->DropDown("Mode", &cam->Mode, elements);
@@ -1309,7 +1306,7 @@ template <Dimension D> static void displayContext(EditorContext<D> &rctx)
     Onyx::Overlay *ov = s_Editor->Overlay;
 
     ov->HorizontalSeparator(rctx.Name);
-    ov->InputText("Name", &rctx.Name, ONYX_NAME_BUF_SIZE);
+    ov->InputText("Name", &rctx.Name, EDITOR_NAME_BUF_SIZE);
 
     ov->CheckBox("Axes", &rctx.DrawAxes);
     if (ov->PushTree("Targets"))
@@ -1362,15 +1359,15 @@ static void displayViewport(EditorViewport &viewport)
 {
     Onyx::Overlay *ov = s_Editor->Overlay;
     ov->HorizontalSeparator(viewport.Name);
-    ov->InputText("Name", &viewport.Name, ONYX_NAME_BUF_SIZE);
+    ov->InputText("Name", &viewport.Name, EDITOR_NAME_BUF_SIZE);
     ov->Text("Resolution: {}x{}", viewport.Resolution[0], viewport.Resolution[1]);
     ov->CheckBox("Visible", &viewport.Visible);
 
     const EditorScene &scene = s_Editor->Project.GetActiveScene();
     if (scene.HasDimension<D2>())
-        displayViews<D2>(NAME_BY_DIM("2D", "Views"), viewport);
+        displayViews<D2>(EDITOR_NAME_BY_DIM("2D", "Views"), viewport);
     if (scene.HasDimension<D3>())
-        displayViews<D3>(NAME_BY_DIM("3D", "Views"), viewport);
+        displayViews<D3>(EDITOR_NAME_BY_DIM("3D", "Views"), viewport);
 }
 
 static void displayViewports()
@@ -1384,7 +1381,7 @@ static void displayViewports()
         static u32 selected = TKIT_U32_MAX;
 
         ListBox lb{"Viewports", &selected, &labels.Names};
-        lb.OnAdd = [&] { Scene_CreateViewport(s_Editor->Project.ActiveScene, ONYX_DEFAULT_RESOLUTION); };
+        lb.OnAdd = [&] { Scene_CreateViewport(s_Editor->Project.ActiveScene, EDITOR_DEFAULT_RESOLUTION); };
         lb.OnRemove = [&] { Scene_DestroyViewport(s_Editor->Project.ActiveScene, labels.Ids[selected]); };
         drawListBox(lb);
 
@@ -1418,14 +1415,14 @@ static void drawSceneWindow()
         displayViewports();
 
         if (scene.HasDimension<D2>())
-            displayCameras<D2>(NAME_BY_DIM("2D", "Editor cameras"));
+            displayCameras<D2>(EDITOR_NAME_BY_DIM("2D", "Editor cameras"));
         if (scene.HasDimension<D3>())
-            displayCameras<D3>(NAME_BY_DIM("3D", "Editor cameras"));
+            displayCameras<D3>(EDITOR_NAME_BY_DIM("3D", "Editor cameras"));
 
         if (scene.HasDimension<D2>())
-            displayContext<D2>(NAME_BY_DIM("2D", "Render contexts"));
+            displayContext<D2>(EDITOR_NAME_BY_DIM("2D", "Render contexts"));
         if (scene.HasDimension<D3>())
-            displayContext<D3>(NAME_BY_DIM("3D", "Render contexts"));
+            displayContext<D3>(EDITOR_NAME_BY_DIM("3D", "Render contexts"));
 
         ov->EndWindow();
     }

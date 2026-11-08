@@ -3,7 +3,7 @@
 #include "utils.hpp"
 #include "tkit/utils/function.hpp"
 
-#define ONYX_MAX_UNDO_REDO_COMMANDS 256
+#define EDITOR_MAX_UNDO_REDO_COMMANDS 256
 
 namespace Engine
 {
@@ -51,8 +51,8 @@ struct LambdaCommand final : Command
 
 struct UndoRedo
 {
-    CircularStack<Command *, ONYX_MAX_UNDO_REDO_COMMANDS> UndoStack{};
-    CircularStack<Command *, ONYX_MAX_UNDO_REDO_COMMANDS> RedoStack{};
+    CircularStack<Command *, EDITOR_MAX_UNDO_REDO_COMMANDS> UndoStack{};
+    CircularStack<Command *, EDITOR_MAX_UNDO_REDO_COMMANDS> RedoStack{};
 
     void Clear();
     void Undo();

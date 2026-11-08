@@ -3,7 +3,7 @@
 #include "engine.hpp"
 #include "editor_scene.hpp"
 
-#define ONYX_DEFAULT_RESOLUTION u32v2{1920, 1080}
+#define EDITOR_DEFAULT_RESOLUTION u32v2{1920, 1080}
 
 namespace Engine
 {
