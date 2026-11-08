@@ -17,7 +17,7 @@
 #ifdef TKIT_ENABLE_ENSURE
 #    define ENSURE_SUCCESS(expr, msg, ...)                                                                             \
         if (const ma_result res = (expr); res != MA_SUCCESS)                                                           \
-        TKIT_PANIC(msg, u32(res) __VA_OPT__(, ) __VA_ARGS__)
+        TKIT_PANIC(msg, i32(res) __VA_OPT__(, ) __VA_ARGS__)
 #else
 #    define ENSURE_SUCCESS(expr, msg, ...) expr
 #endif
@@ -633,7 +633,7 @@ Result<> Audio_Play(const char *filepath)
 
     const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath, &s_Data->Group);
     ONYX_EMIT_ERROR_IF(res != MA_SUCCESS, Error_AudioPlayFailed,
-                       "[ONYX][AUDIO] Failed to play sound with error code {}", res);
+                       "[ONYX][AUDIO] Failed to play sound with error code {}", i32(res));
 
     return Result<>::Ok();
 }
@@ -648,7 +648,7 @@ Result<AudioData> Audio_LoadData(const char *filepath)
     ma_uint64 frameCount;
     const ma_result res = ma_decode_file(filepath, &cfg, &frameCount, &data.Data);
     ONYX_EMIT_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
-                       "[ONYX][AUDIO] File decode failed with error code {}", res);
+                       "[ONYX][AUDIO] File decode failed with error code {}", i32(res));
 
     data.FrameCount = u64(frameCount);
     return Result<AudioData>::Ok(data);

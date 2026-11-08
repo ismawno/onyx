@@ -134,7 +134,7 @@ using Task = TKit::Task<void>;
     ONYX_EMIT_ERROR_IF(!TKit::IsDirectory(path), Onyx::Error_IsNotDirectory, msgNotFile, path)
 
 #define ONYX_CHECK_FILESYSTEM_ERROR(expr, msg, ...)                                                                    \
-    if (const auto res = expr; !res)                                                                                   \
+    if (const auto res = (expr); !res)                                                                                 \
     ONYX_EMIT_ERROR(Onyx::Error_SerializationFailed, msg __VA_OPT__(, ) __VA_ARGS__)
 
 template <typename T> T CheckResult(const Result<T> &result)

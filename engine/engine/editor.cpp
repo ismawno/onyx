@@ -110,7 +110,7 @@ static bool drawProjectLauncher(Onyx::Overlay *ov, ProjectLauncherDrawInfo &info
 {
 #define CHECK_FILESYSTEM_RESULT(expr, msg, ...)                                                                        \
     [&] {                                                                                                              \
-        if (const auto result = expr; !result)                                                                         \
+        if (const auto result = (expr); !result)                                                                       \
         {                                                                                                              \
             info.LastError = TKit::TierString::Format(msg, __VA_ARGS__);                                               \
             return false;                                                                                              \
