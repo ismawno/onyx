@@ -1110,7 +1110,17 @@ void OverlayWindow::ClampToNative()
     const f32v2 mnlim = MinSize - Size;
     const f32v2 mxlim = size - MinSize;
 
-    ScreenPos = Math::Clamp(ScreenPos, mnlim, mxlim);
+    if (!(Flags & OveryalWindowFlag_DoNotRestorePositionAfterClamp))
+    {
+        // clamp a copy: a native window that is small for a while (a tiling compositor's first tile, a user shrinking
+        // it) must not push the window in for good
+        if (ScreenPos != ClampedPos)
+            PreferredPos = ScreenPos;
+        ScreenPos = Math::Clamp(PreferredPos, mnlim, mxlim);
+        ClampedPos = ScreenPos;
+    }
+    else
+        ScreenPos = Math::Clamp(ScreenPos, mnlim, mxlim);
 }
 void OverlayWindow::SyncNativeSize()
 {
@@ -5545,7 +5555,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
         const bool autoSelectAll = flags & OverlayInputFlag_AutoSelectAll;
 
         const f32 cwidth = m_Style[OverlayStyle_CursorWidth];
-        const bool horScroll = !(flags & OverlayInputFlag_NoHorizontalScroll);
+        const bool horScroll = ibox && !(flags & OverlayInputFlag_NoHorizontalScroll);
         // const f32 textOffset =
         //     noHorScroll ? 0.f : Math::Min(0.f, boxSize - textWidth - m_Style[OverlayStyle_CursorWidth]);
 
@@ -6723,7 +6733,10 @@ InputConvertInfoFlags Overlay::mustConvertToInputBox(const InputConvertInfoFlags
         outFlags |= InputConvertFlag_MustOverrideHighlight;
 
     if (triggered)
+    {
         m_ActiveId = iboxId;
+        m_StateFlags |= StateFlag_ActiveIdMustPersist;
+    }
     return outFlags;
 }
 

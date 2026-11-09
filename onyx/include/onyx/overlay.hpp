@@ -713,6 +713,9 @@ enum OverlayCondition : OverlayConditions
 // child windows get _NoUndocking
 enum OverlayWindowFlagBit : OverlayWindowFlags
 {
+    // by default, when the window position is clamped by a native window shrink, its original position will be restored
+    // if the native window grows back and the overlay window was not moved. this flag disables that behaviour
+    OveryalWindowFlag_DoNotRestorePositionAfterClamp = 1ULL << 37,
     // dockspaces only. if DockSpace() is not called during a frame, all its docked windows will be undocked at the end
     // of it. careful: a dockspace inside a window that is not drawn (collapsed, or an unselected tab) is not submitted
     // either
@@ -930,6 +933,12 @@ struct OverlayWindow
     GrabInfo Grab{};
 
     f32v2 ScreenPos{120.f};
+    // these two are only used in ClampToNative
+    // the position the window was given (placed, dragged, loaded), before ClampToNative. ScreenPos is where it is
+    // drawn
+    f32v2 PreferredPos{120.f};
+    // the last position ClampToNative wrote: anything else in ScreenPos was written by someone else
+    f32v2 ClampedPos{TKIT_F32_MAX};
 
     f32v2 Size{240.f};
     // its nice when disabling auto resize to recover old size
@@ -2381,7 +2390,7 @@ class Overlay
 
     void PushStyleColor(const OverlayColor color, const Color &col)
     {
-        m_ColorStack.Append(m_Style[color], color);
+        m_ColorStack.Append(m_Style.Colors[color], color);
         m_Style.Colors[color] = col;
     }
 

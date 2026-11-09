@@ -794,6 +794,7 @@ template <Dimension D> void RenderView<D>::setViewport(const Viewport &vp)
         setImageSize(u32v2{Math::Round(vp.Size * m_ImageSizeRatio)});
 
     m_Viewport = vp;
+    CacheMatrices();
 }
 
 template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
