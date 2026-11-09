@@ -1,11 +1,11 @@
 #pragma once
 
 #include "onyx/dimension.hpp"
-#include "onyx/core.hpp"
 #include "onyx/render_target.hpp"
 #include "graph/platform.hpp"
 #include "graph/swap_chain.hpp"
-#include "tkit/profiling/clock.hpp"
+#include "tkit/profiling/timespan.hpp"
+#include "tkit/container/bitset.hpp"
 
 namespace Onyx
 {
@@ -82,6 +82,11 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_FocusOnShow = 1U << 5,
     WindowFlag_Iconified = 1U << 6,
     WindowFlag_DoNotInstallCallbacks = 1U << 7,
+    // the window ignores the real mouse and keyboard. its input queries (mouse position, hover, key and button state)
+    // answer from the events given to PushEvent, and the platform's input events are not installed. everything that
+    // reads input through the window (overlays, camera controls) then follows those events. meant for tests and input
+    // replay: drive it with the Inject* methods
+    WindowFlag_VirtualInput = 1U << 8,
 };
 
 struct WindowSpecs
@@ -174,33 +179,58 @@ class Window final : public RenderTarget
 
     f32v2 GetMousePosition() const
     {
-        const f32v2 normalized =
-            Graph::Window_GetCursorScreenPosition(m_Window) / f32v2{Graph::Window_GetScreenSize(m_Window)};
-        return normalized * f32v2{GetSize()};
+        if (m_VirtualInput)
+            return m_VirtualMouse;
+        return screenToLogical(Graph::Window_GetCursorScreenPosition(m_Window));
     }
 
     bool IsKeyPressed(const Graph::Key key) const
     {
+        if (m_VirtualInput)
+            return m_VirtualKeys.Get(key);
         return Graph::Window_IsKeyPressed(m_Window, key);
     }
     bool IsKeyReleased(const Graph::Key key) const
     {
+        if (m_VirtualInput)
+            return !m_VirtualKeys.Get(key);
         return Graph::Window_IsKeyReleased(m_Window, key);
     }
 
     bool IsMousePressed(const Graph::Mouse button) const
     {
+        if (m_VirtualInput)
+            return m_VirtualButtons.Get(button);
         return Graph::Window_IsMousePressed(m_Window, button);
     }
     bool IsMouseReleased(const Graph::Mouse button) const
     {
+        if (m_VirtualInput)
+            return !m_VirtualButtons.Get(button);
         return Graph::Window_IsMouseReleased(m_Window, button);
     }
 
+    // with virtual input, the event also updates the state the input queries answer from
     void PushEvent(const Event &event)
     {
+        if (m_VirtualInput)
+            trackVirtualInput(event);
         m_Events.Append(event);
     }
+
+    bool HasVirtualInput() const
+    {
+        return m_VirtualInput;
+    }
+
+    // platform-like input events for windows with virtual input (WindowFlag_VirtualInput). positions are in logical
+    // pixels, the same space GetMousePosition() returns. a move that crosses the window border also reports
+    // Event_MouseEntered or Event_MouseLeft, as the platform would
+    void InjectMouseMove(const f32v2 &position);
+    void InjectMouseButton(Graph::Mouse button, bool pressed);
+    void InjectScroll(const f32v2 &offset);
+    void InjectKey(Graph::Key key, bool pressed, bool repeat = false);
+    void InjectChar(CodePoint character);
     void FlushEvents()
     {
         m_Events.Clear();
@@ -306,6 +336,17 @@ class Window final : public RenderTarget
     }
 
   private:
+    // the cursor is reported in screen coordinates. logical pixels are what the input queries use
+    f32v2 screenToLogical(const f32v2 &screen) const
+    {
+        return screen / f32v2{Graph::Window_GetScreenSize(m_Window)} * f32v2{GetSize()};
+    }
+    f32v2 logicalToScreen(const f32v2 &logical) const
+    {
+        return logical / f32v2{GetSize()} * f32v2{Graph::Window_GetScreenSize(m_Window)};
+    }
+    void trackVirtualInput(const Event &event);
+
     // screen coordinates are logical on some platforms (macos) and physical pixels on others (windows, x11). this is 1
     // on the former and the content scale on the latter: screen = logical * factor. a minimized window has no pixels to
     // compare with, and its position means nothing anyway, so it falls back to 1
@@ -344,7 +385,13 @@ class Window final : public RenderTarget
 
     mutable f32v2 m_PrevMousePos{0.f};
 
+    // only used with WindowFlag_VirtualInput. the mouse starts outside the window, as if it had not entered it yet
+    TKit::StaticBitSet<Graph::Key_Count> m_VirtualKeys{Graph::Key_Count};
+    TKit::StaticBitSet<Graph::Mouse_Count> m_VirtualButtons{Graph::Mouse_Count};
+    f32v2 m_VirtualMouse{-1.f};
+
     Graph::PresentMode m_PresentMode;
     bool m_MustRecreateSwapchain = false;
+    bool m_VirtualInput = false;
 };
 } // namespace Onyx

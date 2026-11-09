@@ -5,28 +5,32 @@
 //  ONYX CONTROL CENTER
 // =====================================================================================================================
 //
-//  A single executable that checks, in one place, that the nominal behaviour of Onyx (and the parts of Graphite and
-//  Toolkit it stands on) holds. Automatic checks run every frame. Visual checks need your eyes: the guided checks
-//  window walks through them one at a time, most important first.
+//  Two things in one executable, kept apart:
+//    - a showcase of what Onyx does: four scene views and a panel per topic, with its controls and live measurements.
+//      The showcase never judges anything by itself
+//    - the place to test Onyx, on demand, from the Tests window:
+//        Automated       runs the onyx-tests suite (tests/), the same executable CI runs, as a child process. Pick
+//                        tests, run them, read the failures and copy a report
+//        Visual review   what a program cannot judge (is it crisp? does it blend right?). Each check says what to do
+//                        in the showcase and what to look at, and you give the verdict
 //
 //  First run
-//    "Where do I start?" opens on launch and hands off to the guided checks. Verdicts are saved in the working
-//    directory (onyx-control-center-verdicts.txt), so a second session resumes where the first one stopped
+//    "Where do I start?" opens on launch and points to the Tests window. Verdicts are saved in the working directory
+//    (onyx-control-center-verdicts.txt), so a second session resumes where the first one stopped
 //
-//  Badges (hover any check to read its rule or what to look at)
-//    PASS / FAIL / N/A    automatic check: holds this frame / broken, also kept in the failure log / not applicable
-//    TODO / GOOD / BAD    visual check: waiting for your verdict / judged right / judged broken
-//    SKIP                 visual check you chose to skip
+//  Badges (hover a test or a check to read what it is about)
+//    PASS / FAIL / CRASH / TIMEOUT / SKIP / KNOWN    automated tests. KNOWN: fails because of a reported bug
+//    TODO / GOOD / BAD / SKIP                        visual checks: waiting / judged right / judged broken / skipped
 //
 //  Layouts, switchable at runtime from the Control center's Layout menu
 //    Direct    the four scene views render straight into window quadrants, the panels float on top
 //    Docked    every view renders into a render texture shown by its own dockable panel
 //
-//  Scene views. Each one has a tint, also used to tag the checks that concern it
+//  Scene views. Each one has a tint, also used to tag the visual checks that concern it
 //    Pixel view    CameraMode_Viewport, 1 world unit = 1 logical pixel. DPI and rasterization
 //    2D gallery    orthographic camera. 2D primitives, outlines, blending, 2D lights and occluders
 //    3D gallery    perspective camera. 3D primitives, shading, shadows, point and spot lights
-//    Textures      render textures drawn in the scene, plus an offset viewport for the mouse checks
+//    Textures      render textures drawn in the scene, plus an offset viewport for the mouse
 //    View lab      one more view, off by default, to reconfigure from its panel (direct layout only)
 //
 //  Controls, over the 2D or the 3D gallery
@@ -40,15 +44,15 @@
 //
 //  File sections
 //     1. Configuration and theme
-//     2. Check bookkeeping: automatic checks, visual checks, failure log and saved verdicts
+//     2. Visual review bookkeeping: visual checks, categories and saved verdicts
 //     3. UI helpers: text, badges, tooltips, help popups and check rows
-//     4. Application state
+//     4. Application state, the automated test runner's included
 //     5. Setup: resources, window, views, contexts, render textures, overlay
 //     6. Layouts, events and camera control
-//     7. Automatic checks, one function per category
+//     7. Usage meters: what a frame asks of the renderer, against the Initialize specs
 //     8. Scene drawing, one function per view
-//     9. Audio: procedural sources, self test and spatial orbit
-//    10. Overlay panels: guided checks, manual, dashboard, docked galleries and category panels
+//     9. Audio: procedural sources and spatial orbit
+//    10. Overlay panels: visual review, automated tests, report, manual, dashboard, docked galleries, category panels
 //    11. Categories: titles, help, visual checks and the functions behind each panel
 //    12. Main loop
 //
@@ -71,7 +75,15 @@
 #include "tkit/profiling/clock.hpp"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+#ifndef ONYX_ENABLE_AUDIO
+#    include <atomic>
+#endif
 
 using namespace TKit::Alias;
 using Onyx::D2;
@@ -89,17 +101,11 @@ constexpr Graph::Platform DemoPlatform = Graph::Platform_Auto;
 // window titles double as their ids: the dock tree and the layout switch refer to them
 constexpr const char *ControlCenterTitle = "Control center";
 constexpr const char *ManualTitle = "Where do I start?";
-constexpr const char *GuideTitle = "Guided checks";
+constexpr const char *TestsTitle = "Tests";
 constexpr u32v2 InitialWindowSize{1600, 900};
 constexpr u32v2 RenderTextureSize{160, 160};
 // docked galleries resize their textures to their panels. this is only the size before the first panel is known
 constexpr u32v2 InitialPaneTextureSize{400, 300};
-
-// how long the swapchain may lag behind a window size or scale change before it counts as a failure. swapchains are
-// recreated lazily, so a mismatch that lasts a couple of frames is fine. one that sticks around is not. docked
-// textures follow their panels one frame late, for the same reason
-constexpr f32 SwapchainGracePeriod = 1.f;
-constexpr f32 DockedGracePeriod = 0.5f;
 
 constexpr f32 Epsilon = 1e-4f;
 constexpr f32 TooltipWidth = 380.f;
@@ -168,30 +174,16 @@ const PaneInfo PaneInfos[Pane_Count] = {
 };
 constexpr f32 QuadrantSize = 0.5f;
 
-// check names must be unique and must outlive the app (string literals): the failure log, the guided flow and the saved
-// verdicts track checks by name
-constexpr const char *ViewportCheckNames[Pane_Count] = {
-    "Pixel view: proportional viewport", "2D gallery: proportional viewport", "3D gallery: proportional viewport",
-    "Textures: proportional viewport"};
-constexpr const char *ImageCheckNames[Pane_Count] = {
-    "Pixel view: image size follows viewport", "2D gallery: image size follows viewport",
-    "3D gallery: image size follows viewport", "Textures: image size follows viewport"};
-constexpr const char *RoundTripCheckNames[Pane_Count] = {
-    "Pixel view: screen -> world -> screen", "2D gallery: screen -> world -> screen",
-    "3D gallery: screen -> world -> screen", "Textures: screen -> world -> screen"};
-
 // =====================================================================================================================
-//  2. CHECK BOOKKEEPING
+//  2. VISUAL REVIEW BOOKKEEPING
 // =====================================================================================================================
 //
-//  Two kinds of checks live here:
-//    - Automatic checks (AutoCheck): evaluated every frame, whether their panel is open or not, so the dashboard and
-//      the failure log always know the truth. Each one carries a rule (what must hold, in plain words, shown on
-//      hover) and a detail (what was measured this frame, always shown)
-//    - Visual checks (VisualCheck): things a program cannot judge (is it crisp? does it blend right?). They carry
-//      what to do, what to look at and a priority for the guided flow, and you give the verdict
+//  Visual checks (VisualCheck) are what a program cannot judge: is it crisp, does it blend right, does the sound move.
+//  They carry what to do, what to look at and a priority for the guided review, and you give the verdict. Everything a
+//  program can judge lives in the onyx-tests suite instead, which the Tests window runs on demand (section 10).
 //
-//  A Category groups both kinds, and maps to one overlay panel.
+//  A Category is one showcase panel: what it shows, its controls and measurements, and the visual checks that concern
+//  it.
 
 // small fixed size string, so check details can be stored across frames without touching any allocator
 struct Line
@@ -213,24 +205,6 @@ template <typename... Args> static Line formatLine(const fmt::format_string<Args
     line.Data[line.Size] = '\0';
     return line;
 }
-
-enum Outcome : u8
-{
-    Outcome_Pass,
-    Outcome_Fail,
-    Outcome_NotApplicable,
-    Outcome_Count,
-};
-
-struct AutoCheck
-{
-    const char *Name;
-    const char *Rule;
-    Line Detail;
-    f32 FailingSince; // when the current failure started. the guided flow shows the most recent failure first
-    PaneId Pane;
-    Outcome State;
-};
 
 enum Verdict : u8
 {
@@ -264,20 +238,6 @@ struct VisualCheck
     Verdict Mark = Verdict_Unseen;
 };
 
-struct FailureRecord
-{
-    f32 Time;
-    const char *Category;
-    const char *Name;
-    Line Detail;
-};
-
-struct FailingCheck
-{
-    const char *Name;
-    f32 Since;
-};
-
 enum CategoryId : u8
 {
     Category_Dpi,
@@ -289,7 +249,6 @@ enum CategoryId : u8
     Category_Input,
     Category_Audio,
     Category_Resources,
-    Category_Toolkit,
     Category_Platform,
     Category_Count,
 };
@@ -301,71 +260,10 @@ struct Category
     const char *Title = "";
     const char *Summary = "";
     const char *Concepts = "";
-    void (*Check)(App &) = nullptr; // automatic checks, run every frame
-    void (*Panel)(App &) = nullptr; // measured values and controls, shown above the checks
+    void (*Panel)(App &) = nullptr; // measured values and controls
     bool Open = false;
 
-    TKit::StaticArray<AutoCheck, 32> Checks{};
     TKit::StaticArray<VisualCheck, 24> Visuals{};
-
-    // checks that failed last frame, and since when. a check is logged only when it goes from passing to failing, so a
-    // check that stays red does not flood the log
-    TKit::StaticArray<FailingCheck, 32> FailingLastFrame{};
-    TKit::StaticArray<u32, 32> NewFailures{};
-    u32 FailuresSinceStart = 0;
-    f32 Now = 0.f;
-
-    void BeginFrame(const f32 time)
-    {
-        FailingLastFrame.Clear();
-        for (const AutoCheck &check : Checks)
-            if (check.State == Outcome_Fail)
-                FailingLastFrame.Append(FailingCheck{check.Name, check.FailingSince});
-        Checks.Clear();
-        NewFailures.Clear();
-        Now = time;
-    }
-
-    // the heart of every automatic check: name, condition, rule and a formatted description of what was measured
-    template <typename... Args>
-    AutoCheck &Expect(const char *name, const bool passed, const char *rule, const fmt::format_string<Args...> detail,
-                      Args &&...args)
-    {
-        TKIT_ASSERT(!Checks.IsFull(), "[CONTROL CENTER] Too many checks in category '{}'", Title);
-        AutoCheck &check = Checks.Append(AutoCheck{name, rule, formatLine(detail, std::forward<Args>(args)...), Now,
-                                                   Pane_None, passed ? Outcome_Pass : Outcome_Fail});
-        if (passed)
-            return check;
-        // names are compared as text: the same name can come from more than one call site, and identical literals are
-        // not always merged (MSVC debug builds)
-        for (const FailingCheck &failing : FailingLastFrame)
-            if (std::strcmp(failing.Name, name) == 0)
-            {
-                check.FailingSince = failing.Since;
-                return check;
-            }
-        ++FailuresSinceStart;
-        NewFailures.Append(Checks.GetSize() - 1);
-        return check;
-    }
-
-    // a check that cannot be evaluated right now (wrong layout, no audio device...) shows as not applicable, instead of
-    // failing or silently disappearing
-    template <typename... Args>
-    AutoCheck &Skip(const char *name, const char *rule, const fmt::format_string<Args...> reason, Args &&...args)
-    {
-        TKIT_ASSERT(!Checks.IsFull(), "[CONTROL CENTER] Too many checks in category '{}'", Title);
-        return Checks.Append(AutoCheck{name, rule, formatLine(reason, std::forward<Args>(args)...), Now, Pane_None,
-                                       Outcome_NotApplicable});
-    }
-
-    u32 Count(const Outcome outcome) const
-    {
-        u32 count = 0;
-        for (const AutoCheck &check : Checks)
-            count += check.State == outcome;
-        return count;
-    }
 };
 
 using CategoryArray = TKit::FixedArray<Category, Category_Count>;
@@ -424,13 +322,6 @@ TKIT_COMPILER_WARNING_IGNORE_POP()
 // =====================================================================================================================
 //  3. UI HELPERS
 // =====================================================================================================================
-
-constexpr const char *OutcomeBadges[Outcome_Count] = {"PASS", "FAIL", "N/A"};
-const Onyx::Color OutcomeColors[Outcome_Count] = {Theme::Pass, Theme::Fail, Theme::Dim};
-constexpr const char *OutcomeMeanings[Outcome_Count] = {
-    "PASS: automatic check, holds this frame",
-    "FAIL: automatic check, broken this frame. The failure log keeps every pass-to-fail transition",
-    "N/A: automatic check, not applicable right now"};
 
 constexpr const char *VerdictBadges[Verdict_Count] = {"TODO", "GOOD", "BAD", "SKIP"};
 const Onyx::Color VerdictColors[Verdict_Count] = {Theme::Todo, Theme::Pass, Theme::Fail, Theme::Dim};
@@ -516,24 +407,6 @@ static void helpButton(Onyx::Overlay *ui, const TKit::StringView popup, const ch
     ui->EndPopup();
 }
 
-// one line with the verdict and the name, one with what was measured. the rule is in the tooltip
-static void drawAutoCheck(Onyx::Overlay *ui, const AutoCheck &check)
-{
-    ui->BeginPanel(ui->IdFromStack(Onyx::LayoutId{check.Name}),
-                   {.Direction = Onyx::LayoutDirection_LeftToRight,
-                    .Alignment = Onyx::Overlay::CenterLeft,
-                    .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
-                    .ChildGap = ui->GetStyle(Onyx::OverlayStyle_ChildGap)});
-    badge(ui, OutcomeBadges[check.State], OutcomeColors[check.State]);
-    swatch(ui, check.Pane);
-    text(ui, Theme::Text, check.Name);
-    ui->EndPanel();
-    tooltip(ui, OutcomeColors[check.State], OutcomeMeanings[check.State], check.Rule);
-
-    const Onyx::Color &color = check.State == Outcome_Pass ? Theme::Info : OutcomeColors[check.State];
-    text(ui, color, check.Detail.View(), Onyx::TextMode_Wrapped);
-}
-
 // returns true when the verdict changed, so it can be saved
 static bool drawVisualCheck(Onyx::Overlay *ui, VisualCheck &check, const bool applicable)
 {
@@ -598,8 +471,6 @@ struct Pane
     // docked. drawing and camera control only use these
     f32v2 Mouse{0.f};
     bool MouseInside = false;
-
-    f32 MismatchSince = -1.f; // docked texture out of sync with its panel since
 };
 
 struct RenderSettings
@@ -627,8 +498,6 @@ constexpr Onyx::LightFlags FilterFlags[Filter_Count] = {Onyx::LightFlag_CastShad
                                                         Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF,
                                                         Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCSS};
 constexpr const char *FilterNames = "Hard#PCF#Soft (PCSS)";
-constexpr const char *FilterLabels[Filter_Count] = {"hard", "PCF", "soft (PCSS)"};
-constexpr Onyx::LightFlags FilterMask = Onyx::LightFlag_CastShadows | Onyx::LightFlag_PCF | Onyx::LightFlag_PCSS;
 
 // frame pacing: the target delta time asked for with SetTargetDeltaTime. Onyx sleeps until a window is due, and in
 // vsync it resets the target to the monitor's own when the swapchain is recreated or the window moves
@@ -649,8 +518,6 @@ struct PacingSettings
     // set when onyx replaced the request with the monitor's delta time, which is kept in ResetTo
     bool Reset = false;
     TKit::Timespan ResetTo{};
-    TKit::Timespan Active{};
-    u32 FramesAtActive = 0;
 };
 
 struct LightSettings
@@ -751,7 +618,7 @@ static f32 usageFill(const UsageMeters &meters, const u32 meter)
     return f32(peak) / f32(limit);
 }
 
-// the view lab: one more 2D view on the window, reconfigured from its panel and checked against these settings
+// the view lab: one more 2D view on the window, reconfigured from its panel
 enum LabPlacement : u8
 {
     LabPlacement_AboveScene, // over the four views, under the overlay
@@ -794,7 +661,7 @@ enum InspectedView : u8
     Inspect_Count,
 };
 
-// what the galleries asked for this frame, read back by the light checks
+// where the galleries put their moving lights: positions, the 2D light's smoothed velocity and where its cone aims
 struct LightRequests
 {
     f32v2 Point2{0.f};
@@ -812,17 +679,6 @@ struct InputTracking
     // keys and buttons currently held according to the event stream (not according to polling)
     TKit::StaticArray<Graph::Key, 32> HeldKeys{};
     TKit::StaticArray<Graph::Mouse, 8> HeldButtons{};
-
-    // invariant violations, accumulated since start
-    u32 RepeatWithoutPress = 0;
-    u32 ReleaseWithoutPress = 0;
-    u32 FocusAlternation = 0;
-    u32 EnterAlternation = 0;
-    u32 MinimizeAlternation = 0;
-
-    Onyx::EventType LastFocus = Onyx::Event_Count;
-    Onyx::EventType LastEnter = Onyx::Event_Count;
-    Onyx::EventType LastMinimize = Onyx::Event_Count;
 
     const char *LastKey = "none";
     f32v2 LastScroll{0.f};
@@ -879,18 +735,13 @@ struct AudioState
 {
     bool Available = false;
 
-    // the panel's source, a beeping source that orbits the listener and two silent blips for the self test, one per
-    // kind of end callback
+    // the panel's source and a beeping source that orbits the listener
     Synth InstrumentSynth{};
     Synth SpatialSynth{};
-    Synth BlipMainSynth{};
-    Synth BlipAudioSynth{};
     Onyx::Resource Instrument = Onyx::NullHandle;
     Onyx::Resource Spatial = Onyx::NullHandle;
-    Onyx::Resource BlipMain = Onyx::NullHandle;
-    Onyx::Resource BlipAudio = Onyx::NullHandle;
 
-    // settings, applied every frame and read back by the checks
+    // settings, applied every frame
     u32 Wave = Wave_Sine;
     f32 Frequency = 220.f;
     f32 Volume = 0.5f;
@@ -906,20 +757,76 @@ struct AudioState
     f32v3 Source3{0.f};
 
     u32 InstrumentEnds = 0;
-    u32 BlipMainEnds = 0;
-    std::atomic<u32> BlipAudioEnds{0};
-
-    // self test: play then stop the main blip, then play both blips to the end and wait for their end callbacks
-    bool TestRunning = false;
-    bool TestDone = false;
-    f32 TestStartedAt = 0.f;
-    bool PlayFollows = false;
-    bool StopFollows = false;
-    bool Ended = false;
-    u32 MainEndsAtStart = 0;
-    u32 AudioEndsAtStart = 0;
 };
 #endif
+
+// the automated tests, run through the onyx-tests executable (section 10). plain std containers on purpose: the thread
+// that reads the runner's output must not touch the per thread tier allocators
+enum TestState : u8
+{
+    Test_NotRun,
+    Test_Queued,
+    Test_Running,
+    Test_Pass,
+    Test_Fail,
+    Test_Skip,
+    Test_Crash,
+    Test_Timeout,
+    Test_Known,
+    Test_StateCount,
+};
+
+struct TestEntry
+{
+    std::string Id;
+    std::string Suite;
+    std::string Description;
+    std::string KnownIssue;
+    TestState State = Test_NotRun;
+    u32 Milliseconds = 0;
+    std::vector<std::string> Failures{}; // "file:line: what failed"
+    std::vector<std::string> Notes{};
+    std::vector<std::string> Output{}; // the last lines it printed, only for failures
+    bool Selected = false;
+};
+
+struct TestRunner
+{
+    std::string Executable{};
+    std::string Problem{}; // why the tests cannot be listed or run, if they cannot
+    std::vector<TestEntry> Tests{};
+
+    std::thread Reader{};
+    std::mutex Mutex{};
+    std::vector<std::string> Lines{}; // written by the reader thread, consumed every frame by the main thread
+    std::atomic<bool> Running{false};
+    i32 ExitCode = 0;
+
+    u32 Planned = 0;
+    u32 Finished = 0;
+    f32 StartedAt = 0.f;
+    f32 Seconds = 0.f;
+    bool HasRun = false;
+    const char *Label = "";
+    TKit::FixedArray<u32, Test_StateCount> Counts{};
+
+    u32 Jobs = 2;
+    char Filter[64]{};
+    bool OnlyProblems = false;
+
+    ~TestRunner()
+    {
+        // a run still going when the app closes is left behind: its child processes end on their own once the pipe they
+        // write to is gone
+        if (Reader.joinable())
+        {
+            if (Running.load())
+                Reader.detach();
+            else
+                Reader.join();
+        }
+    }
+};
 
 struct App
 {
@@ -947,8 +854,6 @@ struct App
     Onyx::RenderContext<D2> *LabelCtx = nullptr;
     Onyx::RenderContext<D2> *TexturesCtx = nullptr;
     Onyx::RenderContext<D2> *RtCtx = nullptr;
-    Onyx::RenderContext<D2> *ScratchCtx = nullptr; // never renders. used to test context state logic
-    Onyx::RenderContext<D3> *Scratch3 = nullptr;
     Onyx::RenderContext<D2> *LabCtx = nullptr;
 
     Onyx::RenderTexture *RtScaled = nullptr;
@@ -957,7 +862,6 @@ struct App
     Onyx::Resource Lit2 = Onyx::NullHandle;
     Onyx::Resource Occluder2 = Onyx::NullHandle;
     Onyx::Resource Mat3 = Onyx::NullHandle;
-    Onyx::Resource ProbeMaterial = Onyx::NullHandle; // registered with known values, read back by a check
 
     RenderSettings Render{};
     LightSettings Lights{};
@@ -973,17 +877,12 @@ struct App
     f32 DeltaTime = 0.f;
     TKit::FixedArray<f32, 96> FrameTimes{};
     u32 FrameTimeHead = 0;
-    TKit::Clock MonotonicClock{};
-    f32 LastClockReading = 0.f;
-    bool ClockWentBackwards = false;
 
     // dpi and swapchain tracking
     TKit::StaticArray<ScaleEvent, 10> ScaleEvents{};
     u32 SwapchainRecreations = 0;
-    f32 ExtentMismatchSince = -1.f;
-    f32 LongestExtentMismatch = 0.f;
 
-    // window properties set by us, read back by checks
+    // window properties set from the panels
     char Title[128]{};
     u32 PresentMode = Onyx::PresentMode_VSync;
     PacingSettings Pacing{};
@@ -1005,20 +904,19 @@ struct App
 
     // ui state
     bool ShowManual = true;
-    bool ShowGuide = false;
+    bool ShowTests = false;
     bool ShowOverlayDemo = false;
     // how many frames each inspected view rendered with each of its framebuffers
     TKit::FixedArray<TKit::FixedArray<u32, 4>, Inspect_Count> FramebufferUse{};
     bool LabMouseInside = false;  // over the part of the lab view its scissor lets through
-    PaneId FocusPane = Pane_None; // the view the guided flow points at, by highlighting its brackets
-    TKit::StaticArray<const char *, 64> SkippedFailures{};
+    PaneId FocusPane = Pane_None; // the view the visual review points at, by highlighting its brackets
     bool VerdictsDirty = false;
     u32 LoadedVerdicts = 0;
     f32 ReportCopiedAt = -100.f;
     u32 ReportLines = 0;
 
     CategoryArray Categories{};
-    TKit::StaticArray<FailureRecord, 48> FailureLog{};
+    TestRunner Tests{};
 
     // renderer usage per dimension, measured every frame right before the transfer
     TKit::FixedArray<UsageMeters, 2> Usage{};
@@ -1052,8 +950,6 @@ static void setup(App &app)
     app.Lit2 = Onyx::Material_Register<D2>();
     app.Occluder2 = Onyx::Material_Register<D2>({.Occluder = true});
     app.Mat3 = Onyx::Material_Register<D3>({.RoughnessFactor = 0.35f});
-    app.ProbeMaterial =
-        Onyx::Material_Register<D2>({.ColorFactor = Theme::Accent, .TexOffset = f32v2{0.25f}, .TexScale = f32v2{2.f}});
     Onyx::Resources_Sync(Onyx::SyncFlag_Materials);
 
     // -- window -----------------------------------------------------------------------------------------------------
@@ -1145,8 +1041,6 @@ static void setup(App &app)
     app.RtCtx = Onyx::CreateRenderContext<D2>();
     app.RtCtx->AddTarget(app.RtScaledView);
     app.RtCtx->AddTarget(app.RtFixedView);
-    app.ScratchCtx = Onyx::CreateRenderContext<D2>();
-    app.Scratch3 = Onyx::CreateRenderContext<D3>();
     app.LabCtx = Onyx::CreateRenderContext<D2>();
     app.LabCtx->AddTarget(app.LabView);
 
@@ -1171,7 +1065,7 @@ static void undockPanels(App &app)
         ui->UndockWindow(Onyx::LayoutId{cat.Title});
     ui->UndockWindow(Onyx::LayoutId{ControlCenterTitle});
     ui->UndockWindow(Onyx::LayoutId{ManualTitle});
-    ui->UndockWindow(Onyx::LayoutId{GuideTitle});
+    ui->UndockWindow(Onyx::LayoutId{TestsTitle});
     for (const PaneInfo &info : PaneInfos)
         ui->UndockWindow(Onyx::LayoutId{info.Name});
 }
@@ -1190,7 +1084,6 @@ static void setLayout(App &app, const LayoutMode mode)
         pane.Frame[mode]->RemoveFlags(Onyx::RenderViewFlag_Hidden);
         pane.ImageHovered = false;
         pane.ImageSize = f32v2{0.f};
-        pane.MismatchSince = -1.f;
     }
     app.Ctx3->RemoveTarget(app.View3[old]);
     app.Ctx3->AddTarget(app.View3[mode]);
@@ -1250,14 +1143,6 @@ static void updatePanes(App &app)
     }
 }
 
-// "press" and "release" style events must alternate. two presses in a row (or two releases) is a violation
-static void checkAlternation(Onyx::EventType &last, const Onyx::EventType current, u32 &violations)
-{
-    if (last == current)
-        ++violations;
-    last = current;
-}
-
 template <typename Array, typename T> static bool removeHeld(Array &held, const T value)
 {
     for (T *it = held.begin(); it != held.end(); ++it)
@@ -1289,10 +1174,6 @@ static void processEvents(App &app)
         case Onyx::Event_KeyReleased:
             removeHeld(in.HeldKeys, event.Key);
             break;
-        case Onyx::Event_KeyRepeat:
-            if (!in.HeldKeys.Contains(event.Key))
-                ++in.RepeatWithoutPress;
-            break;
         case Onyx::Event_MouseMoved:
             in.EventMouse = event.Mouse.Position;
             in.HasEventMouse = true;
@@ -1302,20 +1183,7 @@ static void processEvents(App &app)
                 in.HeldButtons.Append(event.Mouse.Button);
             break;
         case Onyx::Event_MouseReleased:
-            if (!removeHeld(in.HeldButtons, event.Mouse.Button))
-                ++in.ReleaseWithoutPress;
-            break;
-        case Onyx::Event_MouseEntered:
-        case Onyx::Event_MouseLeft:
-            checkAlternation(in.LastEnter, event.Type, in.EnterAlternation);
-            break;
-        case Onyx::Event_WindowFocused:
-        case Onyx::Event_WindowUnfocused:
-            checkAlternation(in.LastFocus, event.Type, in.FocusAlternation);
-            break;
-        case Onyx::Event_WindowMinimized:
-        case Onyx::Event_WindowRestored:
-            checkAlternation(in.LastMinimize, event.Type, in.MinimizeAlternation);
+            removeHeld(in.HeldButtons, event.Mouse.Button);
             break;
         case Onyx::Event_Scrolled:
             in.LastScroll = event.ScrollOffset;
@@ -1372,8 +1240,8 @@ static void controlCameras(App &app)
         app.Window->ControlCamera(dt, &app.Cam3);
 }
 
-// the lab's settings are applied every frame, so its checks can read them back. in the docked layout the dockspace
-// covers the window, so the lab is hidden there
+// the lab's settings are applied every frame. in the docked layout the dockspace covers the window, so the lab is
+// hidden there
 static void updateLab(App &app)
 {
     const LabSettings &lab = app.Lab;
@@ -1405,7 +1273,7 @@ static void updateLab(App &app)
 }
 
 // requests from the platform panel apply right before Render, which then scans the same events as below and resets
-// the target to the monitor's in vsync. mirroring it here tells the checks when the request was replaced
+// the target to the monitor's in vsync. mirroring it here lets the panel say when the request was replaced
 static void updatePacing(App &app)
 {
     PacingSettings &pc = app.Pacing;
@@ -1429,15 +1297,6 @@ static void updatePacing(App &app)
                 pc.Reset = true;
                 pc.ResetTo = monitor;
             }
-
-    const TKit::Timespan active = Onyx::GetTargetDeltaTime(win);
-    if (active != pc.Active)
-    {
-        pc.Active = active;
-        pc.FramesAtActive = 0;
-    }
-    else
-        ++pc.FramesAtActive;
 }
 
 // scenarios exercise related checks on demand
@@ -1453,1084 +1312,8 @@ static void runScenarios(App &app)
 }
 
 // =====================================================================================================================
-//  7. AUTOMATIC CHECKS
+//  7. USAGE METERS
 // =====================================================================================================================
-
-static void checkDpi(App &app)
-{
-    Category &cat = app.Categories[Category_Dpi];
-    Onyx::Window *win = app.Window;
-    const Graph::Window handle = win->GetHandle();
-
-    const f32v2 scale = win->GetContentScale();
-    const u32v2 size = win->GetSize();
-    const u32v2 pixels = Graph::Window_GetPixelSize(handle);
-    const u32v2 expected = Onyx::ApplyScale(size, scale);
-    const u32v2 extent = Graph::Swapchain_GetExtent(win->GetSwapchain());
-
-    cat.Expect("Content scale is positive", scale[0] > 0.f && scale[1] > 0.f,
-               "The content scale is the ratio between physical and logical pixels. It can never be zero or negative",
-               "scale = {:.3f} x {:.3f}", scale[0], scale[1]);
-    cat.Expect("Content scale is uniform", Math::Approximately(scale[0], scale[1], Epsilon),
-               "Desktop platforms report the same scale on both axes. Onyx relies on the x component in a few places "
-               "(render texture scale, outline width), so a non uniform scale would be handled incorrectly",
-               "x = {:.3f}, y = {:.3f}", scale[0], scale[1]);
-    cat.Expect("Pixel size = logical size x scale", Math::Approximately(f32v2{pixels}, f32v2{expected}, 1.f),
-               "Window::GetSize() returns logical pixels. Multiplying by the content scale must give the framebuffer "
-               "size in physical pixels (rounding may differ by one)",
-               "logical {} x {}  x {:.3f}  = {} x {}, framebuffer {} x {}", size[0], size[1], scale[0], expected[0],
-               expected[1], pixels[0], pixels[1]);
-
-    // the swapchain is recreated lazily, so it may lag for a few frames. it must not stay out of sync
-    const bool mismatch = extent != pixels;
-    if (mismatch && app.ExtentMismatchSince < 0.f)
-        app.ExtentMismatchSince = app.Time;
-    else if (!mismatch)
-        app.ExtentMismatchSince = -1.f;
-    const f32 mismatchFor = mismatch ? app.Time - app.ExtentMismatchSince : 0.f;
-    app.LongestExtentMismatch = Math::Max(app.LongestExtentMismatch, mismatchFor);
-    cat.Expect("Swapchain extent follows the framebuffer", mismatchFor <= SwapchainGracePeriod,
-               "The swapchain images must have the framebuffer size in physical pixels. After a resize or a scale "
-               "change, the swapchain is recreated and must catch up within a short grace period",
-               "swapchain {} x {}, framebuffer {} x {}, out of sync for {:.2f}s (longest so far {:.2f}s)", extent[0],
-               extent[1], pixels[0], pixels[1], mismatchFor, app.LongestExtentMismatch);
-
-    bool viewsOk = true;
-    for (const Onyx::RenderView<D2> *rv : win->GetRenderViews<D2>())
-        viewsOk &= Math::Approximately(rv->GetContentScale(), scale, Epsilon);
-    for (const Onyx::RenderView<D3> *rv : win->GetRenderViews<D3>())
-        viewsOk &= Math::Approximately(rv->GetContentScale(), scale, Epsilon);
-    cat.Expect("Every window view uses the window scale", viewsOk,
-               "Render views size their framebuffers as logical size x content scale. A window view still holding an "
-               "old scale renders at the wrong resolution (blurry or clipped). Hidden views are updated too",
-               "{} 2D views, {} 3D views checked against {:.3f}", win->GetRenderViews<D2>().GetSize(),
-               win->GetRenderViews<D3>().GetSize(), scale[0]);
-
-    const char *eventRule = "Event_ContentScaleChanged carries the new scale. The most recent one must equal what the "
-                            "window reports now, otherwise an event was lost or carries a stale value";
-    if (app.ScaleEvents.IsEmpty())
-        cat.Skip("Last scale event matches the current scale", eventRule, "no scale change yet");
-    else
-    {
-        const f32v2 last = app.ScaleEvents.GetBack().Scale;
-        cat.Expect("Last scale event matches the current scale", Math::Approximately(last, scale, Epsilon), eventRule,
-                   "last event {:.3f} x {:.3f}, window {:.3f} x {:.3f}", last[0], last[1], scale[0], scale[1]);
-    }
-
-    const char *mouseRule = "Window::GetMousePosition() returns logical pixels. While the cursor hovers the window it "
-                            "must lie within [0, logical size]. A position up to scale times too large means it is in "
-                            "physical pixels";
-    if (!win->IsHovered())
-        cat.Skip("Hovered mouse lies inside the logical window", mouseRule, "the cursor is not over the window");
-    else
-    {
-        const f32v2 mouse = win->GetMousePosition();
-        const bool inside =
-            mouse[0] >= -1.f && mouse[1] >= -1.f && mouse[0] <= f32(size[0]) + 1.f && mouse[1] <= f32(size[1]) + 1.f;
-        cat.Expect("Hovered mouse lies inside the logical window", inside, mouseRule,
-                   "mouse ({:.1f}, {:.1f}) in {} x {}", mouse[0], mouse[1], size[0], size[1]);
-    }
-}
-
-static void checkViews(App &app)
-{
-    Category &cat = app.Categories[Category_Views];
-    Onyx::Window *win = app.Window;
-    const f32v2 wsize = f32v2{win->GetSize()};
-    const bool direct = app.Mode == Mode_Direct;
-
-    // the view that owns each pane's viewport: the frame view, except for the 3D gallery, whose 3D view does
-    TKit::FixedArray<const Onyx::Viewport *, Pane_Count> viewports{};
-    TKit::FixedArray<u32v2, Pane_Count> images{};
-    for (u32 i = 0; i < Pane_Count; ++i)
-    {
-        viewports[i] = &app.Panes[i].Frame[app.Mode]->GetViewport();
-        images[i] = app.Panes[i].Frame[app.Mode]->GetImageSize();
-    }
-    viewports[Pane_Gallery3] = &app.View3[app.Mode]->GetViewport();
-    images[Pane_Gallery3] = app.View3[app.Mode]->GetImageSize();
-
-    const char *viewportRule = "A proportional viewport is stored as window fractions and must be recomputed from the "
-                               "logical window size on every resize and scale change. Position and size are in logical "
-                               "pixels. Only the direct layout tiles the window: docked views cover their texture";
-    f32 area = 0.f;
-    for (u32 i = 0; i < Pane_Count; ++i)
-    {
-        const Onyx::Viewport &vp = *viewports[i];
-        area += vp.Size[0] * vp.Size[1];
-        if (direct)
-        {
-            const f32v2 expectedPos = PaneInfos[i].Quadrant * wsize;
-            const f32v2 expectedSize = QuadrantSize * wsize;
-            cat.Expect(ViewportCheckNames[i],
-                       Math::Approximately(vp.Position, expectedPos, 0.5f) &&
-                           Math::Approximately(vp.Size, expectedSize, 0.5f),
-                       viewportRule,
-                       "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}",
-                       vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1], expectedPos[0], expectedPos[1],
-                       expectedSize[0], expectedSize[1])
-                .Pane = PaneId(i);
-        }
-        else
-            cat.Skip(ViewportCheckNames[i], viewportRule, "docked layout: the view covers its texture").Pane =
-                PaneId(i);
-
-        cat.Expect(ImageCheckNames[i], Math::Approximately(f32v2{images[i]}, Math::Round(vp.Size), 1.f),
-                   "With proportional image sizing (the default, ratio 1) a view's image has the logical size of its "
-                   "viewport. The physical extent is that size times the content scale",
-                   "image {} x {}, viewport {:.0f} x {:.0f}", images[i][0], images[i][1], vp.Size[0], vp.Size[1])
-            .Pane = PaneId(i);
-    }
-    const char *tileRule =
-        "The four quadrant viewports must cover the window exactly: their areas add up to the window "
-        "area (within a pixel of rounding along the seams)";
-    if (direct)
-        cat.Expect("Views tile the window", Math::Approximately(area, wsize[0] * wsize[1], 2.f * (wsize[0] + wsize[1])),
-                   tileRule, "viewports {:.0f} px2, window {:.0f} px2", area, wsize[0] * wsize[1]);
-    else
-        cat.Skip("Views tile the window", tileRule, "docked layout: the views render into textures");
-
-    // coordinate conversions, at the mouse when it is over the pane and at fixed probes otherwise
-    for (u32 i = 0; i < Pane_Count; ++i)
-    {
-        const Pane &pane = app.Panes[i];
-        const Onyx::Viewport &vp = *viewports[i];
-        const f32v2 probe = pane.MouseInside ? pane.Mouse : vp.Position + 0.5f * vp.Size;
-        if (i == Pane_Gallery3)
-        {
-            const Onyx::RenderView<D3> *rv = app.View3[app.Mode];
-            const f32v3 world = rv->ScreenToWorld(f32v3{probe, 0.5f});
-            const f32 error = Math::Norm(rv->WorldToScreen(world) - probe);
-            cat.Expect(RoundTripCheckNames[i], error < 0.05f,
-                       "In 3D, a screen point plus a depth (in normalized device coordinates) defines a world point. "
-                       "Projecting it back must give the same screen point",
-                       "error {:.5f} px at depth 0.5", error)
-                .Pane = PaneId(i);
-            continue;
-        }
-        const Onyx::RenderView<D2> *rv = pane.Frame[app.Mode];
-        const f32v2 probes[3] = {vp.Position + 0.25f * vp.Size, vp.Position + 0.75f * vp.Size, probe};
-        f32 maxError = 0.f;
-        for (const f32v2 &p : probes)
-            maxError = Math::Max(maxError, Math::Norm(rv->WorldToScreen(rv->ScreenToWorld(p)) - p));
-        cat.Expect(RoundTripCheckNames[i], maxError < 0.01f,
-                   "ScreenToWorld and WorldToScreen are inverses. Converting a screen point to world space and back "
-                   "must land on the same logical pixel, for any camera position, rotation or zoom",
-                   "max error {:.5f} px over 3 probes", maxError)
-            .Pane = PaneId(i);
-    }
-
-    {
-        const Onyx::RenderView<D2> *rv = app.Panes[Pane_Pixel].Frame[app.Mode];
-        const Onyx::Viewport &vp = rv->GetViewport();
-        const f32v2 p = vp.Position + 0.5f * vp.Size;
-        const f32v2 dx = rv->ScreenToWorld(p + f32v2{1.f, 0.f}) - rv->ScreenToWorld(p);
-        const f32v2 dy = rv->ScreenToWorld(p + f32v2{0.f, 1.f}) - rv->ScreenToWorld(p);
-        cat.Expect("Viewport camera: 1 world unit = 1 logical pixel",
-                   Math::Approximately(Math::Norm(dx), 1.f, 1e-3f) && Math::Approximately(Math::Norm(dy), 1.f, 1e-3f),
-                   "CameraMode_Viewport maps one world unit to one logical pixel, independently of the content scale. "
-                   "Moving one logical pixel on screen must move exactly one unit in world space",
-                   "1 px right -> ({:.4f}, {:.4f}), 1 px down -> ({:.4f}, {:.4f})", dx[0], dx[1], dy[0], dy[1])
-            .Pane = Pane_Pixel;
-    }
-    {
-        const Onyx::RenderView<D2> *rv = app.Panes[Pane_Gallery2].Frame[app.Mode];
-        const Onyx::Viewport &vp = rv->GetViewport();
-        const f32v2 top = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 0.f});
-        const f32v2 bottom = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]});
-        const f32 span = Math::Norm(top - bottom);
-        cat.Expect("Orthographic camera: viewport height = ortho size",
-                   Math::Approximately(span, app.GalleryCam.OrthoParameters.Size, 1e-2f),
-                   "An orthographic camera shows OrthoParameters.Size world units from the top to the bottom of its "
-                   "viewport, whatever the window size or scale. Zooming changes that size",
-                   "top to bottom = {:.4f} units, ortho size = {:.4f}", span, app.GalleryCam.OrthoParameters.Size)
-            .Pane = Pane_Gallery2;
-
-        const f32v2 center = rv->ScreenToWorld(vp.Position + 0.5f * vp.Size);
-        const f32v2 camPos = app.GalleryCam.View.Translation;
-        cat.Expect("Viewport center = camera position", Math::Approximately(center, camPos, 1e-3f),
-                   "A 2D camera looks at its own position, so the center of its viewport maps to the camera "
-                   "translation, even after moving or rotating it (WASD/QE)",
-                   "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", center[0], center[1], camPos[0], camPos[1])
-            .Pane = Pane_Gallery2;
-    }
-
-    // one check per 3D camera mode, the two others are skipped. probes are taken at the middle of the depth range: any
-    // depth works for the orthographic and viewport cameras, and the perspective one is checked by angle
-    {
-        const Onyx::RenderView<D3> *rv = app.View3[app.Mode];
-        const Onyx::Camera<D3> &cam = app.Cam3;
-        const Onyx::Viewport &vp = rv->GetViewport();
-        const char *modeNames[3] = {"orthographic", "viewport", "perspective"};
-        const char *orthoName = "3D orthographic camera: viewport height = ortho size";
-        const char *orthoRule = "An orthographic 3D camera shows OrthoParameters.Size world units from the top to the "
-                                "bottom of its viewport, at any depth";
-        const char *viewportName = "3D viewport camera: 1 world unit = 1 logical pixel";
-        const char *viewportRule =
-            "CameraMode_Viewport in 3D is an orthographic camera sized to the viewport: one logical pixel on screen is "
-            "one world unit, at any depth";
-        const char *perspName = "3D perspective camera: vertical angle = field of view";
-        const char *perspRule = "A perspective camera's field of view is vertical: the rays through the top and bottom "
-                                "centers of its viewport meet at the camera with that angle";
-        const Line reason = formatLine("the 3D camera is {}", modeNames[cam.Mode]);
-
-        const f32v2 center = vp.Position + 0.5f * vp.Size;
-        const f32v3 top = rv->ScreenToWorld(f32v3{vp.Position + f32v2{0.5f * vp.Size[0], 0.f}, 0.5f});
-        const f32v3 bottom = rv->ScreenToWorld(f32v3{vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]}, 0.5f});
-
-        if (cam.Mode == Onyx::CameraMode_Orthographic)
-        {
-            const f32 span = Math::Norm(top - bottom);
-            const f32 size = cam.OrthoParameters.Size;
-            cat.Expect(orthoName, Math::Approximately(span, size, 1e-3f * size), orthoRule,
-                       "top to bottom = {:.4f} units, ortho size = {:.4f}", span, size)
-                .Pane = Pane_Gallery3;
-        }
-        else
-            cat.Skip(orthoName, orthoRule, "{}", reason.View()).Pane = Pane_Gallery3;
-
-        if (cam.Mode == Onyx::CameraMode_Viewport)
-        {
-            const f32v3 p = rv->ScreenToWorld(f32v3{center, 0.5f});
-            const f32 dx = Math::Norm(rv->ScreenToWorld(f32v3{center + f32v2{1.f, 0.f}, 0.5f}) - p);
-            const f32 dy = Math::Norm(rv->ScreenToWorld(f32v3{center + f32v2{0.f, 1.f}, 0.5f}) - p);
-            cat.Expect(viewportName, Math::Approximately(dx, 1.f, 1e-3f) && Math::Approximately(dy, 1.f, 1e-3f),
-                       viewportRule, "1 px right -> {:.4f} units, 1 px down -> {:.4f} units", dx, dy)
-                .Pane = Pane_Gallery3;
-        }
-        else
-            cat.Skip(viewportName, viewportRule, "{}", reason.View()).Pane = Pane_Gallery3;
-
-        if (cam.Mode == Onyx::CameraMode_Perspective)
-        {
-            const f32v3 &eye = cam.View.Translation;
-            const f32 cosine = Math::Dot(Math::Normalize(top - eye), Math::Normalize(bottom - eye));
-            const f32 angle = Math::AntiCosine(Math::Clamp(cosine, -1.f, 1.f));
-            const f32 fov = cam.PerspParameters.FieldOfView;
-            cat.Expect(perspName, Math::Approximately(angle, fov, Math::Radians(0.1f)), perspRule,
-                       "angle {:.2f} deg, field of view {:.2f} deg", Math::Degrees(angle), Math::Degrees(fov))
-                .Pane = Pane_Gallery3;
-        }
-        else
-            cat.Skip(perspName, perspRule, "{}", reason.View()).Pane = Pane_Gallery3;
-    }
-
-    const auto sorted = win->GetSortedViews<D2>();
-    bool ordered = true;
-    for (u32 i = 1; i < sorted.GetSize(); ++i)
-        ordered &= sorted[i - 1]->Layer <= sorted[i]->Layer;
-    cat.Expect("Sorted views are ordered by layer", ordered,
-               "Views are drawn in increasing Layer order. GetSortedViews must return them that way, which is what "
-               "BringToTop and BringToBottom rely on",
-               "{} 2D views", sorted.GetSize());
-
-    // the overlay draws through its own render view, so its place among the window views is checked here
-    const Onyx::RenderView<D2> *overlay = app.Ui->GetMainNativeWindow()->View;
-    bool onTop = true;
-    for (const Onyx::RenderView<D2> *rv : win->GetRenderViews<D2>())
-        onTop &= rv == overlay || rv->Layer < overlay->Layer;
-    for (const Onyx::RenderView<D3> *rv : win->GetRenderViews<D3>())
-        onTop &= rv->Layer < overlay->Layer;
-    cat.Expect("Overlay view is the top layer", onTop,
-               "The overlay draws through its own 2D render view. It must have the highest layer of all views in the "
-               "window, or scene views would be drawn over it. This demo calls BringToTop on it after creating "
-               "everything else",
-               "overlay layer {}", overlay->Layer);
-
-    const Onyx::Viewport &ovp = overlay->GetViewport();
-    cat.Expect("Overlay view covers the window",
-               Math::Approximately(ovp.Position, f32v2{0.f}, 0.5f) && Math::Approximately(ovp.Size, wsize, 0.5f),
-               "The overlay's view spans the whole window, so overlay windows can be placed anywhere on it",
-               "viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, window {:.0f} x {:.0f}", ovp.Position[0], ovp.Position[1],
-               ovp.Size[0], ovp.Size[1], wsize[0], wsize[1]);
-}
-
-static void checkRendering(App &app)
-{
-    Category &cat = app.Categories[Category_Rendering];
-    Onyx::RenderContext<D2> *ctx = app.ScratchCtx;
-
-    // the scratch context has no targets. it is used only to exercise state logic, and flushed every frame
-    ctx->Flush();
-    const Onyx::ContextState<D2> initial = ctx->GetState();
-    cat.Expect("Flush resets the context state",
-               initial.FillColor == Onyx::Color_White && Math::Approximately(initial.Transform, f32m3::Identity()) &&
-                   initial.RenderFlags == Onyx::RenderModeFlag_Flat,
-               "Flush() clears recorded draws and returns the state to its defaults: white fill, identity transform, "
-               "flat render mode. Every frame starts from there",
-               "fill alpha {:.2f}, render flags {}", initial.FillColor.rgba[3], initial.RenderFlags);
-
-    ctx->Push();
-    ctx->FillColor(Onyx::Color_Red);
-    ctx->Translate(f32v2{3.f, -2.f});
-    ctx->Pop();
-    cat.Expect("Pop restores what Push saved",
-               ctx->GetState().FillColor == initial.FillColor &&
-                   Math::Approximately(ctx->GetState().Transform, initial.Transform),
-               "Push() saves the whole state (transform, colors, material, flags...) and Pop() restores it, so changes "
-               "made in between never leak to later draws",
-               "fill and transform compared after Push, FillColor, Translate, Pop");
-
-    ctx->Translate(f32v2{1.f, 0.f});
-    ctx->Scale(2.f);
-    const f32v2 extrinsic = Onyx::Transform<D2>::ExtractTranslation(ctx->GetState().Transform);
-    ctx->ResetTransform();
-    ctx->Translate(f32v2{1.f, 0.f});
-    ctx->Scale(2.f, Onyx::Transform_Intrinsic);
-    const f32v2 intrinsic = Onyx::Transform<D2>::ExtractTranslation(ctx->GetState().Transform);
-    ctx->ResetTransform();
-    cat.Expect("Extrinsic vs intrinsic transforms",
-               Math::Approximately(extrinsic, f32v2{2.f, 0.f}, Epsilon) &&
-                   Math::Approximately(intrinsic, f32v2{1.f, 0.f}, Epsilon),
-               "Transforms are extrinsic by default: each one is applied in world space on top of the previous ones, "
-               "so Translate(1, 0) then Scale(2) scales the translation too and the object ends at (2, 0). With "
-               "Transform_Intrinsic the scale is applied in local space and the object stays at (1, 0). Rule of thumb "
-               "for extrinsic: scale, then rotate, then translate",
-               "extrinsic -> ({:.3f}, {:.3f}), intrinsic -> ({:.3f}, {:.3f})", extrinsic[0], extrinsic[1], intrinsic[0],
-               intrinsic[1]);
-
-    ctx->Scale(f32v2{2.f, 3.f});
-    ctx->Rotate(0.7f);
-    ctx->Translate(f32v2{4.f, 5.f});
-    f32v2 t, s;
-    f32 r;
-    Onyx::Transform<D2>::Extract(ctx->GetState().Transform, &t, &s, &r);
-    cat.Expect("Scale, rotate, translate can be extracted back",
-               Math::Approximately(t, f32v2{4.f, 5.f}, 1e-3f) && Math::Approximately(s, f32v2{2.f, 3.f}, 1e-3f) &&
-                   Math::Approximately(r, 0.7f, 1e-3f),
-               "Composing scale (2, 3), rotation 0.7 rad and translation (4, 5) and then decomposing the resulting "
-               "matrix must give the same three components back",
-               "t = ({:.3f}, {:.3f}), s = ({:.3f}, {:.3f}), r = {:.3f}", t[0], t[1], s[0], s[1], r);
-
-    const f32v2 local{0.3f, -1.2f};
-    const f32v2 back = ctx->WorldToLocal(ctx->LocalToWorld(local));
-    cat.Expect("LocalToWorld and WorldToLocal are inverses", Math::Approximately(back, local, 1e-3f),
-               "Converting a point from the current local space to world space and back must return the same point",
-               "({:.3f}, {:.3f}) -> world -> ({:.3f}, {:.3f})", local[0], local[1], back[0], back[1]);
-    ctx->ResetTransform();
-
-    ctx->Alpha(0.25f);
-    const bool translucent = ctx->GetState().Blend == Onyx::BlendPass_Transparent;
-    ctx->Alpha(1.f);
-    const bool opaque = ctx->GetState().Blend == Onyx::BlendPass_Opaque;
-    ctx->FillColor(Onyx::Color{Onyx::Color_Sky, 0.5f});
-    const bool fromColor = ctx->GetState().Blend == Onyx::BlendPass_Transparent;
-    cat.Expect("Translucent fills go to the transparent pass", translucent && opaque && fromColor,
-               "Alpha() or a FillColor with alpha below 1 routes the following draws to the transparent blend pass, "
-               "which sorts and blends them. Alpha 1 routes them back to the opaque pass. Views need "
-               "RenderViewFlag_Transparency for the transparent pass to be composited",
-               "Alpha(0.25) -> {}, Alpha(1) -> {}, FillColor(a = 0.5) -> {}", translucent ? "transparent" : "opaque",
-               opaque ? "opaque" : "transparent", fromColor ? "transparent" : "opaque");
-    ctx->Flush();
-
-    Onyx::RenderContext<D3> *ctx3 = app.Scratch3;
-    ctx3->Flush();
-    ctx3->Alpha(0.4f);
-    const bool translucent3 = ctx3->GetState().Blend == Onyx::BlendPass_Transparent;
-    ctx3->Alpha(1.f);
-    const bool opaque3 = ctx3->GetState().Blend == Onyx::BlendPass_Opaque;
-    ctx3->FillColor(Onyx::Color{Onyx::Color_Sky, 0.5f});
-    const bool fromColor3 = ctx3->GetState().Blend == Onyx::BlendPass_Transparent;
-    ctx3->Flush();
-    cat.Expect("3D translucent fills go to the transparent pass", translucent3 && opaque3 && fromColor3,
-               "The same routing in 3D: alpha below 1 sends the following draws to the transparent pass, alpha 1 "
-               "back to the opaque one. Without it, translucent 3D shapes would be drawn opaque",
-               "Alpha(0.4) -> {}, Alpha(1) -> {}, FillColor(a = 0.5) -> {}", translucent3 ? "transparent" : "opaque",
-               opaque3 ? "opaque" : "transparent", fromColor3 ? "transparent" : "opaque")
-        .Pane = Pane_Gallery3;
-
-    Onyx::RenderViewFlags wanted = Onyx::RenderViewFlag_Transparency;
-    if (app.Render.Outlines)
-        wanted |= Onyx::RenderViewFlag_Outlines;
-    if (app.Render.Shadows)
-        wanted |= Onyx::RenderViewFlag_Shadows;
-    if (app.Render.FXAA)
-        wanted |= Onyx::RenderViewFlag_FXAA;
-    const Onyx::RenderViewFlags mask = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Shadows |
-                                       Onyx::RenderViewFlag_FXAA | Onyx::RenderViewFlag_Transparency;
-    const Onyx::RenderViewFlags flags2 = app.Panes[Pane_Gallery2].Frame[app.Mode]->GetFlags() & mask;
-    const Onyx::RenderViewFlags flags3 = app.View3[app.Mode]->GetFlags() & mask;
-    cat.Expect("Gallery view flags match the toggles", flags2 == wanted && flags3 == wanted,
-               "RenderView::SetFlags enables or disables whole passes. Toggling outlines, transparency or FXAA "
-               "recreates the view's framebuffers. The flags read back must be the ones requested",
-               "2D gallery flags {:#06x}, 3D gallery flags {:#06x}, wanted {:#06x}", flags2, flags3, wanted);
-}
-
-// the lab view's checks compare the view against the settings its panel asked for
-enum LabCheck : u8
-{
-    LabCheck_Viewport,
-    LabCheck_Scissor,
-    LabCheck_Image,
-    LabCheck_Conversions,
-    LabCheck_RoundTrip,
-    LabCheck_Camera,
-    LabCheck_Center,
-    LabCheck_Flags,
-    LabCheck_Layer,
-    LabCheck_Count,
-};
-constexpr const char *LabCheckNames[LabCheck_Count] = {
-    "Lab: viewport follows its settings",      "Lab: scissor follows its settings",
-    "Lab: image size follows the image scale", "Lab: screen and viewport coordinates agree",
-    "Lab: screen -> world -> screen",          "Lab: the camera maps world units as asked",
-    "Lab: viewport center = camera position",  "Lab: flags read back",
-    "Lab: layer is where it was put",
-};
-constexpr const char *LabCheckRules[LabCheck_Count] = {
-    "A proportional viewport is stored as window fractions and recomputed from the logical window size. A fixed one "
-    "is in logical pixels and never moves when the window is resized",
-    "A proportional scissor is stored as fractions of the viewport, and follows it when the viewport changes. It is "
-    "relative to the viewport, in logical pixels",
-    "With proportional image sizing the view renders at viewport size x ratio: below 1 it renders fewer pixels and is "
-    "stretched, above 1 it supersamples. The viewport itself does not change",
-    "ScreenToViewport and ViewportToScreen offset by the viewport position. IsWithinViewport is true one pixel inside "
-    "each edge and false one pixel outside",
-    "ScreenToWorld and WorldToScreen are inverses for any viewport, scissor, image scale, camera mode, position and "
-    "rotation",
-    "CameraMode_Orthographic shows OrthoParameters.Size world units from the top to the bottom of the viewport. "
-    "CameraMode_Viewport maps one logical pixel to one world unit. Rotation never changes either",
-    "A 2D camera looks at its own position: the center of the viewport maps to the camera translation",
-    "SetFlags stores exactly the flags given: outlines, transparency, FXAA and hidden",
-    "BringToTop and BringToBottom move a view to either end of its target's layers. Above the scene the lab sits over "
-    "every scene view and under the overlay, below the scene it sits under all of them",
-};
-
-static void checkLab(App &app)
-{
-    Category &cat = app.Categories[Category_Lab];
-    const LabSettings &lab = app.Lab;
-    const Onyx::RenderView<D2> *rv = app.LabView;
-    if (!lab.Enabled || app.Mode != Mode_Direct)
-    {
-        const char *reason = lab.Enabled ? "only in the direct layout" : "the lab view is off, turn it on in its panel";
-        for (u32 i = 0; i < LabCheck_Count; ++i)
-            cat.Skip(LabCheckNames[i], LabCheckRules[i], "{}", reason);
-        return;
-    }
-
-    const Onyx::Viewport &vp = rv->GetViewport();
-    const Onyx::Scissor &sc = rv->GetScissor();
-    const f32v2 wsize = f32v2{app.Window->GetSize()};
-    const f32v2 wantPos = lab.FixedViewport ? lab.Position : lab.Position * wsize;
-    const f32v2 wantSize = lab.FixedViewport ? lab.Size : lab.Size * wsize;
-    cat.Expect(LabCheckNames[LabCheck_Viewport],
-               Math::Approximately(vp.Position, wantPos, 0.5f) && Math::Approximately(vp.Size, wantSize, 0.5f),
-               LabCheckRules[LabCheck_Viewport],
-               "{} viewport ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}",
-               lab.FixedViewport ? "fixed" : "proportional", vp.Position[0], vp.Position[1], vp.Size[0], vp.Size[1],
-               wantPos[0], wantPos[1], wantSize[0], wantSize[1]);
-
-    const f32v2 wantScPos = lab.ScissorPosition * vp.Size;
-    const f32v2 wantScSize = lab.ScissorSize * vp.Size;
-    cat.Expect(LabCheckNames[LabCheck_Scissor],
-               Math::Approximately(sc.Position, wantScPos, 0.5f) && Math::Approximately(sc.Size, wantScSize, 0.5f),
-               LabCheckRules[LabCheck_Scissor],
-               "scissor ({:.1f}, {:.1f}) {:.1f} x {:.1f}, expected ({:.1f}, {:.1f}) {:.1f} x {:.1f}", sc.Position[0],
-               sc.Position[1], sc.Size[0], sc.Size[1], wantScPos[0], wantScPos[1], wantScSize[0], wantScSize[1]);
-
-    const u32v2 image = rv->GetImageSize();
-    const f32v2 wantImage = Math::Round(vp.Size * lab.ImageScale);
-    cat.Expect(LabCheckNames[LabCheck_Image], Math::Approximately(f32v2{image}, wantImage, 1.f),
-               LabCheckRules[LabCheck_Image], "image {} x {}, expected {:.0f} x {:.0f} (scale {:.2f})", image[0],
-               image[1], wantImage[0], wantImage[1], lab.ImageScale);
-
-    const f32v2 center = vp.Position + 0.5f * vp.Size;
-    const f32v2 probe = vp.Position + f32v2{0.3f, 0.7f} * vp.Size;
-    const f32v2 end = vp.Position + vp.Size;
-    const bool offsets = Math::Approximately(rv->ScreenToViewport(vp.Position), f32v2{0.f}, Epsilon) &&
-                         Math::Approximately(rv->ViewportToScreen(rv->ScreenToViewport(probe)), probe, Epsilon);
-    const bool inside =
-        rv->IsWithinViewport(center) && rv->IsWithinViewport(vp.Position + 1.f) && rv->IsWithinViewport(end - 1.f);
-    const bool outside = !rv->IsWithinViewport(vp.Position - 1.f) && !rv->IsWithinViewport(end + 1.f) &&
-                         !rv->IsWithinViewport(f32v2{vp.Position[0] - 1.f, center[1]}) &&
-                         !rv->IsWithinViewport(f32v2{end[0] + 1.f, center[1]});
-    cat.Expect(LabCheckNames[LabCheck_Conversions], offsets && inside && outside, LabCheckRules[LabCheck_Conversions],
-               "offsets {}, inside {}, outside {}", offsets ? "ok" : "wrong", inside ? "ok" : "wrong",
-               outside ? "ok" : "wrong");
-
-    const f32v2 probes[3] = {vp.Position + 0.25f * vp.Size, end - 0.25f * vp.Size,
-                             app.LabMouseInside ? app.Window->GetMousePosition() : center};
-    f32 maxError = 0.f;
-    for (const f32v2 &p : probes)
-        maxError = Math::Max(maxError, Math::Norm(rv->WorldToScreen(rv->ScreenToWorld(p)) - p));
-    cat.Expect(LabCheckNames[LabCheck_RoundTrip], maxError < 0.01f, LabCheckRules[LabCheck_RoundTrip],
-               "max error {:.5f} px over 3 probes", maxError);
-
-    const f32v2 top = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], 0.f});
-    const f32v2 bottom = rv->ScreenToWorld(vp.Position + f32v2{0.5f * vp.Size[0], vp.Size[1]});
-    const f32 span = Math::Norm(top - bottom);
-    const f32 wantSpan = lab.Orthographic ? lab.OrthoSize : vp.Size[1];
-    cat.Expect(LabCheckNames[LabCheck_Camera], Math::Approximately(span, wantSpan, 1e-3f * wantSpan),
-               LabCheckRules[LabCheck_Camera], "{}: top to bottom = {:.4f} world units, expected {:.4f}",
-               lab.Orthographic ? "orthographic" : "viewport", span, wantSpan);
-
-    const f32v2 world = rv->ScreenToWorld(center);
-    cat.Expect(LabCheckNames[LabCheck_Center], Math::Approximately(world, lab.CameraPosition, 1e-3f),
-               LabCheckRules[LabCheck_Center], "center ({:.3f}, {:.3f}), camera ({:.3f}, {:.3f})", world[0], world[1],
-               lab.CameraPosition[0], lab.CameraPosition[1]);
-
-    Onyx::RenderViewFlags wanted = 0;
-    if (lab.Outlines)
-        wanted |= Onyx::RenderViewFlag_Outlines;
-    if (lab.Transparency)
-        wanted |= Onyx::RenderViewFlag_Transparency;
-    if (lab.FXAA)
-        wanted |= Onyx::RenderViewFlag_FXAA;
-    const Onyx::RenderViewFlags mask = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency |
-                                       Onyx::RenderViewFlag_FXAA | Onyx::RenderViewFlag_Hidden;
-    cat.Expect(LabCheckNames[LabCheck_Flags], (rv->GetFlags() & mask) == wanted && rv->AntiAliasingMode == lab.FXAAMode,
-               LabCheckRules[LabCheck_Flags], "flags {:#06x}, wanted {:#06x}, FXAA mode {}", rv->GetFlags() & mask,
-               wanted, u32(rv->AntiAliasingMode));
-
-    const Onyx::RenderView<D2> *overlay = app.Ui->GetMainNativeWindow()->View;
-    const bool above = lab.Placement == LabPlacement_AboveScene;
-    bool placed = above ? rv->Layer < overlay->Layer : true;
-    for (const Onyx::RenderView<D2> *other : app.Window->GetRenderViews<D2>())
-        if (other != rv && other != overlay)
-            placed &= above ? other->Layer < rv->Layer : other->Layer > rv->Layer;
-    for (const Onyx::RenderView<D3> *other : app.Window->GetRenderViews<D3>())
-        placed &= above ? other->Layer < rv->Layer : other->Layer > rv->Layer;
-    cat.Expect(LabCheckNames[LabCheck_Layer], placed, LabCheckRules[LabCheck_Layer], "{} the scene: lab layer {}",
-               above ? "above" : "below", rv->Layer);
-}
-
-static void checkLights(App &app)
-{
-    Category &cat = app.Categories[Category_Lights];
-    const LightSettings &ls = app.Lights;
-    const LightRequests &req = app.Requested;
-
-    const u32 points2 = app.GalleryCtx->GetPointLightParams().GetSize();
-    const u32 dirs2 = app.GalleryCtx->GetDirectionalLightParams().GetSize();
-    const u32 wantPoints2 = ls.Lights2 ? 1 : 0;
-    const u32 wantDirs2 = ls.Lights2 && ls.Directional2 ? 1 : 0;
-    cat.Expect("2D context recorded its lights", points2 == wantPoints2 && dirs2 == wantDirs2,
-               "Lights are recorded per context, like draws. With 2D lights on, the 2D gallery adds one point light "
-               "(the cursor light, a cone when asked) and, when enabled, one directional light",
-               "point {} (expected {}), directional {} (expected {})", points2, wantPoints2, dirs2, wantDirs2)
-        .Pane = Pane_Gallery2;
-
-    const char *pointRule = "PointLight() takes world space positions: the context transform does not apply to lights, "
-                            "and neither does it scale their radii. The gallery emits its lights under a non identity "
-                            "transform on purpose, so a transformed position would show up here. A cone light also "
-                            "keeps its angle and extent";
-    if (points2 == 1)
-    {
-        const Onyx::PointLightParameters<D2> &p = app.GalleryCtx->GetPointLightParams()[0];
-        const f32 extent = ls.Cone ? ls.ConeExtent : 1.f;
-        cat.Expect("2D light lands where it was asked for",
-                   Math::Approximately(p.Position, req.Point2, 1e-3f) &&
-                       Math::Approximately(p.Extent, extent, Epsilon) &&
-                       (!ls.Cone || Math::Approximately(p.Angle, req.ConeAim, Epsilon)),
-                   pointRule, "recorded ({:.3f}, {:.3f}) extent {:.2f}, requested ({:.3f}, {:.3f}) extent {:.2f}",
-                   p.Position[0], p.Position[1], p.Extent, req.Point2[0], req.Point2[1], extent)
-            .Pane = Pane_Gallery2;
-    }
-    else
-        cat.Skip("2D light lands where it was asked for", pointRule, "2D lights are off").Pane = Pane_Gallery2;
-
-    const char *dirRule = "DirectionalLight() in 2D takes an angle, in world space: the context transform never "
-                          "applies to it. The recorded angle must be the requested one, and the light must cast "
-                          "shadows";
-    if (dirs2 == 1)
-    {
-        const Onyx::DirectionalLightParameters<D2> &d = app.GalleryCtx->GetDirectionalLightParams()[0];
-        cat.Expect("2D directional light keeps its angle",
-                   Math::Approximately(d.Angle, ls.DirectionalAngle, Epsilon) &&
-                       (d.Flags & Onyx::LightFlag_CastShadows),
-                   dirRule, "recorded {:.1f} deg, requested {:.1f} deg", Math::Degrees(d.Angle),
-                   Math::Degrees(ls.DirectionalAngle))
-            .Pane = Pane_Gallery2;
-    }
-    else
-        cat.Skip("2D directional light keeps its angle", dirRule, "the 2D directional light is off").Pane =
-            Pane_Gallery2;
-
-    const char *filter2Rule =
-        "Shadow filtering is chosen per light, through its flags: PCF averages shadow map samples and PCSS (soft "
-        "shadows, which wins over PCF) also widens the penumbra with LightSize for point lights and AngleSize for "
-        "directional ones. The recorded flags and sizes must be the ones picked in the Lights panel";
-    if (points2 + dirs2 > 0)
-    {
-        const Onyx::LightFlags want = FilterFlags[ls.Filter2];
-        u32 wrong = 0;
-        for (const Onyx::PointLightParameters<D2> &p : app.GalleryCtx->GetPointLightParams())
-            if ((p.Flags & FilterMask) != want || !Math::Approximately(p.LightSize, ls.LightSize2, Epsilon))
-                ++wrong;
-        for (const Onyx::DirectionalLightParameters<D2> &d : app.GalleryCtx->GetDirectionalLightParams())
-            if ((d.Flags & FilterMask) != want || !Math::Approximately(d.AngleSize, ls.SunAngle2, Epsilon))
-                ++wrong;
-        cat.Expect("2D lights carry the shadow filter", wrong == 0, filter2Rule,
-                   "{} of {} lights differ from {}, light size {:.2f}, angular size {:.1f} deg", wrong, points2 + dirs2,
-                   FilterLabels[ls.Filter2], ls.LightSize2, Math::Degrees(ls.SunAngle2))
-            .Pane = Pane_Gallery2;
-    }
-    else
-        cat.Skip("2D lights carry the shadow filter", filter2Rule, "2D lights are off").Pane = Pane_Gallery2;
-
-    const u32 points3 = app.Ctx3->GetPointLightParams().GetSize();
-    const u32 spots3 = app.Ctx3->GetSpotLightParams().GetSize();
-    const u32 dirs3 = app.Ctx3->GetDirectionalLightParams().GetSize();
-    const bool others = ls.Lights3 && !ls.SpotOnly;
-    const u32 wantPoints3 = others && ls.Point3 ? 1 : 0;
-    const u32 wantSpots3 = ls.Lights3 && ls.Spot3 ? 1 : 0;
-    const u32 wantDirs3 = others ? 1 : 0;
-    cat.Expect("3D context recorded its lights", points3 == wantPoints3 && spots3 == wantSpots3 && dirs3 == wantDirs3,
-               "The 3D gallery records one directional light (with cascaded shadows bound to the active 3D view), "
-               "plus an optional point light and spot light. Spot only leaves the spot alone",
-               "directional {} (expected {}), point {} (expected {}), spot {} (expected {})", dirs3, wantDirs3, points3,
-               wantPoints3, spots3, wantSpots3)
-        .Pane = Pane_Gallery3;
-
-    const char *point3Rule = "PointLight() in 3D takes a world space position too. The orbiting light is emitted under "
-                             "a non identity transform, and must be recorded exactly where it was asked for";
-    if (points3 == 1)
-    {
-        const f32v3 p = app.Ctx3->GetPointLightParams()[0].Position;
-        cat.Expect("3D point light lands where it was asked for", Math::Approximately(p, req.Point3, 1e-3f), point3Rule,
-                   "recorded ({:.2f}, {:.2f}, {:.2f}), requested ({:.2f}, {:.2f}, {:.2f})", p[0], p[1], p[2],
-                   req.Point3[0], req.Point3[1], req.Point3[2])
-            .Pane = Pane_Gallery3;
-    }
-    else
-        cat.Skip("3D point light lands where it was asked for", point3Rule, "the 3D point light is off").Pane =
-            Pane_Gallery3;
-
-    const char *spotRule = "SpotLight() takes a world space position and direction. The spot is emitted under a non "
-                           "identity transform, and GetSpotLightParams() must return the position, the direction and "
-                           "the field of view it was given";
-    if (spots3 == 1)
-    {
-        const Onyx::SpotLightParameters &sp = app.Ctx3->GetSpotLightParams()[0];
-        const f32v3 dir = Math::Normalize(sp.Direction);
-        cat.Expect("3D spot light keeps its position and direction",
-                   Math::Approximately(sp.Position, req.SpotPosition, 1e-3f) &&
-                       Math::Approximately(dir, req.SpotDirection, 1e-3f) &&
-                       Math::Approximately(sp.FieldOfView, ls.SpotFov, Epsilon),
-                   spotRule, "position ({:.2f}, {:.2f}, {:.2f}), direction ({:.2f}, {:.2f}, {:.2f}), fov {:.1f} deg",
-                   sp.Position[0], sp.Position[1], sp.Position[2], dir[0], dir[1], dir[2],
-                   Math::Degrees(sp.FieldOfView))
-            .Pane = Pane_Gallery3;
-    }
-    else
-        cat.Skip("3D spot light keeps its position and direction", spotRule, "the spot light is off").Pane =
-            Pane_Gallery3;
-
-    const char *filter3Rule = "The same per light flags in 3D. PCSS reads LightSize for point and spot lights and "
-                              "AngleSize for directional ones. Every recorded 3D light must carry the filter and the "
-                              "sizes picked in the Lights panel";
-    if (points3 + spots3 + dirs3 > 0)
-    {
-        const Onyx::LightFlags want = FilterFlags[ls.Filter3];
-        u32 wrong = 0;
-        for (const Onyx::PointLightParameters<D3> &p : app.Ctx3->GetPointLightParams())
-            if ((p.Flags & FilterMask) != want || !Math::Approximately(p.LightSize, ls.PointSize3, Epsilon))
-                ++wrong;
-        for (const Onyx::SpotLightParameters &sp : app.Ctx3->GetSpotLightParams())
-            if ((sp.Flags & FilterMask) != want || !Math::Approximately(sp.LightSize, ls.SpotSize3, Epsilon))
-                ++wrong;
-        for (const Onyx::DirectionalLightParameters<D3> &d : app.Ctx3->GetDirectionalLightParams())
-            if ((d.Flags & FilterMask) != want || !Math::Approximately(d.AngleSize, ls.SunAngle3, Epsilon))
-                ++wrong;
-        cat.Expect("3D lights carry the shadow filter", wrong == 0, filter3Rule, "{} of {} lights differ from {}",
-                   wrong, points3 + spots3 + dirs3, FilterLabels[ls.Filter3])
-            .Pane = Pane_Gallery3;
-    }
-    else
-        cat.Skip("3D lights carry the shadow filter", filter3Rule, "3D lights are off").Pane = Pane_Gallery3;
-
-    // the renderer builds every 3D directional light's frame with the one argument CreateOrthogonalBase, which picks
-    // its own helper vector. a sun pointing straight down is common, so vertical directions must work too
-    const f32v3 directions[3] = {f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 1.f, 0.f},
-                                 Math::Normalize(f32v3{-0.6f, -1.f, -0.4f})};
-    const char *directionNames[3] = {"straight down", "straight up", "tilted"};
-    u32 brokenBases = 0;
-    const char *firstBroken = "none";
-    for (u32 i = 0; i < 3; ++i)
-    {
-        const f32m2x3 base = Onyx::Transform<D3>::CreateOrthogonalBase(directions[i]);
-        const f32 error = Math::Absolute(Math::Dot(base[0], directions[i])) +
-                          Math::Absolute(Math::Dot(base[1], directions[i])) +
-                          Math::Absolute(Math::Dot(base[0], base[1])) + Math::Absolute(Math::Norm(base[0]) - 1.f) +
-                          Math::Absolute(Math::Norm(base[1]) - 1.f);
-        if (error < 1e-4f) // false for NaN as well
-            continue;
-        if (brokenBases++ == 0)
-            firstBroken = directionNames[i];
-    }
-    cat.Expect(
-           "Light bases work for vertical directions", brokenBases == 0,
-           "Transform<D3>::CreateOrthogonalBase(direction) returns two unit vectors orthogonal to the direction and "
-           "to each other. The renderer builds the frame of every 3D directional light with it, and a light whose "
-           "frame comes out NaN lights nothing. It must work for any direction, straight down included",
-           "{} of 3 directions broken (straight down, straight up, tilted), first: {}", brokenBases, firstBroken)
-        .Pane = Pane_Gallery3;
-}
-
-static void checkTextures(App &app)
-{
-    Category &cat = app.Categories[Category_Textures];
-    const f32v2 wscale = app.Window->GetContentScale();
-
-    const char *sizeNames[2] = {"Scaled texture: logical size", "Fixed texture: logical size"};
-    const char *extentNames[2] = {"Scaled texture: physical extent", "Fixed texture: physical extent"};
-    const Onyx::RenderTexture *textures[2] = {app.RtScaled, app.RtFixed};
-    const Onyx::RenderView<D2> *views[2] = {app.RtScaledView, app.RtFixedView};
-    for (u32 i = 0; i < 2; ++i)
-    {
-        const Onyx::RenderTexture *rt = textures[i];
-        const Onyx::RenderView<D2> *rv = views[i];
-        cat.Expect(sizeNames[i], rt->GetSize() == RenderTextureSize && rv->GetImageSize() == RenderTextureSize,
-                   "A render texture is a render target with its own logical size. Its views use proportional sizing "
-                   "too, so a full size view has the texture's logical size",
-                   "texture {} x {}, view image {} x {}", rt->GetSize()[0], rt->GetSize()[1], rv->GetImageSize()[0],
-                   rv->GetImageSize()[1])
-            .Pane = Pane_Textures;
-
-        const u32v2 expected = Onyx::ApplyScale(RenderTextureSize, rt->GetContentScale());
-        cat.Expect(extentNames[i],
-                   rv->GetImageExtent() == expected &&
-                       Math::Approximately(rv->GetContentScale(), rt->GetContentScale(), Epsilon),
-                   "The physical size of a render texture is its logical size times its own content scale, and that "
-                   "scale must reach its views (they recreate their framebuffers when it changes)",
-                   "scale {:.3f}, extent {} x {}, expected {} x {}", rt->GetContentScale()[0], rv->GetImageExtent()[0],
-                   rv->GetImageExtent()[1], expected[0], expected[1])
-            .Pane = Pane_Textures;
-    }
-
-    cat.Expect(
-           "Scaled texture follows the window scale",
-           Math::Approximately(app.RtScaled->GetContentScale(), wscale, Epsilon),
-           "This demo forwards every Event_ContentScaleChanged to RenderTexture::SetContentScale. If they disagree, "
-           "the event was not delivered or SetContentScale did not apply",
-           "texture {:.3f}, window {:.3f}", app.RtScaled->GetContentScale()[0], wscale[0])
-        .Pane = Pane_Textures;
-    cat.Expect("Fixed texture keeps scale 1", Math::Approximately(app.RtFixed->GetContentScale(), f32v2{1.f}, Epsilon),
-               "The reference texture is never rescaled", "scale {:.3f} x {:.3f}", app.RtFixed->GetContentScale()[0],
-               app.RtFixed->GetContentScale()[1])
-        .Pane = Pane_Textures;
-
-    // docked galleries: each pane's texture follows its panel, at the window's scale, and its views cover it
-    const char *matchRule =
-        "In the docked layout every gallery renders into a render texture shown by its panel. The "
-        "demo resizes the texture to the panel's logical size with RenderTexture::Resize, one frame "
-        "after the panel changes, so a short mismatch is tolerated";
-    const char *scaleRule = "Docked textures are resized at the window's content scale, so one texel maps to one "
-                            "physical pixel. After a scale change they must catch up within the grace period";
-    const char *coverRule = "A render texture's views default to proportional viewports covering the whole texture. "
-                            "After every resize the viewport and image must match the new logical size";
-    if (app.Mode == Mode_Direct)
-    {
-        cat.Skip("Docked galleries: textures match their panels", matchRule, "only in the docked layout");
-        cat.Skip("Docked galleries: textures use the window scale", scaleRule, "only in the docked layout");
-        cat.Skip("Docked galleries: views cover their textures", coverRule, "only in the docked layout");
-        return;
-    }
-
-    // a pane whose panel was never drawn (a hidden tab, or the first docked frames) has nothing to follow yet
-    bool sized = true;
-    bool scaled = true;
-    bool covered = true;
-    f32 worstFor = 0.f;
-    u32v2 worstTexture{0};
-    u32v2 worstPanel{0};
-    for (Pane &pane : app.Panes)
-    {
-        const Onyx::RenderTexture *rt = pane.Texture;
-        const u32v2 panel{Math::Round(pane.ImageSize)};
-        const bool known = panel[0] > 0 && panel[1] > 0;
-        const bool sizeOff = known && !Math::Approximately(f32v2{rt->GetSize()}, f32v2{panel}, 1.f);
-        const bool scaleOff = known && !Math::Approximately(rt->GetContentScale(), wscale, Epsilon);
-        if ((sizeOff || scaleOff) && pane.MismatchSince < 0.f)
-            pane.MismatchSince = app.Time;
-        else if (!sizeOff && !scaleOff)
-            pane.MismatchSince = -1.f;
-        const f32 mismatchFor = pane.MismatchSince < 0.f ? 0.f : app.Time - pane.MismatchSince;
-        const bool late = mismatchFor > DockedGracePeriod;
-        sized &= !(sizeOff && late);
-        scaled &= !(scaleOff && late);
-        if (known && mismatchFor >= worstFor)
-        {
-            worstFor = mismatchFor;
-            worstTexture = rt->GetSize();
-            worstPanel = panel;
-        }
-
-        const Onyx::RenderView<D2> *rv = pane.Frame[Mode_Docked];
-        const Onyx::Viewport &vp = rv->GetViewport();
-        covered &= Math::Approximately(vp.Position, f32v2{0.f}, 0.5f) &&
-                   Math::Approximately(vp.Size, f32v2{rt->GetSize()}, 0.5f) && rv->GetImageSize() == rt->GetSize();
-    }
-    cat.Expect("Docked galleries: textures match their panels", sized, matchRule,
-               "worst: texture {} x {}, panel {} x {}, out of sync for {:.2f}s", worstTexture[0], worstTexture[1],
-               worstPanel[0], worstPanel[1], worstFor);
-    cat.Expect("Docked galleries: textures use the window scale", scaled, scaleRule, "window scale {:.3f}", wscale[0]);
-    const Onyx::RenderTexture *pixelTexture = app.Panes[Pane_Pixel].Texture;
-    cat.Expect("Docked galleries: views cover their textures", covered, coverRule,
-               "pixel view texture {} x {} at scale {:.3f}", pixelTexture->GetSize()[0], pixelTexture->GetSize()[1],
-               pixelTexture->GetContentScale()[0]);
-}
-
-static void checkInput(App &app)
-{
-    Category &cat = app.Categories[Category_Input];
-    InputTracking &in = app.Input; // non const: TKit's Contains is not a const member
-
-    cat.Expect("Key repeats only follow a press", in.RepeatWithoutPress == 0,
-               "Event_KeyRepeat is only sent while a key is held, so it must always come after an Event_KeyPressed of "
-               "the same key, with no Event_KeyReleased in between",
-               "{} violations since start, {} keys held now", in.RepeatWithoutPress, in.HeldKeys.GetSize());
-    cat.Expect("Mouse releases only follow a press", in.ReleaseWithoutPress == 0,
-               "Every Event_MouseReleased must match an earlier Event_MousePressed of the same button. (Pressing "
-               "outside the window and releasing inside can legitimately break this on some platforms)",
-               "{} violations since start, {} buttons held now", in.ReleaseWithoutPress, in.HeldButtons.GetSize());
-    cat.Expect("Focus events alternate", in.FocusAlternation == 0,
-               "A window cannot gain focus twice without losing it in between: focused and unfocused events must "
-               "alternate",
-               "{} violations, {} focused, {} unfocused", in.FocusAlternation,
-               in.EventCounts[Onyx::Event_WindowFocused], in.EventCounts[Onyx::Event_WindowUnfocused]);
-    cat.Expect("Enter and leave events alternate", in.EnterAlternation == 0,
-               "The cursor cannot enter the window twice without leaving it in between",
-               "{} violations, {} entered, {} left", in.EnterAlternation, in.EventCounts[Onyx::Event_MouseEntered],
-               in.EventCounts[Onyx::Event_MouseLeft]);
-    cat.Expect("Minimize and restore events alternate", in.MinimizeAlternation == 0,
-               "A window cannot be minimized twice without being restored in between",
-               "{} violations, {} minimized, {} restored", in.MinimizeAlternation,
-               in.EventCounts[Onyx::Event_WindowMinimized], in.EventCounts[Onyx::Event_WindowRestored]);
-    cat.Expect("Polled buttons agree with the event stream",
-               !app.Window->IsMousePressed(Onyx::Mouse_ButtonLeft) || in.HeldButtons.Contains(Onyx::Mouse_ButtonLeft) ||
-                   !app.Window->IsHovered(),
-               "If polling says the left button is down while the cursor is over the window, the event stream must "
-               "have delivered the matching press",
-               "polled left button {}, held according to events {}",
-               app.Window->IsMousePressed(Onyx::Mouse_ButtonLeft) ? "down" : "up",
-               in.HeldButtons.Contains(Onyx::Mouse_ButtonLeft) ? "yes" : "no");
-}
-
-static void checkAudio([[maybe_unused]] App &app)
-{
-#ifdef ONYX_ENABLE_AUDIO
-    Category &cat = app.Categories[Category_Audio];
-    AudioState &au = app.Audio;
-
-    const char *formatRule = "The engine reports the sample rate and channel count every custom source defaults to. "
-                             "Both must be positive";
-    const char *settingsRule = "Volume, pitch, pan, looping and the master volume are set every frame from the panel. "
-                               "Reading them back right away must return exactly what was set";
-    const char *playRule = "Audio_IsPlaying() follows Audio_Play() and Audio_Stop() right away: both change the "
-                           "sound's state on the calling thread. The self test plays and stops a silent blip";
-    const char *endRule = "A non looping source ends when its callback returns 0 frames. Audio_IsPlaying() then turns "
-                          "false within a couple of audio periods. The self test waits up to 1.5 s for a 0.15 s blip";
-    const char *audioThreadRule = "Audio_SetAudioThreadEndCallback() runs its callback on the audio thread, right when "
-                                  "the sound ends. The self test counts it through an atomic";
-    const char *mainThreadRule = "Audio_SetMainThreadEndCallback() queues the end on the audio thread and runs the "
-                                 "callback later on the main thread, when Onyx drains its queue each frame. A sound "
-                                 "that ended without the callback arriving means the queue is never drained";
-    const char *spatialRule = "A spatialized source and the listener take positions in world units. "
-                              "Audio_GetPosition and Listener_GetPosition must return what the orbit set this frame";
-    if (!au.Available)
-    {
-        const char *reason = "no audio output device: Audio_IsAvailable() is false";
-        cat.Skip("Sample rate and channel count are positive", formatRule, "{}", reason);
-        cat.Skip("Audio settings read back", settingsRule, "{}", reason);
-        cat.Skip("IsPlaying follows play and stop", playRule, "{}", reason);
-        cat.Skip("A short sound ends on its own", endRule, "{}", reason);
-        cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "{}", reason);
-        cat.Skip("End callbacks reach the main thread", mainThreadRule, "{}", reason);
-        cat.Skip("Spatial positions read back", spatialRule, "{}", reason);
-        return;
-    }
-
-    const u32 rate = Onyx::Audio_GetSampleRate();
-    const u32 channels = Onyx::Audio_GetChannels();
-    cat.Expect("Sample rate and channel count are positive", rate > 0 && channels > 0, formatRule, "{} Hz, {} channels",
-               rate, channels);
-
-    const Onyx::Resource h = au.Instrument;
-    const bool settings = Onyx::Audio_GetVolume(h) == au.Volume && Onyx::Audio_GetPitch(h) == au.Pitch &&
-                          Onyx::Audio_GetPan(h) == au.Pan && Onyx::Audio_GetVolume() == au.Master &&
-                          Onyx::Audio_IsLooping(h) == au.Loop;
-    cat.Expect("Audio settings read back", settings, settingsRule,
-               "volume {:.2f}, pitch {:.2f}, pan {:.2f}, looping {}, master {:.2f}", Onyx::Audio_GetVolume(h),
-               Onyx::Audio_GetPitch(h), Onyx::Audio_GetPan(h), Onyx::Audio_IsLooping(h), Onyx::Audio_GetVolume());
-
-    if (!au.TestDone && !au.TestRunning)
-    {
-        cat.Skip("IsPlaying follows play and stop", playRule, "the self test has not run yet");
-        cat.Skip("A short sound ends on its own", endRule, "the self test has not run yet");
-        cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "the self test has not run yet");
-        cat.Skip("End callbacks reach the main thread", mainThreadRule, "the self test has not run yet");
-    }
-    else
-    {
-        cat.Expect("IsPlaying follows play and stop", au.PlayFollows && au.StopFollows, playRule,
-                   "playing right after Play: {}, stopped right after Stop: {}", au.PlayFollows, au.StopFollows);
-        const u32 audioEnds = au.BlipAudioEnds.load(std::memory_order_relaxed) - au.AudioEndsAtStart;
-        const u32 mainEnds = au.BlipMainEnds - au.MainEndsAtStart;
-        if (au.TestRunning)
-        {
-            cat.Skip("A short sound ends on its own", endRule, "waiting for the blips, {:.2f}s in",
-                     app.Time - au.TestStartedAt);
-            cat.Skip("End callbacks fire on the audio thread", audioThreadRule, "waiting for the blips");
-            cat.Skip("End callbacks reach the main thread", mainThreadRule, "waiting for the blips");
-        }
-        else
-        {
-            cat.Expect("A short sound ends on its own", au.Ended, endRule, "blip {} after 1.5 s",
-                       au.Ended ? "ended" : "still playing");
-            cat.Expect("End callbacks fire on the audio thread", audioEnds > 0, audioThreadRule,
-                       "{} audio thread end callbacks", audioEnds);
-            cat.Expect("End callbacks reach the main thread", mainEnds > 0, mainThreadRule,
-                       "{} main thread end callbacks (the audio thread one fired {} times)", mainEnds, audioEnds);
-        }
-    }
-
-    if (au.Orbit == Orbit_Off)
-        cat.Skip("Spatial positions read back", spatialRule, "the spatial orbit is off");
-    else if (au.Orbit == Orbit_2D)
-    {
-        const f32v2 source = Onyx::Audio_GetPosition<D2>(au.Spatial);
-        const f32v2 listener = Onyx::Listener_GetPosition<D2>(0);
-        cat.Expect("Spatial positions read back",
-                   Math::Approximately(source, au.Source2, Epsilon) &&
-                       Math::Approximately(listener, au.Listener2, Epsilon),
-                   spatialRule, "source ({:.2f}, {:.2f}), listener ({:.2f}, {:.2f})", source[0], source[1], listener[0],
-                   listener[1])
-            .Pane = Pane_Gallery2;
-    }
-    else
-    {
-        const f32v3 source = Onyx::Audio_GetPosition<D3>(au.Spatial);
-        const f32v3 listener = Onyx::Listener_GetPosition<D3>(0);
-        cat.Expect("Spatial positions read back",
-                   Math::Approximately(source, au.Source3, Epsilon) &&
-                       Math::Approximately(listener, au.Listener3, Epsilon),
-                   spatialRule, "source ({:.2f}, {:.2f}, {:.2f}), listener ({:.2f}, {:.2f}, {:.2f})", source[0],
-                   source[1], source[2], listener[0], listener[1], listener[2])
-            .Pane = Pane_Gallery3;
-    }
-#endif
-}
-
-static void checkResources(App &app)
-{
-    Category &cat = app.Categories[Category_Resources];
-    const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
-    const Onyx::SpecificDefaultResources<D2> &res2 = res.Resources2;
-    const Onyx::SpecificDefaultResources<D3> &res3 = res.Resources3;
-
-    const bool meshes2 = Onyx::IsResourceValid<D2>(res2.Triangle, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D2>(res2.Quad, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D2>(res2.Stadium, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D2>(res2.RoundedRect, Onyx::Resource_ParametricMesh);
-    cat.Expect("Default 2D meshes are valid", meshes2,
-               "Resources_CreateDefault registers the built in 2D meshes: triangle and quad (static), stadium and "
-               "rounded rect (parametric, their shape is controlled per instance)",
-               "triangle, quad, stadium, rounded rect");
-
-    const bool meshes3 = Onyx::IsResourceValid<D3>(res3.Triangle, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Quad, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Box, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Sphere, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Cylinder, Onyx::Resource_StaticMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Stadium, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.RoundedRect, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Capsule, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.RoundedBox, Onyx::Resource_ParametricMesh) &&
-                         Onyx::IsResourceValid<D3>(res3.Torus, Onyx::Resource_ParametricMesh);
-    cat.Expect("Default 3D meshes are valid", meshes3,
-               "The built in 3D meshes: triangle, quad, box, sphere, cylinder (static), stadium, rounded rect, "
-               "capsule, rounded box and torus (parametric)",
-               "10 meshes checked");
-
-    cat.Expect("Default pools are valid",
-               Onyx::IsResourcePoolValid(res2.StaticPool) && Onyx::IsResourcePoolValid(res2.ParametricPool) &&
-                   Onyx::IsResourcePoolValid(res3.StaticPool) && Onyx::IsResourcePoolValid(res3.ParametricPool) &&
-                   Onyx::IsResourcePoolValid(res.FontPool),
-               "Meshes and fonts live in resource pools. The default ones hold the default resources",
-               "static 2D: {} meshes, parametric 2D: {}, static 3D: {}, parametric 3D: {}",
-               Onyx::ResourcePool_GetResourceCount<D2>(res2.StaticPool),
-               Onyx::ResourcePool_GetResourceCount<D2>(res2.ParametricPool),
-               Onyx::ResourcePool_GetResourceCount<D3>(res3.StaticPool),
-               Onyx::ResourcePool_GetResourceCount<D3>(res3.ParametricPool));
-
-    cat.Expect("Default font and sampler are valid",
-               Onyx::IsResourceValid(res.Font, Onyx::Resource_Font) &&
-                   Onyx::IsResourceValid(res.Sampler, Onyx::Resource_Sampler),
-               "The overlay and all text rendering use the default font. Textures without an explicit sampler use "
-               "the default sampler",
-               "font handle {}, sampler handle {}", u64(res.Font), u64(res.Sampler));
-
-    u32 missing = 0;
-    Onyx::CodePoint firstMissing = 0;
-    for (Onyx::CodePoint c = 33; c < 127; ++c)
-        if (!Onyx::Font_HasGlyph(res.Font, c))
-        {
-            if (missing++ == 0)
-                firstMissing = c;
-        }
-    cat.Expect("Font covers printable ASCII", missing == 0,
-               "DefaultResourcesOptions loads the ASCII block into the default font. Every printable character must "
-               "have a glyph (space has no outline, so it is skipped)",
-               "{} missing{}", missing, missing ? formatLine(", first one is '{}'", char(firstMissing)).Data : "");
-
-    const Onyx::FontInfo &finfo = Onyx::Font_GetInfo(res.Font);
-    cat.Expect("Font metrics are sane", finfo.LineHeight > 0.f && finfo.Ascender > finfo.Descender,
-               "Line height must be positive and the ascender must be above the descender, or text layout breaks",
-               "line height {:.3f}, ascender {:.3f}, descender {:.3f}, {} glyphs in pool", finfo.LineHeight,
-               finfo.Ascender, finfo.Descender, Onyx::FontPool_GetGlyphCount(res.FontPool));
-
-    const Onyx::Resource glyph = Onyx::Font_GetGlyph(res.Font, 'A');
-    cat.Expect("Glyphs point back to their font", Onyx::Glyph_GetFont(glyph) == res.Font,
-               "A glyph handle obtained from a font must report that same font as its owner",
-               "glyph 'A' -> font {}, expected {}", u64(Onyx::Glyph_GetFont(glyph)), u64(res.Font));
-
-    const Onyx::MaterialData<D2> &probe = Onyx::Material_GetData<D2>(app.ProbeMaterial);
-    cat.Expect("Registered material reads back unchanged",
-               probe.ColorFactor == Theme::Accent && Math::Approximately(probe.TexOffset, f32v2{0.25f}, Epsilon) &&
-                   Math::Approximately(probe.TexScale, f32v2{2.f}, Epsilon) && !probe.Occluder,
-               "Material_Register stores the data it is given. Reading it back must return exactly the same values",
-               "color factor #{}, tex offset ({:.2f}, {:.2f}), tex scale ({:.2f}, {:.2f})",
-               probe.ColorFactor.ToHexadecimal<TKit::StaticString<16>>().GetData(), probe.TexOffset[0],
-               probe.TexOffset[1], probe.TexScale[0], probe.TexScale[1]);
-
-    cat.Expect("Materials are typed resources",
-               Onyx::IsResourceValid<D2>(app.Lit2, Onyx::Resource_Material) &&
-                   Onyx::IsResourceValid<D2>(app.Occluder2, Onyx::Resource_Material) &&
-                   Onyx::IsResourceValid<D3>(app.Mat3, Onyx::Resource_Material),
-               "Material handles must validate as materials of their own dimension",
-               "2 materials in 2D, 1 in 3D (plus the probe)");
-
-    // the fullest meter, relative to its maximum
-    u32 over = 0;
-    f32 fullest = -1.f;
-    u32 fullestDim = 0;
-    u32 fullestMeter = 0;
-    for (u32 dim = 0; dim < 2; ++dim)
-        for (u32 i = 0; i < Usage_Count; ++i)
-        {
-            const UsageMeters &meters = app.Usage[dim];
-            if (!meters.Applies[i])
-                continue;
-            over += meters.Peak[i] > meters.Limit[i];
-            const f32 fill = usageFill(meters, i);
-            if (fill > fullest)
-            {
-                fullest = fill;
-                fullestDim = dim;
-                fullestMeter = i;
-            }
-        }
-    const UsageMeters &worst = app.Usage[fullestDim];
-    cat.Expect(
-        "Frame usage fits the Initialize specs", over == 0,
-        "Onyx sizes every per frame buffer from the Specs given to Initialize, and overflowing one asserts. This "
-        "demo asks for what it uses, and the Resources panel measures every frame against it: no peak since "
-        "start may exceed its maximum. Draw commands are an upper bound",
-        "{} over, fullest: {}D {}{} of {} {}", over, fullestDim + 2, UsageInfos[fullestMeter].Name,
-        worst.Peak[fullestMeter], worst.Limit[fullestMeter], UsageInfos[fullestMeter].Spec);
-}
 
 // Initialize sizes every per frame renderer buffer from Onyx::Specs, and a frame that overflows one asserts. what a
 // frame asks for is measured here from every context, the way Renderer_Transfer copies it. draw commands are an upper
@@ -2760,237 +1543,16 @@ static void measureUsage(UsageMeters &meters, const TKit::Span<const Onyx::Rende
 static void measureUsage(App &app)
 {
     const Onyx::NativeWindow *native = app.Ui->GetMainNativeWindow();
-    const Onyx::RenderContext<D2> *contexts2[] = {
-        app.PixelCtx, app.GalleryCtx, app.LabelCtx, app.TexturesCtx,
-        app.RtCtx,    app.ScratchCtx, app.LabCtx,   native ? native->Context : nullptr};
-    const Onyx::RenderContext<D3> *contexts3[] = {app.Ctx3, app.Scratch3};
+    const Onyx::RenderContext<D2> *contexts2[] = {app.PixelCtx,
+                                                  app.GalleryCtx,
+                                                  app.LabelCtx,
+                                                  app.TexturesCtx,
+                                                  app.RtCtx,
+                                                  app.LabCtx,
+                                                  native ? native->Context : nullptr};
+    const Onyx::RenderContext<D3> *contexts3[] = {app.Ctx3};
     measureUsage<D2>(app.Usage[0], TKit::Span<const Onyx::RenderContext<D2> *const>(contexts2));
     measureUsage<D3>(app.Usage[1], TKit::Span<const Onyx::RenderContext<D3> *const>(contexts3));
-}
-
-static void checkToolkit(App &app)
-{
-    Category &cat = app.Categories[Category_Toolkit];
-
-    // tensors
-    const f32q q = Math::Normalize(f32q::FromEulerAngles(f32v3{0.3f, -0.7f, 1.1f}));
-    const f32m4 m = Onyx::Transform<D3>::ComputeTransform(f32v3{1.f, 2.f, 3.f}, f32v3{2.f, 0.5f, 1.5f}, q);
-    const f32m4 inv = Math::Inverse(m);
-    cat.Expect("Matrix times its inverse is the identity", Math::Approximately(m * inv, f32m4::Identity(), 1e-4f),
-               "TKit::Math::Inverse of an invertible 4x4 transform, multiplied by the original, gives the identity",
-               "det(M) = {:.4f}", Math::Determinant(m));
-    cat.Expect("Transposing twice is a no op", Math::Approximately(Math::Transpose(Math::Transpose(m)), m, Epsilon),
-               "Transpose(Transpose(M)) = M", "4x4 transform");
-    cat.Expect(
-        "Inverse transform matches the matrix inverse",
-        Math::Approximately(
-            Onyx::Transform<D3>::ComputeInverseTransform(f32v3{1.f, 2.f, 3.f}, f32v3{2.f, 0.5f, 1.5f}, q), inv, 1e-4f),
-        "Transform::ComputeInverseTransform builds the inverse directly from translation, scale and rotation. "
-        "It must agree with inverting the full matrix",
-        "3D, non uniform scale");
-    {
-        const f32m3 m2 = Onyx::Transform<D2>::ComputeTransform(f32v2{-1.f, 4.f}, f32v2{3.f, 0.25f}, 2.1f);
-        const f32m3 i2 = Onyx::Transform<D2>::ComputeInverseTransform(f32v2{-1.f, 4.f}, f32v2{3.f, 0.25f}, 2.1f);
-        cat.Expect("2D transform times its inverse is the identity",
-                   Math::Approximately(m2 * i2, f32m3::Identity(), 1e-4f),
-                   "Same as above, for the 3x3 matrices used in 2D", "2D, non uniform scale");
-    }
-
-    // quaternions
-    const f32v3 v{0.4f, -1.3f, 2.2f};
-    const f32v3 rotated = q * v;
-    const f32v3 restored = Math::Inverse(q) * rotated;
-    cat.Expect("Rotations preserve length", Math::Approximately(Math::Norm(rotated), Math::Norm(v), 1e-4f),
-               "Rotating a vector with a unit quaternion never changes its length", "|v| = {:.5f}, |q v| = {:.5f}",
-               Math::Norm(v), Math::Norm(rotated));
-    cat.Expect("Inverse rotation undoes the rotation", Math::Approximately(restored, v, 1e-4f),
-               "Applying q and then its inverse returns the original vector",
-               "v = ({:.3f}, {:.3f}, {:.3f}), back = ({:.3f}, {:.3f}, {:.3f})", v[0], v[1], v[2], restored[0],
-               restored[1], restored[2]);
-    {
-        const f32 angle = 1.234f;
-        const f32q aa = f32q::FromAngleAxis(angle, Math::Normalize(f32v3{1.f, 2.f, -0.5f}));
-        cat.Expect("Angle axis round trip", Math::Approximately(Math::GetAngle(aa), angle, 1e-4f),
-                   "A quaternion built from an angle and an axis reports that same angle back",
-                   "angle {:.4f} -> {:.4f}", angle, Math::GetAngle(aa));
-    }
-    cat.Expect("Degrees and radians round trip", Math::Approximately(Math::Degrees(Math::Radians(37.5f)), 37.5f, 1e-4f),
-               "Degrees(Radians(x)) = x", "37.5 -> {:.5f}", Math::Degrees(Math::Radians(37.5f)));
-
-    // colors
-    u32 packMismatches = 0;
-    for (u32 i = 0; i < 256; ++i)
-    {
-        const Onyx::Color c{i, 255u - i, (i * 7u) % 256u, (i * 13u) % 256u};
-        packMismatches += Onyx::Color::Unpack(c.Pack()) != c;
-    }
-    cat.Expect("Color pack and unpack round trip", packMismatches == 0,
-               "Every 8 bit channel value must survive Pack() and Unpack() exactly", "{} mismatches over 256 colors",
-               packMismatches);
-    {
-        const Onyx::Color c{0.8f, 0.35f, 0.1f, 0.9f};
-        const Onyx::Color hsv = Onyx::Color::FromHSV(c.ToHSV());
-        const Onyx::Color srgb = c.ToLinear().ToSrgb();
-        const Onyx::Color hex = Onyx::Color::FromHexadecimal(Onyx::Color_Lavender.ToHexadecimal<u32>());
-        cat.Expect("Color conversions round trip",
-                   Math::Approximately(hsv.rgba, c.rgba, 1e-4f) && Math::Approximately(srgb.rgba, c.rgba, 1e-4f) &&
-                       hex == Onyx::Color_Lavender,
-                   "RGB -> HSV -> RGB, sRGB -> linear -> sRGB and RGBA -> hex -> RGBA must all return the original "
-                   "color",
-                   "hsv error {:.6f}, srgb error {:.6f}, hex {}", Math::Norm(hsv.rgba - c.rgba),
-                   Math::Norm(srgb.rgba - c.rgba), hex == Onyx::Color_Lavender ? "exact" : "different");
-    }
-    {
-        const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>(Theme::FrameTimeStops)};
-        cat.Expect("Gradient endpoints are exact",
-                   gradient.Evaluate(0.f) == Theme::Pass && gradient.Evaluate(1.f) == Theme::Fail &&
-                       Math::Approximately(gradient.Evaluate(0.5f).rgba, Theme::Todo.rgba, 1e-4f),
-                   "A gradient evaluated at 0, 0.5 and 1 returns its first, middle and last stops",
-                   "3 stops: green, yellow, red");
-    }
-
-    // time
-    cat.Expect("Timespan conversions",
-               Math::Approximately(TKit::Timespan::FromMilliseconds(1500).AsSeconds(), 1.5f, Epsilon),
-               "1500 ms is 1.5 s", "FromMilliseconds(1500).AsSeconds() = {:.4f}",
-               TKit::Timespan::FromMilliseconds(1500).AsSeconds());
-    const f32 reading = app.MonotonicClock.GetElapsed().AsSeconds();
-    app.ClockWentBackwards |= reading < app.LastClockReading;
-    app.LastClockReading = reading;
-    cat.Expect("Clock is monotonic", !app.ClockWentBackwards,
-               "TKit::Clock::GetElapsed() must never decrease between frames", "{:.3f}s since start", reading);
-    {
-        u32 worst = 0;
-        for (const u32 hz : {30u, 60u, 120u, 144u, 165u, 240u})
-            worst = Math::Max(worst, u32(Math::Absolute(i32(Onyx::ToFrequency(Onyx::ToDeltaTime(hz))) - i32(hz))));
-        cat.Expect("Frequency and delta time round trip", worst <= 1,
-                   "Onyx::ToFrequency(Onyx::ToDeltaTime(hz)) returns hz again, within 1 Hz of float rounding",
-                   "worst error {} Hz over 30, 60, 120, 144, 165 and 240 Hz", worst);
-    }
-
-    // containers
-    {
-        TKit::StaticArray<u32, 8> array{};
-        for (u32 i = 0; i < 5; ++i)
-            array.Append(i * 10);
-        array.RemoveOrdered(array.begin() + 1);
-        const bool ordered = array.GetSize() == 4 && array[0] == 0 && array[1] == 20 && array[3] == 40;
-        array.RemoveUnordered(array.begin());
-        const bool unordered = array.GetSize() == 3 && !array.Contains(0u) && array.Contains(40u);
-        cat.Expect(
-            "StaticArray removals", ordered && unordered,
-            "RemoveOrdered keeps the order of the remaining elements. RemoveUnordered may reorder them, but must "
-            "remove exactly the element asked for",
-            "ordered {}, unordered {}", ordered ? "ok" : "wrong", unordered ? "ok" : "wrong");
-    }
-    {
-        TKit::StaticHashMap16<u32, f32> map{};
-        map.Insert(7u, 1.5f);
-        map.Insert(42u, 2.5f);
-        map.Insert(1000u, -1.f);
-        const bool ok =
-            map.Contains(7u) && map.Contains(42u) && !map.Contains(3u) && map.At(42u) == 2.5f && map.At(1000u) == -1.f;
-        cat.Expect("HashMap insert and lookup", ok,
-                   "Inserted keys are found with their values, keys never inserted are not", "3 keys inserted");
-    }
-}
-
-static void checkPlatform(App &app)
-{
-    Category &cat = app.Categories[Category_Platform];
-    Onyx::Window *win = app.Window;
-    const Graph::Window handle = win->GetHandle();
-
-    const u32 monitors = Graph::Monitor_GetCount();
-    cat.Expect("At least one monitor", monitors > 0 && Graph::Monitor_IsHandleValid(Graph::Monitor_GetPrimary()),
-               "The platform must report at least one monitor and a valid primary monitor", "{} monitors", monitors);
-
-    bool monitorsOk = true;
-    for (u32 i = 0; i < monitors; ++i)
-    {
-        const Graph::Monitor monitor = Graph::Monitor_Get(i);
-        const f32v2 scale = Graph::Monitor_GetContentScale(monitor);
-        monitorsOk &= scale[0] > 0.f && scale[1] > 0.f && Graph::Monitor_GetVideoMode(monitor).RefreshRate > 0;
-    }
-    cat.Expect("Monitors report scale and refresh rate", monitorsOk,
-               "Every monitor must have a positive content scale and refresh rate. Onyx derives the default frame "
-               "pacing from the refresh rate",
-               "monitor delta time {:.3f} ms", win->GetMonitorDeltaTime().AsMilliseconds());
-
-    cat.Expect("Window handle round trip",
-               Graph::Window_IsHandleValid(handle) && Onyx::Window::FromHandle(handle) == win,
-               "The Graphite window stores its Onyx window as user data. FromHandle(GetHandle()) must return the same "
-               "window",
-               "handle valid: {}", Graph::Window_IsHandleValid(handle));
-
-    const char *title = win->GetTitle();
-    cat.Expect("Title reads back", title && std::strcmp(title, app.Title) == 0,
-               "The title set with SetTitle must be returned by GetTitle", "\"{}\"", title ? title : "(null)");
-
-    cat.Expect("Present mode reads back", u32(win->GetPresentMode()) == app.PresentMode,
-               "SetPresentMode schedules a swapchain recreation, and GetPresentMode returns the requested mode",
-               "requested {}, active {}", app.PresentMode, u32(win->GetPresentMode()));
-
-    const Graph::Swapchain sc = win->GetSwapchain();
-    cat.Expect("Swapchain is consistent",
-               Graph::Swapchain_IsHandleValid(sc) &&
-                   win->GetSwapchainImageCount() == Graph::Swapchain_GetImageCount(sc),
-               "The window's swapchain is valid and reports the same image count through Onyx and Graphite",
-               "{} images, {} recreations since start", win->GetSwapchainImageCount(), app.SwapchainRecreations);
-
-    cat.Expect("Delta time is positive", app.DeltaTime > 0.f,
-               "Every frame takes some time. A zero or negative delta time breaks camera movement and animations",
-               "{:.3f} ms", 1000.f * app.DeltaTime);
-
-    const PacingSettings &pc = app.Pacing;
-    const TKit::Timespan target = Onyx::GetTargetDeltaTime(win);
-    // the reset is accepted, not required: either value is a correct read back after one
-    const bool reset = pc.Reset && target == pc.ResetTo && target != pc.Requested;
-    cat.Expect("Target delta time reads back", target == pc.Requested || reset,
-               "GetTargetDeltaTime returns what SetTargetDeltaTime was given. In vsync, Onyx may reset it to the "
-               "monitor's delta time when the swapchain is recreated or the window moves",
-               "active {:.3f} ms, requested {:.3f} ms{}", target.AsMilliseconds(), pc.Requested.AsMilliseconds(),
-               reset ? ", reset to the monitor's by onyx" : "");
-
-    // one sided: a slow machine or a long vsync interval may stretch frames, but pacing must never let them run faster
-    // than the target. the last 30 frames must all have run at the current target
-    constexpr u32 window = 30;
-    const char *pacingRule = "With a target delta time, Onyx sleeps until the window is due, whatever the present "
-                             "mode. Frames may come slower than the target (vsync, a busy GPU) but on average never "
-                             "more than 10% faster";
-    if (target > TKit::Timespan{} && pc.FramesAtActive > window + 8)
-    {
-        const u32 count = app.FrameTimes.GetSize();
-        f32 avg = 0.f;
-        for (u32 i = 1; i <= window; ++i)
-            avg += app.FrameTimes[(app.FrameTimeHead + count - i) % count];
-        avg /= f32(window);
-        cat.Expect("Frames are not faster than the target", avg >= 0.9f * target.AsSeconds(), pacingRule,
-                   "average of the last {} frames {:.2f} ms, target {:.2f} ms", window, 1000.f * avg,
-                   target.AsMilliseconds());
-    }
-    else
-        cat.Skip("Frames are not faster than the target", pacingRule, "{}",
-                 target > TKit::Timespan{} ? "the target changed less than 40 frames ago" : "no target delta time");
-}
-
-static void runChecks(App &app)
-{
-    for (Category &cat : app.Categories)
-    {
-        cat.BeginFrame(app.Time);
-        cat.Check(app);
-    }
-
-    // collect new failures into the log, oldest first
-    for (const Category &cat : app.Categories)
-        for (const u32 index : cat.NewFailures)
-        {
-            if (app.FailureLog.IsFull())
-                app.FailureLog.RemoveOrdered(app.FailureLog.begin());
-            const AutoCheck &check = cat.Checks[index];
-            app.FailureLog.Append(FailureRecord{app.Time, cat.Title, check.Name, check.Detail});
-        }
 }
 
 // =====================================================================================================================
@@ -3833,25 +2395,10 @@ static void setupAudio(App &app)
 
     au.Instrument = createSource(au.InstrumentSynth, 0);
     au.Spatial = createSource(au.SpatialSynth, Onyx::AudioFlag_Spatialization | Onyx::AudioFlag_Loop);
-    au.BlipMain = createSource(au.BlipMainSynth, 0);
-    au.BlipAudio = createSource(au.BlipAudioSynth, 0);
 
     au.SpatialSynth.Shape.store(Wave_Beeps);
     au.SpatialSynth.Frequency.store(660.f);
-    const u32 blip = u32(0.15f * f32(au.BlipMainSynth.SampleRate));
-    for (Synth *synth : {&au.BlipMainSynth, &au.BlipAudioSynth})
-    {
-        synth->Frequency.store(880.f);
-        synth->Length.store(blip);
-    }
-
-    // the self test blips are inaudible, but still produce frames and reach their end
-    Onyx::Audio_SetVolume(au.BlipMain, 1e-4f);
-    Onyx::Audio_SetVolume(au.BlipAudio, 1e-4f);
     Onyx::Audio_SetMainThreadEndCallback(au.Instrument, [&au] { ++au.InstrumentEnds; });
-    Onyx::Audio_SetMainThreadEndCallback(au.BlipMain, [&au] { ++au.BlipMainEnds; });
-    Onyx::Audio_SetAudioThreadEndCallback(au.BlipAudio,
-                                          [&au] { au.BlipAudioEnds.fetch_add(1, std::memory_order_relaxed); });
 }
 
 // one column of the audio scope: a bar of height |value| * half, above the middle line when positive
@@ -3873,26 +2420,7 @@ static void playInstrument(AudioState &au)
     Onyx::Audio_PlayFromBeginning(au.Instrument);
 }
 
-// IsPlaying must follow play and stop right away. then both blips play to their end, and their end callbacks must
-// arrive: the audio thread one through an atomic, the main thread one through Onyx's queue
-static void startAudioSelfTest(App &app)
-{
-    AudioState &au = app.Audio;
-    au.MainEndsAtStart = au.BlipMainEnds;
-    au.AudioEndsAtStart = au.BlipAudioEnds.load(std::memory_order_relaxed);
-    Onyx::Audio_PlayFromBeginning(au.BlipMain);
-    au.PlayFollows = Onyx::Audio_IsPlaying(au.BlipMain);
-    Onyx::Audio_Stop(au.BlipMain);
-    au.StopFollows = !Onyx::Audio_IsPlaying(au.BlipMain);
-
-    Onyx::Audio_PlayFromBeginning(au.BlipMain);
-    Onyx::Audio_PlayFromBeginning(au.BlipAudio);
-    au.Ended = false;
-    au.TestRunning = true;
-    au.TestStartedAt = app.Time;
-}
-
-// the panel's settings are applied every frame, so the checks can read them back
+// the panel's settings are applied every frame
 static void updateAudio(App &app)
 {
     AudioState &au = app.Audio;
@@ -3934,21 +2462,6 @@ static void updateAudio(App &app)
             Onyx::Listener_SetPosition<D3>(0, au.Listener3);
             Onyx::Listener_SetDirection(0, Math::Normalize(app.Cam3.View.Rotation) * f32v3{0.f, 0.f, -1.f});
             Onyx::Audio_SetPosition<D3>(au.Spatial, au.Source3);
-        }
-    }
-
-    // the self test runs once a second after launch, and again on demand
-    if (!au.TestDone && !au.TestRunning && app.Time > 1.f)
-        startAudioSelfTest(app);
-    if (au.TestRunning)
-    {
-        au.Ended |= !Onyx::Audio_IsPlaying(au.BlipMain);
-        const bool called = au.BlipMainEnds != au.MainEndsAtStart &&
-                            au.BlipAudioEnds.load(std::memory_order_relaxed) != au.AudioEndsAtStart;
-        if ((au.Ended && called) || app.Time - au.TestStartedAt > 1.5f)
-        {
-            au.TestRunning = false;
-            au.TestDone = true;
         }
     }
 }
@@ -4011,53 +2524,20 @@ static void startPresentCycle(App &app)
     app.PresentCycleAt = app.Time;
 }
 
+// -- visual review ---------------------------------------------------------------------------------------------------
+
 struct GuideStep
 {
     Category *Cat = nullptr;
-    const AutoCheck *Auto = nullptr; // a failing automatic check, or
-    VisualCheck *Visual = nullptr;   // a visual check waiting for a verdict
+    VisualCheck *Visual = nullptr; // the next visual check waiting for a verdict, by priority
     u32 Done = 0;
     u32 Total = 0;
 };
 
-static bool isFailing(const App &app, const char *name)
-{
-    for (const Category &cat : app.Categories)
-        for (const AutoCheck &check : cat.Checks)
-            if (std::strcmp(check.Name, name) == 0 && check.State == Outcome_Fail)
-                return true;
-    return false;
-}
-
-// failing automatic checks come first, the most recent failure first. then the visual checks without a verdict, by
-// priority. a skipped failure is forgotten once it recovers, so a new failure of the same check shows up again
 static GuideStep findGuideStep(App &app)
 {
-    for (u32 i = app.SkippedFailures.GetSize() - 1; i < app.SkippedFailures.GetSize(); --i)
-        if (!isFailing(app, app.SkippedFailures[i]))
-            app.SkippedFailures.RemoveUnordered(app.SkippedFailures.begin() + i);
-
     GuideStep step{};
-    Category *visualCat = nullptr;
-    VisualCheck *visual = nullptr;
     for (Category &cat : app.Categories)
-    {
-        for (const AutoCheck &check : cat.Checks)
-        {
-            if (check.State != Outcome_Fail)
-                continue;
-            ++step.Total;
-            bool skipped = false;
-            for (const char *name : app.SkippedFailures)
-                skipped |= std::strcmp(name, check.Name) == 0;
-            if (skipped)
-                ++step.Done;
-            else if (!step.Auto || check.FailingSince > step.Auto->FailingSince)
-            {
-                step.Auto = &check;
-                step.Cat = &cat;
-            }
-        }
         for (VisualCheck &check : cat.Visuals)
         {
             if (!isApplicable(app, check))
@@ -4065,18 +2545,12 @@ static GuideStep findGuideStep(App &app)
             ++step.Total;
             if (check.Mark != Verdict_Unseen)
                 ++step.Done;
-            else if (!visual || check.Priority < visual->Priority)
+            else if (!step.Visual || check.Priority < step.Visual->Priority)
             {
-                visual = &check;
-                visualCat = &cat;
+                step.Visual = &check;
+                step.Cat = &cat;
             }
         }
-    }
-    if (!step.Auto)
-    {
-        step.Visual = visual;
-        step.Cat = visualCat;
-    }
     return step;
 }
 
@@ -4089,23 +2563,321 @@ static Line describeWhere(const App &app, const Category &cat, const PaneId pane
     return formatLine("the {} panel", PaneInfos[pane].Name);
 }
 
-// a plain text summary of failures and verdicts, ready to paste into a chat or an issue
+// -- automated tests --------------------------------------------------------------------------------------------------
+//
+//  The automated tests live in their own executable, onyx-tests (the tests/ folder). It runs every test in a process of
+//  its own, because tests initialize and terminate Onyx, open windows and may crash. The control center lists them,
+//  lets you pick, and runs the runner with --format events: one tab separated line per event ("@onyx-test", kind,
+//  fields), read by a background thread and applied here once per frame. CI runs the very same executable.
+
+#ifndef ONYX_TESTS_EXECUTABLE
+#    define ONYX_TESTS_EXECUTABLE ""
+#endif
+
+#ifdef _WIN32
+#    define onyxPopen _popen
+#    define onyxPclose _pclose
+#else
+#    define onyxPopen popen
+#    define onyxPclose pclose
+#endif
+
+constexpr const char *TestMarker = "@onyx-test";
+
+constexpr const char *TestBadges[Test_StateCount] = {"-",    "QUEUED", "RUN",     "PASS", "FAIL",
+                                                     "SKIP", "CRASH",  "TIMEOUT", "KNOWN"};
+const Onyx::Color TestColors[Test_StateCount] = {Theme::Dim, Theme::Dim,  Theme::Info, Theme::Pass, Theme::Fail,
+                                                 Theme::Dim, Theme::Fail, Theme::Fail, Theme::Todo};
+constexpr const char *TestMeanings[Test_StateCount] = {
+    "Not run yet",
+    "Waiting for its turn",
+    "Running right now, in a process of its own",
+    "Passed",
+    "Failed: an expectation did not hold",
+    "Skipped: this machine cannot run it (no audio device, a platform without the feature)",
+    "Crashed: an assert, a validation error or a signal ended its process",
+    "Timed out: the watchdog ended it",
+    "Known issue: it fails because of a reported bug, and does not fail the run"};
+
+static bool isBadTest(const TestState state)
+{
+    return state == Test_Fail || state == Test_Crash || state == Test_Timeout;
+}
+
+static TKit::StringView view(const std::string &str)
+{
+    return TKit::StringView{str.data(), u32(str.size())};
+}
+
+static std::vector<std::string> splitTabs(const std::string &line)
+{
+    std::vector<std::string> fields{};
+    usz start = 0;
+    for (;;)
+    {
+        const usz tab = line.find('\t', start);
+        fields.push_back(line.substr(start, tab == std::string::npos ? std::string::npos : tab - start));
+        if (tab == std::string::npos)
+            return fields;
+        start = tab + 1;
+    }
+}
+
+static std::string testsCommand(const TestRunner &tr, const std::string &arguments)
+{
+    std::string command = "\"" + tr.Executable + "\" " + arguments + " 2>&1";
+#ifdef _WIN32
+    // cmd /c strips the outer quotes of the whole line: wrap it once more so the quoted executable path survives
+    command = "\"" + command + "\"";
+#endif
+    return command;
+}
+
+static TestEntry *findTest(TestRunner &tr, const std::string &id)
+{
+    for (TestEntry &test : tr.Tests)
+        if (test.Id == id)
+            return &test;
+    return nullptr;
+}
+
+// asks the runner for its tests. fast: listing does not initialize Onyx. selections and results of tests that are
+// still there survive a refresh
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4996)
+static void listTests(TestRunner &tr)
+{
+    if (tr.Running.load())
+        return;
+    tr.Problem.clear();
+    if (const char *env = std::getenv("ONYX_TESTS"); env && *env)
+        tr.Executable = env;
+    else
+        tr.Executable = ONYX_TESTS_EXECUTABLE;
+    if (tr.Executable.empty())
+    {
+        tr.Problem =
+            "The tests were not built: configure with ONYX_BUILD_TESTS=ON, or point the ONYX_TESTS environment "
+            "variable to an onyx-tests executable.";
+        tr.Tests.clear();
+        return;
+    }
+
+    std::FILE *pipe = onyxPopen(testsCommand(tr, "--list --format events").c_str(), "r");
+    if (!pipe)
+    {
+        tr.Problem = "Could not start " + tr.Executable;
+        return;
+    }
+    std::vector<TestEntry> tests{};
+    char buffer[2048];
+    while (std::fgets(buffer, sizeof(buffer), pipe))
+    {
+        std::string line = buffer;
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+            line.pop_back();
+        if (line.rfind(TestMarker, 0) != 0)
+            continue;
+        const std::vector<std::string> f = splitTabs(line);
+        if (f.size() < 5 || f[1] != "test")
+            continue;
+        TestEntry entry{};
+        entry.Id = f[2];
+        entry.Suite = f[3];
+        entry.Description = f[4];
+        entry.KnownIssue = f.size() > 5 ? f[5] : std::string{};
+        if (const TestEntry *old = findTest(tr, entry.Id))
+        {
+            entry.Selected = old->Selected;
+            entry.State = old->State;
+            entry.Milliseconds = old->Milliseconds;
+            entry.Failures = old->Failures;
+            entry.Notes = old->Notes;
+            entry.Output = old->Output;
+        }
+        tests.push_back(std::move(entry));
+    }
+    const int code = onyxPclose(pipe);
+    tr.Tests = std::move(tests);
+    if (tr.Tests.empty())
+        tr.Problem = "No tests listed by " + tr.Executable + " (exit status " + std::to_string(code) + ")";
+}
+TKIT_COMPILER_WARNING_IGNORE_POP()
+
+// whole suites go by name, the rest by id, so the command line stays short (Windows caps it)
+static std::string selectionArgument(const TestRunner &tr, const std::vector<const TestEntry *> &picked)
+{
+    std::string argument{};
+    std::vector<std::string> suitesDone{};
+    for (const TestEntry *test : picked)
+    {
+        bool wholeSuite = true;
+        for (const TestEntry &other : tr.Tests)
+            if (other.Suite == test->Suite)
+            {
+                bool in = false;
+                for (const TestEntry *p : picked)
+                    in |= p == &other;
+                wholeSuite &= in;
+            }
+        std::string item = test->Id;
+        if (wholeSuite)
+        {
+            bool done = false;
+            for (const std::string &suite : suitesDone)
+                done |= suite == test->Suite;
+            if (done)
+                continue;
+            suitesDone.push_back(test->Suite);
+            item = test->Suite;
+        }
+        argument += (argument.empty() ? "" : ",") + item;
+    }
+    return argument;
+}
+
+static void startTests(App &app, const std::vector<const TestEntry *> &picked, const char *label)
+{
+    TestRunner &tr = app.Tests;
+    if (tr.Running.load() || picked.empty())
+        return;
+    if (tr.Reader.joinable())
+        tr.Reader.join();
+
+    for (TestEntry &test : tr.Tests)
+        for (const TestEntry *p : picked)
+            if (p == &test)
+            {
+                test.State = Test_Queued;
+                test.Milliseconds = 0;
+                test.Failures.clear();
+                test.Notes.clear();
+                test.Output.clear();
+            }
+
+    tr.Planned = u32(picked.size());
+    tr.Finished = 0;
+    tr.Counts = {};
+    tr.StartedAt = app.Time;
+    tr.Seconds = 0.f;
+    tr.HasRun = true;
+    tr.Label = label;
+    tr.Lines.clear();
+    tr.Running.store(true);
+
+    const std::string command =
+        testsCommand(tr, "--format events --jobs " + std::to_string(tr.Jobs) + " " + selectionArgument(tr, picked));
+    tr.Reader = std::thread{[&tr, command] {
+        std::FILE *pipe = onyxPopen(command.c_str(), "r");
+        if (!pipe)
+        {
+            const std::lock_guard lock{tr.Mutex};
+            tr.Lines.push_back(std::string{TestMarker} + "\tproblem\tcould not start the test runner");
+            tr.Running.store(false);
+            return;
+        }
+        std::string line{};
+        char buffer[4096];
+        while (std::fgets(buffer, sizeof(buffer), pipe))
+        {
+            line += buffer;
+            if (line.back() != '\n')
+                continue;
+            while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+                line.pop_back();
+            const std::lock_guard lock{tr.Mutex};
+            tr.Lines.push_back(std::move(line));
+            line.clear();
+        }
+        const int code = onyxPclose(pipe);
+        const std::lock_guard lock{tr.Mutex};
+        tr.ExitCode = code;
+        tr.Running.store(false);
+    }};
+}
+
+static TestState stateFromName(const std::string &name)
+{
+    constexpr const char *names[] = {"pass", "fail", "skip", "crash", "timeout", "known"};
+    constexpr TestState states[] = {Test_Pass, Test_Fail, Test_Skip, Test_Crash, Test_Timeout, Test_Known};
+    for (u32 i = 0; i < 6; ++i)
+        if (name == names[i])
+            return states[i];
+    return Test_Crash;
+}
+
+// applies what the runner reported since last frame
+static void updateTests(App &app)
+{
+    TestRunner &tr = app.Tests;
+    std::vector<std::string> lines{};
+    {
+        const std::lock_guard lock{tr.Mutex};
+        lines.swap(tr.Lines);
+    }
+    for (const std::string &line : lines)
+    {
+        const usz at = line.find(std::string{TestMarker} + '\t');
+        if (at == std::string::npos)
+            continue;
+        const std::vector<std::string> f = splitTabs(line.substr(at));
+        if (f.size() < 2)
+            continue;
+        const std::string &kind = f[1];
+        if (kind == "problem" && f.size() >= 3)
+        {
+            tr.Problem = f[2];
+            continue;
+        }
+        if (kind == "plan" || kind == "summary" || f.size() < 3)
+            continue;
+        TestEntry *test = findTest(tr, f[2]);
+        if (!test)
+            continue;
+        if (kind == "begin")
+            test->State = Test_Running;
+        else if (kind == "fail" && f.size() >= 5)
+            test->Failures.push_back(f[3] + ": " + f[4]);
+        else if ((kind == "skip" || kind == "note") && f.size() >= 4)
+            test->Notes.push_back(f[3]);
+        else if (kind == "crash" && f.size() >= 4)
+            test->Failures.push_back(f[3]);
+        else if (kind == "output" && f.size() >= 4)
+            test->Output.push_back(f[3]);
+        else if (kind == "end" && f.size() >= 5)
+        {
+            test->State = stateFromName(f[3]);
+            test->Milliseconds = u32(std::strtoul(f[4].c_str(), nullptr, 10));
+            ++tr.Counts[test->State];
+            ++tr.Finished;
+        }
+    }
+    if (tr.Running.load())
+        tr.Seconds = app.Time - tr.StartedAt;
+    else if (tr.Reader.joinable())
+    {
+        tr.Reader.join();
+        // a test still marked queued or running never reported an end: the runner itself died
+        for (TestEntry &test : tr.Tests)
+            if (test.State == Test_Queued || test.State == Test_Running)
+            {
+                test.State = Test_Crash;
+                test.Failures.push_back("the test runner ended before this test reported");
+                ++tr.Counts[Test_Crash];
+            }
+    }
+}
+
+// -- report ---------------------------------------------------------------------------------------------------------
+
+// a plain text summary of the last automated run and of the visual review, ready to paste into a chat or an issue
 static void copyReport(App &app)
 {
     const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
     const Graph::PlatformBackendInfo pinfo = Graph::GetPlatformBackendInfo();
     const f32v2 scale = app.Window->GetContentScale();
     const u32v2 size = app.Window->GetSize();
-
-    u32 outcomes[Outcome_Count]{};
-    u32 verdicts[Verdict_Count]{};
-    for (const Category &cat : app.Categories)
-    {
-        for (u32 i = 0; i < Outcome_Count; ++i)
-            outcomes[i] += cat.Count(Outcome(i));
-        for (const VisualCheck &check : cat.Visuals)
-            verdicts[check.Mark] += isApplicable(app, check);
-    }
+    const TestRunner &tr = app.Tests;
 
     TKit::TierString report{};
     report +=
@@ -4113,22 +2885,34 @@ static void copyReport(App &app)
                                  "x {}\n",
                                  rinfo.Device.Name, rinfo.Device.DriverName, PlatformNames[pinfo.Platform],
                                  app.Mode == Mode_Direct ? "direct" : "docked", scale[0], size[0], size[1]);
-    report += TKit::TierString::Format("\nAutomatic checks: {} pass, {} fail, {} not applicable\n",
-                                       outcomes[Outcome_Pass], outcomes[Outcome_Fail], outcomes[Outcome_NotApplicable]);
-    for (const Category &cat : app.Categories)
-        for (const AutoCheck &check : cat.Checks)
-            if (check.State == Outcome_Fail)
-                report += TKit::TierString::Format("- FAIL [{}] {}: {}\n", cat.Title, check.Name, check.Detail.View());
 
-    report += TKit::TierString::Format("\nFailure log ({} entries, newest first):\n", app.FailureLog.GetSize());
-    for (u32 i = app.FailureLog.GetSize() - 1, n = 0; i < app.FailureLog.GetSize() && n < 20; --i, ++n)
+    if (!tr.HasRun)
+        report += "\nAutomated tests: not run in this session\n";
+    else
     {
-        const FailureRecord &record = app.FailureLog[i];
-        report += TKit::TierString::Format("- t = {:.2f}s [{}] {}: {}\n", record.Time, record.Category, record.Name,
-                                           record.Detail.View());
+        report += TKit::TierString::Format("\nAutomated tests ({}): {} of {} done, {} passed, {} failed, {} crashed, "
+                                           "{} timed out, {} skipped, {} known "
+                                           "issues, {:.1f} s\n",
+                                           tr.Label, tr.Finished, tr.Planned, tr.Counts[Test_Pass],
+                                           tr.Counts[Test_Fail], tr.Counts[Test_Crash], tr.Counts[Test_Timeout],
+                                           tr.Counts[Test_Skip], tr.Counts[Test_Known], tr.Seconds);
+        for (const TestEntry &test : tr.Tests)
+        {
+            if (!isBadTest(test.State) && test.State != Test_Known)
+                continue;
+            report += TKit::TierString::Format("- {} {}\n", TestBadges[test.State], view(test.Id));
+            for (const std::string &failure : test.Failures)
+                report += TKit::TierString::Format("    {}\n", view(failure));
+            if (test.State == Test_Known)
+                report += TKit::TierString::Format("    known issue: {}\n", view(test.KnownIssue));
+        }
     }
 
-    report += TKit::TierString::Format("\nVisual checks: {} right, {} broken, {} skipped, {} not judged\n",
+    u32 verdicts[Verdict_Count]{};
+    for (const Category &cat : app.Categories)
+        for (const VisualCheck &check : cat.Visuals)
+            verdicts[check.Mark] += isApplicable(app, check);
+    report += TKit::TierString::Format("\nVisual review: {} right, {} broken, {} skipped, {} not judged\n",
                                        verdicts[Verdict_Good], verdicts[Verdict_Broken], verdicts[Verdict_Skipped],
                                        verdicts[Verdict_Unseen]);
     for (const Verdict verdict : {Verdict_Broken, Verdict_Skipped, Verdict_Unseen})
@@ -4144,62 +2928,193 @@ static void copyReport(App &app)
     app.ReportCopiedAt = app.Time;
 }
 
-static void drawGuide(App &app, const GuideStep &step)
+// -- tests window ---------------------------------------------------------------------------------------------------
+
+static bool matchesFilter(const TestRunner &tr, const TestEntry &test)
 {
-    if (!app.ShowGuide)
-        return;
+    if (tr.OnlyProblems && !isBadTest(test.State) && test.State != Test_Known)
+        return false;
+    return tr.Filter[0] == '\0' || test.Id.find(tr.Filter) != std::string::npos;
+}
+
+static void drawTestRow(Onyx::Overlay *ui, TestEntry &test, const bool running)
+{
+    ui->PushId(Onyx::LayoutId{&test});
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    ui->BeginDisabled(running);
+    ui->CheckBox("##selected", &test.Selected);
+    ui->EndDisabled();
+    badge(ui, TestBadges[test.State], TestColors[test.State]);
+    text(ui, Theme::Text, view(test.Id));
+    if (test.Milliseconds != 0)
+        text(ui, Theme::Dim, formatLine("{} ms", test.Milliseconds).View());
+    ui->PopPanel();
+    std::string more = test.Description;
+    if (!test.KnownIssue.empty())
+        more += "\n\nKnown issue: " + test.KnownIssue;
+    tooltip(ui, TestColors[test.State], TestMeanings[test.State], view(more));
+
+    for (const std::string &failure : test.Failures)
+        text(ui, Theme::Fail, view(failure), Onyx::TextMode_Wrapped);
+    for (const std::string &note : test.Notes)
+        text(ui, Theme::Dim, view(note), Onyx::TextMode_Wrapped);
+    if (!test.Output.empty() && ui->PushTree(formatLine("Output ({} lines)###output", test.Output.size()).View()))
+    {
+        for (const std::string &line : test.Output)
+            text(ui, Theme::Dim, view(line), Onyx::TextMode_Wrapped);
+        ui->PopTree();
+    }
+    ui->PopId();
+}
+
+static void drawAutomatedTests(App &app)
+{
     Onyx::Overlay *ui = app.Ui;
-    const f32v2 wsize = f32v2{app.Window->GetSize()};
-    const Onyx::OverlayWindowFlags flags = placeWindow(app, f32v2{wsize[0] - 480.f, 16.f}, f32v2{464.f, 300.f});
-    if (!ui->BeginWindow(GuideTitle, &app.ShowGuide, flags))
-        return;
+    TestRunner &tr = app.Tests;
+    const bool running = tr.Running.load();
 
-    if (!step.Cat)
+    text(ui, Theme::Dim,
+         "Everything a program can check runs in onyx-tests, the same executable CI runs: each test in a process of "
+         "its own, so a crash or an assert only takes its own test down. Tests open small windows while they run.",
+         Onyx::TextMode_Wrapped);
+
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button("Refresh list"))
+        listTests(tr);
+    tooltip(ui, Theme::Accent, "Lists the tests again",
+            "After rebuilding onyx-tests. Selections and results of the tests that are still there are kept.");
+    if (!tr.Executable.empty())
+        text(ui, Theme::Dim, view(tr.Executable));
+    ui->PopPanel();
+    if (!tr.Problem.empty())
     {
-        text(ui, Theme::Pass, formatLine("Every step is done ({} of {}).", step.Done, step.Total).View());
-        text(ui, Theme::Dim, "Broken verdicts and failures are in the report, ready to paste.", Onyx::TextMode_Wrapped);
-        if (ui->Button("Copy report"))
-            copyReport(app);
-        ui->EndWindow();
-        return;
+        text(ui, Theme::Fail, view(tr.Problem), Onyx::TextMode_Wrapped);
+        if (tr.Tests.empty())
+            return;
     }
 
-    ui->ProgressBar("Progress", step.Total ? f32(step.Done) / f32(step.Total) : 1.f, "step {} of {}", step.Done + 1,
-                    step.Total);
-    const PaneId pane = step.Auto ? step.Auto->Pane : step.Visual->Pane;
-    ui->BeginPanel(ui->IdFromStack("step"), {.Direction = Onyx::LayoutDirection_LeftToRight,
-                                             .Alignment = Onyx::Overlay::CenterLeft,
-                                             .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fit()},
-                                             .ChildGap = ui->GetStyle(Onyx::OverlayStyle_ChildGap)});
-    if (step.Auto)
-        badge(ui, "FAIL", Theme::Fail);
+    // -- run controls -------------------------------------------------------------------------------------------------
+    std::vector<const TestEntry *> all{};
+    std::vector<const TestEntry *> selected{};
+    std::vector<const TestEntry *> problems{};
+    for (const TestEntry &test : tr.Tests)
+    {
+        all.push_back(&test);
+        if (test.Selected)
+            selected.push_back(&test);
+        if (isBadTest(test.State))
+            problems.push_back(&test);
+    }
+
+    ui->BeginDisabled(running);
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button(formatLine("Run all ({})###run all", all.size()).View()))
+        startTests(app, all, "all");
+    if (ui->Button(formatLine("Run selected ({})###run selected", selected.size()).View()))
+        startTests(app, selected, "selected");
+    if (ui->Button(formatLine("Run failed ({})###run failed", problems.size()).View()))
+        startTests(app, problems, "failed");
+    ui->PopPanel();
+    ui->HorizontalSlider("Tests at a time", &tr.Jobs, 1u, 8u);
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "How many test processes run in parallel",
+            "More is faster. Timing sensitive tests (frame pacing) are more reliable with fewer.");
+
+    // -- progress and summary -----------------------------------------------------------------------------------------
+    if (tr.HasRun)
+    {
+        ui->ProgressBar("##progress", tr.Planned ? f32(tr.Finished) / f32(tr.Planned) : 1.f, "{} {} of {}, {:.1f} s",
+                        running ? "running" : "ran", tr.Finished, tr.Planned, tr.Seconds);
+        const u32 bad = tr.Counts[Test_Fail] + tr.Counts[Test_Crash] + tr.Counts[Test_Timeout];
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        badge(ui, running ? "RUN" : (bad ? "FAIL" : "PASS"), running ? Theme::Info : (bad ? Theme::Fail : Theme::Pass));
+        text(ui, Theme::Text,
+             formatLine("{} passed, {} failed, {} crashed, {} timed out, {} skipped, {} known", tr.Counts[Test_Pass],
+                        tr.Counts[Test_Fail], tr.Counts[Test_Crash], tr.Counts[Test_Timeout], tr.Counts[Test_Skip],
+                        tr.Counts[Test_Known])
+                 .View());
+        ui->PopPanel();
+    }
+
+    // -- list ---------------------------------------------------------------------------------------------------------
+    ui->HorizontalSeparator("Tests");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    ui->InputText("Filter", tr.Filter, sizeof(tr.Filter), "part of an id, e.g. overlay. or resize");
+    ui->CheckBox("Problems only", &tr.OnlyProblems);
+    ui->PopPanel();
+
+    ui->BeginScroll("Test list", 520.f, Onyx::OverlayScrollFlag_Borders);
+    usz i = 0;
+    while (i < tr.Tests.size())
+    {
+        const std::string suite = tr.Tests[i].Suite;
+        usz end = i;
+        u32 shown = 0;
+        u32 suiteBad = 0;
+        u32 suiteDone = 0;
+        bool allSelected = true;
+        while (end < tr.Tests.size() && tr.Tests[end].Suite == suite)
+        {
+            const TestEntry &test = tr.Tests[end];
+            shown += matchesFilter(tr, test);
+            suiteBad += isBadTest(test.State);
+            suiteDone += test.State >= Test_Pass;
+            allSelected &= test.Selected;
+            ++end;
+        }
+        if (shown != 0)
+        {
+            ui->PushId(Onyx::LayoutId{view(suite)});
+            // the title carries live counts, so the tree keeps its state through "###"
+            const Line title = formatLine("{} ({} tests{}{})###tree", view(suite), end - i,
+                                          suiteDone ? formatLine(", {} ran", suiteDone).View() : TKit::StringView{},
+                                          suiteBad ? formatLine(", {} failing", suiteBad).View() : TKit::StringView{});
+            if (ui->PushTree(title.View(), suiteBad ? Onyx::OverlayTreeFlag_StartOpen : 0))
+            {
+                bool select = allSelected;
+                ui->BeginDisabled(running);
+                if (ui->CheckBox("Select the whole suite", &select))
+                    for (usz j = i; j < end; ++j)
+                        tr.Tests[j].Selected = select;
+                ui->EndDisabled();
+                for (usz j = i; j < end; ++j)
+                    if (matchesFilter(tr, tr.Tests[j]))
+                        drawTestRow(ui, tr.Tests[j], running);
+                ui->PopTree();
+            }
+            ui->PopId();
+        }
+        i = end;
+    }
+    ui->EndScroll();
+}
+
+static void drawVisualReview(App &app, const GuideStep &step)
+{
+    Onyx::Overlay *ui = app.Ui;
+    text(ui, Theme::Dim,
+         "What a program cannot judge: crisp text, blending, motion, sound. Each check says what to do in the showcase "
+         "and what to look at, and you give the verdict. Verdicts are saved as you give them.",
+         Onyx::TextMode_Wrapped);
+
+    // -- next step ----------------------------------------------------------------------------------------------------
+    ui->HorizontalSeparator("Next");
+    if (!step.Visual)
+        text(ui, Theme::Pass, formatLine("Every visual check is judged ({} of {}).", step.Done, step.Total).View());
     else
+    {
+        ui->ProgressBar("##review", step.Total ? f32(step.Done) / f32(step.Total) : 1.f, "{} of {} judged", step.Done,
+                        step.Total);
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
         badge(ui, "TODO", Theme::Todo);
-    swatch(ui, pane);
-    text(ui, Theme::Text, step.Auto ? step.Auto->Name : step.Visual->Name);
-    ui->EndPanel();
-    if (step.Visual)
+        swatch(ui, step.Visual->Pane);
+        text(ui, Theme::Text, step.Visual->Name);
+        ui->PopPanel();
         tooltip(ui, Theme::Todo, VerdictMeanings[Verdict_Unseen], step.Visual->More);
-
-    if (step.Auto)
-    {
-        text(ui, Theme::Text, "This automatic check is failing right now. What must hold:", Onyx::TextMode_Wrapped);
-        text(ui, Theme::Dim, step.Auto->Rule, Onyx::TextMode_Wrapped);
-        text(ui, Theme::Fail, step.Auto->Detail.View(), Onyx::TextMode_Wrapped);
-    }
-    else
         text(ui, Theme::Text, step.Visual->Do, Onyx::TextMode_Wrapped);
-    field(ui, "Look at ", describeWhere(app, *step.Cat, pane).View());
+        field(ui, "Look at ", describeWhere(app, *step.Cat, step.Visual->Pane).View());
 
-    ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
-    if (step.Auto)
-    {
-        if (ui->Button("Skip for now") && !app.SkippedFailures.IsFull())
-            app.SkippedFailures.Append(step.Auto->Name);
-        tooltip(ui, Theme::Dim, "Moves on to the next step", "The failure stays in the failure log and the report.");
-    }
-    else
-    {
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
         const Verdict verdicts[3] = {Verdict_Good, Verdict_Broken, Verdict_Skipped};
         const char *labels[3] = {"Looks right", "Broken", "Skip"};
         for (u32 i = 0; i < 3; ++i)
@@ -4208,13 +3123,71 @@ static void drawGuide(App &app, const GuideStep &step)
                 step.Visual->Mark = verdicts[i];
                 app.VerdictsDirty = true;
             }
+        if (ui->Button("Open its panel"))
+            step.Cat->Open = true;
+        if (app.Mode == Mode_Docked)
+            tooltip(ui, Theme::Dim, "Opens the category panel",
+                    "In the docked layout it opens as a tab in the right column: select its tab there.");
+        ui->PopPanel();
     }
-    if (ui->Button("Open its panel"))
-        step.Cat->Open = true;
-    if (app.Mode == Mode_Docked)
-        tooltip(ui, Theme::Dim, "Opens the category panel",
-                "In the docked layout it opens as a tab in the right column: select its tab there.");
+
+    // -- every check, by category -------------------------------------------------------------------------------------
+    ui->HorizontalSeparator("All visual checks");
+    for (Category &cat : app.Categories)
+    {
+        if (cat.Visuals.IsEmpty())
+            continue;
+        u32 todo = 0;
+        u32 bad = 0;
+        for (const VisualCheck &check : cat.Visuals)
+            if (isApplicable(app, check))
+            {
+                todo += check.Mark == Verdict_Unseen;
+                bad += check.Mark == Verdict_Broken;
+            }
+        ui->PushId(Onyx::LayoutId{&cat});
+        if (ui->PushTree(formatLine("{} ({} to judge{})###review", cat.Title, todo, bad ? ", broken ones" : "").View()))
+        {
+            for (VisualCheck &check : cat.Visuals)
+                app.VerdictsDirty |= drawVisualCheck(ui, check, isApplicable(app, check));
+            ui->PopTree();
+        }
+        ui->PopId();
+    }
+}
+
+static void drawTests(App &app, const GuideStep &step)
+{
+    if (!app.ShowTests)
+        return;
+    Onyx::Overlay *ui = app.Ui;
+    const f32v2 wsize = f32v2{app.Window->GetSize()};
+    const Onyx::OverlayWindowFlags flags = placeWindow(app, f32v2{wsize[0] - 620.f, 16.f}, f32v2{604.f, 760.f});
+    if (!ui->BeginWindow(TestsTitle, &app.ShowTests, flags))
+        return;
+
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button("Copy report"))
+        copyReport(app);
+    tooltip(ui, Theme::Accent, "Copies a plain text report",
+            "The last automated run (failures with their messages, known issues) and every visual verdict, ready to "
+            "paste into a chat or an issue.");
+    if (app.Time - app.ReportCopiedAt < 3.f)
+        text(ui, Theme::Pass, formatLine("copied {} lines", app.ReportLines).View());
     ui->PopPanel();
+
+    ui->BeginTabBar("Test kinds");
+    if (ui->BeginTab("Automated", Onyx::OverlayTabFlag_StartOpen))
+    {
+        drawAutomatedTests(app);
+        ui->EndTab();
+    }
+    if (ui->BeginTab("Visual review"))
+    {
+        drawVisualReview(app, step);
+        ui->EndTab();
+    }
+    ui->EndTabBar();
     ui->EndWindow();
 }
 
@@ -4230,8 +3203,9 @@ static void drawManual(App &app)
 
     text(ui, Theme::Accent, "What this is");
     text(ui, Theme::Text,
-         "The control center checks that Onyx, and the parts of Graphite and Toolkit it stands on, behave as intended. "
-         "Automatic checks run every frame. Visual checks need your eyes: you give the verdict.",
+         "A showcase of what Onyx does, in four views and a panel per topic, and the place to test it. The showcase "
+         "never judges anything by itself. Testing happens on demand, in the Tests window: automated tests run in "
+         "onyx-tests (the same executable CI runs), and visual checks wait for your verdict.",
          Onyx::TextMode_Wrapped);
 
     ui->HorizontalSeparator("The four views");
@@ -4244,42 +3218,36 @@ static void drawManual(App &app)
         ui->PopPanel();
         text(ui, Theme::Text, PaneInfos[i].Shows, Onyx::TextMode_Wrapped);
     }
-    text(ui, Theme::Dim, "Every check about a view is tagged with that view's tint.", Onyx::TextMode_Wrapped);
+    text(ui, Theme::Dim, "Every visual check about a view is tagged with that view's tint.", Onyx::TextMode_Wrapped);
 
     ui->HorizontalSeparator("Badges");
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    for (u32 i = 0; i < Outcome_Count; ++i)
-        badge(ui, OutcomeBadges[i], OutcomeColors[i]);
-    text(ui, Theme::Text, "automatic: holds, broken, not applicable");
+    for (const TestState state : {Test_Pass, Test_Fail, Test_Crash, Test_Known})
+        badge(ui, TestBadges[state], TestColors[state]);
+    text(ui, Theme::Text, "automated tests");
     ui->PopPanel();
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
     for (u32 i = 0; i < Verdict_Count; ++i)
         badge(ui, VerdictBadges[i], VerdictColors[i]);
-    text(ui, Theme::Text, "visual: your verdict");
+    text(ui, Theme::Text, "visual checks: your verdict");
     ui->PopPanel();
-    text(ui, Theme::Dim, "Hover any check to read its rule, or what to look at.", Onyx::TextMode_Wrapped);
+    text(ui, Theme::Dim, "Hover a test or a check to read what it is about.", Onyx::TextMode_Wrapped);
 
     ui->HorizontalSeparator("A first session");
     const char *steps[] = {
-        "1. Resize the window. The Scenarios menu of the Control center has fixed sizes.",
-        "2. Change the monitor scale, on Hyprland: hyprctl keyword monitor <name>,preferred,auto,1.5",
-        "3. Sweep the 2D light around its occluders: move the mouse over the 2D gallery.",
+        "1. Open the Tests window and run all the automated tests.",
+        "2. Resize the window. The Scenarios menu of the Control center has fixed sizes.",
+        "3. Change the monitor scale, on Hyprland: hyprctl keyword monitor <name>,preferred,auto,1.5",
         "4. Move both cameras: hover a gallery, press W A S D Q E and scroll to zoom.",
         "5. Switch to the docked layout from the Layout menu, and back.",
+        "6. Walk the visual review in the Tests window: it points at what to look at, one check at a time.",
     };
     for (const char *line : steps)
         text(ui, Theme::Text, line, Onyx::TextMode_Wrapped);
 
-    ui->HorizontalSeparator("Where failures end up");
-    text(ui, Theme::Text,
-         "Every time an automatic check goes from passing to failing, the failure log of the Control center keeps it, "
-         "even if it lasted a single frame. Report > Copy puts failures and verdicts on the clipboard. Verdicts are "
-         "saved as you give them.",
-         Onyx::TextMode_Wrapped);
-
-    if (ui->Button("Start the guided checks"))
+    if (ui->Button("Open the tests"))
     {
-        app.ShowGuide = true;
+        app.ShowTests = true;
         app.ShowManual = false;
     }
     ui->EndWindow();
@@ -4317,6 +3285,7 @@ static void drawDashboard(App &app, const GuideStep &step)
     if (!ui->BeginWindow(ControlCenterTitle, Onyx::OverlayWindowFlag_MenuBar | flags))
         return;
 
+    TestRunner &tr = app.Tests;
     if (ui->BeginMenuBar())
     {
         if (ui->BeginMenu("Layout"))
@@ -4342,7 +3311,7 @@ static void drawDashboard(App &app, const GuideStep &step)
         }
         if (ui->BeginMenu("Panels"))
         {
-            ui->MenuItem(GuideTitle, &app.ShowGuide);
+            ui->MenuItem(TestsTitle, &app.ShowTests);
             ui->MenuItem(ManualTitle, &app.ShowManual);
             for (Category &cat : app.Categories)
                 ui->MenuItem(cat.Title, &cat.Open);
@@ -4363,12 +3332,21 @@ static void drawDashboard(App &app, const GuideStep &step)
                 resetCameras(app);
             ui->EndMenu();
         }
-        if (ui->BeginMenu("Report"))
+        if (ui->BeginMenu("Tests"))
         {
+            ui->MenuItem("Tests window", &app.ShowTests);
+            ui->BeginDisabled(tr.Running.load() || tr.Tests.empty());
+            if (ui->MenuItem("Run every automated test"))
+            {
+                std::vector<const TestEntry *> all{};
+                for (const TestEntry &test : tr.Tests)
+                    all.push_back(&test);
+                startTests(app, all, "all");
+                app.ShowTests = true;
+            }
+            ui->EndDisabled();
             if (ui->MenuItem("Copy report to the clipboard"))
                 copyReport(app);
-            if (ui->MenuItem("Clear the failure log"))
-                app.FailureLog.Clear();
             if (ui->MenuItem("Forget every verdict"))
             {
                 for (Category &cat : app.Categories)
@@ -4391,11 +3369,11 @@ static void drawDashboard(App &app, const GuideStep &step)
 
     if (ui->BeginPopup(LegendPopup, Onyx::OverlayWindowFlag_AutoResize))
     {
-        for (u32 i = 0; i < Outcome_Count; ++i)
+        for (u32 i = Test_Pass; i < Test_StateCount; ++i)
         {
             ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-            badge(ui, OutcomeBadges[i], OutcomeColors[i]);
-            text(ui, Theme::Text, OutcomeMeanings[i]);
+            badge(ui, TestBadges[i], TestColors[i]);
+            text(ui, Theme::Text, TestMeanings[i]);
             ui->PopPanel();
         }
         for (u32 i = 0; i < Verdict_Count; ++i)
@@ -4419,64 +3397,43 @@ static void drawDashboard(App &app, const GuideStep &step)
                     app.Mode == Mode_Direct ? "direct" : "docked")
              .View());
 
-    // -- next step -------------------------------------------------------------------------------------------------
-    ui->HorizontalSeparator("Next step");
-    if (step.Cat)
+    // -- tests -------------------------------------------------------------------------------------------------------
+    ui->HorizontalSeparator("Tests");
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (tr.Running.load())
     {
-        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        if (step.Auto)
-            badge(ui, "FAIL", Theme::Fail);
-        else
-            badge(ui, "TODO", Theme::Todo);
-        text(ui, Theme::Text, step.Auto ? step.Auto->Name : step.Visual->Name);
-        ui->PopPanel();
+        badge(ui, "RUN", Theme::Info);
+        text(ui, Theme::Text, formatLine("automated: {} of {} done", tr.Finished, tr.Planned).View());
+    }
+    else if (tr.HasRun)
+    {
+        const u32 bad = tr.Counts[Test_Fail] + tr.Counts[Test_Crash] + tr.Counts[Test_Timeout];
+        badge(ui, bad ? "FAIL" : "PASS", bad ? Theme::Fail : Theme::Pass);
+        text(ui, Theme::Text,
+             formatLine("automated: {} passed, {} failing, {} known", tr.Counts[Test_Pass], bad, tr.Counts[Test_Known])
+                 .View());
     }
     else
-        text(ui, Theme::Pass, "Every step is done");
-    if (!app.ShowGuide && ui->Button("Open the guided checks"))
-        app.ShowGuide = true;
-
-    // -- totals ----------------------------------------------------------------------------------------------------
-    u32 outcomes[Outcome_Count]{};
-    u32 verdicts[Verdict_Count]{};
-    u32 visuals = 0;
-    for (const Category &cat : app.Categories)
     {
-        for (u32 i = 0; i < Outcome_Count; ++i)
-            outcomes[i] += cat.Count(Outcome(i));
-        for (const VisualCheck &check : cat.Visuals)
-            if (isApplicable(app, check))
-            {
-                ++verdicts[check.Mark];
-                ++visuals;
-            }
+        badge(ui, "-", Theme::Dim);
+        text(ui, Theme::Dim,
+             tr.Tests.empty() ? "automated: not available"
+                              : formatLine("automated: {} tests, not run", tr.Tests.size()).View());
     }
-    const u32 evaluated = outcomes[Outcome_Pass] + outcomes[Outcome_Fail];
-    const u32 judged = visuals - verdicts[Verdict_Unseen];
-    ui->HorizontalSeparator("Summary");
-    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    badge(ui, OutcomeBadges[outcomes[Outcome_Fail] ? Outcome_Fail : Outcome_Pass],
-          OutcomeColors[outcomes[Outcome_Fail] ? Outcome_Fail : Outcome_Pass]);
-    text(ui, Theme::Text,
-         formatLine("{} / {} automatic checks pass, {} n/a", outcomes[Outcome_Pass], evaluated,
-                    outcomes[Outcome_NotApplicable])
-             .View());
     ui->PopPanel();
-    ui->ProgressBar("Automatic", evaluated ? f32(outcomes[Outcome_Pass]) / f32(evaluated) : 1.f, "{}/{}",
-                    outcomes[Outcome_Pass], evaluated);
-    const Verdict summary = verdicts[Verdict_Broken]   ? Verdict_Broken
-                            : verdicts[Verdict_Unseen] ? Verdict_Unseen
-                                                       : Verdict_Good;
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    u32 broken = 0;
+    for (const Category &cat : app.Categories)
+        for (const VisualCheck &check : cat.Visuals)
+            broken += isApplicable(app, check) && check.Mark == Verdict_Broken;
+    const Verdict summary = broken ? Verdict_Broken : (step.Visual ? Verdict_Unseen : Verdict_Good);
     badge(ui, VerdictBadges[summary], VerdictColors[summary]);
-    text(ui, Theme::Text,
-         formatLine("{} / {} visual checks judged, {} broken, {} skipped", judged, visuals, verdicts[Verdict_Broken],
-                    verdicts[Verdict_Skipped])
-             .View());
+    text(ui, Theme::Text, formatLine("visual: {} of {} judged, {} broken", step.Done, step.Total, broken).View());
     ui->PopPanel();
-    ui->ProgressBar("Visual", visuals ? f32(judged) / f32(visuals) : 1.f, "{}/{}", judged, visuals);
     if (app.LoadedVerdicts != 0)
         text(ui, Theme::Dim, formatLine("{} verdicts loaded from {}", app.LoadedVerdicts, VerdictFile).View());
+    if (!app.ShowTests && ui->Button("Open the tests"))
+        app.ShowTests = true;
 
     // -- frame timing ----------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Frame timing");
@@ -4500,11 +3457,9 @@ static void drawDashboard(App &app, const GuideStep &step)
             "worse.");
 
     // -- categories ------------------------------------------------------------------------------------------------
-    ui->HorizontalSeparator("Categories");
+    ui->HorizontalSeparator("Showcase panels");
     for (Category &cat : app.Categories)
     {
-        const u32 fails = cat.Count(Outcome_Fail);
-        const u32 checks = cat.Checks.GetSize() - cat.Count(Outcome_NotApplicable);
         u32 todo = 0;
         u32 bad = 0;
         for (const VisualCheck &check : cat.Visuals)
@@ -4515,44 +3470,14 @@ static void drawDashboard(App &app, const GuideStep &step)
             }
         ui->PushId(Onyx::LayoutId{&cat});
         ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-        badge(ui, OutcomeBadges[fails ? Outcome_Fail : Outcome_Pass],
-              OutcomeColors[fails ? Outcome_Fail : Outcome_Pass]);
+        ui->CheckBox(cat.Title, &cat.Open);
+        tooltip(ui, Theme::Accent, cat.Title, cat.Summary);
         if (bad)
             badge(ui, VerdictBadges[Verdict_Broken], VerdictColors[Verdict_Broken]);
         else if (todo)
             badge(ui, VerdictBadges[Verdict_Unseen], VerdictColors[Verdict_Unseen]);
-        ui->CheckBox(cat.Title, &cat.Open);
-        tooltip(ui, Theme::Accent, cat.Title, cat.Summary);
-        text(ui, Theme::Dim, formatLine("{}/{}{}", checks - fails, checks, todo ? ", to judge" : "").View());
         ui->PopPanel();
         ui->PopId();
-    }
-
-    // -- failure log -----------------------------------------------------------------------------------------------
-    ui->HorizontalSeparator("Failure log");
-    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    if (ui->Button("Copy report"))
-        copyReport(app);
-    tooltip(ui, Theme::Accent, "Copies a plain text report",
-            "Failing checks, the failure log and every verdict, ready to paste into a chat or an issue.");
-    if (!app.FailureLog.IsEmpty() && ui->Button("Clear log"))
-        app.FailureLog.Clear();
-    if (app.Time - app.ReportCopiedAt < 3.f)
-        text(ui, Theme::Pass, formatLine("copied {} lines", app.ReportLines).View());
-    ui->PopPanel();
-    if (app.FailureLog.IsEmpty())
-        text(ui, Theme::Pass, "No failures recorded");
-    else
-    {
-        ui->BeginScroll("Failure log scroll", 220.f, Onyx::OverlayScrollFlag_Borders);
-        for (u32 i = app.FailureLog.GetSize() - 1; i < app.FailureLog.GetSize(); --i)
-        {
-            const FailureRecord &record = app.FailureLog[i];
-            text(ui, Theme::Fail, formatLine("t = {:.2f}s  {} / {}", record.Time, record.Category, record.Name).View(),
-                 Onyx::TextMode_Wrapped);
-            text(ui, Theme::Dim, record.Detail.View(), Onyx::TextMode_Wrapped);
-        }
-        ui->EndScroll();
     }
     ui->EndWindow();
 }
@@ -4588,19 +3513,6 @@ static void drawGalleryPanels(App &app)
     }
 }
 
-static void drawChecks(App &app, Category &cat)
-{
-    Onyx::Overlay *ui = app.Ui;
-    if (!cat.Checks.IsEmpty())
-        ui->HorizontalSeparator("Automatic checks");
-    for (const AutoCheck &check : cat.Checks)
-        drawAutoCheck(ui, check);
-    if (!cat.Visuals.IsEmpty())
-        ui->HorizontalSeparator("Visual checks");
-    for (VisualCheck &check : cat.Visuals)
-        app.VerdictsDirty |= drawVisualCheck(ui, check, isApplicable(app, check));
-}
-
 static void drawCategoryPanels(App &app)
 {
     Onyx::Overlay *ui = app.Ui;
@@ -4620,7 +3532,6 @@ static void drawCategoryPanels(App &app)
         text(ui, Theme::Dim, cat.Summary);
         ui->PopPanel();
         cat.Panel(app);
-        drawChecks(app, cat);
         ui->EndWindow();
     }
 }
@@ -5168,7 +4079,7 @@ static void panelAudio([[maybe_unused]] App &app)
     {
         text(ui, Theme::Info,
              "No audio output device: Audio_IsAvailable() is false, and Onyx fell back to miniaudio's null backend. "
-             "The audio checks are not applicable.",
+             "The audio showcase needs one.",
              Onyx::TextMode_Wrapped);
         return;
     }
@@ -5218,12 +4129,9 @@ static void panelAudio([[maybe_unused]] App &app)
          "2D: beeps circle the listener at the 2D gallery's center. 3D: they circle the 3D camera, which listens.",
          Onyx::TextMode_Wrapped);
 
-    ui->HorizontalSeparator("Self test");
-    if (ui->Button("Run the self test") && !au.TestRunning)
-        startAudioSelfTest(app);
-    tooltip(ui, Theme::Accent, "Silent",
-            "Plays and stops an inaudible blip, then plays two of them to their end, one per kind of end callback.");
-    text(ui, Theme::Dim, au.TestRunning ? "running..." : (au.TestDone ? "done, see the checks below" : "not run yet"));
+    text(ui, Theme::Dim,
+         "Playback state, end callbacks and spatial positions are covered by the audio tests (Tests window).",
+         Onyx::TextMode_Wrapped);
 #endif
 }
 
@@ -5265,12 +4173,8 @@ static void panelResources(App &app)
     tooltip(ui, Theme::Accent, "Measured right before the transfer",
             "From every context, the way the renderer copies them. Open every panel, switch layouts and turn on the "
             "lab to find the real peaks. Draw commands are an upper bound.");
-}
 
-static void panelToolkit([[maybe_unused]] App &app)
-{
 #ifdef TKIT_ENABLE_ENSURE
-    Onyx::Overlay *ui = app.Ui;
     if (ui->PushTree("Tier allocator statistics"))
     {
         ui->ShowTierAllocatorStatistics();
@@ -5354,16 +4258,16 @@ static void panelPlatform(App &app)
         }
     ui->PopPanel();
     tooltip(ui, Theme::Accent, "Resizes the window",
-            "A tiling compositor may ignore the request: float the window first. The DPI and view checks must hold "
-            "through the resize.");
+            "A tiling compositor may ignore the request: float the window first. The window and view tests check "
+            "resizes on their own.");
     if (ui->Button(app.PresentCycleSteps ? "Cycling present modes..." : "Cycle present modes") &&
         app.PresentCycleSteps == 0)
         startPresentCycle(app);
     tooltip(ui, Theme::Accent, "Steps through the present modes and back",
-            "Each change recreates the swapchain. Present mode reads back and Swapchain is consistent must hold.");
+            "Each change recreates the swapchain. window.present_modes_switch_cleanly checks the same on its own.");
 }
 
-// left: the dashboard and the manual as tabs, over the guided checks. middle: the four galleries. right: the category
+// left: the dashboard and the manual as tabs, over the tests window. middle: the four galleries. right: the category
 // panels, as tabs. a window that is still docked cannot join a tree (asserted), and one can be left docked: a closed
 // panel inside a group the user docked together by hand. so every window of the tree is undocked first, which happens
 // at the end of this frame, right before the tree is applied
@@ -5374,7 +4278,7 @@ static void submitDockTree(App &app, const Onyx::LayoutId dock)
     for (const Category &cat : app.Categories)
         panels.Append(Onyx::LayoutId{cat.Title});
     const Onyx::LayoutId side[2] = {ControlCenterTitle, ManualTitle};
-    const Onyx::LayoutId guide{GuideTitle};
+    const Onyx::LayoutId guide{TestsTitle};
     TKit::FixedArray<Onyx::LayoutId, Pane_Count> galleries{};
     for (u32 i = 0; i < Pane_Count; ++i)
         galleries[i] = Onyx::LayoutId{PaneInfos[i].Name};
@@ -5439,13 +4343,11 @@ static void drawOverlay(App &app)
     }
 
     const GuideStep step = findGuideStep(app);
-    app.FocusPane = Pane_None;
-    if (app.ShowGuide && step.Cat)
-        app.FocusPane = step.Auto ? step.Auto->Pane : step.Visual->Pane;
+    app.FocusPane = app.ShowTests && step.Visual ? step.Visual->Pane : Pane_None;
 
     drawDashboard(app, step);
     drawManual(app);
-    drawGuide(app, step);
+    drawTests(app, step);
     if (app.Mode == Mode_Docked)
         drawGalleryPanels(app);
     drawCategoryPanels(app);
@@ -5465,10 +4367,10 @@ static void drawOverlay(App &app)
 //  11. CATEGORIES
 // =====================================================================================================================
 //
-//  What each panel checks: its title, a one line summary, the concepts behind it (behind its help button), the
-//  functions that run its automatic checks and draw its panel, and its visual checks. A visual check says what to do
-//  in one or two lines, explains more on hover, and has a priority for the guided flow: DPI and rendering correctness
-//  come before cosmetics.
+//  What each panel shows: its title, a one line summary, the concepts behind it (behind its help button), the
+//  function that draws its panel, and its visual checks. A visual check says what to do in one or two lines, explains
+//  more on hover, and has a priority for the visual review: DPI and rendering correctness come before cosmetics.
+//  Everything a program can judge is an automated test in tests/suites instead.
 
 static void setupCategories(App &app)
 {
@@ -5488,7 +4390,6 @@ static void setupCategories(App &app)
         "X11 and Windows. Onyx hides that: Window::GetSize() and GetMousePosition() always return logical pixels, "
         "derived from the framebuffer size divided by the content scale.\n\nOn Hyprland, change the scale with: "
         "hyprctl keyword monitor <name>,preferred,auto,1.5 (also try 1, 1.25 and 2).";
-    dpi.Check = checkDpi;
     dpi.Panel = panelDpi;
     dpi.Visuals.Append(VisualCheck{
         .Name = "Pixel grid is pixel perfect at integer scales",
@@ -5556,7 +4457,6 @@ static void setupCategories(App &app)
         "world = what the camera sees.\n\nThe overlay draws through its own 2D view covering the window, on top of "
         "every other view. In the docked layout every gallery's views live in its own render texture instead of a "
         "window quadrant, and a hidden view neither renders nor composites.";
-    views.Check = checkViews;
     views.Panel = panelViews;
     views.Visuals.Append(VisualCheck{
         .Name = "3D gallery title, brackets and cursor are visible",
@@ -5606,7 +4506,8 @@ static void setupCategories(App &app)
         .Needs = Requires_DirectLayout});
     views.Visuals.Append(VisualCheck{
         .Name = "Tooltips stay inside the window",
-        .Do = "Hover a check near the right and the bottom edges of the window: its tooltip stays fully inside.",
+        .Do = "Hover a test or a check near the right and the bottom edges of the window: its tooltip stays fully "
+              "inside.",
         .More =
             "Without window promotion, always the case on Wayland, tooltips are drawn in the main view. The overlay "
             "shifts them left and up when they would cross the right or the bottom edge. They are kept narrow, "
@@ -5627,14 +4528,13 @@ static void setupCategories(App &app)
         "square) and FXAA (watch the thin lines and the circle). Its camera is orthographic (Ortho size world units "
         "from top to bottom) or in viewport mode (one world unit per logical pixel), and can be moved and rotated. The "
         "grid lines are one world unit apart, or 50 pixels in viewport mode, and the axes cross at the world origin.";
-    labCat.Check = checkLab;
     labCat.Panel = panelLab;
     labCat.Visuals.Append(VisualCheck{
         .Name = "The lab sits where its viewport says",
         .Do = "View lab panel: show the lab and drag its position and size, in both modes. Resizing the window moves "
               "a proportional lab, never a fixed one.",
-        .More = "The purple brackets mark the corners of the lab's viewport. The automatic checks compare the "
-                "viewport with the sliders, this one checks that the view is drawn there.",
+        .More = "The purple brackets mark the corners of the lab's viewport. The view tests check the viewport math, "
+                "this one checks that the view is drawn there.",
         .Priority = 55,
         .Pane = Pane_None,
         .Needs = Requires_DirectLayout});
@@ -5714,7 +4614,6 @@ static void setupCategories(App &app)
         "it, with a quality set by RenderView::AntiAliasingMode.\n\nOpaque draws go first and "
         "write depth. Translucent draws (alpha below 1) go to the transparent pass and are blended on top, if the view "
         "has RenderViewFlag_Transparency.";
-    rendering.Check = checkRendering;
     rendering.Panel = panelRendering;
     rendering.Visuals.Append(VisualCheck{
         .Name = "Every 2D primitive is drawn",
@@ -5818,7 +4717,6 @@ static void setupCategories(App &app)
         "directions and radii are in world space: the context transform does not apply to lights.\n\nShadow filtering "
         "is per light: hard by default, LightFlag_PCF for smooth edges, LightFlag_PCSS for soft shadows that widen "
         "with LightSize (point and spot lights) or AngleSize (directional lights). PCSS wins when both are set.";
-    lights.Check = checkLights;
     lights.Panel = panelLights;
     lights.Visuals.Append(VisualCheck{
         .Name = "2D light follows the cursor and casts shadows",
@@ -5947,8 +4845,8 @@ static void setupCategories(App &app)
         .Do = "Untick Point light, Spot light and Spot only, then tick Sun straight down: the tops of the shapes stay "
               "lit and their shadows fall right under them.",
         .More = "A light's frame is built from its direction and a helper vector. A helper parallel to the direction "
-                "gives a zero cross product and a NaN frame, and the light goes dark. The automatic check Light bases "
-                "work for vertical directions tests the helper used for directional lights.",
+                "gives a zero cross product and a NaN frame, and the light goes dark. The test "
+                "math.orthogonal_bases_handle_vertical_directions covers the helper used for directional lights.",
         .Priority = 45,
         .Pane = Pane_Gallery3,
         .Needs = Requires_Nothing});
@@ -5984,7 +4882,6 @@ static void setupCategories(App &app)
         "that maps one texel to one physical pixel when drawn at its logical size.\n\nIn the docked layout every "
         "gallery "
         "renders into its own render texture, which the demo resizes to its panel with RenderTexture::Resize.";
-    textures.Check = checkTextures;
     textures.Panel = panelTextures;
     textures.Visuals.Append(VisualCheck{
         .Name = "Scaled render texture stays sharp",
@@ -6025,7 +4922,6 @@ static void setupCategories(App &app)
         "be internally consistent: a release always follows a press, focus gain and loss alternate, and so on. The "
         "overlay consumes input too: WantCaptureMouse, WantCaptureScroll and WantCaptureKeyboard tell the application "
         "when to ignore it.";
-    input.Check = checkInput;
     input.Panel = panelInput;
     input.Visuals.Append(VisualCheck{
         .Name = "Overlay captures the mouse",
@@ -6057,7 +4953,6 @@ static void setupCategories(App &app)
         "replays a source by seeking it back to frame 0.\n\nVolume, pitch, pan and looping are per source, the master "
         "volume is global. End callbacks run on the audio thread, or are queued and run later on the main thread. "
         "Spatialized sources (AudioFlag_Spatialization) are placed in world units around a listener.";
-    audio.Check = checkAudio;
     audio.Panel = panelAudio;
 #ifdef ONYX_ENABLE_AUDIO
     audio.Visuals.Append(VisualCheck{
@@ -6103,19 +4998,7 @@ static void setupCategories(App &app)
         "renderer's per frame buffers from Onyx::Specs: instance buffers per geometry, lights, shadow maps, dynamic "
         "vertices, draw commands. Each is created once per resource group, so their cost multiplies by "
         "ResourceGroupCount. Overflowing one asserts.";
-    resources.Check = checkResources;
     resources.Panel = panelResources;
-
-    Category &toolkit = app.Categories[Category_Toolkit];
-    toolkit.Title = "Toolkit and math";
-    toolkit.Summary = "Tensors, quaternions, transforms, colors, containers, time";
-    toolkit.Concepts =
-        "Toolkit (TKit) is the foundation: tensors (vectors, matrices) and quaternions, containers with explicit "
-        "allocation strategies (static, stack, arena, tier), timing, logging and multiprocessing. Onyx adds Transform "
-        "(composition and decomposition of translation, scale and rotation) and Color on top. These checks run every "
-        "frame on fixed inputs, so a failure here is a math or container regression, not a rendering issue.";
-    toolkit.Check = checkToolkit;
-    toolkit.Panel = panelToolkit;
 
     Category &platform = app.Categories[Category_Platform];
     platform.Title = "Platform and device";
@@ -6128,7 +5011,6 @@ static void setupCategories(App &app)
         "is due and sleeps until the next one is. A window opened in immediate mode targets the monitor's refresh "
         "rate unless OpenWindowFlag_NoDefaultDeltaTime is given. In vsync, a swapchain recreation or a window move "
         "resets the target to the monitor's.";
-    platform.Check = checkPlatform;
     platform.Panel = panelPlatform;
     platform.Visuals.Append(VisualCheck{
         .Name = "Frame pacing follows the target",
@@ -6174,6 +5056,7 @@ int main()
 #ifdef ONYX_ENABLE_AUDIO
     setupAudio(app);
 #endif
+    listTests(app.Tests);
 
     while (Onyx::Running())
     {
@@ -6199,9 +5082,8 @@ int main()
         updateAudio(app);
 #endif
 
-        // the scene is recorded before the checks, so checks that inspect recorded state (lights) see this frame
+        updateTests(app);
         drawScene(app);
-        runChecks(app);
         drawOverlay(app);
         app.Ui->Draw();
         measureUsage(app);

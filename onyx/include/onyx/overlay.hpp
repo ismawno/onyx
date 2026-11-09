@@ -4,6 +4,7 @@
 #include "onyx/layout.hpp"
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
+#include "tkit/profiling/clock.hpp"
 #include "tkit/container/bitset.hpp"
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 #    include "tkit/filesystem/filesystem.hpp"

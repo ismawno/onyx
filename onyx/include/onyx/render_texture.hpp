@@ -55,6 +55,26 @@ class RenderTexture final : public RenderTarget
     {
         return m_ContentScale;
     }
+    // the size of the images in physical pixels: logical size x content scale
+    u32v2 GetPixelSize() const
+    {
+        return ApplyScale(m_Size, m_ContentScale);
+    }
+    usz GetBytes() const
+    {
+        return Graph::Image_GetBytes(m_Images[m_Readable].Image);
+    }
+
+    // TODO(Isma): We should give caller a choice on how to allocate these
+    /**
+     * @brief Read back the image rendered by the last call to `Onyx::Render()`.
+     *
+     * The pixels are 8 bit RGBA, sRGB encoded (what a window would display), rows from top to bottom, and there are
+     * `GetPixelSize()` of them. It waits for the device to finish that image, so it is slow: meant for tests,
+     * screenshots and tools, not for every frame. Before the first render there is nothing to read and the array is
+     * empty.
+     */
+    bool ReadPixels(u8 *data) const;
 
     operator u32() const
     {

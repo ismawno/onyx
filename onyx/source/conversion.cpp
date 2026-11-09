@@ -22,6 +22,7 @@ Graph::Format GetFormat(const u32 components, const ImageComponentType type, con
         case 4:
             return rgb ? Graph::Format_R8G8B8A8_SRGB : Graph::Format_R8G8B8A8_UNORM;
         }
+        break;
     case ImageComponent_UnsignedShort:
     case ImageComponent_SignedShort:
         switch (components)
@@ -35,6 +36,7 @@ Graph::Format GetFormat(const u32 components, const ImageComponentType type, con
         case 4:
             return Graph::Format_R16G16B16A16_UNORM;
         }
+        break;
     case ImageComponent_UnsignedInteger:
     case ImageComponent_SignedInteger:
         switch (components)
@@ -48,6 +50,7 @@ Graph::Format GetFormat(const u32 components, const ImageComponentType type, con
         case 4:
             return Graph::Format_R32G32B32A32_UINT;
         }
+        break;
     case ImageComponent_Float:
         switch (components)
         {
@@ -60,9 +63,11 @@ Graph::Format GetFormat(const u32 components, const ImageComponentType type, con
         case 4:
             return Graph::Format_R32G32B32A32_SFLOAT;
         }
+        break;
     default:
-        return Graph::Format_Undefined;
+        break;
     }
+    return Graph::Format_Undefined;
 }
 
 const char *ToString(const Geometry geo)

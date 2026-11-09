@@ -5,6 +5,7 @@
 #include "renderer.hpp"
 #include "graph/descriptor.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/clock.hpp"
 #include "tkit/container/stack_array.hpp"
 
 namespace Onyx

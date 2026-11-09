@@ -20,6 +20,11 @@ set(ONYX_BUILD_DEMOS
 set(ONYX_BUILD_ENGINE
     OFF
     CACHE BOOL "")
+# the runtime test suite (tests/), an executable named onyx-tests. the control
+# center runs it when both are built
+set(ONYX_BUILD_TESTS
+    OFF
+    CACHE BOOL "")
 set(ONYX_ENABLE_IMGUI
     OFF
     CACHE BOOL "")
@@ -80,6 +85,7 @@ endif()
 
 message(STATUS "ONYX - BUILD DEMOS: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX - BUILD ENGINE: ${ONYX_BUILD_ENGINE}")
+message(STATUS "ONYX - BUILD TESTS: ${ONYX_BUILD_TESTS}")
 message(STATUS "ONYX - USE IMGUI: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - USE IMPLOT: ${ONYX_ENABLE_IMPLOT}")
 message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
@@ -95,6 +101,12 @@ message(STATUS "ONYX - AUDIO: ${ONYX_ENABLE_AUDIO}")
 # available the toolkit library through the global CMAKE flag variables
 add_subdirectory(onyx)
 
+# before the demos: the control center finds the test executable through its
+# target
+if(ONYX_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 if(ONYX_BUILD_DEMOS)
   add_subdirectory(demo)
 endif()

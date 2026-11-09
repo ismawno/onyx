@@ -64,6 +64,7 @@ static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const TKit::TierPath 
         ov->DeclareDockSpace(ids.EditorDockSpace.Id, ids.EditorWindow);
 
         const Onyx::OverlayDockNode *mainTree = Onyx::DockTabBar(ids.EditorWindow);
+        const Onyx::LayoutId bottomTabs[] = {ids.Console.Id, ids.AssetBrowser.Id};
         const Onyx::OverlayDockNode *editorTree = Onyx::DockSplit(
             Onyx::LayoutAxis_Vertical, 0.15f,
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f, Onyx::DockTabBar(ids.Hierarchy.Id),
@@ -71,7 +72,7 @@ static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const TKit::TierPath 
             Onyx::DockSplit(Onyx::LayoutAxis_Horizontal, 0.65f,
                             Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.65f, Onyx::DockTabBar(mainViewportId),
                                             Onyx::DockTabBar(ids.Scene.Id)),
-                            Onyx::DockTabBar({ids.Console.Id, ids.AssetBrowser.Id})));
+                            Onyx::DockTabBar(TKit::Span<const Onyx::LayoutId>(bottomTabs))));
 
         ov->ApplyDockTree(ids.MainDockSpace, mainTree);
         ov->ApplyDockTree(ids.EditorDockSpace, editorTree);

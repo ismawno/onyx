@@ -13,6 +13,7 @@
 #include "graph/shader.hpp"
 #include "graph/execution.hpp"
 #include "graph/pipeline.hpp"
+#include "tkit/profiling/clock.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
 
@@ -2620,12 +2621,13 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
         const BlendPass bpass = transparency ? BlendPass_Opaque : BlendPass_All;
 
         rv->BeginOpaquePass(cmd);
-        renderGeometry<D>(cmd, vinfo, bpass, shadows ? ShadedFlag_Shadows : 0);
+        renderGeometry<D>(cmd, vinfo, bpass, shadows ? ShadedFlags(ShadedFlag_Shadows) : ShadedFlags(0));
         rv->EndOpaquePass(cmd);
         if (transparency)
         {
             rv->BeginTransparentPass(cmd);
-            renderGeometry<D>(cmd, vinfo, BlendPass_Transparent, shadows ? ShadedFlag_Shadows : 0);
+            renderGeometry<D>(cmd, vinfo, BlendPass_Transparent,
+                              shadows ? ShadedFlags(ShadedFlag_Shadows) : ShadedFlags(0));
             rv->EndTransparentPass(cmd);
             rv->BeginBlendPass(cmd);
             Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Blend]);

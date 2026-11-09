@@ -441,7 +441,7 @@ static Graph::Image image_Create(const ImageData &data)
         Graph::Image_Create(u32v2{data.Width, data.Height}, specs,
                             Graph::ImageFlag_Color | Graph::ImageFlag_Sampled | Graph::ImageFlag_Destination);
 
-    const usz size = Graph::Image_ComputeBytes(img);
+    const usz size = Graph::Image_GetBytes(img);
     TKIT_ASSERT(
         size == data.ComputeSize(),
         "[ONYX][RESOURCES] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes", size,

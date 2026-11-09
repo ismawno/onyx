@@ -3,6 +3,7 @@
 #include "resources.hpp"
 #include "core.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/clock.hpp"
 
 namespace Onyx
 {
@@ -227,6 +228,55 @@ void RenderTexture::createSecondaryImages()
         if (Graph::IsValidationEnabled())
             nameImage(img.Image, i);
     }
+}
+
+bool RenderTexture::ReadPixels(u8 *data) const
+{
+    // Render() writes into the writable image and leaves it there until the next frame picks a new one
+    const FrontEndImage &img = m_Images[m_Writable];
+    const Graph::ImageLayout layout = Graph::Image_GetLayout(img.Image);
+    if (layout == Graph::ImageLayout_Undefined)
+        return false;
+
+    Graph::Queue_WaitForTracker(img.Tracker);
+
+    const usz size = Graph::Image_GetBytes(img.Image);
+    const Graph::Buffer readback = Graph::Buffer_Create(
+        size, Graph::BufferFlag_Destination | Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess);
+
+    Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
+        Graph::ImageMemoryBarrierInfo toTransfer{};
+        toTransfer.Image = img.Image;
+        toTransfer.NewLayout = Graph::ImageLayout_TransferSrc;
+        toTransfer.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+        toTransfer.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+        toTransfer.DstStages = Graph::PipelineStageFlag_Transfer;
+        toTransfer.DstAccess = Graph::AccessFlag_TransferRead;
+        Graph::Command_ImageBarrier(cmd, toTransfer);
+
+        Graph::Command_CopyImageToBuffer(cmd, img.Image, readback);
+
+        // back to where the frame left it, so the next frame's barriers still describe the truth
+        Graph::ImageMemoryBarrierInfo restore{};
+        restore.Image = img.Image;
+        restore.NewLayout = layout;
+        restore.SrcStages = Graph::PipelineStageFlag_Transfer;
+        restore.DstStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+        restore.DstAccess = Graph::AccessFlag_ColorAttachmentWrite;
+        Graph::Command_ImageBarrier(cmd, restore);
+    });
+
+    // the images are B8G8R8A8: swap to RGBA so callers do not depend on the attachment format
+    const u8 *bgra = scast<const u8 *>(Graph::Buffer_GetData(readback));
+    for (usz i = 0; i < size; i += 4)
+    {
+        data[u32(i + 0)] = bgra[i + 2];
+        data[u32(i + 1)] = bgra[i + 1];
+        data[u32(i + 2)] = bgra[i + 0];
+        data[u32(i + 3)] = bgra[i + 3];
+    }
+    Graph::Buffer_Destroy(readback);
+    return true;
 }
 
 void RenderTexture::drainWork() const

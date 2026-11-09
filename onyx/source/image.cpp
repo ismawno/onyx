@@ -179,7 +179,7 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
 
     data.Width = u32(w);
     data.Height = u32(h);
-    data.Components = requiredComponents > 0 ? requiredComponents : u32(c);
+    data.Components = requiredComponents > 0 ? u32(requiredComponents) : u32(c);
     data.Format = GetFormat(i32(data.Components), type, !(flags & LoadImageDataFlag_AsLinearImage));
     const usz sz = data.ComputeSize();
 

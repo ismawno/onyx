@@ -9,6 +9,7 @@
 
 #include "graph/core.hpp"
 
+#include "tkit/profiling/clock.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #ifdef ONYX_FONTCONFIG
 #    include <fontconfig/fontconfig.h>

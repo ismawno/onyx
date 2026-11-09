@@ -136,6 +136,7 @@ Window::Window(const WindowSpecs &specs)
         SetPosition(specs.Position);
 
     m_PresentMode = specs.PresentMode;
+    m_VirtualInput = specs.Flags & WindowFlag_VirtualInput;
 
     createSwapchain();
     UpdateMonitorDeltaTime();
@@ -482,6 +483,85 @@ static void scrollCallback(const Graph::Window win, const f32v2 offset)
     window->PushEvent(event);
 }
 
+void Window::trackVirtualInput(const Event &event)
+{
+    switch (event.Type)
+    {
+    case Event_KeyPressed:
+    case Event_KeyRepeat:
+        m_VirtualKeys.Set(event.Key);
+        break;
+    case Event_KeyReleased:
+        m_VirtualKeys.Clear(event.Key);
+        break;
+    case Event_MousePressed:
+        m_VirtualButtons.Set(event.Mouse.Button);
+        break;
+    case Event_MouseReleased:
+        m_VirtualButtons.Clear(event.Mouse.Button);
+        break;
+    case Event_MouseMoved:
+        m_VirtualMouse = screenToLogical(event.Mouse.Position);
+        break;
+    // real focus changes are ignored on purpose: virtual state only changes through injected events, so a test stays
+    // deterministic whatever the desktop does
+    default:
+        break;
+    }
+}
+
+void Window::InjectMouseMove(const f32v2 &position)
+{
+    TKIT_ASSERT(m_VirtualInput, "[ONYX][WINDOW] Input can only be injected into windows with WindowFlag_VirtualInput");
+    const bool wasHovered = IsHovered();
+
+    Event event{};
+    event.Type = Event_MouseMoved;
+    event.Mouse.Position = logicalToScreen(position);
+    PushEvent(event);
+
+    const bool hovered = IsHovered();
+    if (hovered != wasHovered)
+    {
+        Event crossing{};
+        crossing.Type = hovered ? Event_MouseEntered : Event_MouseLeft;
+        PushEvent(crossing);
+    }
+}
+void Window::InjectMouseButton(const Graph::Mouse button, const bool pressed)
+{
+    TKIT_ASSERT(m_VirtualInput, "[ONYX][WINDOW] Input can only be injected into windows with WindowFlag_VirtualInput");
+    Event event{};
+    event.Type = pressed ? Event_MousePressed : Event_MouseReleased;
+    event.Mouse.Position = logicalToScreen(m_VirtualMouse);
+    event.Mouse.Button = button;
+    PushEvent(event);
+}
+void Window::InjectScroll(const f32v2 &offset)
+{
+    TKIT_ASSERT(m_VirtualInput, "[ONYX][WINDOW] Input can only be injected into windows with WindowFlag_VirtualInput");
+    Event event{};
+    event.Type = Event_Scrolled;
+    event.ScrollOffset = offset;
+    PushEvent(event);
+}
+void Window::InjectKey(const Graph::Key key, const bool pressed, const bool repeat)
+{
+    TKIT_ASSERT(m_VirtualInput, "[ONYX][WINDOW] Input can only be injected into windows with WindowFlag_VirtualInput");
+    Event event{};
+    event.Type = !pressed ? Event_KeyReleased : (repeat ? Event_KeyRepeat : Event_KeyPressed);
+    event.Key = key;
+    PushEvent(event);
+}
+void Window::InjectChar(const CodePoint character)
+{
+    TKIT_ASSERT(m_VirtualInput, "[ONYX][WINDOW] Input can only be injected into windows with WindowFlag_VirtualInput");
+    Event event{};
+    event.Type = Event_CharInput;
+    event.Character = character;
+    PushEvent(event);
+}
+
 void Window::InstallCallbacks()
 {
     Graph::Window_Callback_Position(m_Window, windowMoveCallback);
@@ -492,13 +572,17 @@ void Window::InstallCallbacks()
     Graph::Window_Callback_Close(m_Window, windowCloseCallback);
     Graph::Window_Callback_Iconify(m_Window, windowIconifyCallback);
 
-    Graph::Window_Callback_Key(m_Window, keyCallback);
-    Graph::Window_Callback_Char(m_Window, charCallback);
+    // virtual input comes from PushEvent only: the real mouse and keyboard must not reach the window
+    if (!m_VirtualInput)
+    {
+        Graph::Window_Callback_Key(m_Window, keyCallback);
+        Graph::Window_Callback_Char(m_Window, charCallback);
 
-    Graph::Window_Callback_CursorPos(m_Window, cursorPositionCallback);
-    Graph::Window_Callback_CursorEnter(m_Window, cursorEnterCallback);
-    Graph::Window_Callback_MouseButton(m_Window, mouseButtonCallback);
-    Graph::Window_Callback_Scroll(m_Window, scrollCallback);
+        Graph::Window_Callback_CursorPos(m_Window, cursorPositionCallback);
+        Graph::Window_Callback_CursorEnter(m_Window, cursorEnterCallback);
+        Graph::Window_Callback_MouseButton(m_Window, mouseButtonCallback);
+        Graph::Window_Callback_Scroll(m_Window, scrollCallback);
+    }
 }
 
 template <Dimension D>
