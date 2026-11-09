@@ -426,7 +426,7 @@ Resource Audio_Create(const AudioData &data, const AudioFlags flags)
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
-Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
+Result<Resource> Audio_Create(const TKit::TierPath &filepath, const AudioFlags flags)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
                                        "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
@@ -442,8 +442,8 @@ Result<Resource> Audio_Create(const char *filepath, const AudioFlags flags)
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    const ma_result res = ma_sound_init_from_file(&s_Data->Engine, filepath, MA_SOUND_FLAG_STREAM | f, &s_Data->Group,
-                                                  nullptr, &audio->Sound);
+    const ma_result res = ma_sound_init_from_file(&s_Data->Engine, filepath.CString(), MA_SOUND_FLAG_STREAM | f,
+                                                  &s_Data->Group, nullptr, &audio->Sound);
     ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
                          "[ONYX][AUDIO] Sound initialization failed with error code {}", i32(res));
 
@@ -631,19 +631,19 @@ void Audio_SeekFrame(const Resource handle, const u64 frame)
                    "[ONYX][AUDIO] Failed to seek audio with error code {}");
 }
 
-Result<> Audio_Play(const char *filepath)
+Result<> Audio_Play(const TKit::TierPath &filepath)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
                                        "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
 
-    const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath, &s_Data->Group);
+    const ma_result res = ma_engine_play_sound(&s_Data->Engine, filepath.CString(), &s_Data->Group);
     ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioPlayFailed,
                          "[ONYX][AUDIO] Failed to play sound with error code {}", i32(res));
 
     return Result<>::Ok();
 }
 
-Result<AudioData> Audio_LoadData(const char *filepath)
+Result<AudioData> Audio_LoadData(const TKit::TierPath &filepath)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][AUDIO] Audio file '{}' does not exist",
                                        "[ONYX][AUDIO] Expected an audio file at '{}', but found a directory");
@@ -651,7 +651,7 @@ Result<AudioData> Audio_LoadData(const char *filepath)
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, ma_engine_get_channels(&s_Data->Engine),
                                                    ma_engine_get_sample_rate(&s_Data->Engine));
     ma_uint64 frameCount;
-    const ma_result res = ma_decode_file(filepath, &cfg, &frameCount, &data.Data);
+    const ma_result res = ma_decode_file(filepath.CString(), &cfg, &frameCount, &data.Data);
     ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
                          "[ONYX][AUDIO] File decode failed with error code {}", i32(res));
 

@@ -185,7 +185,7 @@ template <Dimension D> struct ITransform
      * @brief Extracts translation, scale, and rotation components from a transformation matrix.
      *
      */
-    static void Extract(const f32m<D> &transform, f32v<D> *translation, f32v<D> *scale, rot<D> *rotation);
+    static void Extract(f32m<D> transform, f32v<D> *translation, f32v<D> *scale, rot<D> *rotation);
 
     /**
      * @brief Extracts the translation component from a transformation matrix.

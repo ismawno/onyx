@@ -54,7 +54,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FontHandle *font, con
 
     const i32 left = packer.pack(glyphs.data(), i32(glyphs.size()));
     ONYX_RETURN_ERROR_IF(left != 0, Error_FontPackFailed,
-                       "[ONYX][FONT] The atlas packer was not able to pack all the glyphs. Remaining: {}", left);
+                         "[ONYX][FONT] The atlas packer was not able to pack all the glyphs. Remaining: {}", left);
 
     i32v2 dims;
     packer.getDimensions(dims[0], dims[1]);
@@ -159,7 +159,7 @@ ONYX_NO_DISCARD static Result<FontData> font_Load(msdfgen::FontHandle *font, con
 
     return data;
 }
-Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptions &opts)
+Result<FontData> Font_LoadDataFromFile(const TKit::TierPath &filepath, const FontLoadOptions &opts)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][FONT] Font file '{}' does not exist",
                                        "[ONYX][FONT] Expected a font file at '{}', but found a directory");
@@ -168,9 +168,9 @@ Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptio
     ONYX_RETURN_ERROR_IF(!ft, Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
     TKIT_DEFER(msdfgen::deinitializeFreetype(ft));
 
-    msdfgen::FontHandle *font = msdfgen::loadFont(ft, filepath);
+    msdfgen::FontHandle *font = msdfgen::loadFont(ft, filepath.CString());
     ONYX_RETURN_ERROR_IF(!font, Error_Unknown, "[ONYX][FONT] Failed to load font at '{}' because of an unknown reason",
-                       filepath);
+                         filepath);
 
     TKIT_DEFER(msdfgen::destroyFont(font));
     return font_Load(font, opts);
@@ -285,7 +285,7 @@ f32v2 FontInfo::ComputeTextSize(const TKit::StringView text) const
     f32 width = 0.f;
     f32 lastWidth = 0.f;
 
-    WalkText(text, [&](const u32, const u32, const CodePoint code, const f32 w) {
+    WalkText(text, [&](const u32, const CodePoint code, const f32 w) {
         if (code == '\n')
         {
             ++nlcount;
@@ -336,16 +336,13 @@ f32 FontInfo::ComputeTextMinimumWidth(const TKit::StringView text) const
 
 TKit::TierString FontInfo::WrapText(const TKit::StringView text, const f32 maxWidth) const
 {
-    TKit::TierString wrapped;
-    wrapped.Reserve(text.GetSize());
+    TKit::TierString wrapped = text;
 
     f32 size = 0.f;
     f32 lastSize = 0.f;
     u32 lastSpace = TKIT_U32_MAX;
 
-    WalkText(text, [&](const u32 i, const u32 byteCount, const CodePoint code, const f32 width) {
-        for (u32 j = 0; j < byteCount; ++j)
-            wrapped.Append(text[i + j]);
+    WalkText(text, [&](const u32 i, const CodePoint code, const f32 width) {
         if (code == '\n')
         {
             size = 0.f;

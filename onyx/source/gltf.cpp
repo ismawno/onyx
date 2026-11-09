@@ -37,24 +37,24 @@ static ImageComponentType getComponentType(const i32 pixelType)
     }
 }
 
-template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::string &path, const LoadGltfDataFlags flags)
+template <Dimension D>
+Result<GltfData<D>> Gltf_LoadDataFromFile(const TKit::TierPath &filepath, const LoadGltfDataFlags flags)
 {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string warn, err;
 
     loader.SetPreserveImageChannels(!(flags & LoadGltfDataFlag_ForceRGBA));
-    const bool ok = path.ends_with(".bin") || path.ends_with(".glb")
-                        ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
-                        : loader.LoadASCIIFromFile(&model, &err, &warn, path);
+    const bool ok = filepath.GetString().EndsWith(".bin") || filepath.GetString().EndsWith(".glb")
+                        ? loader.LoadBinaryFromFile(&model, &err, &warn, filepath.CString())
+                        : loader.LoadASCIIFromFile(&model, &err, &warn, filepath.CString());
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][GLTF] {}", warn);
     ONYX_RETURN_ERROR_IF(!ok, Error_LoadFailed, "[ONYX][GLTF] Failed to load gltf: {}", err);
 
     GltfData<D> data{};
     for (const auto &mesh : model.meshes)
     {
-        // TODO(Isma): Do something about this hardcoded value
-        TKit::StackHashMap<i32, u32> primToMeshIndex{2048};
+        TKit::TierHashMap<i32, u32> primToMeshIndex{};
         for (const auto &prim : mesh.primitives)
         {
             const i32 posAccessorIdx = prim.attributes.at("POSITION");
@@ -152,8 +152,7 @@ template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::stri
         }
     }
 
-    // TODO(Isma): Do something about this hardcoded value
-    TKit::StackHashSet<u32> srgbTexs{1024};
+    TKit::TierHashSet<u32> srgbTexs{};
     for (const auto &mat : model.materials)
     {
         const i32 albedoIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
@@ -316,6 +315,6 @@ template <Dimension D> Result<GltfData<D>> Gltf_LoadDataFromFile(const std::stri
     return data;
 }
 
-template Result<GltfData<D2>> Gltf_LoadDataFromFile(const std::string &path, LoadGltfDataFlags flags);
-template Result<GltfData<D3>> Gltf_LoadDataFromFile(const std::string &path, LoadGltfDataFlags flags);
+template Result<GltfData<D2>> Gltf_LoadDataFromFile(const TKit::TierPath &filepath, LoadGltfDataFlags flags);
+template Result<GltfData<D3>> Gltf_LoadDataFromFile(const TKit::TierPath &filepath, LoadGltfDataFlags flags);
 } // namespace Onyx

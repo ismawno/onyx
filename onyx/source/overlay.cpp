@@ -912,7 +912,7 @@ template <typename T> ONYX_NO_DISCARD static Result<> readChild(const TKit::Cons
 }
 
 // checks everything createTreeBasedOnSerialized reads, without allocating anything
-ONYX_NO_DISCARD static Result<> checkDockTree(const TKit::ConstYamlNode n)
+ONYX_NO_DISCARD static Result<> checkDockTree(const TKit::ConstYamlNode n, TKit::TierHashSet<usz> &dockedWindows)
 {
     bool leaf;
     u32 flags;
@@ -927,6 +927,11 @@ ONYX_NO_DISCARD static Result<> checkDockTree(const TKit::ConstYamlNode n)
                 ONYX_RETURN_ERROR_IF(!id.TryRead(wid), Error_DeserializationFailed,
                                      "'{}' is not a valid window id: got {}", TKit::YamlGeneratePath(id),
                                      TKit::YamlDescribeNode(id));
+                ONYX_RETURN_ERROR_IF(dockedWindows.Contains(wid), Error_DeserializationFailed,
+                                     "Window id {} is already a window leaf in a separate dock tree. Windows can only "
+                                     "be docked in a single tree",
+                                     wid);
+                dockedWindows.Insert(wid);
             }
         return Result<>::Ok();
     }
@@ -942,8 +947,8 @@ ONYX_NO_DISCARD static Result<> checkDockTree(const TKit::ConstYamlNode n)
     ONYX_RETURN_ERROR_IF(!n.HasChild("Children") || n["Children"].GetChildCount() != 2, Error_DeserializationFailed,
                          "'{}' is a split, so it needs exactly 2 'Children'", TKit::YamlGeneratePath(n));
 
-    TKIT_RETURN_IF_FAILED(checkDockTree(n["Children"][0]));
-    return checkDockTree(n["Children"][1]);
+    TKIT_RETURN_IF_FAILED(checkDockTree(n["Children"][0], dockedWindows));
+    return checkDockTree(n["Children"][1], dockedWindows);
 }
 
 Result<> Overlay::Deserialize()
@@ -957,7 +962,7 @@ Result<> Overlay::Deserialize()
     const auto res = YamlTree::FromFile(m_SerializationPath);
     ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                          "[ONYX][OVERLAY] Failed to load layout '{}': Could not load file with error: {}",
-                         m_SerializationPath, TKit::ToString(res.GetError()));
+                         m_SerializationPath, res.GetError());
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
@@ -1019,14 +1024,17 @@ Result<> Overlay::Deserialize()
             }
         }
         if (hasTrees)
+        {
+            TKit::TierHashSet<usz> dockedWindows{};
             for (const ConstYamlNode uroot : root["DockTrees"])
             {
                 usz hostId;
                 ONYX_RETURN_ERROR_IF(!uroot.TryReadKey(hostId), Error_DeserializationFailed,
                                      "'{}': '{}' is not a valid dock host id", TKit::YamlGeneratePath(uroot),
                                      uroot.GetKey());
-                TKIT_RETURN_IF_FAILED(checkDockTree(uroot));
+                TKIT_RETURN_IF_FAILED(checkDockTree(uroot, dockedWindows));
             }
+        }
         return Result<>::Ok();
     };
 
@@ -1549,14 +1557,15 @@ bool Overlay::beginWindow(OverlayWindow *active, bool *opened, const OverlayWind
 
     const bool ownsNative = active->Flags & WindowInternalFlag_OwnsNative;
 
-    if ((nwFlags & NextWindowFlag_Size) && active->HasCondition(m_NextWindow.Condition))
+    const bool hasCond = active->HasCondition(m_NextWindow.Condition);
+    if ((nwFlags & NextWindowFlag_Size) && hasCond)
     {
         active->AvailableConditions &= ~m_NextWindow.Condition;
         active->Size = m_NextWindow.Size;
         if (ownsNative)
             active->SyncNativeSize();
     }
-    if (activeOwnsLayout && (nwFlags & NextWindowFlag_Position) && active->HasCondition(m_NextWindow.Condition))
+    if (activeOwnsLayout && (nwFlags & NextWindowFlag_Position) && hasCond)
     {
         active->AvailableConditions &= ~m_NextWindow.Condition;
         const f32v2 pos = m_NextWindow.ScreenPos + m_NextWindow.RelativeOffset * active->Size;
@@ -5537,7 +5546,7 @@ bool Overlay::inputTextBox(char *buf, const u32 capacity, const TKit::StringView
 
             advances.Append(0.f);
             midAdvances.Append(0.f);
-            finfo.WalkText(str, [&](const u32, const u32, const CodePoint, const f32 w) {
+            finfo.WalkText(str, [&](const u32, const CodePoint, const f32 w) {
                 const f32 width = fs * w;
                 // widths.Append(width);
 
@@ -6821,17 +6830,28 @@ OverlayInteractionQueryFlags Overlay::queryAndSetInteraction(const LayoutElement
     const bool popupHovered = actKeyPressing || isElementHovered(fflags, popHoverFlags);
     if (popupHovered && protectPopup)
     {
-        if (flags & InteractionFlag_HoverOpensPopup)
+        const bool hoverOpens = flags & InteractionFlag_HoverOpensPopup;
+        if (hoverOpens)
         {
             TKIT_ASSERT(flags & InteractionFlag_HoverRequestsPopupCollapse,
                         "[ONYX][OVERLAY] Causing hover to open a popup without forcing a collapse on this level "
                         "will cause the popup stack to grow indefinitely");
-            openPopup(elm->Id);
+            // the popup takes this level, replacing what was open there (another header's menu and its submenus)
+            // instead of being appended once more every frame
+            const u32 depth = m_CurrentPopupDepth;
+            if (depth >= m_PopupStack.GetSize() || m_PopupStack[depth] != elm->Id)
+            {
+                if (depth < m_PopupStack.GetSize())
+                    m_PopupStack.Resize(depth);
+                openPopup(elm->Id);
+            }
             outFlags |= OverlayInteractionQueryFlag_PopupOpen;
         }
         if (flags & InteractionFlag_HoverRequestsPopupCollapse)
             requestCollapsePopups();
-        m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth);
+        // a popup the hover just opened survives the collapse: without it, the menu lived on only while its box was
+        // hovered too, and a cursor crossing the gap below the header in one frame closed it
+        m_PopupCollapseDepth = Math::Max(m_PopupCollapseDepth, m_CurrentPopupDepth + (hoverOpens ? 1u : 0u));
     }
 
     if (m_CurrentPopupDepth != m_PopupStack.GetSize())

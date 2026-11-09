@@ -73,14 +73,17 @@
 #include "tkit/container/hash_map.hpp"
 #include "tkit/container/static_array.hpp"
 #include "tkit/profiling/clock.hpp"
+#include "tkit/container/dynamic_array.hpp"
+#include "tkit/filesystem/file.hpp"
+// what Toolkit has no counterpart for: floor, exp and popcount, pipes to the test runner, the environment, and the
+// reader thread with its mutex and flag
+#include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <mutex>
-#include <string>
 #include <thread>
-#include <vector>
 #ifndef ONYX_ENABLE_AUDIO
 #    include <atomic>
 #endif
@@ -165,11 +168,11 @@ struct PaneInfo
 const PaneInfo PaneInfos[Pane_Count] = {
     {"Pixel view", "PIXEL VIEW  1 unit = 1 logical px", "1 world unit is 1 logical pixel: DPI and rasterization",
      "top left", f32v2{0.f, 0.f}, Onyx::Color{96u, 156u, 255u}, Onyx::Color{14u, 20u, 38u}},
-    {"2D gallery", "2D GALLERY", "every 2D primitive, outlines, blending, 2D lights and occluders", "top right",
+    {"2D gallery", "2D GALLERY", "Every 2D primitive, outlines, blending, 2D lights and occluders", "top right",
      f32v2{0.5f, 0.f}, Onyx::Color{64u, 204u, 180u}, Onyx::Color{12u, 30u, 30u}},
-    {"3D gallery", "3D GALLERY", "every 3D primitive, shading, shadows, point and spot lights", "bottom left",
+    {"3D gallery", "3D GALLERY", "Every 3D primitive, shading, shadows, point and spot lights", "bottom left",
      f32v2{0.f, 0.5f}, Onyx::Color{178u, 132u, 255u}, Onyx::Color{28u, 18u, 40u}},
-    {"Textures", "TEXTURES  offset viewport", "render textures drawn in the scene, in a viewport away from the origin",
+    {"Textures", "TEXTURES  offset viewport", "Render textures drawn in the scene, in a viewport away from the origin",
      "bottom right", f32v2{0.5f, 0.5f}, Onyx::Color{240u, 178u, 72u}, Onyx::Color{34u, 26u, 12u}},
 };
 constexpr f32 QuadrantSize = 0.5f;
@@ -269,55 +272,51 @@ struct Category
 using CategoryArray = TKit::FixedArray<Category, Category_Count>;
 
 // verdicts survive across runs: one "verdict<tab>name" line per judged visual check
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4996)
 static void saveVerdicts(const CategoryArray &categories)
 {
-    std::FILE *file = std::fopen(VerdictFile, "w");
-    if (!file)
-        return;
+    TKit::DynamicString contents{};
     for (const Category &cat : categories)
         for (const VisualCheck &check : cat.Visuals)
             if (check.Mark != Verdict_Unseen)
-                std::fprintf(file, "%s\t%s\n", VerdictNames[check.Mark], check.Name);
-    std::fclose(file);
+                contents += TKit::DynamicString::Format("{}\t{}\n", VerdictNames[check.Mark], check.Name);
+    // best effort: the review goes on without it
+    [[maybe_unused]] const auto written =
+        TKit::WriteFile(VerdictFile, TKit::StringView{contents.GetData(), contents.GetSize()});
 }
 
 static u32 loadVerdicts(CategoryArray &categories)
 {
-    std::FILE *file = std::fopen(VerdictFile, "r");
-    if (!file)
+    const auto contents = TKit::ReadFile(VerdictFile);
+    if (!contents)
         return 0;
     u32 loaded = 0;
-    char line[256];
-    while (std::fgets(line, sizeof(line), file))
+    for (TKit::DynamicString &line : contents->Split('\n'))
     {
-        char *tab = std::strchr(line, '\t');
-        if (!tab)
+        if (!line.IsEmpty() && line[line.GetSize() - 1] == '\r')
+            line.Pop();
+        const usz tab = line.Find('\t');
+        if (tab == TKit::DynamicString::npos)
             continue;
-        *tab = '\0';
-        char *name = tab + 1;
-        name[std::strcspn(name, "\r\n")] = '\0';
+        const TKit::DynamicString mark = line.SubString(0, tab);
+        const TKit::DynamicString name = line.SubString(tab + 1);
 
         u32 verdict = Verdict_Count;
         for (u32 i = 0; i < Verdict_Count; ++i)
-            if (std::strcmp(line, VerdictNames[i]) == 0)
+            if (mark == VerdictNames[i])
                 verdict = i;
         if (verdict == Verdict_Count)
             continue;
 
         for (Category &cat : categories)
             for (VisualCheck &check : cat.Visuals)
-                if (std::strcmp(check.Name, name) == 0)
+                if (name == check.Name)
                 {
                     check.Mark = Verdict(verdict);
                     ++loaded;
                 }
     }
-    std::fclose(file);
     return loaded;
 }
-TKIT_COMPILER_WARNING_IGNORE_POP()
 
 // =====================================================================================================================
 //  3. UI HELPERS
@@ -329,12 +328,17 @@ constexpr const char *VerdictMeanings[Verdict_Count] = {
     "TODO: visual check waiting for your verdict", "GOOD: visual check you judged right",
     "BAD: visual check you judged broken", "SKIP: visual check you chose to skip"};
 
+// sets the raw color and puts it back instead of PushStyleColor/PopStyleColor: the pop writes back the color with the
+// current alpha applied, so inside a disabled region every pair fades the text color for good, and every widget title
+// with it (overlay.style_colors_survive_a_push_inside_a_disabled_region)
 static void text(Onyx::Overlay *ui, const Onyx::Color &color, const TKit::StringView str,
                  const Onyx::LayoutTextMode mode = Onyx::TextMode_Unbounded)
 {
-    ui->PushStyleColor(Onyx::OverlayColor_Text, color);
+    Onyx::Color &textColor = ui->GetStyle().Colors[Onyx::OverlayColor_Text];
+    const Onyx::Color old = textColor;
+    textColor = color;
     ui->TextRaw(mode, str);
-    ui->PopStyleColor();
+    textColor = old;
 }
 
 static void badge(Onyx::Overlay *ui, const char *label, const Onyx::Color &color)
@@ -680,7 +684,7 @@ struct InputTracking
     TKit::StaticArray<Graph::Key, 32> HeldKeys{};
     TKit::StaticArray<Graph::Mouse, 8> HeldButtons{};
 
-    const char *LastKey = "none";
+    const char *LastKey = "None";
     f32v2 LastScroll{0.f};
     f32v2 EventMouse{0.f};
     bool HasEventMouse = false;
@@ -760,8 +764,8 @@ struct AudioState
 };
 #endif
 
-// the automated tests, run through the onyx-tests executable (section 10). plain std containers on purpose: the thread
-// that reads the runner's output must not touch the per thread tier allocators
+// the automated tests, run through the onyx-tests executable (section 10). Toolkit's dynamic containers live on the
+// heap: the thread that reads the runner's output must not touch the per thread tier allocators
 enum TestState : u8
 {
     Test_NotRun,
@@ -776,29 +780,50 @@ enum TestState : u8
     Test_StateCount,
 };
 
+// one failed check, as Catch2 reports it
+struct TestFailure
+{
+    TKit::DynamicString Where;      // tests/suites/overlay.cpp:179
+    TKit::DynamicString Expression; // CHECK( presses == 1u )
+    TKit::DynamicString Expansion;  // 0 == 1
+    TKit::DynamicString Info;       // the messages in force, one a line: CHECK_MSG, INFO, the engine's last actions
+};
+
 struct TestEntry
 {
-    std::string Id;
-    std::string Suite;
-    std::string Description;
-    std::string KnownIssue;
+    TKit::DynamicString Id;
+    TKit::DynamicString Suite;
+    TKit::DynamicString Description;
+    TKit::DynamicString KnownIssue;
+    TKit::DynamicString Where; // where it is declared
     TestState State = Test_NotRun;
     u32 Milliseconds = 0;
-    std::vector<std::string> Failures{}; // "file:line: what failed"
-    std::vector<std::string> Notes{};
-    std::vector<std::string> Output{}; // the last lines it printed, only for failures
+    TKit::DynamicArray<TestFailure> Failures{};
+    TKit::DynamicString Crash{}; // how its process ended, when it crashed or timed out
+    TKit::DynamicArray<TKit::DynamicString> Notes{};
+    TKit::DynamicArray<TKit::DynamicString> Output{}; // the last lines it printed, only for failures
     bool Selected = false;
 };
 
+enum TestSpeed : u32
+{
+    Speed_Fast,
+    Speed_Normal,
+    Speed_Cinematic,
+};
+constexpr const char *SpeedNames[] = {"fast", "normal", "cinematic"};
+
 struct TestRunner
 {
-    std::string Executable{};
-    std::string Problem{}; // why the tests cannot be listed or run, if they cannot
-    std::vector<TestEntry> Tests{};
+    TKit::DynamicString Executable{};
+    TKit::DynamicString Problem{}; // why the tests cannot be listed or run, if they cannot
+    TKit::DynamicArray<TestEntry> Tests{};
+    TKit::DynamicArray<TKit::DynamicString> OpenSuites{}; // unfolded in the list
 
+    // no thread, mutex or atomic in Toolkit: the standard ones
     std::thread Reader{};
     std::mutex Mutex{};
-    std::vector<std::string> Lines{}; // written by the reader thread, consumed every frame by the main thread
+    TKit::DynamicArray<TKit::DynamicString> Lines{}; // written by the reader thread, consumed every frame
     std::atomic<bool> Running{false};
     i32 ExitCode = 0;
 
@@ -807,10 +832,12 @@ struct TestRunner
     f32 StartedAt = 0.f;
     f32 Seconds = 0.f;
     bool HasRun = false;
-    const char *Label = "";
+    TKit::DynamicString Label{};
     TKit::FixedArray<u32, Test_StateCount> Counts{};
 
-    u32 Jobs = 2;
+    u32 Jobs = 4;
+    u32 Speed = Speed_Fast;
+    u32 OutputLines = 120;
     char Filter[64]{};
     bool OnlyProblems = false;
 
@@ -889,7 +916,7 @@ struct App
     f32 Opacity = 1.f;
     u32v2 RequestedSize = InitialWindowSize;
 
-    // present mode cycle scenario: steps left, when the next one is due and the mode to go back to
+    // present mode cycle: steps left, when the next one is due and the mode to go back to
     u32 PresentCycleSteps = 0;
     f32 PresentCycleAt = 0.f;
     u32 PresentCycleRestore = Onyx::PresentMode_VSync;
@@ -910,6 +937,8 @@ struct App
     TKit::FixedArray<TKit::FixedArray<u32, 4>, Inspect_Count> FramebufferUse{};
     bool LabMouseInside = false;  // over the part of the lab view its scissor lets through
     PaneId FocusPane = Pane_None; // the view the visual review points at, by highlighting its brackets
+    f32 FocusSince = -100.f;      // when it started pointing there
+    bool ReviewTabOpen = false;   // the visual review tab is the open one (last frame)
     bool VerdictsDirty = false;
     u32 LoadedVerdicts = 0;
     f32 ReportCopiedAt = -100.f;
@@ -1299,8 +1328,8 @@ static void updatePacing(App &app)
             }
 }
 
-// scenarios exercise related checks on demand
-static void runScenarios(App &app)
+// steps the present mode cycle started from the Platform and device panel
+static void updatePresentCycle(App &app)
 {
     if (app.PresentCycleSteps == 0 || app.Time < app.PresentCycleAt)
         return;
@@ -1589,8 +1618,8 @@ static f32v2 pixelAlignment(const Onyx::RenderView<D2> *rv)
 }
 
 // every pane's frame, in its 2D frame view: the title, brackets just inside the four corners (a missing one means the
-// viewport or scissor is wrong) and a ring at the mouse. the guided flow points at the view its current step concerns
-// with longer, thicker, pulsing brackets
+// viewport or scissor is wrong) and a ring at the mouse. the visual review points at the view its current check
+// concerns with longer, thicker brackets, which pulse for a moment when it moves on to another view
 static void drawFrame(const App &app, const PaneId id)
 {
     const Pane &pane = app.Panes[id];
@@ -1613,7 +1642,10 @@ static void drawFrame(const App &app, const PaneId id)
 
     const bool focus = app.FocusPane == id;
     const f32 arm = focus ? 32.f : 14.f;
-    const f32 width = (focus ? 3.f + 2.f * Math::Sine(6.f * app.Time) : 2.f) * pixel;
+    // a pulse that never stops reads as flicker: it only draws the eye when the review points somewhere new
+    const f32 since = app.Time - app.FocusSince;
+    const f32 wave = since < 1.2f ? Math::Sine(5.f * since) : 0.f;
+    const f32 width = (focus ? 4.f + 2.f * wave * wave : 2.f) * pixel;
     const f32 inset = 3.f;
     const f32v2 corners[4] = {vp.Position + inset, vp.Position + f32v2{vp.Size[0] - inset, inset},
                               vp.Position + f32v2{inset, vp.Size[1] - inset}, vp.Position + vp.Size - inset};
@@ -2114,7 +2146,7 @@ static void drawTextures(const App &app)
     rt->Align(Onyx::Alignment_Center);
     rt->Scale(14.f);
     rt->Translate(f32v2{0.f, 70.f});
-    rt->Text("render texture");
+    rt->Text("Render texture");
     rt->Pop();
 
     Onyx::RenderContext<D2> *ctx = app.TexturesCtx;
@@ -2124,7 +2156,7 @@ static void drawTextures(const App &app)
 
     // drawn at their logical size, so the scaled one maps one texel to one physical pixel
     const Onyx::RenderTexture *textures[2] = {app.RtScaled, app.RtFixed};
-    const char *labels[2] = {"follows window scale", "fixed at scale 1"};
+    const char *labels[2] = {"Follows window scale", "Fixed at scale 1"};
     for (u32 i = 0; i < 2; ++i)
     {
         const f32 x = i == 0 ? -100.f : 100.f;
@@ -2343,7 +2375,7 @@ static u32 synthesize(Synth &synth, f32 *out, const u32 frameCount, const u32 ch
             break;
         case Wave_Beeps: {
             // 80 ms beeps every 300 ms, each with its own ramps. easier to place in space than a steady tone
-            const f32 t = std::fmod(time, 0.3f);
+            const f32 t = Math::Modulo(time, 0.3f);
             sample = t < 0.08f ? sine * Math::Min(1.f, Math::Min(t, 0.08f - t) / 0.005f) : 0.f;
             break;
         }
@@ -2604,41 +2636,82 @@ static bool isBadTest(const TestState state)
     return state == Test_Fail || state == Test_Crash || state == Test_Timeout;
 }
 
-static TKit::StringView view(const std::string &str)
+static TKit::StringView view(const TKit::DynamicString &str)
 {
-    return TKit::StringView{str.data(), u32(str.size())};
+    return TKit::StringView{str.GetData(), str.GetSize()};
 }
 
-static std::vector<std::string> splitTabs(const std::string &line)
+static void trimLineEnd(TKit::DynamicString &line)
 {
-    std::vector<std::string> fields{};
-    usz start = 0;
-    for (;;)
+    while (!line.IsEmpty() && (line[line.GetSize() - 1] == '\n' || line[line.GetSize() - 1] == '\r'))
+        line.Pop();
+}
+
+// an event line: the marker, then tab separated fields with \\, \t, \n and \r escaped (tests/framework/protocol.hpp).
+// fields[0] is the kind
+static bool parseEvent(const TKit::DynamicString &line, TKit::DynamicArray<TKit::DynamicString> &fields)
+{
+    fields.Clear();
+    const TKit::DynamicString marker = TKit::DynamicString::Format("{}\t", TestMarker);
+    const usz at = line.Find(marker.CString());
+    if (at == TKit::DynamicString::npos)
+        return false;
+    TKit::DynamicString field{};
+    for (usz i = at + marker.GetSize(); i <= line.GetSize(); ++i)
     {
-        const usz tab = line.find('\t', start);
-        fields.push_back(line.substr(start, tab == std::string::npos ? std::string::npos : tab - start));
-        if (tab == std::string::npos)
-            return fields;
-        start = tab + 1;
+        if (i == line.GetSize() || line[i] == '\t')
+        {
+            fields.Append(field);
+            field.Clear();
+            continue;
+        }
+        if (line[i] != '\\' || i + 1 == line.GetSize())
+        {
+            field += line[i];
+            continue;
+        }
+        const char c = line[++i];
+        field += c == 't' ? '\t' : (c == 'n' ? '\n' : (c == 'r' ? '\r' : c));
     }
+    return !fields.IsEmpty();
 }
 
-static std::string testsCommand(const TestRunner &tr, const std::string &arguments)
+static TKit::DynamicString testsCommand(const TestRunner &tr, const TKit::DynamicString &arguments)
 {
-    std::string command = "\"" + tr.Executable + "\" " + arguments + " 2>&1";
+    TKit::DynamicString command = TKit::DynamicString::Format("\"{}\" {} 2>&1", tr.Executable, arguments);
 #ifdef _WIN32
     // cmd /c strips the outer quotes of the whole line: wrap it once more so the quoted executable path survives
-    command = "\"" + command + "\"";
+    command = TKit::DynamicString::Format("\"{}\"", command);
 #endif
     return command;
 }
 
-static TestEntry *findTest(TestRunner &tr, const std::string &id)
+static TestEntry *findTest(TestRunner &tr, const TKit::DynamicString &id)
 {
     for (TestEntry &test : tr.Tests)
         if (test.Id == id)
             return &test;
     return nullptr;
+}
+
+static bool isSuiteOpen(const TestRunner &tr, const TKit::DynamicString &suite)
+{
+    for (const TKit::DynamicString &open : tr.OpenSuites)
+        if (open == suite)
+            return true;
+    return false;
+}
+static void setSuiteOpen(TestRunner &tr, const TKit::DynamicString &suite, const bool open)
+{
+    for (u32 i = 0; i < tr.OpenSuites.GetSize(); ++i)
+        if (tr.OpenSuites[i] == suite)
+        {
+            if (!open)
+                tr.OpenSuites.RemoveOrdered(tr.OpenSuites.begin() + i);
+            return;
+        }
+    if (open)
+        tr.OpenSuites.Append(suite);
 }
 
 // asks the runner for its tests. fast: listing does not initialize Onyx. selections and results of tests that are
@@ -2649,145 +2722,157 @@ static void listTests(TestRunner &tr)
 {
     if (tr.Running.load())
         return;
-    tr.Problem.clear();
+    tr.Problem.Clear();
+    // no environment access in Toolkit
     if (const char *env = std::getenv("ONYX_TESTS"); env && *env)
         tr.Executable = env;
     else
         tr.Executable = ONYX_TESTS_EXECUTABLE;
-    if (tr.Executable.empty())
+    if (tr.Executable.IsEmpty())
     {
         tr.Problem =
             "The tests were not built: configure with ONYX_BUILD_TESTS=ON, or point the ONYX_TESTS environment "
             "variable to an onyx-tests executable.";
-        tr.Tests.clear();
+        tr.Tests.Clear();
         return;
     }
 
-    std::FILE *pipe = onyxPopen(testsCommand(tr, "--list --format events").c_str(), "r");
+    std::FILE *pipe = onyxPopen(testsCommand(tr, "--list --format events").CString(), "r");
     if (!pipe)
     {
-        tr.Problem = "Could not start " + tr.Executable;
+        tr.Problem = TKit::DynamicString::Format("Could not start {}", tr.Executable);
         return;
     }
-    std::vector<TestEntry> tests{};
-    char buffer[2048];
+    TKit::DynamicArray<TestEntry> tests{};
+    TKit::DynamicArray<TKit::DynamicString> f{};
+    char buffer[4096];
     while (std::fgets(buffer, sizeof(buffer), pipe))
     {
-        std::string line = buffer;
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
-            line.pop_back();
-        if (line.rfind(TestMarker, 0) != 0)
-            continue;
-        const std::vector<std::string> f = splitTabs(line);
-        if (f.size() < 5 || f[1] != "test")
+        TKit::DynamicString line{static_cast<const char *>(buffer)};
+        trimLineEnd(line);
+        // test: id suite description known-issue file line
+        if (!parseEvent(line, f) || f.GetSize() < 4 || f[0] != "test")
             continue;
         TestEntry entry{};
-        entry.Id = f[2];
-        entry.Suite = f[3];
-        entry.Description = f[4];
-        entry.KnownIssue = f.size() > 5 ? f[5] : std::string{};
+        entry.Id = f[1];
+        entry.Suite = f[2];
+        entry.Description = f[3];
+        if (f.GetSize() > 4)
+            entry.KnownIssue = f[4];
+        if (f.GetSize() > 6)
+            entry.Where = TKit::DynamicString::Format("{}:{}", f[5], f[6]);
         if (const TestEntry *old = findTest(tr, entry.Id))
         {
             entry.Selected = old->Selected;
             entry.State = old->State;
             entry.Milliseconds = old->Milliseconds;
             entry.Failures = old->Failures;
+            entry.Crash = old->Crash;
             entry.Notes = old->Notes;
             entry.Output = old->Output;
         }
-        tests.push_back(std::move(entry));
+        tests.Append(std::move(entry));
     }
     const int code = onyxPclose(pipe);
     tr.Tests = std::move(tests);
-    if (tr.Tests.empty())
-        tr.Problem = "No tests listed by " + tr.Executable + " (exit status " + std::to_string(code) + ")";
+    if (tr.Tests.IsEmpty())
+        tr.Problem = TKit::DynamicString::Format("No tests listed by {} (exit status {})", tr.Executable, code);
 }
 TKIT_COMPILER_WARNING_IGNORE_POP()
 
-// whole suites go by name, the rest by id, so the command line stays short (Windows caps it)
-static std::string selectionArgument(const TestRunner &tr, const std::vector<const TestEntry *> &picked)
+using TestPicks = TKit::DynamicArray<const TestEntry *>;
+
+static bool isPicked(const TestPicks &picked, const TestEntry *test)
 {
-    std::string argument{};
-    std::vector<std::string> suitesDone{};
+    for (const TestEntry *p : picked)
+        if (p == test)
+            return true;
+    return false;
+}
+
+// whole suites go by name, the rest by id, so the command line stays short (Windows caps it)
+static TKit::DynamicString selectionArgument(const TestRunner &tr, const TestPicks &picked)
+{
+    TKit::DynamicString argument{};
+    TKit::DynamicArray<TKit::DynamicString> suitesDone{};
     for (const TestEntry *test : picked)
     {
         bool wholeSuite = true;
         for (const TestEntry &other : tr.Tests)
             if (other.Suite == test->Suite)
-            {
-                bool in = false;
-                for (const TestEntry *p : picked)
-                    in |= p == &other;
-                wholeSuite &= in;
-            }
-        std::string item = test->Id;
+                wholeSuite &= isPicked(picked, &other);
+        const TKit::DynamicString *item = &test->Id;
         if (wholeSuite)
         {
             bool done = false;
-            for (const std::string &suite : suitesDone)
+            for (const TKit::DynamicString &suite : suitesDone)
                 done |= suite == test->Suite;
             if (done)
                 continue;
-            suitesDone.push_back(test->Suite);
-            item = test->Suite;
+            suitesDone.Append(test->Suite);
+            item = &test->Suite;
         }
-        argument += (argument.empty() ? "" : ",") + item;
+        if (!argument.IsEmpty())
+            argument += ',';
+        argument += *item;
     }
     return argument;
 }
 
-static void startTests(App &app, const std::vector<const TestEntry *> &picked, const char *label)
+static void startTests(App &app, const TestPicks &picked, const TKit::DynamicString &label)
 {
     TestRunner &tr = app.Tests;
-    if (tr.Running.load() || picked.empty())
+    if (tr.Running.load() || picked.IsEmpty())
         return;
     if (tr.Reader.joinable())
         tr.Reader.join();
 
     for (TestEntry &test : tr.Tests)
-        for (const TestEntry *p : picked)
-            if (p == &test)
-            {
-                test.State = Test_Queued;
-                test.Milliseconds = 0;
-                test.Failures.clear();
-                test.Notes.clear();
-                test.Output.clear();
-            }
+        if (isPicked(picked, &test))
+        {
+            test.State = Test_Queued;
+            test.Milliseconds = 0;
+            test.Failures.Clear();
+            test.Crash.Clear();
+            test.Notes.Clear();
+            test.Output.Clear();
+        }
 
-    tr.Planned = u32(picked.size());
+    tr.Planned = picked.GetSize();
     tr.Finished = 0;
     tr.Counts = {};
     tr.StartedAt = app.Time;
     tr.Seconds = 0.f;
     tr.HasRun = true;
     tr.Label = label;
-    tr.Lines.clear();
+    tr.Lines.Clear();
     tr.Running.store(true);
 
-    const std::string command =
-        testsCommand(tr, "--format events --jobs " + std::to_string(tr.Jobs) + " " + selectionArgument(tr, picked));
+    TKit::DynamicString arguments = TKit::DynamicString::Format("--format events --jobs {}", tr.Jobs);
+    if (tr.Speed != Speed_Fast)
+        arguments += TKit::DynamicString::Format(" --speed {}", SpeedNames[tr.Speed]);
+    arguments += TKit::DynamicString::Format(" {}", selectionArgument(tr, picked));
+    const TKit::DynamicString command = testsCommand(tr, arguments);
     tr.Reader = std::thread{[&tr, command] {
-        std::FILE *pipe = onyxPopen(command.c_str(), "r");
+        std::FILE *pipe = onyxPopen(command.CString(), "r");
         if (!pipe)
         {
             const std::lock_guard lock{tr.Mutex};
-            tr.Lines.push_back(std::string{TestMarker} + "\tproblem\tcould not start the test runner");
+            tr.Lines.Append(TKit::DynamicString::Format("{}\tproblem\tCould not start the test runner", TestMarker));
             tr.Running.store(false);
             return;
         }
-        std::string line{};
+        TKit::DynamicString line{};
         char buffer[4096];
         while (std::fgets(buffer, sizeof(buffer), pipe))
         {
             line += buffer;
-            if (line.back() != '\n')
+            if (line[line.GetSize() - 1] != '\n')
                 continue;
-            while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
-                line.pop_back();
+            trimLineEnd(line);
             const std::lock_guard lock{tr.Mutex};
-            tr.Lines.push_back(std::move(line));
-            line.clear();
+            tr.Lines.Append(std::move(line));
+            line = TKit::DynamicString{};
         }
         const int code = onyxPclose(pipe);
         const std::lock_guard lock{tr.Mutex};
@@ -2795,8 +2880,12 @@ static void startTests(App &app, const std::vector<const TestEntry *> &picked, c
         tr.Running.store(false);
     }};
 }
+static void startTests(App &app, const TestPicks &picked, const char *label)
+{
+    startTests(app, picked, TKit::DynamicString{label});
+}
 
-static TestState stateFromName(const std::string &name)
+static TestState stateFromName(const TKit::DynamicString &name)
 {
     constexpr const char *names[] = {"pass", "fail", "skip", "crash", "timeout", "known"};
     constexpr TestState states[] = {Test_Pass, Test_Fail, Test_Skip, Test_Crash, Test_Timeout, Test_Known};
@@ -2810,44 +2899,44 @@ static TestState stateFromName(const std::string &name)
 static void updateTests(App &app)
 {
     TestRunner &tr = app.Tests;
-    std::vector<std::string> lines{};
+    TKit::DynamicArray<TKit::DynamicString> lines{};
     {
         const std::lock_guard lock{tr.Mutex};
-        lines.swap(tr.Lines);
+        lines = std::move(tr.Lines);
+        tr.Lines = {};
     }
-    for (const std::string &line : lines)
+    TKit::DynamicArray<TKit::DynamicString> f{};
+    for (const TKit::DynamicString &line : lines)
     {
-        const usz at = line.find(std::string{TestMarker} + '\t');
-        if (at == std::string::npos)
+        if (!parseEvent(line, f) || f.GetSize() < 2)
             continue;
-        const std::vector<std::string> f = splitTabs(line.substr(at));
-        if (f.size() < 2)
-            continue;
-        const std::string &kind = f[1];
-        if (kind == "problem" && f.size() >= 3)
+        const TKit::DynamicString &kind = f[0];
+        if (kind == "problem")
         {
-            tr.Problem = f[2];
+            tr.Problem = f[1];
             continue;
         }
-        if (kind == "plan" || kind == "summary" || f.size() < 3)
+        if (kind == "plan" || kind == "summary")
             continue;
-        TestEntry *test = findTest(tr, f[2]);
+        TestEntry *test = findTest(tr, f[1]);
         if (!test)
             continue;
         if (kind == "begin")
             test->State = Test_Running;
-        else if (kind == "fail" && f.size() >= 5)
-            test->Failures.push_back(f[3] + ": " + f[4]);
-        else if ((kind == "skip" || kind == "note") && f.size() >= 4)
-            test->Notes.push_back(f[3]);
-        else if (kind == "crash" && f.size() >= 4)
-            test->Failures.push_back(f[3]);
-        else if (kind == "output" && f.size() >= 4)
-            test->Output.push_back(f[3]);
-        else if (kind == "end" && f.size() >= 5)
+        else if (kind == "fail" && f.GetSize() >= 6)
+            test->Failures.Append(TestFailure{f[2], f[3], f[4], f[5]});
+        else if (kind == "skip" && f.GetSize() >= 3)
+            test->Notes.Append(TKit::DynamicString::Format("Skipped: {}", f[2]));
+        else if (kind == "note" && f.GetSize() >= 3)
+            test->Notes.Append(f[2]);
+        else if (kind == "crash" && f.GetSize() >= 3)
+            test->Crash = f[2];
+        else if (kind == "output" && f.GetSize() >= 3)
+            test->Output.Append(f[2]);
+        else if (kind == "end" && f.GetSize() >= 4)
         {
-            test->State = stateFromName(f[3]);
-            test->Milliseconds = u32(std::strtoul(f[4].c_str(), nullptr, 10));
+            test->State = stateFromName(f[2]);
+            test->Milliseconds = u32(std::strtoul(f[3].CString(), nullptr, 10));
             ++tr.Counts[test->State];
             ++tr.Finished;
         }
@@ -2862,10 +2951,31 @@ static void updateTests(App &app)
             if (test.State == Test_Queued || test.State == Test_Running)
             {
                 test.State = Test_Crash;
-                test.Failures.push_back("the test runner ended before this test reported");
+                test.Crash = "The test runner ended before this test reported";
                 ++tr.Counts[Test_Crash];
             }
+        // what failed is what to look at: unfold its suites
+        for (const TestEntry &test : tr.Tests)
+            if (isBadTest(test.State))
+                setSuiteOpen(tr, test.Suite, true);
     }
+}
+
+// a failed test as plain text: where each check failed, what it found, the messages and how its process ended
+static void appendFailures(TKit::TierString &out, const TestEntry &test, const char *indent)
+{
+    for (const TestFailure &failure : test.Failures)
+    {
+        out += TKit::TierString::Format("{}{}: {}\n", indent, view(failure.Where), view(failure.Expression));
+        for (const TKit::DynamicString &part : failure.Expansion.Split('\n'))
+            if (!part.IsEmpty())
+                out += TKit::TierString::Format("{}  With expansion: {}\n", indent, view(part));
+        for (const TKit::DynamicString &part : failure.Info.Split('\n'))
+            if (!part.IsEmpty())
+                out += TKit::TierString::Format("{}  {}\n", indent, view(part));
+    }
+    if (!test.Crash.IsEmpty())
+        out += TKit::TierString::Format("{}{}\n", indent, view(test.Crash));
 }
 
 // -- report ---------------------------------------------------------------------------------------------------------
@@ -2901,10 +3011,9 @@ static void copyReport(App &app)
             if (!isBadTest(test.State) && test.State != Test_Known)
                 continue;
             report += TKit::TierString::Format("- {} {}\n", TestBadges[test.State], view(test.Id));
-            for (const std::string &failure : test.Failures)
-                report += TKit::TierString::Format("    {}\n", view(failure));
+            appendFailures(report, test, "    ");
             if (test.State == Test_Known)
-                report += TKit::TierString::Format("    known issue: {}\n", view(test.KnownIssue));
+                report += TKit::TierString::Format("    Known issue: {}\n", view(test.KnownIssue));
         }
     }
 
@@ -2934,36 +3043,159 @@ static bool matchesFilter(const TestRunner &tr, const TestEntry &test)
 {
     if (tr.OnlyProblems && !isBadTest(test.State) && test.State != Test_Known)
         return false;
-    return tr.Filter[0] == '\0' || test.Id.find(tr.Filter) != std::string::npos;
+    return tr.Filter[0] == '\0' || test.Id.Contains(tr.Filter);
 }
 
-static void drawTestRow(Onyx::Overlay *ui, TestEntry &test, const bool running)
+// the overlay's own fold arrows, or plain characters with a font that lacks them
+static Onyx::CodePoint foldArrow(const Onyx::Overlay *ui, const bool open)
 {
+    const Onyx::Resource font = ui->GetMainNativeWindow()->Context->GetState().Font;
+    const Onyx::CodePoint arrow = open ? Onyx::CodePoint_ArrowDown : Onyx::CodePoint_ArrowRight;
+    return Onyx::Font_HasGlyph(font, arrow) ? arrow : Onyx::CodePoint(open ? 'v' : '>');
+}
+
+// what went wrong, the way the runner reports it: for each failed check its source line and expression, the values
+// it saw, and the messages in force (CHECK_MSG, INFO, the overlay test engine's last actions). then how the process
+// ended and the last lines it printed
+static void drawFailures(Onyx::Overlay *ui, const TestEntry &test, const u32 maxOutputLines)
+{
+    for (const TestFailure &failure : test.Failures)
+    {
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        text(ui, Theme::Dim, view(failure.Where));
+        if (!failure.Expression.IsEmpty())
+            text(ui, Theme::Fail, view(failure.Expression));
+        ui->PopPanel();
+        for (const TKit::DynamicString &part : failure.Expansion.Split('\n'))
+            if (!part.IsEmpty())
+                field(ui, "    With expansion ", view(part));
+        for (const TKit::DynamicString &part : failure.Info.Split('\n'))
+            if (!part.IsEmpty())
+                text(ui, part.StartsWith("Engine: ") ? Theme::Dim : Theme::Text,
+                     formatLine("    {}", view(part)).View(), Onyx::TextMode_Wrapped);
+    }
+    if (!test.Crash.IsEmpty())
+        text(ui, Theme::Fail, view(test.Crash), Onyx::TextMode_Wrapped);
+    for (const TKit::DynamicString &note : test.Notes)
+        text(ui, Theme::Dim, view(note), Onyx::TextMode_Wrapped);
+    if (!test.Output.IsEmpty() && ui->PushTree(formatLine("Output ({} lines)###output", test.Output.GetSize()).View()))
+    {
+        const u32 size = Math::Min(maxOutputLines, test.Output.GetSize());
+        ui->BeginScroll("Output", 320.f, Onyx::OverlayScrollFlag_Borders);
+        for (u32 i = 0; i < size; ++i)
+            text(ui, Theme::Dim, test.Output[test.Output.GetSize() - i - 1], Onyx::TextMode_Wrapped);
+        ui->EndScroll();
+        ui->PopTree();
+    }
+}
+
+static void drawTestRow(App &app, TestEntry &test, const bool running, const u32 maxOutputLines)
+{
+    Onyx::Overlay *ui = app.Ui;
     ui->PushId(Onyx::LayoutId{&test});
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
     ui->BeginDisabled(running);
     ui->CheckBox("##selected", &test.Selected);
     ui->EndDisabled();
     badge(ui, TestBadges[test.State], TestColors[test.State]);
+    // the buttons before the id: a long id would push them out of the window
+    ui->BeginDisabled(running);
+    if (ui->Button("Run##run", Onyx::OverlayButtonFlag_Small))
+    {
+        TestPicks one{};
+        one.Append(&test);
+        startTests(app, one, test.Id);
+    }
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "Runs this test alone", "");
+    if (isBadTest(test.State) || test.State == Test_Known)
+    {
+        if (ui->Button("Copy##copy", Onyx::OverlayButtonFlag_Small))
+        {
+            TKit::TierString report = TKit::TierString::Format("{} {}\n", TestBadges[test.State], view(test.Id));
+            appendFailures(report, test, "  ");
+            for (const TKit::DynamicString &line : test.Output)
+                report += TKit::TierString::Format("  | {}\n", view(line));
+            Graph::SetClipboard(report.CString());
+        }
+        tooltip(ui, Theme::Accent, "Copies what went wrong",
+                "Every failed check with its values and messages, how the process ended and the last lines it printed, "
+                "as plain text.");
+    }
     text(ui, Theme::Text, view(test.Id));
+    TKit::TierString more = TKit::TierString::Format("{}", view(test.Description));
+    if (!test.Where.IsEmpty())
+        more += TKit::TierString::Format("\n\nDeclared at {}", view(test.Where));
+    if (!test.KnownIssue.IsEmpty())
+        more += TKit::TierString::Format("\n\nKnown issue: {}", view(test.KnownIssue));
+    tooltip(ui, TestColors[test.State], TestMeanings[test.State], more);
     if (test.Milliseconds != 0)
         text(ui, Theme::Dim, formatLine("{} ms", test.Milliseconds).View());
     ui->PopPanel();
-    std::string more = test.Description;
-    if (!test.KnownIssue.empty())
-        more += "\n\nKnown issue: " + test.KnownIssue;
-    tooltip(ui, TestColors[test.State], TestMeanings[test.State], view(more));
+    drawFailures(ui, test, maxOutputLines);
+    ui->PopId();
+}
 
-    for (const std::string &failure : test.Failures)
-        text(ui, Theme::Fail, view(failure), Onyx::TextMode_Wrapped);
-    for (const std::string &note : test.Notes)
-        text(ui, Theme::Dim, view(note), Onyx::TextMode_Wrapped);
-    if (!test.Output.empty() && ui->PushTree(formatLine("Output ({} lines)###output", test.Output.size()).View()))
+// a suite's row: its fold arrow, a checkbox that selects every test in it (folded or not), its counts and a button
+// that runs just this suite
+static void drawSuite(App &app, const u32 begin, const u32 end, const bool running)
+{
+    Onyx::Overlay *ui = app.Ui;
+    TestRunner &tr = app.Tests;
+    const TKit::DynamicString &suite = tr.Tests[begin].Suite;
+
+    u32 shown = 0;
+    u32 bad = 0;
+    u32 done = 0;
+    bool allSelected = true;
+    TestPicks tests{};
+    for (u32 i = begin; i < end; ++i)
     {
-        for (const std::string &line : test.Output)
-            text(ui, Theme::Dim, view(line), Onyx::TextMode_Wrapped);
-        ui->PopTree();
+        const TestEntry &test = tr.Tests[i];
+        shown += matchesFilter(tr, test);
+        bad += isBadTest(test.State);
+        done += test.State >= Test_Pass;
+        allSelected &= test.Selected;
+        tests.Append(&test);
     }
+    if (shown == 0)
+        return;
+
+    ui->PushId(Onyx::LayoutId{view(suite)});
+    bool open = isSuiteOpen(tr, suite);
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    if (ui->Button(
+            Onyx::OverlayLabel{Onyx::LayoutId{"fold"}, Onyx::OverlayTitle{TKit::StringView{}, foldArrow(ui, open)}},
+            Onyx::OverlayButtonFlag_Small))
+    {
+        open = !open;
+        setSuiteOpen(tr, suite, open);
+    }
+    ui->BeginDisabled(running);
+    if (ui->Button("Run suite##run", Onyx::OverlayButtonFlag_Small))
+        startTests(app, tests, suite);
+
+    bool select = allSelected;
+    if (ui->CheckBox("##suite", &select))
+        for (u32 i = begin; i < end; ++i)
+            tr.Tests[i].Selected = select;
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "Selects the whole suite", "Every test in it, whether the suite is folded or not.");
+    if (bad != 0)
+        badge(ui, "FAIL", Theme::Fail);
+    else if (done == end - begin)
+        badge(ui, "PASS", Theme::Pass);
+    text(ui, Theme::Text, view(suite));
+    text(ui, Theme::Dim,
+         formatLine("{} tests{}{}", end - begin, done ? formatLine(", {} ran", done).View() : TKit::StringView{},
+                    bad ? formatLine(", {} failing", bad).View() : TKit::StringView{})
+             .View());
+    ui->PopPanel();
+
+    if (open)
+        for (u32 i = begin; i < end; ++i)
+            if (matchesFilter(tr, tr.Tests[i]))
+                drawTestRow(app, tr.Tests[i], running, tr.OutputLines);
     ui->PopId();
 }
 
@@ -2983,48 +3215,65 @@ static void drawAutomatedTests(App &app)
         listTests(tr);
     tooltip(ui, Theme::Accent, "Lists the tests again",
             "After rebuilding onyx-tests. Selections and results of the tests that are still there are kept.");
-    if (!tr.Executable.empty())
+    if (!tr.Executable.IsEmpty())
         text(ui, Theme::Dim, view(tr.Executable));
     ui->PopPanel();
-    if (!tr.Problem.empty())
+    if (!tr.Problem.IsEmpty())
     {
         text(ui, Theme::Fail, view(tr.Problem), Onyx::TextMode_Wrapped);
-        if (tr.Tests.empty())
+        if (tr.Tests.IsEmpty())
             return;
     }
 
     // -- run controls -------------------------------------------------------------------------------------------------
-    std::vector<const TestEntry *> all{};
-    std::vector<const TestEntry *> selected{};
-    std::vector<const TestEntry *> problems{};
+    TestPicks all{};
+    TestPicks selected{};
+    TestPicks problems{};
     for (const TestEntry &test : tr.Tests)
     {
-        all.push_back(&test);
+        all.Append(&test);
         if (test.Selected)
-            selected.push_back(&test);
+            selected.Append(&test);
         if (isBadTest(test.State))
-            problems.push_back(&test);
+            problems.Append(&test);
     }
 
     ui->BeginDisabled(running);
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    if (ui->Button(formatLine("Run all ({})###run all", all.size()).View()))
+    if (ui->Button(formatLine("Run all ({})###run all", all.GetSize()).View()))
         startTests(app, all, "all");
-    if (ui->Button(formatLine("Run selected ({})###run selected", selected.size()).View()))
+    if (ui->Button(formatLine("Run selected ({})###run selected", selected.GetSize()).View()))
         startTests(app, selected, "selected");
-    if (ui->Button(formatLine("Run failed ({})###run failed", problems.size()).View()))
+    if (ui->Button(formatLine("Run failed ({})###run failed", problems.GetSize()).View()))
         startTests(app, problems, "failed");
+    if (ui->Button("Clear selection"))
+        for (TestEntry &test : tr.Tests)
+            test.Selected = false;
     ui->PopPanel();
-    ui->HorizontalSlider("Tests at a time", &tr.Jobs, 1u, 8u);
+    ui->HorizontalSlider("Tests at a time", &tr.Jobs, 1u, 16u);
+    ui->HorizontalSlider("Maximum output lines", &tr.OutputLines, 20u, 1600u);
     ui->EndDisabled();
     tooltip(ui, Theme::Accent, "How many test processes run in parallel",
             "More is faster. Timing sensitive tests (frame pacing) are more reliable with fewer.");
 
+    ui->BeginDisabled(running);
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    text(ui, Theme::Dim, "Overlay tests play at");
+    ui->RadioButton("Fast", &tr.Speed, u32(Speed_Fast));
+    ui->RadioButton("Normal", &tr.Speed, u32(Speed_Normal));
+    ui->RadioButton("Cinematic", &tr.Speed, u32(Speed_Cinematic));
+    ui->PopPanel();
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "How fast the overlay test engine plays the user",
+            "Fast moves the mouse as quickly as frames go. Normal and cinematic move it like a person would and draw "
+            "it, so a test can be watched: run one, or a suite with one test at a time.");
+
     // -- progress and summary -----------------------------------------------------------------------------------------
     if (tr.HasRun)
     {
-        ui->ProgressBar("##progress", tr.Planned ? f32(tr.Finished) / f32(tr.Planned) : 1.f, "{} {} of {}, {:.1f} s",
-                        running ? "running" : "ran", tr.Finished, tr.Planned, tr.Seconds);
+        ui->ProgressBar("##progress", tr.Planned ? f32(tr.Finished) / f32(tr.Planned) : 1.f,
+                        "{} {} of {} ({}), {:.1f} s", running ? "Running" : "Ran", tr.Finished, tr.Planned,
+                        view(tr.Label), tr.Seconds);
         const u32 bad = tr.Counts[Test_Fail] + tr.Counts[Test_Crash] + tr.Counts[Test_Timeout];
         ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
         badge(ui, running ? "RUN" : (bad ? "FAIL" : "PASS"), running ? Theme::Info : (bad ? Theme::Fail : Theme::Pass));
@@ -3039,51 +3288,18 @@ static void drawAutomatedTests(App &app)
     // -- list ---------------------------------------------------------------------------------------------------------
     ui->HorizontalSeparator("Tests");
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-    ui->InputText("Filter", tr.Filter, sizeof(tr.Filter), "part of an id, e.g. overlay. or resize");
+    ui->InputText("Filter", tr.Filter, sizeof(tr.Filter), "Part of an id, e.g. overlay. or resize");
     ui->CheckBox("Problems only", &tr.OnlyProblems);
     ui->PopPanel();
 
     ui->BeginScroll("Test list", 520.f, Onyx::OverlayScrollFlag_Borders);
-    usz i = 0;
-    while (i < tr.Tests.size())
+    u32 i = 0;
+    while (i < tr.Tests.GetSize())
     {
-        const std::string suite = tr.Tests[i].Suite;
-        usz end = i;
-        u32 shown = 0;
-        u32 suiteBad = 0;
-        u32 suiteDone = 0;
-        bool allSelected = true;
-        while (end < tr.Tests.size() && tr.Tests[end].Suite == suite)
-        {
-            const TestEntry &test = tr.Tests[end];
-            shown += matchesFilter(tr, test);
-            suiteBad += isBadTest(test.State);
-            suiteDone += test.State >= Test_Pass;
-            allSelected &= test.Selected;
+        u32 end = i;
+        while (end < tr.Tests.GetSize() && tr.Tests[end].Suite == tr.Tests[i].Suite)
             ++end;
-        }
-        if (shown != 0)
-        {
-            ui->PushId(Onyx::LayoutId{view(suite)});
-            // the title carries live counts, so the tree keeps its state through "###"
-            const Line title = formatLine("{} ({} tests{}{})###tree", view(suite), end - i,
-                                          suiteDone ? formatLine(", {} ran", suiteDone).View() : TKit::StringView{},
-                                          suiteBad ? formatLine(", {} failing", suiteBad).View() : TKit::StringView{});
-            if (ui->PushTree(title.View(), suiteBad ? Onyx::OverlayTreeFlag_StartOpen : 0))
-            {
-                bool select = allSelected;
-                ui->BeginDisabled(running);
-                if (ui->CheckBox("Select the whole suite", &select))
-                    for (usz j = i; j < end; ++j)
-                        tr.Tests[j].Selected = select;
-                ui->EndDisabled();
-                for (usz j = i; j < end; ++j)
-                    if (matchesFilter(tr, tr.Tests[j]))
-                        drawTestRow(ui, tr.Tests[j], running);
-                ui->PopTree();
-            }
-            ui->PopId();
-        }
+        drawSuite(app, i, end, running);
         i = end;
     }
     ui->EndScroll();
@@ -3158,6 +3374,7 @@ static void drawVisualReview(App &app, const GuideStep &step)
 
 static void drawTests(App &app, const GuideStep &step)
 {
+    app.ReviewTabOpen = false;
     if (!app.ShowTests)
         return;
     Onyx::Overlay *ui = app.Ui;
@@ -3173,7 +3390,7 @@ static void drawTests(App &app, const GuideStep &step)
             "The last automated run (failures with their messages, known issues) and every visual verdict, ready to "
             "paste into a chat or an issue.");
     if (app.Time - app.ReportCopiedAt < 3.f)
-        text(ui, Theme::Pass, formatLine("copied {} lines", app.ReportLines).View());
+        text(ui, Theme::Pass, formatLine("Copied {} lines", app.ReportLines).View());
     ui->PopPanel();
 
     ui->BeginTabBar("Test kinds");
@@ -3184,6 +3401,7 @@ static void drawTests(App &app, const GuideStep &step)
     }
     if (ui->BeginTab("Visual review"))
     {
+        app.ReviewTabOpen = true;
         drawVisualReview(app, step);
         ui->EndTab();
     }
@@ -3224,19 +3442,19 @@ static void drawManual(App &app)
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
     for (const TestState state : {Test_Pass, Test_Fail, Test_Crash, Test_Known})
         badge(ui, TestBadges[state], TestColors[state]);
-    text(ui, Theme::Text, "automated tests");
+    text(ui, Theme::Text, "Automated tests");
     ui->PopPanel();
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
     for (u32 i = 0; i < Verdict_Count; ++i)
         badge(ui, VerdictBadges[i], VerdictColors[i]);
-    text(ui, Theme::Text, "visual checks: your verdict");
+    text(ui, Theme::Text, "Visual checks: your verdict");
     ui->PopPanel();
     text(ui, Theme::Dim, "Hover a test or a check to read what it is about.", Onyx::TextMode_Wrapped);
 
     ui->HorizontalSeparator("A first session");
     const char *steps[] = {
         "1. Open the Tests window and run all the automated tests.",
-        "2. Resize the window. The Scenarios menu of the Control center has fixed sizes.",
+        "2. Resize the window. The Platform and device panel has fixed sizes.",
         "3. Change the monitor scale, on Hyprland: hyprctl keyword monitor <name>,preferred,auto,1.5",
         "4. Move both cameras: hover a gallery, press W A S D Q E and scroll to zoom.",
         "5. Switch to the docked layout from the Layout menu, and back.",
@@ -3317,30 +3535,15 @@ static void drawDashboard(App &app, const GuideStep &step)
                 ui->MenuItem(cat.Title, &cat.Open);
             ui->EndMenu();
         }
-        if (ui->BeginMenu("Scenarios"))
-        {
-            for (const u32v2 &preset : SizePresets)
-                if (ui->MenuItem(formatLine("Resize the window to {} x {}", preset[0], preset[1]).View()))
-                {
-                    app.RequestedSize = preset;
-                    app.Window->SetSize(preset);
-                }
-            if (ui->MenuItem("Cycle present modes"))
-                startPresentCycle(app);
-            ui->MenuItem("Sweep the 2D light around the occluders", &app.Lights.Sweep);
-            if (ui->MenuItem("Reset cameras"))
-                resetCameras(app);
-            ui->EndMenu();
-        }
         if (ui->BeginMenu("Tests"))
         {
             ui->MenuItem("Tests window", &app.ShowTests);
-            ui->BeginDisabled(tr.Running.load() || tr.Tests.empty());
+            ui->BeginDisabled(tr.Running.load() || tr.Tests.IsEmpty());
             if (ui->MenuItem("Run every automated test"))
             {
-                std::vector<const TestEntry *> all{};
+                TestPicks all{};
                 for (const TestEntry &test : tr.Tests)
-                    all.push_back(&test);
+                    all.Append(&test);
                 startTests(app, all, "all");
                 app.ShowTests = true;
             }
@@ -3403,22 +3606,22 @@ static void drawDashboard(App &app, const GuideStep &step)
     if (tr.Running.load())
     {
         badge(ui, "RUN", Theme::Info);
-        text(ui, Theme::Text, formatLine("automated: {} of {} done", tr.Finished, tr.Planned).View());
+        text(ui, Theme::Text, formatLine("Automated: {} of {} done", tr.Finished, tr.Planned).View());
     }
     else if (tr.HasRun)
     {
         const u32 bad = tr.Counts[Test_Fail] + tr.Counts[Test_Crash] + tr.Counts[Test_Timeout];
         badge(ui, bad ? "FAIL" : "PASS", bad ? Theme::Fail : Theme::Pass);
         text(ui, Theme::Text,
-             formatLine("automated: {} passed, {} failing, {} known", tr.Counts[Test_Pass], bad, tr.Counts[Test_Known])
+             formatLine("Automated: {} passed, {} failing, {} known", tr.Counts[Test_Pass], bad, tr.Counts[Test_Known])
                  .View());
     }
     else
     {
         badge(ui, "-", Theme::Dim);
         text(ui, Theme::Dim,
-             tr.Tests.empty() ? "automated: not available"
-                              : formatLine("automated: {} tests, not run", tr.Tests.size()).View());
+             tr.Tests.IsEmpty() ? "Automated: not available"
+                                : formatLine("Automated: {} tests, not run", tr.Tests.GetSize()).View());
     }
     ui->PopPanel();
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
@@ -3428,7 +3631,7 @@ static void drawDashboard(App &app, const GuideStep &step)
             broken += isApplicable(app, check) && check.Mark == Verdict_Broken;
     const Verdict summary = broken ? Verdict_Broken : (step.Visual ? Verdict_Unseen : Verdict_Good);
     badge(ui, VerdictBadges[summary], VerdictColors[summary]);
-    text(ui, Theme::Text, formatLine("visual: {} of {} judged, {} broken", step.Done, step.Total, broken).View());
+    text(ui, Theme::Text, formatLine("Visual: {} of {} judged, {} broken", step.Done, step.Total, broken).View());
     ui->PopPanel();
     if (app.LoadedVerdicts != 0)
         text(ui, Theme::Dim, formatLine("{} verdicts loaded from {}", app.LoadedVerdicts, VerdictFile).View());
@@ -3569,7 +3772,7 @@ static void panelDpi(App &app)
 }
 
 constexpr const char *FXAAModes = "Fast#Console#Quality low#Quality medium#Quality high";
-constexpr const char *FXAAModeNames[] = {"fast", "console", "quality low", "quality medium", "quality high"};
+constexpr const char *FXAAModeNames[] = {"Fast", "Console", "Quality low", "Quality medium", "Quality high"};
 constexpr const char *InspectNames[Inspect_Count] = {
     "Pixel view", "2D gallery",          "3D gallery",         "3D gallery labels", "Textures",
     "Overlay",    "Scaled texture view", "Fixed texture view", "Lab view",
@@ -3832,7 +4035,7 @@ static void panelLab(App &app)
         win->BringToBottom(rv);
         lab.Placement = LabPlacement_BelowScene;
     }
-    text(ui, Theme::Dim, formatLine("layer {}", rv->Layer).View());
+    text(ui, Theme::Dim, formatLine("Layer {}", rv->Layer).View());
     ui->PopPanel();
 
     ui->HorizontalSeparator("Coordinates");
@@ -4096,7 +4299,7 @@ static void panelAudio([[maybe_unused]] App &app)
         Onyx::Audio_Stop(au.Instrument);
     ui->CheckBox("Loop", &au.Loop);
     text(ui, Theme::Info,
-         formatLine("{}, ended {} times", Onyx::Audio_IsPlaying(au.Instrument) ? "playing" : "stopped",
+         formatLine("{}, ended {} times", Onyx::Audio_IsPlaying(au.Instrument) ? "Playing" : "Stopped",
                     au.InstrumentEnds)
              .View());
     ui->PopPanel();
@@ -4236,7 +4439,7 @@ static void panelPlatform(App &app)
     field(ui, "Active target ",
           target > TKit::Timespan{}
               ? formatLine("{:.2f} ms ({} Hz)", target.AsMilliseconds(), Onyx::ToFrequency(target)).View()
-              : TKit::StringView{"none"});
+              : TKit::StringView{"None"});
     if (pc.Reset && target != pc.Requested)
     {
         text(ui, Theme::Dim,
@@ -4248,7 +4451,7 @@ static void panelPlatform(App &app)
     if (ui->HorizontalSlider("Opacity", &app.Opacity, 0.2f, 1.f))
         win->SetOpacity(app.Opacity);
 
-    ui->HorizontalSeparator("Scenarios");
+    ui->HorizontalSeparator("Size and present modes");
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight);
     for (const u32v2 &preset : SizePresets)
         if (ui->Button(formatLine("{} x {}", preset[0], preset[1]).View()))
@@ -4343,7 +4546,11 @@ static void drawOverlay(App &app)
     }
 
     const GuideStep step = findGuideStep(app);
-    app.FocusPane = app.ShowTests && step.Visual ? step.Visual->Pane : Pane_None;
+    // only while the visual review is on screen: the automated tests have nothing to do with any view
+    const PaneId focus = app.ShowTests && app.ReviewTabOpen && step.Visual ? step.Visual->Pane : Pane_None;
+    if (focus != app.FocusPane)
+        app.FocusSince = app.Time;
+    app.FocusPane = focus;
 
     drawDashboard(app, step);
     drawManual(app);
@@ -5002,7 +5209,7 @@ static void setupCategories(App &app)
 
     Category &platform = app.Categories[Category_Platform];
     platform.Title = "Platform and device";
-    platform.Summary = "Monitors, window properties, swapchain, GPU, scenarios";
+    platform.Summary = "Monitors, window properties, swapchain, GPU";
     platform.Concepts =
         "Graphite (Graph) is the layer between Onyx and the system: a platform backend (GLFW) for windows, monitors "
         "and input, and a render backend (Vulkan) for devices, swapchains, pipelines and resources. Onyx windows wrap "
@@ -5039,7 +5246,7 @@ int main()
                       .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
                       .ListenerCount = 1,
                       // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
-                      .Specs2 = {.MaxInstances = 16384},
+                      .Specs2 = {.MaxInstances = 32000},
                       // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
                       // so the default single shadow map per light type is enough
                       .Specs3 = {.MaxInstances = 1024,
@@ -5077,7 +5284,7 @@ int main()
         processEvents(app);
         controlCameras(app);
         updateLab(app);
-        runScenarios(app);
+        updatePresentCycle(app);
 #ifdef ONYX_ENABLE_AUDIO
         updateAudio(app);
 #endif

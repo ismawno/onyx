@@ -18,7 +18,7 @@ u32 ToFrequency(const TKit::Timespan deltaTime)
     if (seconds == TKIT_F32_MAX)
         return 0;
 
-    return u32(1.f / deltaTime.AsSeconds()) + 1;
+    return u32(Math::Round(1.f / deltaTime.AsSeconds()));
 }
 TKit::Timespan ToDeltaTime(const u32 frequency)
 {

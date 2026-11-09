@@ -421,6 +421,11 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Why the use of Dynamic blabla stuff in tests???
+// TODO(Isma): Ask for TKit::TierPath in all load functions?
+// TODO(Isma): More docking tests. Should be able to view output even if marked as known
+// TODO(Isma): Rename overlay to ui?
+// TODO(Isma): the WaitFor blabla, warning and tell the user what to do
 // TODO(Isma): Remove [EDITOR] blabla from error msgs
 // TODO(Isma): For sliders and drags, input numeric does not work
 // TODO(Isma): Resolution change does nothing

@@ -156,7 +156,7 @@ struct FontInfo
             const CodePoint code = DecodeUTF8(&text[i], &byteCount);
             if (code == '\n')
             {
-                if (!fun(i, byteCount, code, 0.f))
+                if (!fun(i, code, 0.f))
                     return;
                 i += byteCount;
                 continue;
@@ -170,7 +170,7 @@ struct FontInfo
                 continue;
             }
             const f32 width = gdata->Advance + GetKerning(lastCode, code);
-            if (!fun(i, byteCount, code, width))
+            if (!fun(i, code, width))
                 return;
 
             i += byteCount;
@@ -227,7 +227,8 @@ struct FontLoadOptions
     f32 EmSize = 40.f;
     u32 AtlasDimensions = 0; // zero means dimensions will be automatic
 };
-ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromFile(const char *filepath, const FontLoadOptions &opts = {});
+ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromFile(const TKit::TierPath &filepath,
+                                                       const FontLoadOptions &opts = {});
 ONYX_NO_DISCARD Result<FontData> Font_LoadDataFromMemory(const std::byte *memory, u32 size,
                                                          const FontLoadOptions &opts = {});
 #    ifdef ONYX_INCLUDE_DEFAULT_FONT

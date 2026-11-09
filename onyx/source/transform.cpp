@@ -150,10 +150,13 @@ void Transform<D3>::RotateZExtrinsic(f32m4 &transform, const f32 angle)
 }
 
 template <Dimension D>
-void ITransform<D>::Extract(const f32m<D> &transform, f32v<D> *translation, f32v<D> *scale, rot<D> *rotation)
+void ITransform<D>::Extract(f32m<D> transform, f32v<D> *translation, f32v<D> *scale, rot<D> *rotation)
 {
     *translation = ExtractTranslation(transform);
     *scale = ExtractScale(transform);
+    transform[0] /= scale->At(0);
+    transform[1] /= scale->At(1);
+    transform[2] /= scale->At(2);
     *rotation = ExtractRotation(transform);
 }
 

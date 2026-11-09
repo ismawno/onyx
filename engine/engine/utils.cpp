@@ -59,7 +59,7 @@ Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects()
     ONYX_RETURN_ERROR_IF(
         !res, Error_DeserializationFailed,
         "[ONYX][EDITOR] Failed to load recent projects: Could not deserialize config at '{}' with error: {}",
-        configPath, TKit::ToString(res.GetError()));
+        configPath, res.GetError());
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
@@ -94,7 +94,7 @@ Result<> UpdateRecentProjects(const TKit::TierPath &path)
         ONYX_RETURN_ERROR_IF(
             !res, Error_DeserializationFailed,
             "[ONYX][EDITOR] Failed to update recent projects: Could not deserialize config at '{}' with error: {}",
-            configPath, TKit::ToString(res.GetError()));
+            configPath, res.GetError());
 
         tree = *res;
     }

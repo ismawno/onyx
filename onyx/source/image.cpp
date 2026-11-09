@@ -190,10 +190,10 @@ ONYX_NO_DISCARD static Result<ImageData> image_Load(const ImageArgs &args)
     return data;
 }
 
-Result<ImageData> Image_LoadDataFromFile(const char *filepath, const ImageComponentFormat requiredComponents,
+Result<ImageData> Image_LoadDataFromFile(const TKit::TierPath &filepath, const ImageComponentFormat requiredComponents,
                                          const LoadImageDataFlags flags)
 {
-    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = filepath});
+    return image_Load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = filepath.CString()});
 }
 Result<ImageData> Image_LoadDataFromMemory(const std::byte *memory, const u32 size,
                                            const ImageComponentFormat requiredComponents,

@@ -330,7 +330,7 @@ Result<EditorScene> EditorScene::Deserialize(const TKit::TierPath &path)
     const auto res = YamlTree::FromFile(path);
     ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                          "[ONYX][EDITOR] Failed to load scene: Could not deserialize scene at '{}' with error: {}",
-                         path, TKit::ToString(res.GetError()));
+                         path, res.GetError());
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
@@ -506,7 +506,7 @@ Result<EditorProject> EditorProject::Deserialize(const TKit::TierPath &ppath)
     const auto res = YamlTree::FromFile(settingsPath);
     ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
                          "[ONYX][EDITOR] Failed to load project: Could not deserialize settings at '{}' with error: {}",
-                         settingsPath, TKit::ToString(res.GetError()));
+                         settingsPath, res.GetError());
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();

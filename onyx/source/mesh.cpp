@@ -55,7 +55,8 @@ template <typename Vertex> static void mesh_ValidateData(MeshData<Vertex> &data,
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
 
-template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const char *filepath, const u32 maxVertices)
+template <Dimension D>
+Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const TKit::TierPath &filepath, const u32 maxVertices)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][MESH] Mesh file '{}' does not exist",
                                        "[ONYX][MESH] Expected a mesh file at '{}', but found a directory");
@@ -63,13 +64,13 @@ template <Dimension D> Result<StaticMeshData<D>> Mesh_LoadDataFromObjFile(const 
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
-    ONYX_RETURN_ERROR_IF(!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filepath), Error_LoadFailed,
-                       "[ONYX][MESH] Failed to load mesh: {}", err + warn);
+    ONYX_RETURN_ERROR_IF(!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filepath.CString()),
+                         Error_LoadFailed, "[ONYX][MESH] Failed to load mesh: {}", err + warn);
 
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][MESH] {}", warn);
     ONYX_RETURN_ERROR_IF(!err.empty(), Error_LoadFailed, "[ONYX][MESH] Failed to load mesh: {}", err);
     ONYX_RETURN_ERROR_IF(shapes.empty(), Error_LoadFailed,
-                       "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
+                         "[ONYX][MESH] Failed to load mesh. Shapes container was empty");
 
     TKit::StackHashMap<StaticVertex<D>, Index> uniqueVertices{maxVertices};
     StaticMeshData<D> data;
@@ -1677,7 +1678,7 @@ template ParametricMeshData<D2> Mesh_CreateRoundedRectData<D2>();
 template ParametricMeshData<D3> Mesh_CreateRoundedRectData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StaticMeshData<D2>> Mesh_LoadDataFromObjFile<D2>(const char *filepath, u32 maxVertices);
-template Result<StaticMeshData<D3>> Mesh_LoadDataFromObjFile<D3>(const char *filepath, u32 maxVertices);
+template Result<StaticMeshData<D2>> Mesh_LoadDataFromObjFile<D2>(const TKit::TierPath &filepath, u32 maxVertices);
+template Result<StaticMeshData<D3>> Mesh_LoadDataFromObjFile<D3>(const TKit::TierPath &filepath, u32 maxVertices);
 #endif
 } // namespace Onyx

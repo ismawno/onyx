@@ -959,7 +959,7 @@ struct OverlayWindow
     bool IsHovered() const;
     bool IsFocused() const;
 
-    bool HasCondition(const OverlayCondition cond)
+    bool HasCondition(const OverlayCondition cond) const
     {
         return cond == 0 || (AvailableConditions & cond);
     }

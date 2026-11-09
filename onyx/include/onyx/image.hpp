@@ -52,7 +52,7 @@ enum LoadImageDataFlagBit : LoadImageDataFlags
     LoadImageDataFlag_AsLinearImage = 1U << 0,
 };
 
-ONYX_NO_DISCARD Result<ImageData> Image_LoadDataFromFile(const char *filepath,
+ONYX_NO_DISCARD Result<ImageData> Image_LoadDataFromFile(const TKit::TierPath &filepath,
                                                          ImageComponentFormat requiredComponents = ImageComponent_Auto,
                                                          LoadImageDataFlags flags = 0);
 ONYX_NO_DISCARD Result<ImageData> Image_LoadDataFromMemory(
