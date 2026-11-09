@@ -1001,8 +1001,9 @@ Result<> Overlay::Deserialize()
                     TKIT_RETURN_IF_FAILED(readChild(nwin, "Parent", w.Parent));
 
                     bool known = findWindow(w.Parent);
-                    for (const WindowInfo &prev : wins)
-                        known |= prev.Id == w.Parent;
+                    if (!known)
+                        for (const WindowInfo &prev : wins)
+                            known |= prev.Id == w.Parent;
                     ONYX_RETURN_ERROR_IF(!known, Error_DeserializationFailed,
                                          "window {} has parent {}, but no window with that id comes before it", w.Id,
                                          w.Parent);
