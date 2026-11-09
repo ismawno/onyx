@@ -52,7 +52,10 @@ static Onyx::Window *createMainWindow()
 static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const TKit::TierPath &deserializePath)
 {
     Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking});
-    if (!ov->Deserialize(deserializePath))
+    const auto desRes = ov->Deserialize(deserializePath);
+
+    ONYX_LOG_RESULT_WARNING(desRes);
+    if (!desRes)
     {
         const Onyx::LayoutId mainViewportId = 0u;
         const Labels &ids = *s_Labels;
