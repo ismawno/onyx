@@ -421,6 +421,8 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Wtf anonymous structs in filesystem??
+// TODO(Isma): Improve toolkit ci workflow?
 // TODO(Isma): Why the use of Dynamic blabla stuff in tests???
 // TODO(Isma): Ask for TKit::TierPath in all load functions?
 // TODO(Isma): More docking tests. Should be able to view output even if marked as known

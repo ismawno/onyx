@@ -323,9 +323,11 @@ static void reportResult(const Options &options, const Result &result, const u32
         logLine(result.State, "    note: " + note);
     if ((isBad(result.State) || options.Verbose) && !result.Output.IsEmpty())
     {
-        logLine(result.State, String::Format("    --- The last {} lines it printed ---", result.Output.GetSize()));
-        for (const String &line : result.Output)
-            logLine(result.State, "    | " + line);
+        constexpr u32 maxLines = 80;
+        const u32 size = Math::Min(maxLines, result.Output.GetSize());
+        logLine(result.State, String::Format("    --- The last {} lines it printed ---", size));
+        for (u32 i = 0; i < size; ++i)
+            logLine(result.State, "    | " + result.Output[result.Output.GetSize() - i - 1]);
     }
 }
 
