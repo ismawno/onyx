@@ -410,7 +410,7 @@ Result<> EditorProject::Serialize(const TKit::TierPath &ppath)
     const TKit::TierPath settingsPath = GetSettingsPath();
 
     const bool projectExisted = TKit::PathExists(ppath);
-    TKit::StackPath temp;
+    TKit::TierPath temp;
     if (projectExisted)
     {
         const auto tempRes = TKit::GetTempDirectoryPath<TKit::StackPath>();

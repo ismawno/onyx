@@ -51,7 +51,7 @@ static Onyx::Window *createMainWindow()
 
 static Onyx::Overlay *createMainOverlay(Onyx::Window *win, const TKit::TierPath &deserializePath)
 {
-    Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking | Onyx::OverlayFlag_AutoSerialize});
+    Onyx::Overlay *ov = win->CreateOverlay({.Flags = Onyx::OverlayFlag_Docking});
     if (!ov->Deserialize(deserializePath))
     {
         const Onyx::LayoutId mainViewportId = 0u;
@@ -417,12 +417,7 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
-// TODO(Isma): Start using defer plz
 // TODO(Isma): Remove [EDITOR] blabla from error msgs
-// TODO(Isma): Fix Overlay deserialize
-// TODO(Isma): Try to shorten error handling? do so in vulkit/toolkit/graphite as well?
-// TODO(Isma): Try not to hardcode "python" in codegen
-// TODO(Isma): In the errors at yaml/container etc, use yaml describe, path etc
 // TODO(Isma): For sliders and drags, input numeric does not work
 // TODO(Isma): Resolution change does nothing
 // TODO(Isma): Add a way to edit project settings (window promotions for instance)
@@ -458,9 +453,9 @@ bool Initialize()
         Terminate();
         return false;
     }
+    setProject(res.Project);
     s_Editor->Window = createMainWindow();
     s_Editor->Overlay = createMainOverlay(s_Editor->Window, s_Editor->Project.GetOverlayLayoutPath());
-    setProject(res.Project);
 
     SetConsoleLogCallback(s_Editor->Console);
     return true;
@@ -506,6 +501,7 @@ static void drawEditorWindow()
                 if (ov->MenuItem("Save project"))
                 {
                     ONYX_LOG_EXPRESSION_ERROR(s_Editor->Project.Serialize());
+                    ONYX_LOG_EXPRESSION_ERROR(s_Editor->Overlay->Serialize());
                 }
 
                 if (ov->MenuItem("Save as..."))
@@ -515,6 +511,7 @@ static void drawEditorWindow()
                     {
                         const TKit::TierPath &ppath = *res;
                         ONYX_LOG_EXPRESSION_ERROR(s_Editor->Project.Serialize(ppath));
+                        ONYX_LOG_EXPRESSION_ERROR(s_Editor->Overlay->Serialize());
                     }
                 }
                 ov->EndMenu();

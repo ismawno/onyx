@@ -798,29 +798,11 @@ Overlay::~Overlay()
 /////////////////////////////////////////////
 
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
-static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlNode n)
-{
-    using ConstYamlNode = TKit::ConstYamlNode;
-    if (n["Leaf"].Read<bool>())
-    {
-        TKit::StackArray<LayoutId> windows{};
-        windows.Reserve(32);
-        if (n.HasChild("Windows"))
-            for (const ConstYamlNode id : n["Windows"])
-                windows.Append(id.Read<usz>());
-
-        return DockTabBar(windows, n["Flags"].Read<u32>());
-    }
-
-    return DockSplit(LayoutAxis(n["Axis"].Read<u32>()), n["Ratio"].Read<f32>(),
-                     createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
-                     n["Flags"].Read<u32>());
-}
 Result<> Overlay::Serialize()
 {
     ONYX_RETURN_ERROR_IF(m_SerializationPath.IsEmpty(), Error_SerializationFailed,
-                       "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
-                       "path is empty. Set is with SetSerializationPath()");
+                         "[ONYX][OVERLAY] Cannot serialize overlay: Serialization "
+                         "path is empty. Set is with SetSerializationPath()");
 
     using YamlNode = TKit::YamlNode;
     using YamlTree = TKit::YamlTree;
@@ -899,6 +881,71 @@ Result<> Overlay::Serialize()
 
     return Result<>::Ok();
 }
+static const OverlayDockNode *createTreeBasedOnSerialized(const TKit::ConstYamlNode n)
+{
+    using ConstYamlNode = TKit::ConstYamlNode;
+    if (n["Leaf"].Read<bool>())
+    {
+        TKit::StackArray<LayoutId> windows{};
+        windows.Reserve(32);
+        if (n.HasChild("Windows"))
+            for (const ConstYamlNode id : n["Windows"])
+                windows.Append(id.Read<usz>());
+
+        return DockTabBar(windows, n["Flags"].Read<u32>());
+    }
+
+    return DockSplit(LayoutAxis(n["Axis"].Read<u32>()), n["Ratio"].Read<f32>(),
+                     createTreeBasedOnSerialized(n["Children"][0]), createTreeBasedOnSerialized(n["Children"][1]),
+                     n["Flags"].Read<u32>());
+}
+
+template <typename T> ONYX_NO_DISCARD static Result<> readChild(const TKit::ConstYamlNode n, const char *key, T &out)
+{
+    ONYX_RETURN_ERROR_IF(!n.HasChild(key), Error_DeserializationFailed, "'{}' is missing required key '{}'",
+                         TKit::YamlGeneratePath(n), key);
+    const TKit::ConstYamlNode child = n[key];
+    const auto res = child.TryRead(out);
+    ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed, "could not read '{}': got {} - {}",
+                         TKit::YamlGeneratePath(child), TKit::YamlDescribeNode(child), res.GetError().Message);
+    return Result<>::Ok();
+}
+
+// checks everything createTreeBasedOnSerialized reads, without allocating anything
+ONYX_NO_DISCARD static Result<> checkDockTree(const TKit::ConstYamlNode n)
+{
+    bool leaf;
+    u32 flags;
+    TKIT_RETURN_IF_FAILED(readChild(n, "Leaf", leaf));
+    TKIT_RETURN_IF_FAILED(readChild(n, "Flags", flags));
+    if (leaf)
+    {
+        if (n.HasChild("Windows"))
+            for (const TKit::ConstYamlNode id : n["Windows"])
+            {
+                usz wid;
+                ONYX_RETURN_ERROR_IF(!id.TryRead(wid), Error_DeserializationFailed,
+                                     "'{}' is not a valid window id: got {}", TKit::YamlGeneratePath(id),
+                                     TKit::YamlDescribeNode(id));
+            }
+        return Result<>::Ok();
+    }
+
+    u32 axis;
+    f32 ratio;
+    TKIT_RETURN_IF_FAILED(readChild(n, "Axis", axis));
+    TKIT_RETURN_IF_FAILED(readChild(n, "Ratio", ratio));
+    ONYX_RETURN_ERROR_IF(axis > u32(LayoutAxis_Vertical), Error_DeserializationFailed,
+                         "'{}': axis {} is not valid (0 = horizontal, 1 = vertical)", TKit::YamlGeneratePath(n), axis);
+    ONYX_RETURN_ERROR_IF(!(ratio > 0.f && ratio < 1.f), Error_DeserializationFailed,
+                         "'{}': split ratio {} must be between 0 and 1", TKit::YamlGeneratePath(n), ratio);
+    ONYX_RETURN_ERROR_IF(!n.HasChild("Children") || n["Children"].GetChildCount() != 2, Error_DeserializationFailed,
+                         "'{}' is a split, so it needs exactly 2 'Children'", TKit::YamlGeneratePath(n));
+
+    TKIT_RETURN_IF_FAILED(checkDockTree(n["Children"][0]));
+    return checkDockTree(n["Children"][1]);
+}
+
 Result<> Overlay::Deserialize()
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(m_SerializationPath, "[ONYX][OVERLAY] Layout file '{}' does not exist",
@@ -909,55 +956,109 @@ Result<> Overlay::Deserialize()
 
     const auto res = YamlTree::FromFile(m_SerializationPath);
     ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
-                       "[ONYX][EDITOR] Failed to deserialize: Could not load file at '{}' with error: {}",
-                       m_SerializationPath, TKit::ToString(res.GetError()));
+                         "[ONYX][OVERLAY] Failed to load layout '{}': Could not load file with error: {}",
+                         m_SerializationPath, TKit::ToString(res.GetError()));
 
     const YamlTree &tree = *res;
     const ConstYamlNode root = tree.GetRoot();
-    if (root["Windows"])
-    {
-        const ConstYamlNode windows = root["Windows"];
-        u64 maxLayer = 0;
-        for (const ConstYamlNode nwin : windows)
-        {
-            const usz id = nwin.ReadKey<usz>();
-            const bool dockHost = nwin["DockHost"].Read<bool>();
-            if (dockHost && (!root.HasChild("DockTrees") || !root["DockTrees"].HasChild(id)))
-                continue;
+    const bool hasWindows = root.HasChild("Windows");
+    const bool hasTrees = root.HasChild("DockTrees");
 
-            OverlayWindow *parent = nullptr;
-            if (nwin.HasChild("Parent"))
+    struct WindowInfo
+    {
+        usz Id;
+        bool DockHost;
+        bool Docked;
+        bool HasParent = false;
+        usz Parent;
+        f32v2 Position;
+        f32v2 Size;
+        u64 Layer;
+        OverlayWindowFlags Flags;
+    };
+    TKit::StackArray<WindowInfo> wins{};
+
+    // phase 1: read and check everything. The overlay is not touched
+    const auto load = [&]() -> Result<> {
+        if (hasWindows)
+        {
+            const ConstYamlNode windows = root["Windows"];
+            wins.Reserve(windows.GetChildCount());
+            for (const ConstYamlNode nwin : windows)
             {
-                parent = findWindow(nwin["Parent"].Read<usz>());
-                TKIT_ASSERT(parent,
-                            "[ONYX][OVERLAY] Serialization path claims window has a parent, but the parent has not "
-                            "been deserialized");
+                WindowInfo w{};
+                ONYX_RETURN_ERROR_IF(!nwin.TryReadKey(w.Id), Error_DeserializationFailed,
+                                     "'{}': '{}' is not a valid window id", TKit::YamlGeneratePath(nwin),
+                                     nwin.GetKey());
+
+                TKIT_RETURN_IF_FAILED(readChild(nwin, "DockHost", w.DockHost));
+                if (w.DockHost && (!hasTrees || !root["DockTrees"].HasChild(w.Id)))
+                    continue;
+
+                if (nwin.HasChild("Parent"))
+                {
+                    w.HasParent = true;
+                    TKIT_RETURN_IF_FAILED(readChild(nwin, "Parent", w.Parent));
+
+                    bool known = findWindow(w.Parent);
+                    for (const WindowInfo &prev : wins)
+                        known |= prev.Id == w.Parent;
+                    ONYX_RETURN_ERROR_IF(!known, Error_DeserializationFailed,
+                                         "window {} has parent {}, but no window with that id comes before it", w.Id,
+                                         w.Parent);
+                }
+                else
+                    TKIT_RETURN_IF_FAILED(readChild(nwin, "Position", w.Position));
+
+                TKIT_RETURN_IF_FAILED(readChild(nwin, "Size", w.Size));
+                TKIT_RETURN_IF_FAILED(readChild(nwin, "Layer", w.Layer));
+                TKIT_RETURN_IF_FAILED(readChild(nwin, "Flags", w.Flags));
+                TKIT_RETURN_IF_FAILED(readChild(nwin, "Docked", w.Docked));
+                wins.Append(w);
             }
-            OverlayWindow *win = dockHost ? getOrCreateDockHost(id, parent) : getOrCreateOverlayWindow(id, parent);
-            if (!parent)
-                win->ScreenPos = nwin["Position"].Read<f32v2>();
+        }
+        if (hasTrees)
+            for (const ConstYamlNode uroot : root["DockTrees"])
+            {
+                usz hostId;
+                ONYX_RETURN_ERROR_IF(!uroot.TryReadKey(hostId), Error_DeserializationFailed,
+                                     "'{}': '{}' is not a valid dock host id", TKit::YamlGeneratePath(uroot),
+                                     uroot.GetKey());
+                TKIT_RETURN_IF_FAILED(checkDockTree(uroot));
+            }
+        return Result<>::Ok();
+    };
+
+    const auto lres = load();
+    ONYX_RETURN_ERROR_IF(!lres, lres.GetError().GetCode(), "[ONYX][OVERLAY] Failed to load layout '{}': {}",
+                         m_SerializationPath, lres.GetError().GetMessage());
+
+    // phase 2: apply. Everything above has been checked, so nothing here can fail
+    if (hasWindows)
+    {
+        u64 maxLayer = 0;
+        for (const WindowInfo &w : wins)
+        {
+            OverlayWindow *parent = w.HasParent ? findWindow(w.Parent) : nullptr;
+            OverlayWindow *win =
+                w.DockHost ? getOrCreateDockHost(w.Id, parent) : getOrCreateOverlayWindow(w.Id, parent);
+            if (!w.HasParent)
+                win->ScreenPos = w.Position;
 
             win->AvailableConditions &= ~OverlayCondition_OnBirth;
-            win->Size = nwin["Size"].Read<f32v2>();
-            win->Layer = nwin["Layer"].Read<u64>();
-            win->Flags = nwin["Flags"].Read<OverlayWindowFlags>();
+            win->Size = w.Size;
+            win->Layer = w.Layer;
+            win->Flags = w.Flags;
 
-            assignNativeWindowSomehow(win, nwin["Docked"].Read<bool>());
+            assignNativeWindowSomehow(win, w.Docked);
             maxLayer = Math::Max(maxLayer, win->Layer);
         }
         m_LayerCount = maxLayer + 1;
     }
-    if (root.HasChild("DockTrees"))
-    {
-        const ConstYamlNode dockTrees = root["DockTrees"];
-        for (const ConstYamlNode uroot : dockTrees)
-        {
-            const usz hostId = uroot.ReadKey<usz>();
+    if (hasTrees)
+        for (const ConstYamlNode uroot : root["DockTrees"])
+            ApplyDockTree(uroot.ReadKey<usz>(), createTreeBasedOnSerialized(uroot));
 
-            const OverlayDockNode *nroot = createTreeBasedOnSerialized(uroot);
-            ApplyDockTree(hostId, nroot);
-        }
-    }
     return Result<>::Ok();
 }
 #endif

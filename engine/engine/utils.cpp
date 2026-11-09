@@ -73,8 +73,8 @@ Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects()
         TKit::StackString entry;
         const auto res = path.TryRead(entry);
         ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
-                           "[ONYX][EDITOR] Failed to load recent projects: Could not read '{}': got {} - {}",
-                           TKit::YamlGeneratePath(path), TKit::YamlDescribeNode(path), res.GetError().Message);
+                             "[ONYX][EDITOR] Failed to load recent projects: Could not read '{}': got {} - {}",
+                             TKit::YamlGeneratePath(path), TKit::YamlDescribeNode(path), res.GetError().Message);
 
         const TKit::StackPath p = entry;
         if (TKit::PathExists(p))
@@ -118,8 +118,8 @@ Result<> UpdateRecentProjects(const TKit::TierPath &path)
             TKit::StackString entry;
             const auto res = p.TryRead(entry);
             ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
-                               "[ONYX][EDITOR] Failed to update recent projects: Could not read '{}': got {} - {}",
-                               TKit::YamlGeneratePath(p), TKit::YamlDescribeNode(p), res.GetError().Message);
+                                 "[ONYX][EDITOR] Failed to update recent projects: Could not read '{}': got {} - {}",
+                                 TKit::YamlGeneratePath(p), TKit::YamlDescribeNode(p), res.GetError().Message);
 
             if (entry == pstr)
             {
