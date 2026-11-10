@@ -402,7 +402,7 @@ static void tooltip(Onyx::Overlay *ui, const Onyx::Color &color, const char *hea
 {
     if (!ui->IsItemHovered(Onyx::OverlayFocusFlag_ShortDelay | flags))
         return;
-    ui->BeginTooltip(Onyx::OverlayTooltipFlag_Reset | Onyx::OverlayTooltipFlag_NoPromotion);
+    ui->BeginTooltip(Onyx::OverlayTooltipFlag_Reset);
     ui->BeginPanel({.Direction = Onyx::LayoutDirection_TopToBottom,
                     .Alignment = Onyx::Overlay::TopLeft,
                     .Sizing = {Onyx::LayoutSizing::Fit(0.f, TooltipWidth), Onyx::LayoutSizing::Fit()},
@@ -3540,10 +3540,10 @@ static void drawFrameTimes(App &app)
     const Onyx::Gradient gradient{TKit::Span<const Onyx::Color>(Theme::FrameTimeStops)};
     constexpr f32 height = 44.f;
 
-    ui->BeginPanel({.Direction = Onyx::LayoutDirection_LeftToRight,
-                    .Alignment = Onyx::Overlay::BottomLeft,
-                    .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fixed(height)},
-                    .ChildGap = 1.f});
+    ui->BeginPanel("Frame times", {.Direction = Onyx::LayoutDirection_LeftToRight,
+                                   .Alignment = Onyx::Overlay::BottomLeft,
+                                   .Sizing = {Onyx::LayoutSizing::Grow(), Onyx::LayoutSizing::Fixed(height)},
+                                   .ChildGap = 1.f});
     const u32 count = app.FrameTimes.GetSize();
     for (u32 i = 0; i < count; ++i)
     {
