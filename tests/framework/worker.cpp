@@ -9,7 +9,10 @@
 // turn in another worker (supervisor.cpp).
 //
 // Catch2 is built without exceptions, like Onyx. A failed REQUIRE, a SKIP or a FAIL then cannot unwind out of the
-// test: Catch2 reports it and calls std::terminate. The terminate handler below turns that into the end of the test.
+// test: Catch2 reports it and hands what it would have thrown to Catch::throw_exception, which ends the test (see the
+// end of this file). The terminate handler does the same for a Catch2 that was found installed, built without that
+// hook: its throw_exception calls std::terminate. That one does not work on MSVC, whose STL turns std::set_terminate
+// into a no-op and std::terminate into a plain abort() once exceptions are off (_HAS_EXCEPTIONS=0).
 
 #include "options.hpp"
 #include "protocol.hpp"
@@ -19,6 +22,7 @@
 #include "tkit/profiling/clock.hpp"
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_case_info.hpp>
+#include <catch2/internal/catch_enforce.hpp>
 #include <catch2/reporters/catch_reporter_registrars.hpp>
 #include <catch2/reporters/catch_reporter_streaming_base.hpp>
 #include <atomic>
@@ -143,14 +147,25 @@ static String elapsedMilliseconds()
     std::_Exit(status == Status_Fail ? 1 : 0);
 }
 
-static void onTerminate()
+// REQUIRE, FAIL and SKIP end the test this way, once Catch2 has reported them. anything else that gets here is a
+// crash, and stays one: `why` is what Catch2 wanted to throw, if it was Catch2
+[[noreturn]] static void endWithoutUnwinding(const char *why)
 {
-    // REQUIRE, FAIL and SKIP end the test this way. anything else that terminates is a crash, and stays one
     if (s_Test && s_Skipped)
         finish(Status_Skip);
     if (s_Test && s_Failures != 0)
         finish(Status_Fail);
+    if (why)
+    {
+        std::fprintf(stderr, "[ONYX-TESTS] Catch2 had to throw, which it cannot without exceptions: %s\n", why);
+        std::fflush(stderr);
+    }
     std::abort();
+}
+
+static void onTerminate()
+{
+    endWithoutUnwinding(nullptr);
 }
 
 static void terminateOnyx()
@@ -358,3 +373,12 @@ int RunWorker(const Options &options)
     std::_Exit(0);
 }
 } // namespace OnyxTest
+
+#ifdef CATCH_CONFIG_DISABLE_EXCEPTIONS_CUSTOM_HANDLER
+// Catch2 is configured to leave this to the program (tests/CMakeLists.txt). its own version prints the message and calls
+// std::terminate, which MSVC does not let the worker hook
+[[noreturn]] void Catch::throw_exception(const std::exception &e)
+{
+    OnyxTest::endWithoutUnwinding(e.what());
+}
+#endif

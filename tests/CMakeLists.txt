@@ -16,6 +16,14 @@ if(NOT Catch2_FOUND)
     GIT_TAG v3.6.0
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
+  # without exceptions, Catch2 hands what it would throw (a failed REQUIRE, a SKIP, a FAIL) to Catch::throw_exception.
+  # its own version calls std::terminate, which MSVC does not let the worker hook: with _HAS_EXCEPTIONS=0 its STL makes
+  # std::set_terminate a no-op and std::terminate a plain abort(). the worker defines throw_exception itself instead
+  # (framework/worker.cpp). a cache entry, forced: Catch2's option() would clear a normal variable (it predates CMP0077)
+  # and would not replace a cached OFF from an older configure
+  set(CATCH_CONFIG_DISABLE_EXCEPTIONS_CUSTOM_HANDLER
+      ON
+      CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(Catch2)
   tkit_configure_compile_link_options(Catch2 NO_EXCEPTIONS NO_RTTI)
 endif()
