@@ -36,7 +36,7 @@ DialogResult<TKit::TierPath> OpenFolderDialog(const Options &options)
 {
     Guard g{};
     nfdu8char_t *path;
-    nfdpickfoldernargs_t args{};
+    nfdpickfolderu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window != Graph::NullHandle)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
@@ -55,17 +55,17 @@ DialogResult<TKit::TierPath> OpenSingleDialog(const Options &options)
 {
     Guard g{};
     nfdu8char_t *path;
-    nfdopendialognargs_t args{};
+    nfdopendialogu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
-    TKit::StackArray<nfdnfilteritem_t> filters{};
+    TKit::StackArray<nfdu8filteritem_t> filters{};
     if (!options.Filters.IsEmpty())
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)
-            filters.Append(nfdnfilteritem_t{filter.Name, filter.Extensions});
+            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
         args.filterList = filters.GetData();
         args.filterCount = filters.GetSize();
     }
@@ -84,17 +84,17 @@ DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &
 {
     Guard g{};
     const nfdpathset_t *set;
-    nfdopendialognargs_t args{};
+    nfdopendialogu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
-    TKit::StackArray<nfdnfilteritem_t> filters{};
+    TKit::StackArray<nfdu8filteritem_t> filters{};
     if (!options.Filters.IsEmpty())
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)
-            filters.Append(nfdnfilteritem_t{filter.Name, filter.Extensions});
+            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
         args.filterList = filters.GetData();
         args.filterCount = filters.GetSize();
     }
@@ -122,7 +122,7 @@ DialogResult<TKit::TierPath> SaveDialog(const Options &options)
 {
     Guard g{};
     nfdu8char_t *path;
-    nfdsavedialognargs_t args{};
+    nfdsavedialogu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
