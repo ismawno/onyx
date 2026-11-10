@@ -536,8 +536,10 @@ void Terminate()
 #ifdef ONYX_ENABLE_IMGUI
     ImGuiBackend_Terminate();
 #endif
-    Resources_Terminate();
+    // order here is flipped, because render contexts may hold resource handles that will reference once destroyed
     Renderer_Terminate();
+    Resources_Terminate();
+    //
     descriptors_Terminate();
     execution_Terminate();
     platform_Terminate();

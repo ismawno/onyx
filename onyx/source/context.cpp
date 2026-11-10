@@ -40,10 +40,7 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
             buffer.Data.Destroy();
 
     for (const Resource handle : m_ImmediateDynamicMeshes)
-        // we perform this chech bc resources might have been destroyed already if this context is being destroyed on
-        // teardown
-        if (IsResourceValid<D>(handle))
-            DynamicMesh_Destroy<D>(handle);
+        DynamicMesh_Destroy<D>(handle);
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
