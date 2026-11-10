@@ -12,51 +12,46 @@ namespace OnyxTest
 //  Temporary files
 // ---------------------------------------------------------------------------------------------------------------------
 
-static TKit::DynamicString s_TempDirectory{};
+static Path s_TempDirectory{};
 
-static const TKit::DynamicString &tempDirectory()
+static const Path &tempDirectory()
 {
     if (!s_TempDirectory.IsEmpty())
         return s_TempDirectory;
 
-    const auto system = TKit::GetTempDirectoryPath();
-    TKit::FileSystemPath dir = system ? *system : TKit::FileSystemPath{"."};
+    const auto system = TKit::GetTempDirectoryPath<Path>();
     // tells apart processes started in the same instant only by the clock's resolution: nanoseconds are enough
-    dir /= TKit::DynamicString::Format("onyx-tests-{}", TKit::Clock::GetCurrentTime()).CString();
-    s_TempDirectory = dir.CString();
+    s_TempDirectory = (system ? *system : Path{"."}) / String::Format("onyx-tests-{}", TKit::Clock::GetCurrentTime());
     [[maybe_unused]] const auto created = TKit::CreateDirectories(s_TempDirectory);
     return s_TempDirectory;
 }
 
-TKit::DynamicString TempPath(const char *name)
+Path TempPath(const char *name)
 {
-    TKit::FileSystemPath path{tempDirectory().CString()};
-    path /= name;
-    return TKit::DynamicString{path.CString()};
+    return tempDirectory() / name;
 }
-bool WriteFile(const TKit::DynamicString &path, const void *data, const usz size)
+bool WriteFile(const Path &path, const void *data, const usz size)
 {
     return bool(TKit::WriteFile(path, data, size));
 }
-bool WriteFile(const TKit::DynamicString &path, const TKit::StringView text)
+bool WriteFile(const Path &path, const StringView text)
 {
     return bool(TKit::WriteFile(path, text));
 }
-bool WriteFile(const TKit::DynamicString &path, const char *text)
+bool WriteFile(const Path &path, const char *text)
 {
-    return WriteFile(path, TKit::StringView{text, usize(std::strlen(text))});
+    return WriteFile(path, StringView{text, usize(std::strlen(text))});
 }
-bool MakeDirectory(const TKit::DynamicString &path)
+bool MakeDirectory(const Path &path)
 {
     return bool(TKit::CreateDirectories(path));
 }
 void RemoveTempFiles()
 {
-    // Toolkit's filesystem allocates from the tier allocator Onyx pushes: after Terminate there is none
-    if (s_TempDirectory.IsEmpty() || !TKit::GetTier())
+    if (s_TempDirectory.IsEmpty())
         return;
     [[maybe_unused]] const auto removed = TKit::RemoveAll(s_TempDirectory);
-    s_TempDirectory.Clear();
+    s_TempDirectory = Path{};
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -114,6 +109,49 @@ bool CompositorPlacesWindows()
 #else
     return false;
 #endif
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+//  What a test leaves behind
+// ---------------------------------------------------------------------------------------------------------------------
+
+template <Dimension D> static Array<Onyx::RenderContext<D> *> &testContexts()
+{
+    static Array<Onyx::RenderContext<D> *> contexts{};
+    return contexts;
+}
+static Array<Onyx::RenderTexture *> s_TestRenderTextures{};
+
+template <Dimension D> Onyx::RenderContext<D> *TestContext(const Onyx::RenderContextSpecs &specs)
+{
+    return testContexts<D>().Append(Onyx::CreateRenderContext<D>(specs));
+}
+template Onyx::RenderContext<D2> *TestContext<D2>(const Onyx::RenderContextSpecs &);
+template Onyx::RenderContext<D3> *TestContext<D3>(const Onyx::RenderContextSpecs &);
+
+Onyx::RenderTexture *TestRenderTexture(const u32v2 &size, const Onyx::RenderTextureSpecs &specs)
+{
+    return s_TestRenderTextures.Append(Onyx::CreateRenderTexture(size, specs));
+}
+
+void ReleaseTestObjects(const bool destroy)
+{
+    if (destroy)
+    {
+        // contexts before what they draw to, and windows last
+        for (u32 i = testContexts<D2>().GetSize(); i-- > 0;)
+            Onyx::DestroyRenderContext(testContexts<D2>()[i]);
+        for (u32 i = testContexts<D3>().GetSize(); i-- > 0;)
+            Onyx::DestroyRenderContext(testContexts<D3>()[i]);
+        for (u32 i = s_TestRenderTextures.GetSize(); i-- > 0;)
+            Onyx::DestroyRenderTexture(s_TestRenderTextures[i]);
+        // Quit closes every window on the next Running, which also takes the request back
+        Onyx::Quit(Onyx::QuitFlag_DestroyWindows | Onyx::QuitFlag_DestroyFloatingOverlays);
+        Onyx::Running();
+    }
+    testContexts<D2>().Clear();
+    testContexts<D3>().Clear();
+    s_TestRenderTextures.Clear();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

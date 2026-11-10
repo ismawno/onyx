@@ -7,7 +7,7 @@ namespace OnyxTest
 {
 namespace Detail
 {
-void AppendEscaped(TKit::DynamicString &line, const char *data, const usz size)
+void AppendEscaped(String &line, const char *data, const usz size)
 {
     for (usz i = 0; i < size; ++i)
         switch (const char c = data[i])
@@ -30,7 +30,7 @@ void AppendEscaped(TKit::DynamicString &line, const char *data, const usz size)
 }
 
 static std::mutex s_OutputMutex{};
-void WriteLine(const TKit::DynamicString &line)
+void WriteLine(const String &line)
 {
     const std::lock_guard lock{s_OutputMutex};
     TKit::PrintLine("{}", line);
@@ -38,9 +38,9 @@ void WriteLine(const TKit::DynamicString &line)
 }
 } // namespace Detail
 
-static TKit::DynamicString unescape(const char *data, const usz size)
+static String unescape(const char *data, const usz size)
 {
-    TKit::DynamicString out{};
+    String out{};
     for (usz i = 0; i < size; ++i)
     {
         if (data[i] != '\\' || i + 1 == size)
@@ -66,12 +66,12 @@ static TKit::DynamicString unescape(const char *data, const usz size)
     return out;
 }
 
-bool ParseEvent(const TKit::DynamicString &line, TKit::DynamicArray<TKit::DynamicString> &fields)
+bool ParseEvent(const String &line, Array<String> &fields)
 {
     fields.Clear();
-    const TKit::DynamicString marker = TKit::DynamicString{ProtocolMarker} + "\t";
-    const usz at = line.Find(marker.CString());
-    if (at == TKit::DynamicString::npos)
+    const String marker = String{ProtocolMarker} + "\t";
+    const usize at = line.Find(marker.CString());
+    if (at == String::npos)
         return false;
 
     const char *data = line.GetData() + at + marker.GetSize();
@@ -86,14 +86,14 @@ bool ParseEvent(const TKit::DynamicString &line, TKit::DynamicArray<TKit::Dynami
     return !fields.IsEmpty();
 }
 
-TKit::DynamicString RelativePath(const char *file)
+String RelativePath(const char *file)
 {
-    TKit::DynamicString path{file};
+    String path{file};
     path.Replace('\\', '/');
     // the last one: the checkout itself may sit in a directory called tests
-    usz last = TKit::DynamicString::npos;
-    for (usz at = path.Find("/tests/"); at != TKit::DynamicString::npos; at = path.Find("/tests/", at + 1))
+    usize last = String::npos;
+    for (usize at = path.Find("/tests/"); at != String::npos; at = path.Find("/tests/", at + 1))
         last = at;
-    return last == TKit::DynamicString::npos ? path : path.SubString(last + 1);
+    return last == String::npos ? path : path.SubString(last + 1);
 }
 } // namespace OnyxTest

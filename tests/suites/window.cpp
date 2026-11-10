@@ -19,7 +19,7 @@ ONYX_TEST(window, reports_what_it_was_opened_with,
                          "scale")
 {
     Onyx::Window *win = OpenTestWindow({.Size = {300, 200}, .Title = "onyx-tests window"});
-    CHECK(TKit::DynamicString{win->GetTitle()} == "onyx-tests window");
+    CHECK(String{win->GetTitle()} == "onyx-tests window");
     CHECK(win->GetSize() == u32v2(300, 200));
 
     const f32v2 scale = win->GetContentScale();
@@ -33,7 +33,7 @@ ONYX_TEST(window, title_changes_read_back, .Description = "SetTitle is visible t
 {
     Onyx::Window *win = OpenTestWindow();
     win->SetTitle("renamed");
-    CHECK(TKit::DynamicString{win->GetTitle()} == "renamed");
+    CHECK(String{win->GetTitle()} == "renamed");
 }
 
 ONYX_TEST(window, swapchain_matches_the_framebuffer,

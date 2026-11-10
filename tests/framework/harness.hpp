@@ -7,8 +7,6 @@
 #include "onyx/onyx.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/resources.hpp"
-#include "tkit/container/dynamic_array.hpp"
-#include "tkit/utils/function.hpp"
 #include <catch2/matchers/catch_matchers.hpp>
 
 namespace OnyxTest
@@ -23,19 +21,28 @@ using Onyx::Dimension;
 
 // a path for a file the test writes. every test process gets a directory of its own under the system's temporary
 // directory (tests run in parallel), and the runner removes it when the test ends. nothing is created at that path.
-// needs Onyx initialized: Toolkit's filesystem allocates from the tier allocator Onyx pushes
-TKit::DynamicString TempPath(const char *name);
+// it is the path type Onyx takes: loaders, layouts and audio get it as it is
+Path TempPath(const char *name);
 // false if the file could not be written
-bool WriteFile(const TKit::DynamicString &path, const void *data, usz size);
-bool WriteFile(const TKit::DynamicString &path, TKit::StringView text);
-bool WriteFile(const TKit::DynamicString &path, const char *text);
+bool WriteFile(const Path &path, const void *data, usz size);
+bool WriteFile(const Path &path, StringView text);
+bool WriteFile(const Path &path, const char *text);
 // creates the directory and its parents. false if it could not
-bool MakeDirectory(const TKit::DynamicString &path);
+bool MakeDirectory(const Path &path);
 
 // a c string as a Toolkit string, so checks can compare it and Catch2 prints it: CHECK(Text(buffer) == "hello")
-inline TKit::DynamicString Text(const char *text)
+inline String Text(const char *text)
 {
-    return TKit::DynamicString{text};
+    return String{text};
+}
+// what an Onyx result has to say, for the message of a check: REQUIRE_MSG(result, "{}", Describe(result))
+template <typename T> String Describe(const Onyx::Result<T> &result)
+{
+    if (result)
+        return String{"ok"};
+    // Onyx's own string, whatever String is
+    const auto message = result.GetError().ToString();
+    return String{message};
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -82,6 +89,16 @@ Graph::Platform GetPlatform();
 bool CompositorPlacesWindows();
 
 // ---------------------------------------------------------------------------------------------------------------------
+//  What a test leaves behind. Tests that pass share Onyx with the tests after them (worker.cpp), so a test gives it
+//  back as it found it. Windows left open are closed for it. A render context or a render texture made with these
+//  lives until the test ends and is destroyed then, the latest first: use them for what the test does not destroy
+//  itself. Scene and UiEngine clean up after themselves
+// ---------------------------------------------------------------------------------------------------------------------
+
+template <Dimension D> Onyx::RenderContext<D> *TestContext(const Onyx::RenderContextSpecs &specs = {});
+Onyx::RenderTexture *TestRenderTexture(const u32v2 &size, const Onyx::RenderTextureSpecs &specs = {});
+
+// ---------------------------------------------------------------------------------------------------------------------
 //  Pixels
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -89,7 +106,7 @@ bool CompositorPlacesWindows();
 struct Capture
 {
     u32v2 Size{0};
-    TKit::TierArray<u8> Rgba{};
+    Array<u8> Rgba{};
 
     bool IsEmpty() const
     {

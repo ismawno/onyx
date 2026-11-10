@@ -1,5 +1,4 @@
 #include "engine.hpp"
-#include "options.hpp"
 #include "onyx/onyx.hpp"
 #include "tkit/container/static_array.hpp"
 #include <catch2/interfaces/catch_interfaces_capture.hpp>
@@ -51,9 +50,9 @@ static usz stackId(const usz parent, const usz id)
 {
     return TKit::Hash(Onyx::LayoutId{parent}, id);
 }
-static usz labelId(const TKit::DynamicString &label)
+static usz labelId(const String &label)
 {
-    return Onyx::OverlayLabel(TKit::StringView{label.GetData(), label.GetSize()}).Id.Id;
+    return Onyx::OverlayLabel(StringView{label.GetData(), label.GetSize()}).Id.Id;
 }
 static usz nameId(const char *name)
 {
@@ -61,11 +60,11 @@ static usz nameId(const char *name)
 }
 
 // "a/b\/c" -> {"a", "b/c"}
-static TKit::DynamicArray<TKit::DynamicString> splitPath(const TKit::DynamicString &path)
+static Array<String> splitPath(const String &path)
 {
-    TKit::DynamicArray<TKit::DynamicString> segments{};
-    TKit::DynamicString current{};
-    for (usz i = 0; i < path.GetSize(); ++i)
+    Array<String> segments{};
+    String current{};
+    for (usize i = 0; i < path.GetSize(); ++i)
     {
         const char c = path[i];
         if (c == '\\' && i + 1 < path.GetSize() && path[i + 1] == '/')
@@ -109,19 +108,19 @@ static ItemInfo toItem(Onyx::OverlayWindow *win, const Onyx::LayoutElementQueryI
     return item;
 }
 
-TKit::DynamicString UiEngine::absolute(const char *path) const
+String UiEngine::absolute(const char *path) const
 {
-    const TKit::DynamicString p{path};
+    const String p{path};
     if (p.StartsWith("//"))
         return p.SubString(2);
     if (m_Ref.IsEmpty())
         return p;
-    return TKit::DynamicString::Format("{}/{}", m_Ref, p);
+    return String::Format("{}/{}", m_Ref, p);
 }
 
-ItemInfo UiEngine::resolveItem(const TKit::DynamicString &path) const
+ItemInfo UiEngine::resolveItem(const String &path) const
 {
-    const TKit::DynamicArray<TKit::DynamicString> segments = splitPath(path);
+    const Array<String> segments = splitPath(path);
     if (segments.IsEmpty())
         return {};
 
@@ -141,11 +140,27 @@ ItemInfo UiEngine::resolveItem(const TKit::DynamicString &path) const
         return item;
     }
 
+    // the tab of a docked window and the divider of the split it sits in. neither has an id a path could spell (dock
+    // nodes are named after their address), so they are reached through the window. its tab is drawn by its node's tab
+    // bar when the overlay draws, with an empty id stack: a selectable given IdFromStack(window id) under the id of
+    // the bar, which PushId stacks once more (endTabBar). the divider is the border of the node's parent
+    if (segments.GetSize() == 2 && (segments[1] == "##DockTab" || segments[1] == "##DockDivider"))
+    {
+        const Onyx::DockNode *node = root->DockParent;
+        if (!node)
+            return {};
+        const Onyx::Layout *layout = root->GetActiveLayout();
+        if (segments[1] == "##DockDivider")
+            return node->Parent ? toItem(root, layout->QueryElement(node->Parent->BorderId)) : ItemInfo{};
+        const usz bar = node->TabData.Id.Id;
+        return toItem(root, layout->QueryElement(Onyx::LayoutId{stackId(bar, stackId(bar, root->Id.Id))}));
+    }
+
     // windows met along the way (child windows, popups): the item lives in the layout of the innermost one
     TKit::StaticArray<Onyx::OverlayWindow *, 16> windows{};
     windows.Append(root);
     usz parent = chain;
-    for (usz i = 1; i < segments.GetSize(); ++i)
+    for (usize i = 1; i < segments.GetSize(); ++i)
     {
         parent = chain;
         if (segments[i] == "##MenuBar")
@@ -186,14 +201,14 @@ ItemInfo UiEngine::resolveItem(const TKit::DynamicString &path) const
     return {};
 }
 
-WindowInfo UiEngine::resolveWindow(const TKit::DynamicString &path) const
+WindowInfo UiEngine::resolveWindow(const String &path) const
 {
-    const TKit::DynamicArray<TKit::DynamicString> segments = splitPath(path);
+    const Array<String> segments = splitPath(path);
     if (segments.IsEmpty())
         return {};
     usz chain = labelId(segments[0]);
     Onyx::OverlayWindow *win = findWindow(m_Overlay, chain);
-    for (usz i = 1; i < segments.GetSize() && win; ++i)
+    for (usize i = 1; i < segments.GetSize() && win; ++i)
     {
         const usz id = labelId(segments[i]);
         chain = stackId(chain, id);
@@ -210,6 +225,7 @@ WindowInfo UiEngine::resolveWindow(const TKit::DynamicString &path) const
     // logical pixels, the space the engine works in
     info.Min = win->ScreenPos;
     info.Max = win->ScreenPos + win->Size;
+    info.Docked = win->IsDocked();
     if (win->HeaderId != Onyx::NullLayoutId)
         info.Header = toItem(win, win->GetActiveLayout()->QueryElement(win->HeaderId));
     return info;
@@ -219,20 +235,10 @@ WindowInfo UiEngine::resolveWindow(const TKit::DynamicString &path) const
 //  Engine
 // ---------------------------------------------------------------------------------------------------------------------
 
-static Speed parseSpeed(const TKit::DynamicString &speed)
-{
-    if (speed == "normal")
-        return Speed_Normal;
-    if (speed == "cinematic")
-        return Speed_Cinematic;
-    return Speed_Fast;
-}
-
-UiEngine::UiEngine(const u32v2 &size, const Onyx::OverlayFlags flags) : m_Speed(parseSpeed(GetOptions().Speed))
+UiEngine::UiEngine(const u32v2 &size, const Onyx::OverlayFlags flags) : m_Speed(GetOptions().PlaySpeed)
 {
     // named after the test, for whoever watches a slow run
-    const TKit::DynamicString title =
-        TKit::DynamicString::Format("onyx-tests: {}", Catch::getResultCapture().getCurrentTestName());
+    const String title = String::Format("onyx-tests: {}", Catch::getResultCapture().getCurrentTestName());
     m_Window = OpenTestWindow({.Size = size, .Flags = Onyx::WindowFlag_VirtualInput, .Title = title.CString()});
     Onyx::OverlaySpecs specs{};
     specs.Flags = flags;
@@ -269,7 +275,7 @@ UiEngine::~UiEngine()
     Onyx::CloseWindow(m_Window);
 }
 
-void UiEngine::noteText(const TKit::DynamicString &text)
+void UiEngine::noteText(const String &text)
 {
     TKIT_LOG_INFO("[ONYX-TESTS][ENGINE] {}", text);
     UNSCOPED_INFO("Engine: " << text.CString());
@@ -398,7 +404,7 @@ WindowInfo UiEngine::GetWindowInfo(const char *path)
 
 ItemInfo UiEngine::waitItem(const char *path, const char *action)
 {
-    const TKit::DynamicString full = absolute(path);
+    const String full = absolute(path);
     m_WatchItem = full;
     ItemInfo last{};
     for (u32 i = 0; i < 120; ++i)
@@ -419,7 +425,7 @@ ItemInfo UiEngine::waitItem(const char *path, const char *action)
 }
 WindowInfo UiEngine::waitWindow(const char *path, const char *action)
 {
-    const TKit::DynamicString full = absolute(path);
+    const String full = absolute(path);
     m_WatchWindow = full;
     WindowInfo last{};
     for (u32 i = 0; i < 120; ++i)
@@ -532,7 +538,7 @@ void UiEngine::ItemCtrlClick(const char *path, const u32 heldFrames)
 {
     const ItemInfo item = waitItem(path, "ctrl+click");
     note("ctrl+click '{}' at {}{}", absolute(path), item.Center(),
-         heldFrames == 0 ? TKit::DynamicString{} : TKit::DynamicString::Format(", held {} frames", heldFrames));
+         heldFrames == 0 ? String{} : String::Format(", held {} frames", heldFrames));
     MouseMove(item.Center());
     KeyDown(Onyx::Key_LeftControl);
     MouseDown();
@@ -603,13 +609,13 @@ void UiEngine::ItemInput(const char *path, const char *text)
 
 void UiEngine::MenuClick(const char *path)
 {
-    const TKit::DynamicArray<TKit::DynamicString> segments = splitPath(TKit::DynamicString{path});
+    const Array<String> segments = splitPath(String{path});
     TKIT_ASSERT(!segments.IsEmpty(), "[ONYX-TESTS][ENGINE] MenuClick needs a path, as in 'File/Open'");
     note("menu '{}'", path);
-    TKit::DynamicString at{"##MenuBar"};
-    for (usz i = 0; i < segments.GetSize(); ++i)
+    String at{"##MenuBar"};
+    for (usize i = 0; i < segments.GetSize(); ++i)
     {
-        at = TKit::DynamicString::Format("{}/{}", at, segments[i]);
+        at = String::Format("{}/{}", at, segments[i]);
         const ItemInfo item = waitItem(at.CString(), "open the menu at");
         if (i == 0)
         {
@@ -641,6 +647,15 @@ void UiEngine::WindowMove(const char *path, const f32v2 &position)
     const f32v2 grab = win.Header.Center();
     MouseMove(grab);
     MouseDragTo(grab + (position - win.Min), m_Speed == Speed_Fast ? 10 : 0);
+}
+void UiEngine::WindowDrop(const char *path, const f32v2 &mouse)
+{
+    const WindowInfo win = waitWindow(path, "drop");
+    if (!win.Header.Found)
+        FAIL(TKit::Format("Engine: drop '{}': the window has no header to drag it by", absolute(path)));
+    note("drag window '{}' by its header and drop it at {}", absolute(path), mouse);
+    MouseMove(win.Header.Center());
+    MouseDragTo(mouse, m_Speed == Speed_Fast ? 12 : 0);
 }
 void UiEngine::WindowResize(const char *path, const f32v2 &size)
 {

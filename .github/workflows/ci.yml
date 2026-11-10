@@ -39,11 +39,23 @@ jobs:
         preset: ${{ fromJSON(github.event_name == 'pull_request' && '["debug"]' || '["debug", "release"]') }}
         config:
           - { name: linux-gcc, os: ubuntu-26.04, cc: gcc, cxx: g++ }
-          - { name: linux-clang, os: ubuntu-26.04, cc: clang, cxx: clang++, lld: true }
+          - {
+              name: linux-clang,
+              os: ubuntu-26.04,
+              cc: clang,
+              cxx: clang++,
+              lld: true,
+            }
           - { name: windows-msvc, os: windows-2025-vs2026, cc: cl, cxx: cl }
           # the GNU style clang++ driver, not clang-cl: toolkit picks its flags by compiler id and by MSVC, and
           # clang-cl would get both kinds. lld links LTO (release) objects, which link.exe cannot read
-          - { name: windows-clang, os: windows-2025-vs2026, cc: clang, cxx: clang++, lld: true }
+          - {
+              name: windows-clang,
+              os: windows-2025-vs2026,
+              cc: clang,
+              cxx: clang++,
+              lld: true,
+            }
           - { name: macos-clang, os: macos-26, cc: clang, cxx: clang++ }
 
     steps:
@@ -116,7 +128,7 @@ jobs:
           # a null sink gives miniaudio a real backend, so the audio tests run instead of skipping
           pulseaudio --start --exit-idle-time=-1 && pactl load-module module-null-sink sink_name=ci \
             || echo "no PulseAudio: the audio tests will skip"
-          xvfb-run -a -s "-screen 0 1920x1080x24" ./tests/onyx-tests --jobs 2 --timeout-scale 2 \
+          xvfb-run -a -s "-screen 0 1920x1080x24" ./tests/onyx-tests --jobs 4 --timeout-scale 2 \
             --label "${{ matrix.config.name }} ${{ matrix.preset }}" --junit onyx-tests.xml
 
       - name: Tests (Windows, lavapipe)
@@ -125,7 +137,7 @@ jobs:
         run: |
           $env:VK_DRIVER_FILES = "C:\lavapipe\share\vulkan\icd.d\lvp_icd.x86_64.json"
           $env:VK_LAYER_PATH = "$env:VULKAN_SDK\Bin"
-          ./tests/onyx-tests.exe --jobs 2 --timeout-scale 2 --label "${{ matrix.config.name }} ${{ matrix.preset }}" --junit onyx-tests.xml
+          ./tests/onyx-tests.exe --jobs 4 --timeout-scale 2 --label "${{ matrix.config.name }} ${{ matrix.preset }}" --junit onyx-tests.xml
 
       # MoltenVK needs Metal. If the hosted runner exposes no Metal device, every test crashes at Initialize: the step is
       # allowed to fail until a run shows it works. Then remove continue-on-error, or move the tests to a self hosted Mac
@@ -138,7 +150,7 @@ jobs:
           export VK_DRIVER_FILES="$VULKAN_SDK/share/vulkan/icd.d/MoltenVK_icd.json"
           export VK_LAYER_PATH="$VULKAN_SDK/share/vulkan/explicit_layer.d"
           "$VULKAN_SDK/bin/vulkaninfo" --summary || true
-          ./tests/onyx-tests --jobs 2 --timeout-scale 2 \
+          ./tests/onyx-tests --jobs 4 --timeout-scale 2 \
             --label "${{ matrix.config.name }} ${{ matrix.preset }}" --junit onyx-tests.xml
 
       - name: Upload the test report

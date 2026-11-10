@@ -35,18 +35,18 @@ struct Guard
 DialogResult<TKit::TierPath> OpenFolderDialog(const Options &options)
 {
     Guard g{};
-    nfdnchar_t *path;
+    nfdu8char_t *path;
     nfdpickfoldernargs_t args{};
 #ifdef USE_GLFW
     if (options.Window != Graph::NullHandle)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     args.defaultPath = options.DefaultPath;
-    const DialogStatus result = toStatus(NFD_PickFolderN_With(&path, &args));
+    const DialogStatus result = toStatus(NFD_PickFolderU8_With(&path, &args));
     if (result == Dialog_Success)
     {
         const TKit::TierPath p = path;
-        NFD_FreePathN(path);
+        NFD_FreePathU8(path);
         return p;
     }
     return DialogResult<TKit::TierPath>::Error(result);
@@ -54,7 +54,7 @@ DialogResult<TKit::TierPath> OpenFolderDialog(const Options &options)
 DialogResult<TKit::TierPath> OpenSingleDialog(const Options &options)
 {
     Guard g{};
-    nfdnchar_t *path;
+    nfdu8char_t *path;
     nfdopendialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
@@ -71,11 +71,11 @@ DialogResult<TKit::TierPath> OpenSingleDialog(const Options &options)
     }
 
     args.defaultPath = options.DefaultPath;
-    DialogStatus result = toStatus(NFD_OpenDialogN_With(&path, &args));
+    DialogStatus result = toStatus(NFD_OpenDialogU8_With(&path, &args));
     if (result == Dialog_Success)
     {
         const TKit::TierPath p = path;
-        NFD_FreePathN(path);
+        NFD_FreePathU8(path);
         return DialogResult<TKit::TierPath>::Ok(p);
     }
     return DialogResult<TKit::TierPath>::Error(result);
@@ -99,7 +99,7 @@ DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &
         args.filterCount = filters.GetSize();
     }
 
-    const DialogStatus result = toStatus(NFD_OpenDialogMultipleN_With(&set, &args));
+    const DialogStatus result = toStatus(NFD_OpenDialogMultipleU8_With(&set, &args));
     if (result == Dialog_Success)
     {
         TKit::TierArray<TKit::TierPath> paths;
@@ -107,10 +107,10 @@ DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &
         toStatus(NFD_PathSet_GetCount(set, &count));
         for (nfdpathsetsize_t i = 0; i < count; ++i)
         {
-            nfdnchar_t *path;
-            NFD_PathSet_GetPathN(set, i, &path);
+            nfdu8char_t *path;
+            NFD_PathSet_GetPathU8(set, i, &path);
             paths.Append(path);
-            NFD_PathSet_FreePathN(path);
+            NFD_PathSet_FreePathU8(path);
         }
         NFD_PathSet_Free(set);
         return DialogResult<TKit::TierArray<TKit::TierPath>>::Ok(paths);
@@ -121,7 +121,7 @@ DialogResult<TKit::TierArray<TKit::TierPath>> OpenMultipleDialog(const Options &
 DialogResult<TKit::TierPath> SaveDialog(const Options &options)
 {
     Guard g{};
-    nfdnchar_t *path;
+    nfdu8char_t *path;
     nfdsavedialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
@@ -129,11 +129,11 @@ DialogResult<TKit::TierPath> SaveDialog(const Options &options)
 #endif
     args.defaultPath = options.DefaultPath;
     args.defaultName = options.DefaultName;
-    const DialogStatus result = toStatus(NFD_SaveDialogN_With(&path, &args));
+    const DialogStatus result = toStatus(NFD_SaveDialogU8_With(&path, &args));
     if (result == Dialog_Success)
     {
         const TKit::TierPath p = path;
-        NFD_FreePathN(path);
+        NFD_FreePathU8(path);
         return DialogResult<TKit::TierPath>::Ok(p);
     }
     return DialogResult<TKit::TierPath>::Error(result);

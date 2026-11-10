@@ -42,7 +42,7 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
     for (const Resource handle : m_ImmediateDynamicMeshes)
         // we perform this chech bc resources might have been destroyed already if this context is being destroyed on
         // teardown
-        if (IsResourceValid(handle))
+        if (IsResourceValid<D>(handle))
             DynamicMesh_Destroy<D>(handle);
 }
 

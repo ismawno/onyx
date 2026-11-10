@@ -385,7 +385,7 @@ static void allocators_Initialize(const Specs &specs)
                               "bytes of memory",
                               desc.GetBufferSize());
             }
-            libAlloc.Tier = new TKit::TierAllocator(desc, 32);
+            libAlloc.Tier = new TKit::TierAllocator(desc, TKIT_CACHE_LINE_SIZE);
         }
     }
     Graph::Allocation &libAlloc = s_Allocation[0];

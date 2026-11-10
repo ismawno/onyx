@@ -196,12 +196,12 @@ ONYX_TEST(audio, spatial_positions_read_back,
     Onyx::Audio_Destroy(source);
 }
 // a mono, 16 bit PCM WAV file of `frames` silent frames at `rate` frames a second
-static TKit::DynamicArray<u8> makeWav(const u32 frames, const u32 rate)
+static Array<u8> makeWav(const u32 frames, const u32 rate)
 {
     const u32 dataSize = frames * 2;
-    TKit::DynamicArray<u8> wav{};
+    Array<u8> wav{};
     wav.Resize(44 + dataSize, u8(0));
-    const auto put = [&](const usz at, const u32 value, const u32 bytes) {
+    const auto put = [&](const usize at, const u32 value, const u32 bytes) {
         for (u32 i = 0; i < bytes; ++i)
             wav[at + i] = u8(value >> (8 * i));
     };
@@ -220,25 +220,33 @@ static TKit::DynamicArray<u8> makeWav(const u32 frames, const u32 rate)
     return wav;
 }
 
+// a source that streams the file. Audio_Create also takes any callable as a source of its own, so it is given Onyx's
+// own path type by name: a Path of another allocation (alias.hpp) would fit both overloads
+static Onyx::Result<Onyx::Resource> streamFrom(const Path &path)
+{
+    const TKit::TierPath file{path};
+    return Onyx::Audio_Create(file);
+}
+
 ONYX_TEST(audio, wav_files_decode,
           .Description = "A WAV file decodes into as many frames as it lasts at the engine's sample rate, and streams "
                          "as a source of the same length")
 {
     const u32 rate = 8000;
     const u32 frames = 4000; // half a second
-    const TKit::DynamicArray<u8> wav = makeWav(frames, rate);
-    const TKit::DynamicString path = TempPath("half-second.wav");
+    const Array<u8> wav = makeWav(frames, rate);
+    const Path path = TempPath("half-second.wav");
     REQUIRE(WriteFile(path, wav.GetData(), wav.GetSize()));
 
-    const auto data = Onyx::Audio_LoadData(path.CString());
-    REQUIRE_MSG(data, "{}", data ? "" : data.GetError().ToString().CString());
+    const auto data = Onyx::Audio_LoadData(path);
+    REQUIRE_MSG(data, "{}", Describe(data));
     const f32 expected = 0.5f * f32(Onyx::Audio_GetSampleRate());
     CHECK_MSG(std::fabs(f32(data->FrameCount) - expected) <= expected * 0.02f, "Decoded {} frames, expected about {}",
               data->FrameCount, expected);
     Onyx::Audio_UnloadData(*data);
 
-    const auto stream = Onyx::Audio_Create(TKit::TierPath{path.CString()});
-    REQUIRE_MSG(stream, "{}", stream ? "" : stream.GetError().ToString().CString());
+    const auto stream = streamFrom(path);
+    REQUIRE_MSG(stream, "{}", Describe(stream));
     CHECK(Onyx::Audio_GetFrameCount(*stream) > 0);
     Onyx::Audio_Destroy(*stream);
 }
@@ -247,9 +255,9 @@ ONYX_TEST(audio, files_that_cannot_play_say_why,
           .Description = "Loading, streaming or playing an audio file reports a missing file, a directory and a file "
                          "that is not audio with errors of their own")
 {
-    const TKit::DynamicString missing = TempPath("missing.wav");
-    const TKit::DynamicString directory = TempPath("a-directory");
-    const TKit::DynamicString junk = TempPath("junk.wav");
+    const Path missing = TempPath("missing.wav");
+    const Path directory = TempPath("a-directory");
+    const Path junk = TempPath("junk.wav");
     REQUIRE(MakeDirectory(directory));
     REQUIRE(WriteFile(junk, "this is not audio\n"));
 
@@ -261,15 +269,15 @@ ONYX_TEST(audio, files_that_cannot_play_say_why,
     };
     const auto code = [](const auto &result) { return result ? Onyx::Error_Count : result.GetError().GetCode(); };
     const Case cases[] = {
-        {"load, missing", code(Onyx::Audio_LoadData(missing.CString())), Onyx::Error_FileNotFound},
-        {"load, directory", code(Onyx::Audio_LoadData(directory.CString())), Onyx::Error_IsNotFile},
-        {"load, not audio", code(Onyx::Audio_LoadData(junk.CString())), Onyx::Error_AudioDecodeFailed},
-        {"stream, missing", code(Onyx::Audio_Create(TKit::TierPath{missing.CString()})), Onyx::Error_FileNotFound},
-        {"stream, directory", code(Onyx::Audio_Create(TKit::TierPath{directory.CString()})), Onyx::Error_IsNotFile},
-        {"stream, not audio", code(Onyx::Audio_Create(TKit::TierPath{junk.CString()})), Onyx::Error_AudioDecodeFailed},
-        {"play, missing", code(Onyx::Audio_Play(missing.CString())), Onyx::Error_FileNotFound},
-        {"play, directory", code(Onyx::Audio_Play(directory.CString())), Onyx::Error_IsNotFile},
-        {"play, not audio", code(Onyx::Audio_Play(junk.CString())), Onyx::Error_AudioPlayFailed},
+        {"load, missing", code(Onyx::Audio_LoadData(missing)), Onyx::Error_FileNotFound},
+        {"load, directory", code(Onyx::Audio_LoadData(directory)), Onyx::Error_IsNotFile},
+        {"load, not audio", code(Onyx::Audio_LoadData(junk)), Onyx::Error_AudioDecodeFailed},
+        {"stream, missing", code(streamFrom(missing)), Onyx::Error_FileNotFound},
+        {"stream, directory", code(streamFrom(directory)), Onyx::Error_IsNotFile},
+        {"stream, not audio", code(streamFrom(junk)), Onyx::Error_AudioDecodeFailed},
+        {"play, missing", code(Onyx::Audio_Play(missing)), Onyx::Error_FileNotFound},
+        {"play, directory", code(Onyx::Audio_Play(directory)), Onyx::Error_IsNotFile},
+        {"play, not audio", code(Onyx::Audio_Play(junk)), Onyx::Error_AudioPlayFailed},
     };
     for (const Case &c : cases)
         CHECK_MSG(c.Got == c.Expected, "{}: expected {}, got {}", c.What, Onyx::ToString(c.Expected),

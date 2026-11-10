@@ -421,6 +421,10 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Use tkit defer for audio to return errors instead of ensuring!!!
+// TODO(Isma): Stop compiling performance on toolkit CI
+// TODO(Isma): Tests spend 1.6s on Terminate()??? improve that
+// TODO(Isma): Implement my own argparse. Use it in tests
 // TODO(Isma): Wtf anonymous structs in filesystem??
 // TODO(Isma): Improve toolkit ci workflow?
 // TODO(Isma): Why the use of Dynamic blabla stuff in tests???

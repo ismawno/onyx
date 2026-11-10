@@ -14,7 +14,9 @@
 // Paths are the ids the overlay builds, so they follow the same rules as labels: "Same##a" is its own item, "###id"
 // names one by id alone, and "a\/b" is a label with a slash. Child windows, popups, menus, dropdowns, tab bars and
 // trees all push ids, so their items are reached through them: "Test/Tabs/Two" is the header of the tab "Two" in the
-// tab bar "Tabs". "##MenuBar" stands for a window's menu bar.
+// tab bar "Tabs". "##MenuBar" stands for a window's menu bar. Two more stand for what docking adds to a window and no
+// label names: "Window/##DockTab" is the tab of a docked window in the tab bar of its dock node, and
+// "Window/##DockDivider" the divider between its node and the one it is split with.
 //
 // Every action runs the frames it needs, injecting what a real mouse and keyboard send through a window with virtual
 // input (so the desktop's own input never reaches it), and the overlay sees hovers, presses, holds and releases as it
@@ -31,18 +33,12 @@
 // person would, pace frames to about 60 a second and draw the cursor, so a run can be watched.
 
 #include "harness.hpp"
+#include "options.hpp"
 #include "onyx/overlay.hpp"
 #include "tkit/profiling/clock.hpp"
 
 namespace OnyxTest
 {
-enum Speed : u8
-{
-    Speed_Fast,
-    Speed_Normal,
-    Speed_Cinematic,
-};
-
 // an item as the overlay laid it out on the last frame, in logical pixels of the native window. Min/Max are its visible
 // part (clipped widgets are hit where they show), FullMin/FullMax all of it, wherever it was scrolled to
 struct ItemInfo
@@ -73,6 +69,8 @@ struct WindowInfo
     f32v2 Max{0.f};
     // the header bar, to drag the window by. not found for windows without one
     ItemInfo Header{};
+    // in a dock node, whether its tab is the selected one or not
+    bool Docked = false;
 
     f32v2 Size() const
     {
@@ -88,7 +86,7 @@ class UiEngine
     UiEngine &operator=(const UiEngine &) = delete;
     ~UiEngine();
 
-    TKit::DynamicFunction<void(Onyx::Overlay *)> Gui;
+    Function<void(Onyx::Overlay *)> Gui;
 
     Onyx::Window *GetWindow() const
     {
@@ -186,6 +184,9 @@ class UiEngine
     void WindowMove(const char *path, const f32v2 &position);
     // drags the window's bottom right corner until it has that size
     void WindowResize(const char *path, const f32v2 &size);
+    // drags the window by its header and drops it with the mouse at that point: over another window's middle, edge or
+    // header, that is how a person docks it
+    void WindowDrop(const char *path, const f32v2 &mouse);
 
     // -----------------------------------------------------------------------------------------------------------------
     //  Keyboard
@@ -204,9 +205,9 @@ class UiEngine
     void pace();
     void pause(f64 milliseconds);
 
-    TKit::DynamicString absolute(const char *path) const;
-    ItemInfo resolveItem(const TKit::DynamicString &path) const;
-    WindowInfo resolveWindow(const TKit::DynamicString &path) const;
+    String absolute(const char *path) const;
+    ItemInfo resolveItem(const String &path) const;
+    WindowInfo resolveWindow(const String &path) const;
     // the item, once it holds still. fails the test if it never shows
     ItemInfo waitItem(const char *path, const char *action);
     WindowInfo waitWindow(const char *path, const char *action);
@@ -217,18 +218,18 @@ class UiEngine
     // logs the action and attaches it to the next check
     template <typename... Args> void note(const fmt::format_string<Args...> format, Args &&...args)
     {
-        noteText(TKit::DynamicString::Format(format, std::forward<Args>(args)...));
+        noteText(String::Format(format, std::forward<Args>(args)...));
     }
-    void noteText(const TKit::DynamicString &text);
+    void noteText(const String &text);
 
     Onyx::Window *m_Window = nullptr;
     Onyx::Overlay *m_Overlay = nullptr;
     Speed m_Speed = Speed_Fast;
-    TKit::DynamicString m_Ref{};
+    String m_Ref{};
 
     // what capture() looks up on the next frame, and what it found
-    TKit::DynamicString m_WatchItem{};
-    TKit::DynamicString m_WatchWindow{};
+    String m_WatchItem{};
+    String m_WatchWindow{};
     ItemInfo m_ItemResult{};
     WindowInfo m_WindowResult{};
 

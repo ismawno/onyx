@@ -5,7 +5,8 @@ include(FetchContent)
 find_package(Threads REQUIRED)
 
 # the same Catch2 Toolkit and vulkit test with, built the same way: without exceptions or RTTI, like Onyx. a failed
-# REQUIRE then ends the process, which suits onyx-tests: every test runs in a process of its own (framework/worker.cpp)
+# REQUIRE then ends the process, which suits onyx-tests: tests run in worker processes the runner can lose
+# (framework/worker.cpp)
 find_package(Catch2 3 QUIET)
 if(NOT Catch2_FOUND)
   message(STATUS "ONYX - Catch2 not found. Fetching source...")
@@ -34,5 +35,5 @@ if(MSVC)
   target_compile_definitions(onyx-tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
-# `ctest` runs the whole suite through the runner, which already isolates every test in its own process
+# `ctest` runs the whole suite through the runner, which already keeps tests in worker processes of their own
 add_test(NAME onyx-tests COMMAND onyx-tests)

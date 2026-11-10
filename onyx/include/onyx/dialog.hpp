@@ -12,11 +12,7 @@
 
 namespace Onyx
 {
-#ifndef TKIT_OS_WINDOWS
 using DialogChar = char;
-#else
-using DialogChar = wchar_t;
-#endif
 
 enum DialogStatus : u8
 {

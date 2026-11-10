@@ -10,15 +10,6 @@ using namespace OnyxTest;
 
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 
-static TKit::TierPath tierPath(const TKit::DynamicString &path)
-{
-    return TKit::TierPath{path.CString()};
-}
-static TKit::DynamicString describe(const Onyx::Result<> &result)
-{
-    return result ? TKit::DynamicString{"ok"} : TKit::DynamicString{result.GetError().ToString().CString()};
-}
-
 // two floating windows: A placed by position, B by size, both on birth only. a loaded layout must win over both
 static void floatingGui(UiEngine &ui)
 {
@@ -82,7 +73,7 @@ ONYX_TEST(layout, windows_come_back_where_they_were_left,
           .Description = "A saved layout puts floating windows back at the position and size they were left at, over "
                          "what the gui asks for when they are born")
 {
-    const TKit::DynamicString path = TempPath("floating.yaml");
+    const Path path = TempPath("floating.yaml");
     f32v2 aMin{}, bMin{}, bSize{};
     {
         UiEngine ui{};
@@ -98,13 +89,13 @@ ONYX_TEST(layout, windows_come_back_where_they_were_left,
         bSize = ui.GetWindowInfo("B").Size();
         REQUIRE_MSG(TKit::Math::Norm(aMin - f32v2{40.f, 50.f}) > 50.f, "A did not move: {}", aMin);
 
-        const auto saved = ui.GetOverlay()->Serialize(tierPath(path));
-        REQUIRE_MSG(saved, "Serialize: {}", describe(saved));
+        const auto saved = ui.GetOverlay()->Serialize(path);
+        REQUIRE_MSG(saved, "Serialize: {}", Describe(saved));
     }
 
     UiEngine ui{};
-    const auto loaded = ui.GetOverlay()->Deserialize(tierPath(path));
-    REQUIRE_MSG(loaded, "Deserialize: {}", describe(loaded));
+    const auto loaded = ui.GetOverlay()->Deserialize(path);
+    REQUIRE_MSG(loaded, "Deserialize: {}", Describe(loaded));
     floatingGui(ui);
     ui.Yield(3);
     REQUIRE((ui.GetWindowInfo("A").Found && ui.GetWindowInfo("B").Found));
@@ -116,20 +107,20 @@ ONYX_TEST(layout, windows_come_back_where_they_were_left,
 ONYX_TEST(layout, dock_trees_come_back_docked,
           .Description = "A saved layout docks windows back into their dockspace, split where they were split")
 {
-    const TKit::DynamicString path = TempPath("docked.yaml");
+    const Path path = TempPath("docked.yaml");
     {
         UiEngine ui{{640, 480}, Onyx::OverlayFlag_Docking};
         DockedGui state{.Ratio = 0.3f};
         dockedGui(ui, state);
         ui.Yield(6);
         REQUIRE((state.LeftDocked && state.RightDocked));
-        const auto saved = ui.GetOverlay()->Serialize(tierPath(path));
-        REQUIRE_MSG(saved, "Serialize: {}", describe(saved));
+        const auto saved = ui.GetOverlay()->Serialize(path);
+        REQUIRE_MSG(saved, "Serialize: {}", Describe(saved));
     }
 
     UiEngine ui{{640, 480}, Onyx::OverlayFlag_Docking};
-    const auto loaded = ui.GetOverlay()->Deserialize(tierPath(path));
-    REQUIRE_MSG(loaded, "Deserialize: {}", describe(loaded));
+    const auto loaded = ui.GetOverlay()->Deserialize(path);
+    REQUIRE_MSG(loaded, "Deserialize: {}", Describe(loaded));
     DockedGui state{.Submit = false};
     dockedGui(ui, state);
     ui.Yield(6);
@@ -160,12 +151,12 @@ ONYX_TEST(layout, saving_needs_a_path_that_can_be_written,
     REQUIRE_MSG(!none, "Saved without a path");
     CHECK(none.GetError().GetCode() == Onyx::Error_SerializationFailed);
 
-    const TKit::DynamicString nowhere = TempPath("no-such-directory/layout.yaml");
-    const auto failed = ov->Serialize(tierPath(nowhere));
+    const Path nowhere = TempPath("no-such-directory/layout.yaml");
+    const auto failed = ov->Serialize(nowhere);
     REQUIRE_MSG(!failed, "Saved into a directory that does not exist");
     CHECK(failed.GetError().GetCode() == Onyx::Error_SerializationFailed);
     CHECK_MSG(failed.GetError().GetMessage().Contains(nowhere.CString()), "The message does not name the path: {}",
-              describe(failed));
+              Describe(failed));
 }
 
 ONYX_TEST(layout, missing_layout_files_are_reported,
@@ -175,16 +166,15 @@ ONYX_TEST(layout, missing_layout_files_are_reported,
     UiEngine ui{};
     Onyx::Overlay *ov = ui.GetOverlay();
 
-    const auto missing = ov->Deserialize(tierPath(TempPath("none.yaml")));
+    const auto missing = ov->Deserialize(TempPath("none.yaml"));
     REQUIRE(!missing);
     CHECK(missing.GetError().GetCode() == Onyx::Error_FileNotFound);
 
-    const TKit::DynamicString dir = TempPath("layouts");
+    const Path dir = TempPath("layouts");
     REQUIRE(MakeDirectory(dir));
-    ov->SetSerializationPath(tierPath(dir));
-    const TKit::DynamicString resolved = ov->GetSerializationPath().CString();
-    const TKit::DynamicString expected = "onyx-overlay.yaml";
-    REQUIRE_MSG(resolved.EndsWith(expected.CString()), "A directory resolved to {}", resolved);
+    ov->SetSerializationPath(dir);
+    const Path resolved = ov->GetSerializationPath();
+    REQUIRE_MSG(resolved == dir / "onyx-overlay.yaml", "A directory resolved to {}", resolved);
 
     // a directory where the layout file should be
     REQUIRE(MakeDirectory(resolved));
@@ -205,11 +195,10 @@ ONYX_TEST(layout, broken_layouts_are_rejected_and_change_nothing,
 
     // every file moves A first, then breaks: a layout that is applied as it is read would leave A moved
     const u64 a = Onyx::LayoutId{"A"}.Id;
-    const TKit::DynamicString moveA = TKit::DynamicString::Format(
+    const String moveA = String::Format(
         "Windows:\n  {}: {{Position: [300, 300], Flags: 0, Size: [200, 150], Layer: 0, Docked: 0, DockHost: 0}}\n", a);
-    const TKit::DynamicString host =
-        "  99: {Position: [0, 0], Flags: 0, Size: [400, 300], Layer: 0, Docked: 0, DockHost: 1}\n";
-    const TKit::DynamicString emptyLeaf = "{Flags: 0, Leaf: 1}";
+    const String host = "  99: {Position: [0, 0], Flags: 0, Size: [400, 300], Layer: 0, Docked: 0, DockHost: 1}\n";
+    const String emptyLeaf = "{Flags: 0, Leaf: 1}";
     const auto split = [&](const char *axis, const char *ratio, const bool twoChildren) {
         return moveA + host + "DockTrees:\n  99:\n    Flags: 0\n    Leaf: 0\n    Ratio: " + ratio +
                "\n    Axis: " + axis + "\n    Children:\n      - " + emptyLeaf + "\n" +
@@ -218,18 +207,17 @@ ONYX_TEST(layout, broken_layouts_are_rejected_and_change_nothing,
     struct Case
     {
         const char *Name;
-        TKit::DynamicString Text;
+        String Text;
     };
     // a file that is not YAML at all is covered by layout.files_that_are_not_yaml_are_rejected
     const Case cases[] = {
         {"a window without a size",
-         TKit::DynamicString::Format("Windows:\n  {}: {{Position: [300, 300], Flags: 0, Layer: 0, Docked: "
-                                     "0, DockHost: 0}}\n",
-                                     a)},
-        {"a size that is not a vector",
-         TKit::DynamicString::Format("Windows:\n  {}: {{Position: [300, 300], Flags: 0, Size: big, "
-                                     "Layer: 0, Docked: 0, DockHost: 0}}\n",
-                                     a)},
+         String::Format("Windows:\n  {}: {{Position: [300, 300], Flags: 0, Layer: 0, Docked: "
+                        "0, DockHost: 0}}\n",
+                        a)},
+        {"a size that is not a vector", String::Format("Windows:\n  {}: {{Position: [300, 300], Flags: 0, Size: big, "
+                                                       "Layer: 0, Docked: 0, DockHost: 0}}\n",
+                                                       a)},
         {"a window id that is not a number", moveA + "  not-an-id: {Position: [0, 0], Flags: 0, Size: [10, 10], "
                                                      "Layer: 0, Docked: 0, DockHost: 0}\n"},
         {"a parent that does not exist", moveA + "  77: {Parent: 12345, Flags: 0, Size: [10, 10], Layer: 0, Docked: "
@@ -242,13 +230,13 @@ ONYX_TEST(layout, broken_layouts_are_rejected_and_change_nothing,
     u32 index = 0;
     for (const Case &c : cases)
     {
-        const TKit::DynamicString path = TempPath(TKit::DynamicString::Format("broken-{}.yaml", index++).CString());
+        const Path path = TempPath(String::Format("broken-{}.yaml", index++).CString());
         REQUIRE(WriteFile(path, c.Text));
-        const auto result = ui.GetOverlay()->Deserialize(tierPath(path));
+        const auto result = ui.GetOverlay()->Deserialize(path);
         CHECK_MSG(!result, "{}: the layout was accepted", c.Name);
         if (!result)
             CHECK_MSG(result.GetError().GetCode() == Onyx::Error_DeserializationFailed, "{}: {}", c.Name,
-                      describe(result));
+                      Describe(result));
         ui.Yield(2);
         CHECK_MSG(TKit::Math::Norm(ui.GetWindowInfo("A").Min - before) < 1.f, "{}: A moved from {} to {}", c.Name,
                   before, ui.GetWindowInfo("A").Min);
@@ -271,9 +259,9 @@ ONYX_TEST(layout, files_that_are_not_yaml_are_rejected,
     REQUIRE(ui.GetWindowInfo("A").Found);
     const f32v2 before = ui.GetWindowInfo("A").Min;
 
-    const TKit::DynamicString path = TempPath("not-yaml.yaml");
+    const Path path = TempPath("not-yaml.yaml");
     REQUIRE(WriteFile(path, "Windows: [this is: not, {closed\n"));
-    const auto result = ui.GetOverlay()->Deserialize(tierPath(path));
+    const auto result = ui.GetOverlay()->Deserialize(path);
     CHECK_MSG(!result, "A file that is not YAML was accepted");
     if (!result)
         CHECK(result.GetError().GetCode() == Onyx::Error_DeserializationFailed);
@@ -297,7 +285,7 @@ ONYX_TEST(layout, a_window_in_two_dock_leaves_is_rejected,
 
     const u64 host = state.Host.Id;
     const u64 left = Onyx::LayoutId{"Left"}.Id;
-    const TKit::DynamicString text = TKit::DynamicString::Format(
+    const String text = String::Format(
         "Windows:\n"
         "  {0}: {{Position: [0, 0], Flags: 196608, Size: [640, 480], Layer: 0, Docked: 0, DockHost: 1}}\n"
         "  {1}: {{Position: [0, 0], Flags: 0, Size: [320, 480], Layer: 0, Docked: 1, DockHost: 0}}\n"
@@ -307,9 +295,9 @@ ONYX_TEST(layout, a_window_in_two_dock_leaves_is_rejected,
         "      - {{Flags: 0, Leaf: 1, Windows: [{1}]}}\n"
         "      - {{Flags: 0, Leaf: 1, Windows: [{1}]}}\n",
         host, left);
-    const TKit::DynamicString path = TempPath("twice-docked.yaml");
+    const Path path = TempPath("twice-docked.yaml");
     REQUIRE(WriteFile(path, text));
-    const auto result = ui.GetOverlay()->Deserialize(tierPath(path));
+    const auto result = ui.GetOverlay()->Deserialize(path);
     CHECK_MSG(!result, "A window docked in two leaves was accepted");
     ui.Yield(2);
 }
@@ -331,11 +319,11 @@ ONYX_TEST(layout, a_layout_loads_over_a_docked_one,
     ui.Yield(6);
     REQUIRE((state.LeftDocked && state.RightDocked));
 
-    const TKit::DynamicString path = TempPath("current.yaml");
-    const auto saved = ui.GetOverlay()->Serialize(tierPath(path));
-    REQUIRE_MSG(saved, "Serialize: {}", describe(saved));
-    const auto loaded = ui.GetOverlay()->Deserialize(tierPath(path));
-    REQUIRE_MSG(loaded, "Deserialize: {}", describe(loaded));
+    const Path path = TempPath("current.yaml");
+    const auto saved = ui.GetOverlay()->Serialize(path);
+    REQUIRE_MSG(saved, "Serialize: {}", Describe(saved));
+    const auto loaded = ui.GetOverlay()->Deserialize(path);
+    REQUIRE_MSG(loaded, "Deserialize: {}", Describe(loaded));
     ui.Yield(4);
     CHECK(state.LeftDocked);
     CHECK(state.RightDocked);

@@ -11,19 +11,36 @@ The tests build with the rest of Onyx: the presets turn `ONYX_BUILD_TESTS` on.
 
 ```sh
 cmake --preset debug && cmake --build --preset debug
-./build/debug/tests/onyx-tests                 # everything, one test at a time
+./build/debug/tests/onyx-tests                 # everything, one worker process at a time
 ./build/debug/tests/onyx-tests --jobs 4        # four at a time
 ./build/debug/tests/onyx-tests window 'overlay.*' '-*msaa*'   # suites, patterns, exclusions
 ./build/debug/tests/onyx-tests --list          # what there is
+./build/debug/tests/onyx-tests --isolate       # every test in a process of its own, with an Onyx of its own
 ./build/debug/tests/onyx-tests --worker render.quad_covers_its_area   # one test, in this process (for a debugger)
 ```
 
 The control center runs the same executable from its Tests window, and so does CI (`.github/workflows/ci.yml`).
 `ctest` works too: it runs the whole suite as one test.
 
-Every test runs in a process of its own. A test initializes and terminates Onyx, opens windows and may crash: an
-assert, a validation error (debug builds panic on them) or a signal only takes its own test down, and is reported as a
-crash with the last lines it printed. A watchdog ends tests that hang (60 s by default, `--timeout-scale` stretches it).
+Tests run in worker processes, away from the runner. A test opens windows and may crash: an assert, a validation
+error (debug builds panic on them) or a signal only takes its own test down, and is reported as a crash with the last
+lines it printed. A watchdog ends tests that hang (60 s by default, `--timeout-scale` stretches it).
+
+Tests that pass share a worker, and the Onyx it started: starting Onyx (a device, the pipelines, the default font)
+takes far longer than most tests do, so a worker does it once for the tests it is given. This is several times faster
+than a process per test, and it does not change a verdict:
+
+- a worker ends at the first test that does not pass. The tests after it go to another worker
+- the first test of a worker, and a test that runs alone, start from a fresh Onyx: what they report stands
+- a later test that fails, crashes or times out may only have tripped over what the tests before it left behind. It runs
+  again, alone, and that run decides. If it passes there it passes, with a note saying so, and the run's summary lists
+  it: one of the tests before it does not give Onyx back as it found it
+- `--isolate` gives every test a process and an Onyx of its own, as a nightly run may want. `.OwnProcess = true` does it
+  for one test, and tests with a `.KnownIssue` always run alone
+
+Between two tests a worker closes the windows the first one left open and destroys what it made with `TestContext` and
+`TestRenderTexture` (see below). The last test of a worker leaves all of that to `Onyx::Terminate`, which must cope
+with it.
 
 Reports: `--junit <file>` writes JUnit XML, `--summary <file>` a Markdown summary (on GitHub Actions it goes to the job
 summary on its own, and failures become annotations). `--format events` prints a line protocol for tools: that is what
@@ -85,20 +102,28 @@ ONYX_TEST(render, quad_covers_its_area, .Description = "A unit quad covers the m
 - Logs use Toolkit logging (`TKIT_LOG_INFO` and the rest). A test's output is shown when it fails, or always with
   `--verbose`.
 - Options: `.Description`, `.Init` (`Init_Full`: Onyx and its default resources, the default; `Init_Bare`; `Init_Manual`
-  for tests that initialize Onyx themselves) and `.Timeout` in seconds.
+  for tests that initialize Onyx themselves), `.Timeout` in seconds and `.OwnProcess` for a test that cannot share Onyx
+  with others.
+- Containers: tests say `String`, `Array<T>`, `Path` and `Function<S>` (`framework/alias.hpp`), never a Toolkit
+  allocation by name. They are Toolkit's tier containers, the ones Onyx takes and returns, so nothing needs converting:
+  a `Path` goes to a loader as it is and an error's message compares with a `String`. The two lines at the top of
+  `alias.hpp` move the whole suite to another allocation.
+- A test gives Onyx back as it found it, as the next test may share it. `Scene` and `UiEngine` clean up after
+  themselves and windows are closed for you. A render context or a render texture the test does not destroy itself
+  comes from `TestContext<D>()` or `TestRenderTexture(size)`: they live until the test ends.
 - `.KnownIssue = "what is wrong"` is for a bug you decided to leave for later: the test is reported as KNOWN and does not
   fail the run. Once it passes, the runner says so: remove the option then. A bug that is to be fixed keeps failing.
 - Helpers (`framework/harness.hpp`): `Frame(n)` runs frames, `WaitFor(condition)` runs frames until something
   asynchronous (a resize, a swapchain recreation) happened, `OpenTestWindow()`, `Scene<D>`, `Capture` (pixel probes and
   counts).
-- Files: `TempPath(name)` gives a path in a directory of the test's own (tests run in parallel), which is removed when
-  the test ends. `WriteFile` and `MakeDirectory` fill it. Loaders and layouts are tested with files written this way, so
-  no assets are needed.
+- Files: `TempPath(name)` gives a `Path` in a directory of the test's own (tests run in parallel), which is removed
+  when the test ends. `WriteFile` and `MakeDirectory` fill it. Loaders and layouts are tested with files written this
+  way, so no assets are needed. `Describe(result)` says what an Onyx result holds, for the message of a check.
 
 Why Catch2 and a runner of its own: Catch2 runs the test bodies and their assertions, as in Toolkit and vulkit. It runs
 a suite in a single process, though, and these tests initialize Onyx, open windows and may crash or hang: the runner
-(`framework/supervisor.cpp`) gives each test a process of its own, a watchdog, the reports and the event stream the
-control center reads.
+(`framework/supervisor.cpp`) keeps them in worker processes it can lose, and adds the watchdog, the reports and the
+event stream the control center reads.
 
 ### The overlay test engine
 
@@ -121,11 +146,13 @@ CHECK(value);
 
 - Paths are the ids the overlay builds: `"Window/Item"`, through `PushId` scopes, tree nodes, child windows and popups
   (`"Test/Popup/Close"`), dropdowns (`"Fruit/Banana"`) and tab bars (`"Tabs/Two"` is a tab's header). `"##MenuBar"`
-  stands for a window's menu bar. Labels keep their rules: `"Same##a"`, `"###id"`. A path that starts with `//` ignores
+  stands for a window's menu bar. Docking adds two things no label names: `"Window/##DockTab"` is the tab of a docked
+  window and `"Window/##DockDivider"` the divider of the split it sits in. Labels keep their rules: `"Same##a"`, `"###id"`. A path that starts with `//` ignores
   the reference set with `SetRef`.
 - Actions: `ItemClick`, `ItemCtrlClick`, `ItemDoubleClick`, `ItemHover`, `ItemDrag`, `ItemDragAndDrop`, `ItemInput`
   (types into a text input, a numeric one, a slider or a drag), `MenuClick("File/Open")`, `WindowMove`, `WindowResize`,
-  `KeyPress`, `KeyChars`, and the raw `MouseMove`, `MouseDown`/`MouseUp`, `MouseWheel`. `GetItem` and `GetWindowInfo`
+  `WindowDrop` (drags a window by its header and drops it at a point: on another window, that docks it), `KeyPress`,
+  `KeyChars`, and the raw `MouseMove`, `MouseDown`/`MouseUp`, `MouseWheel`. `GetItem` and `GetWindowInfo`
   say where things are, `ItemExists` whether something is on screen. `Yield(n)` and `YieldUntil(condition)` run frames.
 - Items are looked up in what the overlay drew on the last frame, and an action waits for its item to hold still before
   it acts, so a window manager resizing the window right after mapping it does not make a click miss.

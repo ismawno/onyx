@@ -218,13 +218,13 @@ ONYX_TEST(overlay, scrolling_moves_the_contents,
           .Description = "The mouse wheel scrolls a window that holds more than it can show")
 {
     UiEngine ui{};
-    TKit::DynamicArray<TKit::DynamicString> labels{};
+    Array<String> labels{};
     for (u32 i = 0; i < 30; ++i)
-        labels.Append(TKit::DynamicString::Format("Item {}", i));
+        labels.Append(String::Format("Item {}", i));
     ui.Gui = [&](Onyx::Overlay *ov) {
         if (!beginTestWindow(ov, "Scroll", {240.f, 160.f}))
             return;
-        for (const TKit::DynamicString &label : labels)
+        for (const String &label : labels)
             ov->Button(label.CString());
         ov->EndWindow();
     };
@@ -239,6 +239,13 @@ ONYX_TEST(overlay, scrolling_moves_the_contents,
     CHECK_MSG((!after.Found || after.FullMin[1] < before.FullMin[1] - 5.f),
               "The first item did not move up: from {} to {}", before.FullMin[1], after.FullMin[1]);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+//  Docking. Windows dock by hand (one is dragged by its header and dropped on another) or through a submitted dock
+//  tree. A docked window is laid out by its dock node and does not update its own position, so docked windows are
+//  measured through a widget that spans their width. The engine reaches what docking adds to a window through it:
+//  "Window/##DockTab" is its tab, "Window/##DockDivider" the divider of the split it sits in
+// ---------------------------------------------------------------------------------------------------------------------
 
 ONYX_TEST(overlay, dock_trees_lay_windows_out,
           .Description = "A submitted dock tree splits a dockspace between its windows: they share it without "
@@ -285,6 +292,249 @@ ONYX_TEST(overlay, dock_trees_lay_windows_out,
     const f32 rw = right.Size()[0];
     const bool sideBySide = left.Max[0] <= right.Min[0] + 2.f || right.Max[0] <= left.Min[0] + 2.f;
     CHECK_MSG((sideBySide ? (lw > 200.f && rw > 200.f) : (lw > 500.f && rw > 500.f)), "Widths {} and {}", lw, rw);
+}
+
+// two floating windows apart from each other, each with a button as wide as the window
+struct DockPair
+{
+    u32 InA = 0;
+    u32 InB = 0;
+    Onyx::OverlayWindowFlags FlagsB = 0;
+};
+static void dockPairGui(UiEngine &ui, DockPair &state)
+{
+    ui.Gui = [&state](Onyx::Overlay *ov) {
+        ov->SetNextWindowPosition({40.f, 60.f}, Onyx::OverlayCondition_OnBirth);
+        if (ov->BeginWindow("A"))
+        {
+            if (ov->Button("In A", Onyx::OverlayButtonFlag_SpanFullWidth))
+                ++state.InA;
+            ov->EndWindow();
+        }
+        ov->SetNextWindowPosition({360.f, 240.f}, Onyx::OverlayCondition_OnBirth);
+        if (ov->BeginWindow("B", state.FlagsB))
+        {
+            if (ov->Button("In B", Onyx::OverlayButtonFlag_SpanFullWidth))
+                ++state.InB;
+            ov->EndWindow();
+        }
+    };
+}
+// where a window that is not docked yet takes another one (Overlay::dockInsertAndDrawPreview): dropped on its middle
+// (or on its header) the other becomes a tab next to it, and dropped on the mark near the middle of an edge it takes
+// that half. the marks sit about 20 pixels inside the edge
+static f32v2 middleOf(const WindowInfo &win)
+{
+    return 0.5f * (win.Min + win.Max);
+}
+static f32v2 rightEdgeOf(const WindowInfo &win)
+{
+    return f32v2{win.Max[0] - 21.f, 0.5f * (win.Min[1] + win.Max[1])};
+}
+static bool isInside(const ItemInfo &item, const WindowInfo &win, const f32 slack = 2.f)
+{
+    return item.Min[0] >= win.Min[0] - slack && item.Min[1] >= win.Min[1] - slack &&
+           item.Max[0] <= win.Max[0] + slack && item.Max[1] <= win.Max[1] + slack;
+}
+
+ONYX_TEST(overlay, windows_dropped_on_the_middle_of_another_dock_as_tabs,
+          .Description = "A window dragged by its header and dropped on the middle of another docks with it: they "
+                         "share its place as tabs, one shows at a time and a click on a tab brings its window up")
+{
+    UiEngine ui{{800, 600}, Onyx::OverlayFlag_Docking};
+    DockPair state{};
+    dockPairGui(ui, state);
+    const WindowInfo a = ui.GetWindowInfo("A");
+    REQUIRE((a.Found && ui.GetWindowInfo("B").Found));
+    REQUIRE((!a.Docked && !ui.GetWindowInfo("B").Docked));
+
+    ui.WindowDrop("B", middleOf(a));
+    REQUIRE(ui.GetWindowInfo("A").Docked);
+    REQUIRE(ui.GetWindowInfo("B").Docked);
+    REQUIRE((ui.ItemExists("A/##DockTab") && ui.ItemExists("B/##DockTab")));
+
+    // B's tab brings B up, where A was, and A's contents are gone from the screen
+    ui.ItemClick("B/##DockTab");
+    const ItemInfo inB = ui.GetItem("B/In B");
+    REQUIRE(inB.Found);
+    CHECK(!ui.ItemExists("A/In A"));
+    CHECK_MSG(isInside(inB, a), "B shows at {}..{}, outside of where A was: {}..{}", inB.Min, inB.Max, a.Min, a.Max);
+    ui.ItemClick("B/In B");
+    CHECK(state.InB == 1u);
+    CHECK(state.InA == 0u);
+
+    // and A's tab brings A back
+    ui.ItemClick("A/##DockTab");
+    CHECK(ui.ItemExists("A/In A"));
+    CHECK(!ui.ItemExists("B/In B"));
+    ui.ItemClick("A/In A");
+    CHECK(state.InA == 1u);
+    CHECK(state.InB == 1u);
+}
+
+ONYX_TEST(overlay, windows_dropped_on_an_edge_of_another_split_its_space,
+          .Description = "A window dropped on the right edge of another docks beside it: both show at once, side by "
+                         "side in the space the other had, and both still take clicks")
+{
+    UiEngine ui{{800, 600}, Onyx::OverlayFlag_Docking};
+    DockPair state{};
+    dockPairGui(ui, state);
+    const WindowInfo a = ui.GetWindowInfo("A");
+    REQUIRE((a.Found && ui.GetWindowInfo("B").Found));
+
+    ui.WindowDrop("B", rightEdgeOf(a));
+    REQUIRE(ui.GetWindowInfo("A").Docked);
+    REQUIRE(ui.GetWindowInfo("B").Docked);
+
+    const ItemInfo inA = ui.GetItem("A/In A");
+    const ItemInfo inB = ui.GetItem("B/In B");
+    REQUIRE((inA.Found && inB.Found));
+    CHECK_MSG(inA.Max[0] <= inB.Min[0] + 2.f, "A ({}..{}) is not to the left of B ({}..{})", inA.Min[0], inA.Max[0],
+              inB.Min[0], inB.Max[0]);
+    CHECK_MSG((isInside(inA, a) && isInside(inB, a)), "A at {}..{} and B at {}..{} do not share where A was: {}..{}",
+              inA.Min, inA.Max, inB.Min, inB.Max, a.Min, a.Max);
+    // an even split
+    CHECK_THAT(inA.Size()[0], IsNear(inB.Size()[0], 4.f));
+    // the split has a divider, between the two
+    const ItemInfo divider = ui.GetItem("A/##DockDivider");
+    REQUIRE(divider.Found);
+    CHECK_MSG((divider.Center()[0] > inA.Max[0] - 1.f && divider.Center()[0] < inB.Min[0] + 1.f),
+              "The divider is at {}, A ends at {} and B starts at {}", divider.Center()[0], inA.Max[0], inB.Min[0]);
+
+    ui.ItemClick("A/In A");
+    ui.ItemClick("B/In B");
+    CHECK(state.InA == 1u);
+    CHECK(state.InB == 1u);
+}
+
+ONYX_TEST(overlay, dock_dividers_resize_both_sides,
+          .Description = "Dragging the divider between two docked windows takes from one what it gives to the other")
+{
+    UiEngine ui{{800, 600}, Onyx::OverlayFlag_Docking};
+    DockPair state{};
+    dockPairGui(ui, state);
+    const WindowInfo a = ui.GetWindowInfo("A");
+    REQUIRE(a.Found);
+    ui.WindowDrop("B", rightEdgeOf(a));
+    const ItemInfo beforeA = ui.GetItem("A/In A");
+    const ItemInfo beforeB = ui.GetItem("B/In B");
+    REQUIRE((beforeA.Found && beforeB.Found));
+
+    ui.ItemDrag("A/##DockDivider", f32v2{-40.f, 0.f});
+    const ItemInfo afterA = ui.GetItem("A/In A");
+    const ItemInfo afterB = ui.GetItem("B/In B");
+    REQUIRE((afterA.Found && afterB.Found));
+    CHECK_THAT(afterA.Size()[0], IsNear(beforeA.Size()[0] - 40.f, 4.f));
+    CHECK_THAT(afterB.Size()[0], IsNear(beforeB.Size()[0] + 40.f, 4.f));
+    // the far sides did not move
+    CHECK_THAT(afterA.Min[0], IsNear(beforeA.Min[0], 1.f));
+    CHECK_THAT(afterB.Max[0], IsNear(beforeB.Max[0], 1.f));
+}
+
+ONYX_TEST(overlay, tabs_dragged_off_their_bar_undock,
+          .Description = "Dragging the tab of a docked window off its tab bar undocks it: it floats again under the "
+                         "mouse, and the window it left is back to a window of its own, where it was")
+{
+    UiEngine ui{{800, 600}, Onyx::OverlayFlag_Docking};
+    DockPair state{};
+    dockPairGui(ui, state);
+    const WindowInfo a = ui.GetWindowInfo("A");
+    REQUIRE(a.Found);
+    ui.WindowDrop("B", middleOf(a));
+    REQUIRE((ui.GetWindowInfo("A").Docked && ui.GetWindowInfo("B").Docked));
+
+    ui.ItemDrag("B/##DockTab", f32v2{220.f, 200.f});
+    const WindowInfo afterA = ui.GetWindowInfo("A");
+    const WindowInfo afterB = ui.GetWindowInfo("B");
+    REQUIRE((afterA.Found && afterB.Found));
+    CHECK(!afterA.Docked);
+    CHECK(!afterB.Docked);
+    // floating windows have a header to drag them by, docked ones a tab
+    CHECK(afterA.Header.Found);
+    CHECK(afterB.Header.Found);
+    CHECK(!ui.ItemExists("B/##DockTab"));
+    CHECK_THAT(afterA.Min, IsNear(a.Min, 2.f));
+    const f32v2 mouse = ui.GetMousePosition();
+    CHECK_MSG((mouse[0] >= afterB.Min[0] && mouse[0] <= afterB.Max[0] && mouse[1] >= afterB.Min[1] &&
+               mouse[1] <= afterB.Max[1]),
+              "B was left at {}..{}, away from the mouse at {}", afterB.Min, afterB.Max, mouse);
+    // both are whole windows again
+    ui.ItemClick("B/In B");
+    ui.ItemClick("A/In A");
+    CHECK(state.InA == 1u);
+    CHECK(state.InB == 1u);
+}
+
+ONYX_TEST(overlay, windows_only_dock_when_allowed,
+          .Description = "A window dropped on another just moves there when the overlay has docking off, or when the "
+                         "window has OverlayWindowFlag_NoDocking")
+{
+    const auto dropBOnA = [](const Onyx::OverlayFlags overlayFlags, const Onyx::OverlayWindowFlags windowFlags,
+                             const char *what) {
+        UiEngine ui{{800, 600}, overlayFlags};
+        DockPair state{.FlagsB = windowFlags};
+        dockPairGui(ui, state);
+        const WindowInfo a = ui.GetWindowInfo("A");
+        const WindowInfo b = ui.GetWindowInfo("B");
+        REQUIRE((a.Found && b.Found));
+        ui.WindowDrop("B", middleOf(a));
+        const WindowInfo afterB = ui.GetWindowInfo("B");
+        CHECK_MSG(!ui.GetWindowInfo("A").Docked, "{}: A is docked", what);
+        CHECK_MSG(!afterB.Docked, "{}: B is docked", what);
+        CHECK_MSG(Math::Norm(afterB.Min - b.Min) > 50.f, "{}: B did not move, it is still at {}", what, afterB.Min);
+    };
+    dropBOnA(0, 0, "Docking off");
+    dropBOnA(Onyx::OverlayFlag_Docking, Onyx::OverlayWindowFlag_NoDocking, "NoDocking");
+}
+
+ONYX_TEST(overlay, undocked_windows_leave_their_space_to_the_rest,
+          .Description = "UndockWindow takes a window out of its dock tree: it floats again, and the window it was "
+                         "split with takes the space it left")
+{
+    UiEngine ui{{640, 480}, Onyx::OverlayFlag_Docking};
+    bool submitted = false;
+    bool undock = false;
+    ui.Gui = [&](Onyx::Overlay *ov) {
+        const Onyx::LayoutId host = ov->FullScreenDockSpace();
+        if (!submitted)
+        {
+            ov->SubmitDockTree(host, Onyx::DockSplit(Onyx::LayoutAxis_Vertical, 0.5f, Onyx::DockTabBar("Left"),
+                                                     Onyx::DockTabBar("Right")));
+            submitted = true;
+        }
+        if (undock)
+        {
+            ov->UndockWindow("Left");
+            undock = false;
+        }
+        if (ov->BeginWindow("Left"))
+        {
+            ov->Button("Left fill", Onyx::OverlayButtonFlag_SpanFullWidth);
+            ov->EndWindow();
+        }
+        if (ov->BeginWindow("Right"))
+        {
+            ov->Button("Right fill", Onyx::OverlayButtonFlag_SpanFullWidth);
+            ov->EndWindow();
+        }
+    };
+    ui.Yield(5);
+    REQUIRE((ui.GetWindowInfo("Left").Docked && ui.GetWindowInfo("Right").Docked));
+    const ItemInfo before = ui.GetItem("Right/Right fill");
+    REQUIRE(before.Found);
+    REQUIRE_MSG(before.Size()[0] < 400.f, "Right already spans the dockspace: {} wide", before.Size()[0]);
+
+    undock = true;
+    ui.Yield(4);
+    const WindowInfo left = ui.GetWindowInfo("Left");
+    REQUIRE(left.Found);
+    CHECK(!left.Docked);
+    CHECK(left.Header.Found);
+    CHECK(ui.GetWindowInfo("Right").Docked);
+    const ItemInfo after = ui.GetItem("Right/Right fill");
+    REQUIRE(after.Found);
+    CHECK_MSG(after.Size()[0] > 600.f, "Right is {} wide after Left undocked, it was {}", after.Size()[0],
+              before.Size()[0]);
 }
 
 // Fails until fixed: PushStyleColor saves m_Style[color], which carries the current alpha (OverlayStyle_Alpha), and

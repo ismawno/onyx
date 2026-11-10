@@ -203,7 +203,7 @@ ONYX_TEST(view, perspective_vertical_angle_is_the_field_of_view,
 ONYX_TEST(view, layers_order_the_views,
           .Description = "GetSortedViews returns views by increasing layer, and BringToTop/BringToBottom move them")
 {
-    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture({64, 64});
+    Onyx::RenderTexture *rt = TestRenderTexture({64, 64});
     Onyx::Camera<D2> cam{};
     Onyx::RenderView<D2> *a = rt->CreateRenderView<D2>(&cam);
     Onyx::RenderView<D2> *b = rt->CreateRenderView<D2>(&cam);

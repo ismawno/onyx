@@ -1,35 +1,32 @@
 #include "test.hpp"
+#include <cstring>
 
 namespace OnyxTest
 {
-// function local: registrars run during static initialization, in any translation unit order
-static TKit::DynamicArray<TestInfo> &registry()
+// constant initialized, so they are set before any registrar runs, whatever the order of translation units
+static const TestInfo *s_First = nullptr;
+static TestInfo *s_Last = nullptr;
+
+Registrar::Registrar(const char *suite, const char *name, const char *id, const char *file, const u32 line,
+                     const TestOptions &options)
+    : Info{suite, name, id, file, line, options}
 {
-    static TKit::DynamicArray<TestInfo> tests{};
-    return tests;
+    if (s_Last)
+        s_Last->Next = &Info;
+    else
+        s_First = &Info;
+    s_Last = &Info;
 }
 
-Registrar::Registrar(const char *suite, const char *name, const char *file, const u32 line, const TestOptions &options)
+const TestInfo *GetTests()
 {
-    TestInfo info{};
-    info.Suite = suite;
-    info.Name = name;
-    info.Id = TKit::DynamicString::Format("{}.{}", suite, name);
-    info.File = file;
-    info.Line = line;
-    info.Options = options;
-    registry().Append(std::move(info));
-}
-
-const TKit::DynamicArray<TestInfo> &GetTests()
-{
-    return registry();
+    return s_First;
 }
 const TestInfo *FindTest(const char *id)
 {
-    for (const TestInfo &test : registry())
-        if (test.Id == id)
-            return &test;
+    for (const TestInfo *test = s_First; test; test = test->Next)
+        if (std::strcmp(test->Id, id) == 0)
+            return test;
     return nullptr;
 }
 } // namespace OnyxTest

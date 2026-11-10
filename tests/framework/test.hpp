@@ -7,15 +7,14 @@
 // CHECK records a failure and goes on, REQUIRE ends the test, CHECK_THAT takes a matcher (IsNear below, IsColor in
 // harness.hpp), INFO and CAPTURE add context to the failures after them, SKIP skips the test.
 //
-// Catch2 runs the test body, but not the run: every test gets a process of its own (worker.cpp), because tests
-// initialize and terminate Onyx, open windows and may crash, panic on a validation error or hang. Catch2 runs a whole
-// suite in one process, so one crash would end every test after it, and nothing would end a test that hangs. Onyx
-// builds without exceptions, and so does Catch2 here: a failed REQUIRE ends the worker process, which then reports
-// the test as failed (worker.cpp).
+// Catch2 runs the test body, but not the run: tests run in worker processes (worker.cpp), because they start and stop
+// Onyx, open windows and may crash, panic on a validation error or hang. Catch2 runs a whole suite in one process, so
+// one crash would end every test after it, and nothing would end a test that hangs. Onyx builds without exceptions,
+// and so does Catch2 here: a failed REQUIRE ends the worker process, which then reports the test as failed, and the
+// runner gives the tests after it another worker (supervisor.cpp).
 
-#include "onyx/alias.hpp"
+#include "alias.hpp"
 #include "onyx/core.hpp"
-#include "tkit/container/dynamic_array.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/math/tensor.hpp"
 #include "tkit/utils/logging.hpp"
@@ -27,7 +26,6 @@
 
 namespace OnyxTest
 {
-using namespace TKit::Alias;
 namespace Math = TKit::Math;
 
 enum InitMode : u8
@@ -49,6 +47,9 @@ struct TestOptions
     // a bug the test exposes that you decided to leave for later: a failure, crash or timeout is reported as KNOWN and
     // does not fail the run. once the test passes the runner says so, as a reminder to remove this
     const char *KnownIssue = nullptr;
+    // tests that pass share a worker process, and the Onyx it started (worker.cpp). a test that cannot leave Onyx fit
+    // for the next one, or needs one nobody has used, asks for a process of its own
+    bool OwnProcess = false;
 };
 
 struct TestInfo
@@ -56,19 +57,25 @@ struct TestInfo
     const char *Suite;
     const char *Name;
     // "suite.name", the name of its Catch2 test case
-    TKit::DynamicString Id;
+    const char *Id;
     const char *File;
     u32 Line;
     TestOptions Options;
+    // the test registered after this one
+    const TestInfo *Next = nullptr;
 };
 
-// every test, in registration order (registry.cpp)
-const TKit::DynamicArray<TestInfo> &GetTests();
+// every test, in registration order: the first one, the rest through Next (registry.cpp)
+const TestInfo *GetTests();
 const TestInfo *FindTest(const char *id);
 
+// tests register during static initialization, before main and before any allocator is up: a registrar holds its
+// test and links it to the others, and allocates nothing
 struct Registrar
 {
-    Registrar(const char *suite, const char *name, const char *file, u32 line, const TestOptions &options);
+    Registrar(const char *suite, const char *name, const char *id, const char *file, u32 line,
+              const TestOptions &options);
+    TestInfo Info;
 };
 
 enum Status : u8
@@ -87,6 +94,9 @@ constexpr const char *StatusNames[Status_Count] = {"pass", "fail", "skip", "cras
 void SilenceCrashDialogs();
 // removes the temporary directory the test wrote its files to, if it made one (harness.cpp, TempPath)
 void RemoveTempFiles();
+// what the test made with TestContext and TestRenderTexture, and the windows it left open (harness.cpp). destroys
+// them, or only forgets them when Onyx is about to go, or is gone: Terminate takes them with it
+void ReleaseTestObjects(bool destroy);
 
 // CHECK_THAT(value, IsNear(expected, epsilon)): numbers within epsilon, vectors and matrices component by component.
 // the expected value is converted to the type of the checked one, so IsNear(f32v2{1.f, 2.f}, ...) fits any vector of
@@ -158,9 +168,9 @@ template <> struct StringMaker<Onyx::ErrorCode>
 
 // ONYX_TEST(suite, name) or ONYX_TEST(suite, name, .Description = "...", .Init = OnyxTest::Init_Manual)
 #define ONYX_TEST(suite, name, ...)                                                                                    \
-    static const OnyxTest::Registrar ONYX_TEST_CONCAT(                                                                 \
-        onyxTestRegistrar_, ONYX_TEST_CONCAT(suite, ONYX_TEST_CONCAT(_, name))){#suite, #name, __FILE__, __LINE__,     \
-                                                                                OnyxTest::TestOptions{__VA_ARGS__}};   \
+    static OnyxTest::Registrar ONYX_TEST_CONCAT(onyxTestRegistrar_,                                                    \
+                                                ONYX_TEST_CONCAT(suite, ONYX_TEST_CONCAT(_, name))){                   \
+        #suite, #name, #suite "." #name, __FILE__, __LINE__, OnyxTest::TestOptions{__VA_ARGS__}};                      \
     TEST_CASE(#suite "." #name, "[" #suite "]")
 
 // a check that says why it failed. Catch2 has no such macro, and an INFO would tag every later failure in its scope:

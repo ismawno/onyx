@@ -130,10 +130,10 @@ ONYX_TEST(resources, obj_files_load,
                       "v -0.5 -0.5 0\nv 0.5 -0.5 0\nv 0.5 0.5 0\nv -0.5 0.5 0\n"
                       "vn 0 0 1\n"
                       "f 1//1 2//1 3//1\nf 1//1 3//1 4//1\n";
-    const TKit::DynamicString path = TempPath("square.obj");
+    const Path path = TempPath("square.obj");
     REQUIRE(WriteFile(path, obj, std::strlen(obj)));
-    const auto result = Onyx::Mesh_LoadDataFromObjFile<D3>(path.CString());
-    REQUIRE_MSG(bool(result), "{}", result ? "" : result.GetError().ToString().CString());
+    const auto result = Onyx::Mesh_LoadDataFromObjFile<D3>(path);
+    REQUIRE_MSG(result, "{}", Describe(result));
 
     const Onyx::StaticMeshData<D3> &data = *result;
     CHECK(data.Indices.GetSize() == 6u);
@@ -148,11 +148,11 @@ ONYX_TEST(resources, obj_files_load,
 
 #ifdef ONYX_ENABLE_IMAGE_LOAD
 // a 2x2 24 bit BMP: red, green on top, blue, white at the bottom. BMP rows are stored bottom up and padded to 4 bytes
-static TKit::DynamicArray<u8> makeBmp()
+static Array<u8> makeBmp()
 {
-    TKit::DynamicArray<u8> bmp{};
+    Array<u8> bmp{};
     bmp.Resize(54 + 16, u8(0));
-    const auto put32 = [&](const usz at, const u32 v) {
+    const auto put32 = [&](const usize at, const u32 v) {
         for (u32 i = 0; i < 4; ++i)
             bmp[at + i] = u8(v >> (8 * i));
     };
@@ -176,10 +176,10 @@ static TKit::DynamicArray<u8> makeBmp()
 ONYX_TEST(resources, images_load_from_memory,
           .Description = "An encoded image decodes to the right size and pixels, top row first")
 {
-    const TKit::DynamicArray<u8> bmp = makeBmp();
+    const Array<u8> bmp = makeBmp();
     const auto result = Onyx::Image_LoadDataFromMemory(reinterpret_cast<const std::byte *>(bmp.GetData()),
                                                        u32(bmp.GetSize()), Onyx::ImageComponent_RGBA);
-    REQUIRE_MSG(bool(result), "{}", result ? "" : result.GetError().ToString().CString());
+    REQUIRE_MSG(result, "{}", Describe(result));
     const Onyx::ImageData &data = *result;
     CHECK(data.Width == 2u);
     CHECK(data.Height == 2u);
@@ -205,11 +205,11 @@ ONYX_TEST(resources, corrupt_images_report_an_error,
 #endif
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-static TKit::DynamicString base64(const TKit::DynamicArray<u8> &bytes)
+static String base64(const Array<u8> &bytes)
 {
     constexpr const char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    TKit::DynamicString out{};
-    for (usz i = 0; i < bytes.GetSize(); i += 3)
+    String out{};
+    for (usize i = 0; i < bytes.GetSize(); i += 3)
     {
         const u32 b0 = bytes[i];
         const u32 b1 = i + 1 < bytes.GetSize() ? bytes[i + 1] : 0;
@@ -230,14 +230,14 @@ ONYX_TEST(resources, gltf_files_load,
           .Description = "A glTF file with one triangle loads into one static mesh with three vertices")
 {
     // indices (3 x u16, padded to 8 bytes) followed by three vec3 positions
-    TKit::DynamicArray<u8> buffer{};
+    Array<u8> buffer{};
     buffer.Resize(8 + 36, u8(0));
     const u16 indices[3] = {0, 1, 2};
     std::memcpy(buffer.GetData(), indices, sizeof(indices));
     const f32 positions[9] = {0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f, 0.f};
     std::memcpy(buffer.GetData() + 8, positions, sizeof(positions));
 
-    const TKit::DynamicString gltf = TKit::DynamicString::Format(
+    const String gltf = String::Format(
         R"({{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0]}}],"nodes":[{{"mesh":0}}],)"
         R"("meshes":[{{"primitives":[{{"attributes":{{"POSITION":1}},"indices":0}}]}}],)"
         R"("buffers":[{{"uri":"data:application/octet-stream;base64,{}","byteLength":{}}}],)"
@@ -247,10 +247,10 @@ ONYX_TEST(resources, gltf_files_load,
         R"({{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}}]}})",
         base64(buffer), buffer.GetSize());
 
-    const TKit::DynamicString path = TempPath("triangle.gltf");
+    const Path path = TempPath("triangle.gltf");
     REQUIRE(WriteFile(path, gltf.GetData(), gltf.GetSize()));
-    const auto result = Onyx::Gltf_LoadDataFromFile<D3>(TKit::TierPath{path});
-    REQUIRE_MSG(bool(result), "{}", result ? "" : result.GetError().ToString().CString());
+    const auto result = Onyx::Gltf_LoadDataFromFile<D3>(path);
+    REQUIRE_MSG(result, "{}", Describe(result));
     REQUIRE(result->StaticMeshes.GetSize() == 1u);
     CHECK(result->StaticMeshes[0].Vertices.GetSize() == 3u);
     CHECK(result->StaticMeshes[0].Indices.GetSize() == 3u);
@@ -264,9 +264,9 @@ ONYX_TEST(resources, gltf_files_load,
 
 struct LoaderPaths
 {
-    TKit::DynamicString Missing;
-    TKit::DynamicString Directory;
-    TKit::DynamicString Junk;
+    Path Missing;
+    Path Directory;
+    Path Junk;
 };
 // a path that does not exist, a directory, and a file no loader can read
 static bool makeLoaderPaths(LoaderPaths &paths)
@@ -277,22 +277,22 @@ static bool makeLoaderPaths(LoaderPaths &paths)
     return MakeDirectory(paths.Directory) && WriteFile(paths.Junk, "this is not a file any loader can read\n");
 }
 // empty when the load failed with the expected error, otherwise what happened instead
-template <typename R> static TKit::DynamicString unexpected(const R &result, const Onyx::ErrorCode expected)
+template <typename R> static String unexpected(const R &result, const Onyx::ErrorCode expected)
 {
     if (result)
         return "it loaded";
     if (result.GetError().GetCode() != expected)
-        return TKit::DynamicString{result.GetError().ToString().CString()};
-    return TKit::DynamicString{};
+        return result.GetError().ToString();
+    return String{};
 }
-template <typename R> static bool namesPath(const R &result, const TKit::DynamicString &path)
+template <typename R> static bool namesPath(const R &result, const Path &path)
 {
     return !result && result.GetError().GetMessage().Contains(path.CString());
 }
 #define EXPECT_LOAD_ERROR(expression, code, what)                                                                      \
     do                                                                                                                 \
     {                                                                                                                  \
-        const TKit::DynamicString unexpectedOutcome = unexpected((expression), code);                                  \
+        const String unexpectedOutcome = unexpected((expression), code);                                               \
         CHECK_MSG(unexpectedOutcome.IsEmpty(), "{}: expected {}, got: {}", what, Onyx::ToString(code),                 \
                   unexpectedOutcome);                                                                                  \
     } while (false)
@@ -304,24 +304,20 @@ ONYX_TEST(resources, loaders_tell_missing_files_from_directories,
     LoaderPaths p{};
     REQUIRE(makeLoaderPaths(p));
 #ifdef ONYX_ENABLE_IMAGE_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Missing.CString()), Onyx::Error_FileNotFound, "image, missing");
-    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Directory.CString()), Onyx::Error_IsNotFile, "image, directory");
-    CHECK_MSG(namesPath(Onyx::Image_LoadDataFromFile(p.Missing.CString()), p.Missing),
-              "The image error does not name the path");
+    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Missing), Onyx::Error_FileNotFound, "image, missing");
+    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Directory), Onyx::Error_IsNotFile, "image, directory");
+    CHECK_MSG(namesPath(Onyx::Image_LoadDataFromFile(p.Missing), p.Missing), "The image error does not name the path");
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Missing.CString()), Onyx::Error_FileNotFound,
-                      "OBJ, missing");
-    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Directory.CString()), Onyx::Error_IsNotFile,
-                      "OBJ, directory");
-    CHECK_MSG(namesPath(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Missing.CString()), p.Missing),
+    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Missing), Onyx::Error_FileNotFound, "OBJ, missing");
+    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Directory), Onyx::Error_IsNotFile, "OBJ, directory");
+    CHECK_MSG(namesPath(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Missing), p.Missing),
               "The OBJ error does not name the path");
 #endif
 #ifdef ONYX_ENABLE_FONT_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Font_LoadDataFromFile(p.Missing.CString()), Onyx::Error_FileNotFound, "font, missing");
-    EXPECT_LOAD_ERROR(Onyx::Font_LoadDataFromFile(p.Directory.CString()), Onyx::Error_IsNotFile, "font, directory");
-    CHECK_MSG(namesPath(Onyx::Font_LoadDataFromFile(p.Missing.CString()), p.Missing),
-              "The font error does not name the path");
+    EXPECT_LOAD_ERROR(Onyx::Font_LoadDataFromFile(p.Missing), Onyx::Error_FileNotFound, "font, missing");
+    EXPECT_LOAD_ERROR(Onyx::Font_LoadDataFromFile(p.Directory), Onyx::Error_IsNotFile, "font, directory");
+    CHECK_MSG(namesPath(Onyx::Font_LoadDataFromFile(p.Missing), p.Missing), "The font error does not name the path");
 #endif
 }
 
@@ -331,16 +327,16 @@ ONYX_TEST(resources, loaders_reject_files_they_cannot_read,
     LoaderPaths p{};
     REQUIRE(makeLoaderPaths(p));
 #ifdef ONYX_ENABLE_IMAGE_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Junk.CString()), Onyx::Error_LoadFailed, "image");
+    EXPECT_LOAD_ERROR(Onyx::Image_LoadDataFromFile(p.Junk), Onyx::Error_LoadFailed, "image");
 #endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Junk.CString()), Onyx::Error_LoadFailed, "OBJ");
+    EXPECT_LOAD_ERROR(Onyx::Mesh_LoadDataFromObjFile<D3>(p.Junk), Onyx::Error_LoadFailed, "OBJ");
 #endif
 #ifdef ONYX_ENABLE_GLTF_LOAD
-    EXPECT_LOAD_ERROR(Onyx::Gltf_LoadDataFromFile<D3>(std::string{p.Junk.CString()}), Onyx::Error_LoadFailed, "glTF");
+    EXPECT_LOAD_ERROR(Onyx::Gltf_LoadDataFromFile<D3>(p.Junk), Onyx::Error_LoadFailed, "glTF");
 #endif
 #ifdef ONYX_ENABLE_FONT_LOAD
     // FreeType gives no reason, and the font loader reports Error_Unknown for it: only the failure is checked
-    CHECK_MSG(!Onyx::Font_LoadDataFromFile(p.Junk.CString()), "Font: an unreadable file loaded");
+    CHECK_MSG(!Onyx::Font_LoadDataFromFile(p.Junk), "Font: an unreadable file loaded");
 #endif
 }

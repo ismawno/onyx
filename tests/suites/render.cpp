@@ -144,7 +144,7 @@ ONYX_TEST(render, viewport_limits_drawing,
 ONYX_TEST(render, views_composite_by_layer,
           .Description = "Overlapping views are composited by layer: the top one covers the others")
 {
-    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture({32, 32});
+    Onyx::RenderTexture *rt = TestRenderTexture({32, 32});
     Onyx::Camera<D2> cam{};
     Onyx::RenderView<D2> *a = rt->CreateRenderView<D2>(&cam);
     Onyx::RenderView<D2> *b = rt->CreateRenderView<D2>(&cam);
@@ -178,7 +178,7 @@ ONYX_TEST(render, contexts_share_views,
     scene.Context->Translate(f32v2{-1.f, 0.f});
     scene.Context->Quad();
 
-    Onyx::RenderContext<D2> *other = Onyx::CreateRenderContext<D2>();
+    Onyx::RenderContext<D2> *other = TestContext<D2>();
     other->Flush();
     other->AddTarget(scene.View);
     other->FillColor(Onyx::Color_Blue);
@@ -390,11 +390,11 @@ ONYX_TEST(render, render_textures_resize,
 ONYX_TEST(render, content_scale_multiplies_pixels,
           .Description = "A render texture with content scale 2 has twice the pixels per axis and the same picture")
 {
-    Onyx::RenderTexture *rt = Onyx::CreateRenderTexture({32, 32}, {.ContentScale = 2.f});
+    Onyx::RenderTexture *rt = TestRenderTexture({32, 32}, {.ContentScale = 2.f});
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 2.f;
     Onyx::RenderView<D2> *rv = rt->CreateRenderView<D2>(&cam);
-    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
+    Onyx::RenderContext<D2> *ctx = TestContext<D2>();
     ctx->Flush();
     ctx->AddTarget(rv);
     ctx->FillColor(Onyx::Color_Red);
@@ -453,7 +453,7 @@ ONYX_TEST(render, dynamic_meshes_draw_their_vertices,
 {
     Scene<D2> scene{};
     scene.Camera.OrthoParameters.Size = 2.f;
-    Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>({.ImmediateDynamicMeshCapacity = 1});
+    Onyx::RenderContext<D2> *ctx = TestContext<D2>({.ImmediateDynamicMeshCapacity = 1});
     ctx->Flush();
     ctx->AddTarget(scene.View);
     // a triangle covering most of the right half
