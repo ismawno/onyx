@@ -55,7 +55,7 @@ constexpr f32 ToSrgb(const f32 c)
 
 // TODO(Isma, 02/07/26): If we end up supporting HDR, this will have to go
 #ifdef TKIT_ENABLE_ENSURE
-inline void CheckRgba(const f32v4 &rgba)
+constexpr void CheckRgba(const f32v4 &rgba)
 {
     TKIT_ENSURE(rgba[0] <= 1.f && rgba[0] >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1], but was {}",
                 rgba[0]);
@@ -76,39 +76,40 @@ namespace Onyx
 {
 struct Color
 {
-    Color(const f32v4 &rgba) : rgba(rgba)
+    constexpr Color(const f32v4 &rgba) : rgba(rgba)
     {
         CHECK_RGBA(rgba);
     }
 
-    Color(const f32v3 &rgb, const f32 alpha = 1.f) : rgba(rgb, alpha)
+    constexpr Color(const f32v3 &rgb, const f32 alpha = 1.f) : rgba(rgb, alpha)
     {
         CHECK_RGBA(rgba);
     }
 
-    Color(const f32 rgb = 1.f, const f32 alpha = 1.f) : Color(rgb, rgb, rgb, alpha)
+    constexpr Color(const f32 rgb = 1.f, const f32 alpha = 1.f) : Color(rgb, rgb, rgb, alpha)
     {
     }
-    Color(const u32 rgb, const u32 alpha = 255) : Color(rgb, rgb, rgb, alpha)
+    constexpr Color(const u32 rgb, const u32 alpha = 255) : Color(rgb, rgb, rgb, alpha)
     {
     }
 
-    Color(const f32 red, const f32 green, const f32 blue, const f32 alpha = 1.f) : rgba(red, green, blue, alpha)
+    constexpr Color(const f32 red, const f32 green, const f32 blue, const f32 alpha = 1.f)
+        : rgba(red, green, blue, alpha)
     {
         CHECK_RGBA(rgba);
     }
-    Color(const u32 red, const u32 green, const u32 blue, const u32 alpha = 255)
+    constexpr Color(const u32 red, const u32 green, const u32 blue, const u32 alpha = 255)
         : rgba(Detail::FromType(red), Detail::FromType(green), Detail::FromType(blue), Detail::FromType(alpha))
     {
         CHECK_RGBA(rgba);
     }
 
-    Color(const Color &rgb, const f32 alpha) : rgba(rgb.rgb, alpha)
+    constexpr Color(const Color &rgb, const f32 alpha) : rgba(rgb.rgb, alpha)
     {
         CHECK_RGBA(rgba);
     }
 
-    Color(const Color &rgb, const u32 alpha) : rgba(rgb.rgb, Detail::FromType(alpha))
+    constexpr Color(const Color &rgb, const u32 alpha) : rgba(rgb.rgb, Detail::FromType(alpha))
     {
         CHECK_RGBA(rgba);
     }
@@ -277,36 +278,36 @@ struct Color
     }
 };
 
-inline Color Color_Red{255u, 0u, 0u};
-inline Color Color_Green{0u, 255u, 0u};
-inline Color Color_Blue{0u, 0u, 255u};
-inline Color Color_Magenta{255u, 0u, 255u};
-inline Color Color_Cyan{0u, 255u, 255u};
-inline Color Color_Orange{255u, 165u, 0u};
-inline Color Color_Yellow{255u, 255u, 0u};
-inline Color Color_Coral{255u, 127u, 127u};
-inline Color Color_Salmon{250u, 128u, 114u};
-inline Color Color_Mint{127u, 191u, 164u};
-inline Color Color_Sage{143u, 188u, 143u};
-inline Color Color_Sky{127u, 179u, 216u};
-inline Color Color_Periwinkle{139u, 157u, 195u};
-inline Color Color_Honey{240u, 208u, 128u};
-inline Color Color_Buttercup{245u, 215u, 110u};
-inline Color Color_Peach{255u, 173u, 133u};
-inline Color Color_Apricot{244u, 164u, 96u};
-inline Color Color_Lavender{179u, 157u, 219u};
-inline Color Color_Mauve{196u, 167u, 215u};
-inline Color Color_Teal{126u, 200u, 200u};
-inline Color Color_Seafoam{128u, 203u, 196u};
-inline Color Color_Rose{232u, 144u, 156u};
-inline Color Color_Blush{240u, 160u, 168u};
-inline Color Color_WarmWhite{245u, 240u, 235u};
-inline Color Color_Pearl{234u, 234u, 234u};
-inline Color Color_Black{0u};
-inline Color Color_Pink{255u, 192u, 203u};
-inline Color Color_Purple{191u, 64u, 191u};
-inline Color Color_White{255u};
-inline Color Color_Transparent{Color_White, 0u};
+constexpr Color Color_Red{255u, 0u, 0u};
+constexpr Color Color_Green{0u, 255u, 0u};
+constexpr Color Color_Blue{0u, 0u, 255u};
+constexpr Color Color_Magenta{255u, 0u, 255u};
+constexpr Color Color_Cyan{0u, 255u, 255u};
+constexpr Color Color_Orange{255u, 165u, 0u};
+constexpr Color Color_Yellow{255u, 255u, 0u};
+constexpr Color Color_Coral{255u, 127u, 127u};
+constexpr Color Color_Salmon{250u, 128u, 114u};
+constexpr Color Color_Mint{127u, 191u, 164u};
+constexpr Color Color_Sage{143u, 188u, 143u};
+constexpr Color Color_Sky{127u, 179u, 216u};
+constexpr Color Color_Periwinkle{139u, 157u, 195u};
+constexpr Color Color_Honey{240u, 208u, 128u};
+constexpr Color Color_Buttercup{245u, 215u, 110u};
+constexpr Color Color_Peach{255u, 173u, 133u};
+constexpr Color Color_Apricot{244u, 164u, 96u};
+constexpr Color Color_Lavender{179u, 157u, 219u};
+constexpr Color Color_Mauve{196u, 167u, 215u};
+constexpr Color Color_Teal{126u, 200u, 200u};
+constexpr Color Color_Seafoam{128u, 203u, 196u};
+constexpr Color Color_Rose{232u, 144u, 156u};
+constexpr Color Color_Blush{240u, 160u, 168u};
+constexpr Color Color_WarmWhite{245u, 240u, 235u};
+constexpr Color Color_Pearl{234u, 234u, 234u};
+constexpr Color Color_Black{0u};
+constexpr Color Color_Pink{255u, 192u, 203u};
+constexpr Color Color_Purple{191u, 64u, 191u};
+constexpr Color Color_White{255u};
+constexpr Color Color_Transparent{255u, 0u};
 
 class Gradient
 {
