@@ -422,14 +422,7 @@ static ProjectLauncherResult runProjectLauncher()
 }
 
 // TODO(Isma): Use tkit defer for audio to return errors instead of ensuring!!!
-// TODO(Isma): Stop compiling performance on toolkit CI
-// TODO(Isma): Tests spend 1.6s on Terminate()??? improve that
 // TODO(Isma): Implement my own argparse. Use it in tests
-// TODO(Isma): Wtf anonymous structs in filesystem??
-// TODO(Isma): Improve toolkit ci workflow?
-// TODO(Isma): Why the use of Dynamic blabla stuff in tests???
-// TODO(Isma): Ask for TKit::TierPath in all load functions?
-// TODO(Isma): More docking tests. Should be able to view output even if marked as known
 // TODO(Isma): Rename overlay to ui?
 // TODO(Isma): the WaitFor blabla, warning and tell the user what to do
 // TODO(Isma): Remove [EDITOR] blabla from error msgs

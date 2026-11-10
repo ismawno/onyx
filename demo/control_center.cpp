@@ -2740,10 +2740,6 @@ static void setSuiteOpen(TestRunner &tr, const String &suite, const bool open)
         tr.OpenSuites.Append(suite);
 }
 
-// asks the runner for its tests. fast: listing does not initialize Onyx. selections and results of tests that are
-// still there survive a refresh
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4996)
 static void listTests(TestRunner &tr)
 {
     if (tr.Running.load())
@@ -2803,7 +2799,6 @@ static void listTests(TestRunner &tr)
     if (tr.Tests.IsEmpty())
         tr.Problem = String::Format("No tests listed by {} (exit status {})", tr.Executable, code);
 }
-TKIT_COMPILER_WARNING_IGNORE_POP()
 
 using TestPicks = Array<const TestEntry *>;
 
