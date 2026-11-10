@@ -123,6 +123,7 @@ static TKit::Storage<SpscQueue<Audio *>> s_CallbackQueue{};
 static TKit::Storage<SpscQueue<AudioDeviceEvent>> s_DeviceQueue{};
 
 static bool s_Available = false;
+static bool s_OwnsContext = false;
 
 static void processorOnProcess(ma_node *node, const f32 **in, ma_uint32 *frameCountIn, f32 **out,
                                ma_uint32 *frameCountOut)
@@ -261,6 +262,7 @@ void audio_Initialize(const u32 listenerCount)
         cfg.pContext = &s_Data->Context;
         ENSURE_SUCCESS(ma_engine_init(&cfg, &s_Data->Engine),
                        "[ONYX][AUDIO] Failed to initialize NULL backend with error code {}");
+        s_OwnsContext = true;
     }
     else
     {
@@ -294,13 +296,14 @@ void audio_Terminate()
 
     ma_sound_group_uninit(&s_Data->Group);
     ma_engine_uninit(&s_Data->Engine);
-    if (!s_Available)
+    if (s_OwnsContext)
         ma_context_uninit(&s_Data->Context);
     ma_log_uninit(&s_Data->Log);
 
     s_DeviceQueue.Destruct();
     s_CallbackQueue.Destruct();
     s_Data.Destruct();
+    s_OwnsContext = false;
 }
 
 bool audio_IsResourceIdValid(const u32 id)
