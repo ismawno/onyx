@@ -25,7 +25,7 @@ struct Blip
 static Onyx::Resource createBlip(Blip &blip, const f32 seconds, const Onyx::AudioFlags flags = 0)
 {
     blip.Length = u32(seconds * f32(Onyx::Audio_GetSampleRate()));
-    const Onyx::Resource source = Onyx::Audio_Create(
+    const Onyx::Resource source = ONYX_CHECK_RESULT(Onyx::Audio_Create(
         [&blip](f32 *out, const u32 frameCount, const u32 channels) -> u32 {
             const u32 cursor = blip.Cursor.load(std::memory_order_relaxed);
             const u32 count = cursor >= blip.Length ? 0 : Math::Min(frameCount, blip.Length - cursor);
@@ -39,7 +39,7 @@ static Onyx::Resource createBlip(Blip &blip, const f32 seconds, const Onyx::Audi
                  blip.Cursor.store(u32(frame), std::memory_order_relaxed);
                  return true;
              },
-         .Flags = flags});
+         .Flags = flags}));
     Onyx::Audio_SetVolume(source, 1e-4f);
     return source;
 }
@@ -97,9 +97,9 @@ ONYX_TEST(audio, playing_follows_play_and_stop,
     Blip blip{};
     const Onyx::Resource source = createBlip(blip, 5.f);
     CHECK(!Onyx::Audio_IsPlaying(source));
-    Onyx::Audio_PlayFromBeginning(source);
+    CHECK(Onyx::Audio_PlayFromBeginning(source));
     CHECK(Onyx::Audio_IsPlaying(source));
-    Onyx::Audio_Stop(source);
+    CHECK(Onyx::Audio_Stop(source));
     CHECK(!Onyx::Audio_IsPlaying(source));
     Onyx::Audio_Destroy(source);
 }
@@ -111,7 +111,7 @@ ONYX_TEST(audio, short_sounds_end_on_their_own,
     REQUIRE_AUDIO();
     Blip blip{};
     const Onyx::Resource source = createBlip(blip, 0.15f);
-    Onyx::Audio_PlayFromBeginning(source);
+    CHECK(Onyx::Audio_PlayFromBeginning(source));
     const bool ended = waitSeconds(2.f, [&] { return !Onyx::Audio_IsPlaying(source); });
     CHECK_MSG(ended, "Still playing 2 s after a 0.15 s sound started ({} of {} frames produced)", blip.Cursor.load(),
               blip.Length);
@@ -130,11 +130,11 @@ ONYX_TEST(audio, end_callbacks_run_on_the_audio_thread,
     std::atomic<u32> ends{0};
     std::atomic<bool> onMainThread{false};
     const std::thread::id main = std::this_thread::get_id();
-    Onyx::Audio_SetAudioThreadEndCallback(source, [&] {
+    CHECK(Onyx::Audio_SetAudioThreadEndCallback(source, [&] {
         onMainThread.store(std::this_thread::get_id() == main);
         ends.fetch_add(1);
-    });
-    Onyx::Audio_PlayFromBeginning(source);
+    }));
+    CHECK(Onyx::Audio_PlayFromBeginning(source));
     CHECK(waitSeconds(2.f, [&] { return ends.load() >= 1; }));
     waitSeconds(0.2f, [] { return false; });
     CHECK(ends.load() == 1u);
@@ -153,11 +153,11 @@ ONYX_TEST(audio, end_callbacks_reach_the_main_thread,
     u32 ends = 0;
     bool onMainThread = false;
     const std::thread::id main = std::this_thread::get_id();
-    Onyx::Audio_SetMainThreadEndCallback(source, [&] {
+    CHECK(Onyx::Audio_SetMainThreadEndCallback(source, [&] {
         onMainThread = std::this_thread::get_id() == main;
         ++ends;
-    });
-    Onyx::Audio_PlayFromBeginning(source);
+    }));
+    CHECK(Onyx::Audio_PlayFromBeginning(source));
     CHECK(waitSeconds(2.f, [&] { return ends >= 1; }));
     waitSeconds(0.2f, [] { return false; });
     CHECK(ends == 1u);
@@ -171,10 +171,10 @@ ONYX_TEST(audio, looping_sounds_keep_playing,
     REQUIRE_AUDIO();
     Blip blip{};
     const Onyx::Resource source = createBlip(blip, 0.05f, Onyx::AudioFlag_Loop);
-    Onyx::Audio_PlayFromBeginning(source);
+    CHECK(Onyx::Audio_PlayFromBeginning(source));
     waitSeconds(0.5f, [] { return false; });
     CHECK(Onyx::Audio_IsPlaying(source));
-    Onyx::Audio_Stop(source);
+    CHECK(Onyx::Audio_Stop(source));
     Onyx::Audio_Destroy(source);
 }
 

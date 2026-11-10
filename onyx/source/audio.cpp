@@ -3,6 +3,7 @@
 #include "onyx/resources.hpp"
 #include "tkit/container/hive.hpp"
 #include "tkit/utils/defer.hpp"
+#include "tkit/utils/defer.hpp"
 #define MA_IMPLEMENTATION
 #include <miniaudio.h>
 #undef ERROR
@@ -12,8 +13,9 @@
     ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
     ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
 
-// TODO(Isma): We should forward errors instead of asserting them. however, keeping a consistent state after error is
-// such a mess, for now we do this and declare UB continuing after this fails
+#define CHECK_ERROR(expr, err, ...)                                                                                    \
+    ONYX_RETURN_ERROR_IF(const i32 res = i32(expr); res != MA_SUCCESS, err __VA_OPT__(, ) __VA_ARGS__)
+
 #ifdef TKIT_ENABLE_ENSURE
 #    define ENSURE_SUCCESS(expr, msg, ...)                                                                             \
         if (const ma_result res = (expr); res != MA_SUCCESS)                                                           \
@@ -60,7 +62,6 @@ struct Audio
 struct AudioResourceData
 {
     ma_engine Engine;
-    ma_context Context;
     ma_sound_group Group;
     ma_log Log;
     ProcessorNode MasterNode;
@@ -123,7 +124,7 @@ static TKit::Storage<SpscQueue<Audio *>> s_CallbackQueue{};
 static TKit::Storage<SpscQueue<AudioDeviceEvent>> s_DeviceQueue{};
 
 static bool s_Available = false;
-static bool s_OwnsContext = false;
+static bool s_Healthy = false;
 
 static void processorOnProcess(ma_node *node, const f32 **in, ma_uint32 *frameCountIn, f32 **out,
                                ma_uint32 *frameCountOut)
@@ -229,81 +230,73 @@ static void notificationCallback(const ma_device_notification *n)
     }
 }
 
-void audio_Initialize(const u32 listenerCount)
+Result<> audio_Initialize(const u32 listenerCount)
 {
     s_Data.Construct();
     s_CallbackQueue.Construct();
     s_DeviceQueue.Construct();
 
-    ENSURE_SUCCESS(ma_log_init(nullptr, &s_Data->Log),
-                   "[ONYX][AUDIO] Audio log initialization failed with result code {}");
-    ENSURE_SUCCESS(ma_log_register_callback(&s_Data->Log, ma_log_callback_init(logCallback, nullptr)),
-                   "[ONYX][AUDIO] Audio log registration failed with error code {}");
+    TKIT_ERROR_DEFER_SCOPE();
+
+    CHECK_ERROR(ma_log_init(nullptr, &s_Data->Log), Error_AudioInitFailed,
+                "[ONYX][AUDIO] Log initialization failed with result code {}", res);
+    TKIT_ERROR_DEFER(ma_log_uninit(&s_Data->Log));
+
+    CHECK_ERROR(ma_log_register_callback(&s_Data->Log, ma_log_callback_init(logCallback, nullptr)),
+                Error_AudioInitFailed, "[ONYX][AUDIO] Log registration failed with error code {}", res);
 
     ma_engine_config cfg = ma_engine_config_init();
     cfg.listenerCount = listenerCount;
     cfg.notificationCallback = notificationCallback;
     cfg.pLog = &s_Data->Log;
 
-    const ma_result engRes = ma_engine_init(&cfg, &s_Data->Engine);
-    s_Available = engRes == MA_SUCCESS;
-    if (!s_Available)
-    {
-        TKIT_LOG_ERROR(
-            "[ONYX][AUDIO] Failed to initialize audio engine with error code {}. NULL backend will be initialized...",
-            u32(engRes));
+    CHECK_ERROR(ma_engine_init(&cfg, &s_Data->Engine), Error_AudioInitFailed,
+                "[ONYX][AUDIO] Engine initialization failed with error code {}", res);
+    TKIT_ERROR_DEFER(ma_engine_uninit(&s_Data->Engine));
 
-        const ma_backend bk = ma_backend_null;
-        ma_context_config ctxCfg = ma_context_config_init();
-        ctxCfg.pLog = &s_Data->Log;
-        ENSURE_SUCCESS(ma_context_init(&bk, 1, &ctxCfg, &s_Data->Context),
-                       "[ONYX][AUDIO] Failed to initialize NULL backend with error code {}");
+    CHECK_ERROR(ma_sound_group_init(&s_Data->Engine, MA_SOUND_FLAG_NO_SPATIALIZATION, nullptr, &s_Data->Group),
+                Error_AudioInitFailed, "[ONYX][AUDIO] Audio group initialization failed with error code {}", res);
 
-        cfg.pContext = &s_Data->Context;
-        ENSURE_SUCCESS(ma_engine_init(&cfg, &s_Data->Engine),
-                       "[ONYX][AUDIO] Failed to initialize NULL backend with error code {}");
-        s_OwnsContext = true;
-    }
-    else
-    {
-        s_Available = ma_engine_get_device(&s_Data->Engine)->pContext->backend != ma_backend_null;
-        TKIT_LOG_ERROR_IF(
-            !s_Available,
-            "[ONYX][AUDIO] Failed to initialize audio engine with a non-null backend. NULL backend will be "
-            "used");
-    }
+    s_Healthy = true;
+    s_Available = ma_engine_get_device(&s_Data->Engine)->pContext->backend != ma_backend_null;
 
-    ENSURE_SUCCESS(ma_sound_group_init(&s_Data->Engine, MA_SOUND_FLAG_NO_SPATIALIZATION, nullptr, &s_Data->Group),
-                   "[ONYX][AUDIO] Audio group initialization failed with error code {}");
+    TKIT_LOG_ERROR_IF(!s_Available,
+                      "[ONYX][AUDIO] Failed to initialize audio engine with a non-null backend. NULL backend will be "
+                      "used, so Audio_* functions can still be used");
+
+    TKIT_ERROR_DEFER_COMMIT();
+    return Result<>::Ok();
 }
 
 void audio_Terminate()
 {
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (Audio *audio : s_Data->Audios)
+    if (s_Healthy)
     {
-        ma_sound_uninit(&audio->Sound);
-        if (audio->Node.Fn)
-            ma_node_uninit(&audio->Node.Base, nullptr);
-        if (audio->Type == Audio_Buffer)
-            ma_audio_buffer_uninit(&audio->Buffer);
-        else if (audio->Type == Audio_Custom)
-            ma_data_source_uninit(&audio->Source.Base);
-        tier->Destroy(audio);
-    }
-    if (s_Data->MasterNode.Fn)
-        ma_node_uninit(&s_Data->MasterNode.Base, nullptr);
+        TKit::TierAllocator *tier = TKit::GetTier();
+        for (Audio *audio : s_Data->Audios)
+        {
+            ma_sound_uninit(&audio->Sound);
+            if (audio->Node.Fn)
+                ma_node_uninit(&audio->Node.Base, nullptr);
+            if (audio->Type == Audio_Buffer)
+                ma_audio_buffer_uninit(&audio->Buffer);
+            else if (audio->Type == Audio_Custom)
+                ma_data_source_uninit(&audio->Source.Base);
+            tier->Destroy(audio);
+        }
+        if (s_Data->MasterNode.Fn)
+            ma_node_uninit(&s_Data->MasterNode.Base, nullptr);
 
-    ma_sound_group_uninit(&s_Data->Group);
-    ma_engine_uninit(&s_Data->Engine);
-    if (s_OwnsContext)
-        ma_context_uninit(&s_Data->Context);
-    ma_log_uninit(&s_Data->Log);
+        ma_sound_group_uninit(&s_Data->Group);
+        ma_engine_uninit(&s_Data->Engine);
+        ma_log_uninit(&s_Data->Log);
+    }
 
     s_DeviceQueue.Destruct();
     s_CallbackQueue.Destruct();
     s_Data.Destruct();
-    s_OwnsContext = false;
+    s_Available = false;
+    s_Healthy = false;
 }
 
 bool audio_IsResourceIdValid(const u32 id)
@@ -331,20 +324,20 @@ void audio_Update()
     audio_DrainDeviceQueue();
 }
 
-static bool setupNode(AudioProcessorCallback &&cbk, ProcessorNode &node, ma_node *src, ma_node *dst)
+ONYX_NO_DISCARD static Result<bool> setupNode(AudioProcessorCallback &&cbk, ProcessorNode &node, ma_node *src,
+                                              ma_node *dst)
 {
     if (node.Fn)
     {
-        ENSURE_SUCCESS(ma_node_attach_output_bus(src, 0, dst, 0),
-                       "[ONYX][AUDIO] Failed to attach sound to engine endpoint with error code {}");
+        CHECK_ERROR(ma_node_attach_output_bus(src, 0, dst, 0), Error_AudioAttachFailed,
+                    "[ONYX][AUDIO] Failed to attach sound to engine endpoint with error code {}", res);
+
         ma_node_uninit(&node.Base, nullptr);
         node.Fn = nullptr;
     }
 
     if (!cbk)
         return false;
-
-    node.Fn = std::move(cbk);
 
     ma_node_config ncfg = ma_node_config_init();
     const ma_uint32 channels = ma_engine_get_channels(&s_Data->Engine);
@@ -353,8 +346,10 @@ static bool setupNode(AudioProcessorCallback &&cbk, ProcessorNode &node, ma_node
     ncfg.pInputChannels = &channels;
     ncfg.pOutputChannels = &channels;
     node.Channels = channels;
-    ENSURE_SUCCESS(ma_node_init(ma_engine_get_node_graph(&s_Data->Engine), &ncfg, nullptr, &node.Base),
-                   "[ONYX][AUDIO] Failed to initialize audio node with error code {}");
+    CHECK_ERROR(ma_node_init(ma_engine_get_node_graph(&s_Data->Engine), &ncfg, nullptr, &node.Base),
+                Error_AudioNodeInitFailed, "[ONYX][AUDIO] Failed to initialize audio node with error code {}", res);
+
+    node.Fn = std::move(cbk);
     return true;
 }
 
@@ -367,6 +362,10 @@ u32 Audio_GetSampleRate()
     return ma_engine_get_sample_rate(&s_Data->Engine);
 }
 
+bool Audio_IsHealthy()
+{
+    return s_Healthy;
+}
 bool Audio_IsAvailable()
 {
     return s_Available;
@@ -376,18 +375,21 @@ void Audio_SetDeviceCallback(AudioDeviceCallback &&cbk)
 {
     s_Data->DeviceCallback = std::move(cbk);
 }
-void Audio_SetMasterProcessor(AudioProcessorCallback &&cbk)
+Result<> Audio_SetMasterProcessor(AudioProcessorCallback &&cbk)
 {
     ProcessorNode &node = s_Data->MasterNode;
     ma_node *endpoint = ma_engine_get_endpoint(&s_Data->Engine);
 
-    if (setupNode(std::move(cbk), node, &s_Data->Group, endpoint))
+    const auto setupRes = setupNode(std::move(cbk), node, &s_Data->Group, endpoint);
+    TKIT_RETURN_ON_ERROR(setupRes);
+    if (*setupRes)
     {
         ENSURE_SUCCESS(ma_node_attach_output_bus(&s_Data->Group, 0, &node.Base, 0),
                        "[ONYX][AUDIO] Failed to attach group to node with error code {}");
         ENSURE_SUCCESS(ma_node_attach_output_bus(&node.Base, 0, endpoint, 0),
                        "[ONYX][AUDIO] Failed to attach node to endpoint with error code {}");
     }
+    return Result<>::Ok();
 }
 
 static Audio *getAudio(const Resource handle)
@@ -405,27 +407,35 @@ void Audio_SetVolume(const f32 volume)
     ma_engine_set_volume(&s_Data->Engine, volume);
 }
 
-Resource Audio_Create(const AudioData &data, const AudioFlags flags)
+Result<Resource> Audio_Create(const AudioData &data, const AudioFlags flags)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     Audio *audio = tier->Create<Audio>();
+
+    TKIT_ERROR_DEFER_SCOPE();
+    TKIT_ERROR_DEFER(tier->Destroy(audio));
+
     audio->Type = Audio_Buffer;
 
     const ma_audio_buffer_config cfg = ma_audio_buffer_config_init(
         ma_format_f32, ma_engine_get_channels(&s_Data->Engine), data.FrameCount, data.Data, nullptr);
 
-    ENSURE_SUCCESS(ma_audio_buffer_init(&cfg, &audio->Buffer),
-                   "[ONYX][AUDIO] Failed to initialize audio buffer with error code {}");
+    CHECK_ERROR(ma_audio_buffer_init(&cfg, &audio->Buffer), Error_AudioBufferInitFailed,
+                "[ONYX][AUDIO] Failed to initialize audio buffer with error code {}", res);
+
+    TKIT_ERROR_DEFER(ma_audio_buffer_uninit(&audio->Buffer));
+
     ma_uint32 f = 0;
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    ENSURE_SUCCESS(ma_sound_init_from_data_source(&s_Data->Engine, &audio->Buffer, f, &s_Data->Group, &audio->Sound),
-                   "[ONYX][AUDIO] Failed to initialize sound with error code {}");
+    CHECK_ERROR(ma_sound_init_from_data_source(&s_Data->Engine, &audio->Buffer, f, &s_Data->Group, &audio->Sound),
+                Error_AudioSoundInitFailed, "[ONYX][AUDIO] Failed to initialize sound with error code {}", res);
 
     ma_sound_set_looping(&audio->Sound, bool(flags & AudioFlag_Loop));
 
     audio->FrameCount = data.FrameCount;
+    TKIT_ERROR_DEFER_COMMIT();
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
@@ -436,19 +446,19 @@ Result<Resource> Audio_Create(const TKit::TierPath &filepath, const AudioFlags f
 
     TKit::TierAllocator *tier = TKit::GetTier();
     Audio *audio = tier->Create<Audio>();
-    audio->Type = Audio_Stream;
 
     TKIT_ERROR_DEFER_SCOPE();
     TKIT_ERROR_DEFER(tier->Destroy(audio));
+
+    audio->Type = Audio_Stream;
 
     ma_uint32 f = 0;
     if (!(flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    const ma_result res = ma_sound_init_from_file(&s_Data->Engine, filepath.CString(), MA_SOUND_FLAG_STREAM | f,
-                                                  &s_Data->Group, nullptr, &audio->Sound);
-    ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
-                         "[ONYX][AUDIO] Sound initialization failed with error code {}", i32(res));
+    CHECK_ERROR(ma_sound_init_from_file(&s_Data->Engine, filepath.CString(), MA_SOUND_FLAG_STREAM | f, &s_Data->Group,
+                                        nullptr, &audio->Sound),
+                Error_AudioDecodeFailed, "[ONYX][AUDIO] Sound initialization failed with error code {}", res);
 
     ma_uint64 fcount;
     if (ma_sound_get_length_in_pcm_frames(&audio->Sound, &fcount) != MA_SUCCESS)
@@ -460,10 +470,14 @@ Result<Resource> Audio_Create(const TKit::TierPath &filepath, const AudioFlags f
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
-Resource Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&specs)
+Result<Resource> Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&specs)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     Audio *audio = tier->Create<Audio>();
+
+    TKIT_ERROR_DEFER_SCOPE();
+    TKIT_ERROR_DEFER(tier->Destroy(audio));
+
     audio->Type = Audio_Custom;
 
     CustomSource &src = audio->Source;
@@ -477,19 +491,21 @@ Resource Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&s
     ma_data_source_config cfg = ma_data_source_config_init();
     cfg.vtable = &s_SourceVtable;
 
-    ENSURE_SUCCESS(ma_data_source_init(&cfg, &src.Base),
-                   "[ONYX][AUDIO] Failed to initialize data source with error code {}");
+    CHECK_ERROR(ma_data_source_init(&cfg, &src.Base), Error_AudioBufferInitFailed,
+                "[ONYX][AUDIO] Failed to initialize data source with error code {}", res);
+    TKIT_ERROR_DEFER(ma_data_source_uninit(&src.Base));
 
     ma_uint32 f = 0;
     if (!(specs.Flags & AudioFlag_Spatialization))
         f |= MA_SOUND_FLAG_NO_SPATIALIZATION;
 
-    ENSURE_SUCCESS(ma_sound_init_from_data_source(&s_Data->Engine, &src.Base, f, &s_Data->Group, &audio->Sound),
-                   "[ONYX][AUDIO] Failed to initialize sound with error code {}");
+    CHECK_ERROR(ma_sound_init_from_data_source(&s_Data->Engine, &src.Base, f, &s_Data->Group, &audio->Sound),
+                Error_AudioSoundInitFailed, "[ONYX][AUDIO] Failed to initialize sound with error code {}", res);
 
     ma_sound_set_looping(&audio->Sound, bool(specs.Flags & AudioFlag_Loop));
     ma_uint64 len;
     audio->FrameCount = ma_sound_get_length_in_pcm_frames(&audio->Sound, &len) == MA_SUCCESS ? len : 0;
+    TKIT_ERROR_DEFER_COMMIT();
     return Handle_CreateForResource(Resource_Audio, s_Data->Audios.Insert(audio));
 }
 
@@ -515,28 +531,35 @@ void Audio_Destroy(const Resource handle)
     s_Data->Audios.Remove(id);
 }
 
-void Audio_PlayFrom(const Resource handle, const u64 frame)
+Result<> Audio_PlayFrom(const Resource handle, const u64 frame)
 {
     Audio *audio = getAudio(handle);
-    ENSURE_SUCCESS(ma_sound_seek_to_pcm_frame(&audio->Sound, frame),
-                   "[ONYX][AUDIO] Failed to seek audio with error code {} and frame {}", frame);
-    ENSURE_SUCCESS(ma_sound_start(&audio->Sound), "[ONYX][AUDIO] Failed to start sound with error code {}");
+    CHECK_ERROR(ma_sound_seek_to_pcm_frame(&audio->Sound, frame), Error_AudioFail,
+                "[ONYX][AUDIO] Failed to seek audio with error code {} and frame {}", res, frame);
+    CHECK_ERROR(ma_sound_start(&audio->Sound), Error_AudioFail,
+                "[ONYX][AUDIO] Failed to start sound with error code {}", res);
+
+    return Result<>::Ok();
 }
 
-void Audio_Play(const Resource handle)
+Result<> Audio_Play(const Resource handle)
 {
     Audio *audio = getAudio(handle);
     if (ma_sound_at_end(&audio->Sound))
     {
-        ENSURE_SUCCESS(ma_sound_seek_to_pcm_frame(&audio->Sound, 0),
-                       "[ONYX][AUDIO] Failed to seek audio with error code {}");
+        CHECK_ERROR(ma_sound_seek_to_pcm_frame(&audio->Sound, 0), Error_AudioFail,
+                    "[ONYX][AUDIO] Failed to seek audio with error code {}", res);
     }
-    ENSURE_SUCCESS(ma_sound_start(&audio->Sound), "[ONYX][AUDIO] Failed to start sound with error code {}");
+    CHECK_ERROR(ma_sound_start(&audio->Sound), Error_AudioFail,
+                "[ONYX][AUDIO] Failed to start sound with error code {}", res);
+    return Result<>::Ok();
 }
 
-void Audio_Stop(const Resource handle)
+Result<> Audio_Stop(const Resource handle)
 {
-    ENSURE_SUCCESS(ma_sound_stop(&getAudio(handle)->Sound), "[ONYX][AUDIO] Failed to stop sound with error code {}");
+    CHECK_ERROR(ma_sound_stop(&getAudio(handle)->Sound), Error_AudioFail,
+                "[ONYX][AUDIO] Failed to stop sound with error code {}", res);
+    return Result<>::Ok();
 }
 
 f32 Audio_GetVolume(const Resource handle)
@@ -590,48 +613,52 @@ static void endDeferredTrampoline(void *userData, ma_sound *)
     s_CallbackQueue->Push(audio);
 }
 
-void Audio_SetAudioThreadEndCallback(const Resource handle, AudioEndCallback &&cbk)
+Result<> Audio_SetAudioThreadEndCallback(const Resource handle, AudioEndCallback &&cbk)
 {
     Audio *audio = getAudio(handle);
     audio->EndCallback = std::move(cbk);
 
-    ENSURE_SUCCESS(
-        ma_sound_set_end_callback(&audio->Sound, audio->EndCallback ? endImmediateTrampoline : nullptr, audio),
-        "[ONYX][AUDIO] Failed to set end callback with error code {}");
+    CHECK_ERROR(ma_sound_set_end_callback(&audio->Sound, audio->EndCallback ? endImmediateTrampoline : nullptr, audio),
+                Error_AudioFail, "[ONYX][AUDIO] Failed to set end callback with error code {}", res);
+    return Result<>::Ok();
 }
 
-void Audio_SetMainThreadEndCallback(const Resource handle, AudioEndCallback &&cbk)
+Result<> Audio_SetMainThreadEndCallback(const Resource handle, AudioEndCallback &&cbk)
 {
     Audio *audio = getAudio(handle);
     audio->EndCallback = std::move(cbk);
 
-    ENSURE_SUCCESS(
-        ma_sound_set_end_callback(&audio->Sound, audio->EndCallback ? endDeferredTrampoline : nullptr, audio),
-        "[ONYX][AUDIO] Failed to set end callback with error code {}");
+    CHECK_ERROR(ma_sound_set_end_callback(&audio->Sound, audio->EndCallback ? endDeferredTrampoline : nullptr, audio),
+                Error_AudioFail, "[ONYX][AUDIO] Failed to set end callback with error code {}", res);
+    return Result<>::Ok();
 }
 
-void Audio_SetProcessorCallback(const Resource handle, AudioProcessorCallback &&cbk)
+Result<> Audio_SetProcessorCallback(const Resource handle, AudioProcessorCallback &&cbk)
 {
     Audio *audio = getAudio(handle);
     ProcessorNode &node = audio->Node;
 
-    if (setupNode(std::move(cbk), node, &audio->Sound, &s_Data->Group))
+    const auto setupRes = setupNode(std::move(cbk), node, &audio->Sound, &s_Data->Group);
+    TKIT_RETURN_ON_ERROR(setupRes);
+    if (*setupRes)
     {
         ENSURE_SUCCESS(ma_node_attach_output_bus(&audio->Sound, 0, &node, 0),
                        "[ONYX][AUDIO] Failed to attach sound to audio node with error code {}");
         ENSURE_SUCCESS(ma_node_attach_output_bus(&node, 0, &s_Data->Group, 0),
                        "[ONYX][AUDIO] Failed to attach node to endpoint with error code {}");
     }
+    return Result<>::Ok();
 }
 
 u64 Audio_GetFrameCount(const Resource handle)
 {
     return getAudio(handle)->FrameCount;
 }
-void Audio_SeekFrame(const Resource handle, const u64 frame)
+Result<> Audio_SeekFrame(const Resource handle, const u64 frame)
 {
-    ENSURE_SUCCESS(ma_sound_seek_to_pcm_frame(&getAudio(handle)->Sound, frame),
-                   "[ONYX][AUDIO] Failed to seek audio with error code {}");
+    CHECK_ERROR(ma_sound_seek_to_pcm_frame(&getAudio(handle)->Sound, frame), Error_AudioFail,
+                "[ONYX][AUDIO] Failed to seek audio with error code {}", res);
+    return Result<>::Ok();
 }
 
 Result<> Audio_Play(const TKit::TierPath &filepath)
@@ -654,9 +681,8 @@ Result<AudioData> Audio_LoadData(const TKit::TierPath &filepath)
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, ma_engine_get_channels(&s_Data->Engine),
                                                    ma_engine_get_sample_rate(&s_Data->Engine));
     ma_uint64 frameCount;
-    const ma_result res = ma_decode_file(filepath.CString(), &cfg, &frameCount, &data.Data);
-    ONYX_RETURN_ERROR_IF(res != MA_SUCCESS, Error_AudioDecodeFailed,
-                         "[ONYX][AUDIO] File decode failed with error code {}", i32(res));
+    CHECK_ERROR(ma_decode_file(filepath.CString(), &cfg, &frameCount, &data.Data), Error_AudioDecodeFailed,
+                "[ONYX][AUDIO] File decode failed with error code {}", res);
 
     data.FrameCount = u64(frameCount);
     return Result<AudioData>::Ok(data);

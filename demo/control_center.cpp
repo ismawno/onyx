@@ -2438,15 +2438,16 @@ static u32 synthesize(Synth &synth, f32 *out, const u32 frameCount, const u32 ch
 static Onyx::Resource createSource(Synth &synth, const Onyx::AudioFlags flags)
 {
     synth.SampleRate = Onyx::Audio_GetSampleRate();
-    return Onyx::Audio_Create([&synth](f32 *out, const u32 frameCount,
-                                       const u32 channels) { return synthesize(synth, out, frameCount, channels); },
-                              {.SeekCallback =
-                                   [&synth](const u64 frame) {
-                                       synth.Cursor.store(u32(frame), std::memory_order_relaxed);
-                                       synth.Phase.store(0.f, std::memory_order_relaxed);
-                                       return true;
-                                   },
-                               .Flags = flags});
+    return ONYX_CHECK_RESULT(
+        Onyx::Audio_Create([&synth](f32 *out, const u32 frameCount,
+                                    const u32 channels) { return synthesize(synth, out, frameCount, channels); },
+                           {.SeekCallback =
+                                [&synth](const u64 frame) {
+                                    synth.Cursor.store(u32(frame), std::memory_order_relaxed);
+                                    synth.Phase.store(0.f, std::memory_order_relaxed);
+                                    return true;
+                                },
+                            .Flags = flags}));
 }
 
 static void setupAudio(App &app)
@@ -2461,7 +2462,7 @@ static void setupAudio(App &app)
 
     au.SpatialSynth.Shape.store(Wave_Beeps);
     au.SpatialSynth.Frequency.store(660.f);
-    Onyx::Audio_SetMainThreadEndCallback(au.Instrument, [&au] { ++au.InstrumentEnds; });
+    ONYX_LOG_EXPRESSION_ERROR(Onyx::Audio_SetMainThreadEndCallback(au.Instrument, [&au] { ++au.InstrumentEnds; }));
 }
 
 // one column of the audio scope: a bar of height |value| * half, above the middle line when positive
@@ -2480,7 +2481,7 @@ static void scopeColumn(Onyx::Overlay *ui, const f32 value, const f32 height, co
 static void playInstrument(AudioState &au)
 {
     au.InstrumentSynth.Length.store(u32(WaveLengths[au.Wave] * f32(au.InstrumentSynth.SampleRate)));
-    Onyx::Audio_PlayFromBeginning(au.Instrument);
+    ONYX_LOG_EXPRESSION_ERROR(Onyx::Audio_PlayFromBeginning(au.Instrument));
 }
 
 // the panel's settings are applied every frame
@@ -2503,12 +2504,16 @@ static void updateAudio(App &app)
     if (au.Orbit == Orbit_Off)
     {
         if (Onyx::Audio_IsPlaying(au.Spatial))
-            Onyx::Audio_Stop(au.Spatial);
+        {
+            ONYX_LOG_EXPRESSION_ERROR(Onyx::Audio_Stop(au.Spatial));
+        }
     }
     else
     {
         if (!Onyx::Audio_IsPlaying(au.Spatial))
-            Onyx::Audio_Play(au.Spatial);
+        {
+            ONYX_LOG_EXPRESSION_ERROR(Onyx::Audio_Play(au.Spatial));
+        }
         const f32 a = 0.9f * app.Time;
         if (au.Orbit == Orbit_2D)
         {
@@ -4351,7 +4356,9 @@ static void panelAudio([[maybe_unused]] App &app)
     if (ui->Button("Play"))
         playInstrument(au);
     if (ui->Button("Stop"))
-        Onyx::Audio_Stop(au.Instrument);
+    {
+        ONYX_LOG_EXPRESSION_ERROR(Onyx::Audio_Stop(au.Instrument));
+    }
     ui->CheckBox("Loop", &au.Loop);
     text(ui, Theme::Info,
          formatLine("{}, ended {} times", Onyx::Audio_IsPlaying(au.Instrument) ? "Playing" : "Stopped",

@@ -236,8 +236,18 @@ const char *ToString(const ErrorCode code)
         return "Error_IsNotDirectory";
     case Error_FontPackFailed:
         return "Error_FontPackFailed";
+    case Error_AudioInitFailed:
+        return "Error_AudioInitFailed";
     case Error_AudioPlayFailed:
         return "Error_AudioPlayFailed";
+    case Error_AudioAttachFailed:
+        return "Error_AudioAttachFailed";
+    case Error_AudioNodeInitFailed:
+        return "Error_AudioNodeInitFailed";
+    case Error_AudioBufferInitFailed:
+        return "Error_AudioBufferInitFailed";
+    case Error_AudioSoundInitFailed:
+        return "Error_AudioSoundInitFailed";
     case Error_AudioDecodeFailed:
         return "Error_AudioDecodeFailed";
     case Error_AudioFail:

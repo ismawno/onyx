@@ -55,30 +55,36 @@ struct CustomAudioSpecs
 u32 Audio_GetChannels();
 u32 Audio_GetSampleRate();
 
+// indicates whether audio initialization succeded. if false is returned, calling Audio_* is undefined behaviour. if
+// true, Audio_* functions can be used reliably even if audio itself is not available (meaning a null backend is being
+// used)
+bool Audio_IsHealthy();
+// indicates whether audio itself is available, meaning a null backend is not being used. if false, check
+// Audio_IsHealthy() to ensure Audio_* functions are reliable
 bool Audio_IsAvailable();
 void Audio_SetDeviceCallback(AudioDeviceCallback &&cbk);
-void Audio_SetMasterProcessor(AudioProcessorCallback &&cbk);
+ONYX_NO_DISCARD Result<> Audio_SetMasterProcessor(AudioProcessorCallback &&cbk);
 
 f32 Audio_GetVolume();
 void Audio_SetVolume(f32 volume);
 
-Resource Audio_Create(const AudioData &data, AudioFlags flags = 0);
+ONYX_NO_DISCARD Result<Resource> Audio_Create(const AudioData &data, AudioFlags flags = 0);
 // audio stream path
 ONYX_NO_DISCARD Result<Resource> Audio_Create(const TKit::TierPath &filepath, AudioFlags flags = 0);
-Resource Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&specs = {});
+ONYX_NO_DISCARD Result<Resource> Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioSpecs &&specs = {});
 
 void Audio_Destroy(Resource audio);
 
 ONYX_NO_DISCARD Result<> Audio_Play(const TKit::TierPath &filepath);
 
-void Audio_Play(Resource audio);
-void Audio_PlayFrom(Resource audio, u64 frame);
-inline void Audio_PlayFromBeginning(const Resource audio)
+ONYX_NO_DISCARD Result<> Audio_Play(Resource audio);
+ONYX_NO_DISCARD Result<> Audio_PlayFrom(Resource audio, u64 frame);
+ONYX_NO_DISCARD inline Result<> Audio_PlayFromBeginning(const Resource audio)
 {
-    Audio_PlayFrom(audio, 0);
+    return Audio_PlayFrom(audio, 0);
 }
 
-void Audio_Stop(Resource audio);
+ONYX_NO_DISCARD Result<> Audio_Stop(Resource audio);
 
 f32 Audio_GetVolume(Resource audio);
 f32 Audio_GetPitch(Resource audio);
@@ -92,13 +98,13 @@ bool Audio_IsPlaying(Resource audio);
 bool Audio_IsLooping(Resource audio);
 void Audio_EnableLooping(Resource audio, bool loop = true);
 
-void Audio_SetAudioThreadEndCallback(Resource audio, AudioEndCallback &&cbk);
-void Audio_SetMainThreadEndCallback(Resource audio, AudioEndCallback &&cbk);
+ONYX_NO_DISCARD Result<> Audio_SetAudioThreadEndCallback(Resource audio, AudioEndCallback &&cbk);
+ONYX_NO_DISCARD Result<> Audio_SetMainThreadEndCallback(Resource audio, AudioEndCallback &&cbk);
 
-void Audio_SetProcessorCallback(Resource audio, AudioProcessorCallback &&cbk);
+ONYX_NO_DISCARD Result<> Audio_SetProcessorCallback(Resource audio, AudioProcessorCallback &&cbk);
 
 u64 Audio_GetFrameCount(Resource audio);
-void Audio_SeekFrame(Resource audio, u64 frame);
+ONYX_NO_DISCARD Result<> Audio_SeekFrame(Resource audio, u64 frame);
 
 ONYX_NO_DISCARD Result<AudioData> Audio_LoadData(const TKit::TierPath &filepath);
 void Audio_UnloadData(const AudioData &data);
