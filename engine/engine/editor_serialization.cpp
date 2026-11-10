@@ -275,11 +275,11 @@ ONYX_NO_DISCARD static Result<> deserializeViews(const EditorScene &scene, Edito
             EDITOR_TRY_READ_DECLARE(Onyx::RenderViewFlags, flags, node, "Flags");
             EDITOR_TRY_READ_DECLARE(Onyx::Viewport, vp, node, "Viewport data");
             EDITOR_TRY_READ_DECLARE(Onyx::Scissor, sc, node, "Scissor data");
-            EDITOR_TRY_READ_DECLARE(TKit::TierString, name, node, "Name");
+            EDITOR_TRY_READ_DECLARE(TKit::TierString, rname, node, "Name");
             ONYX_RETURN_ERROR_IF(camIdx >= scene.GetCameras<D>().GetSize(), Error_DeserializationFailed,
                                  "[ONYX][EDITOR] Failed to load scene: View '{}' at '{}' uses {}D camera "
                                  "index {}, but the scene only has {} {}D cameras",
-                                 name, TKit::YamlGeneratePath(node), u32(D), camIdx, scene.GetCameras<D>().GetSize(),
+                                 rname, TKit::YamlGeneratePath(node), u32(D), camIdx, scene.GetCameras<D>().GetSize(),
                                  u32(D));
 
             const RenderView rv = rviews.Insert();
@@ -288,7 +288,7 @@ ONYX_NO_DISCARD static Result<> deserializeViews(const EditorScene &scene, Edito
             rview.Handle = viewport.Target->CreateRenderView<D>(scene.GetCameras<D>()[camIdx].Handle, {.Flags = flags});
             rview.Handle->SetFixedViewport(vp);
             rview.Handle->SetFixedScissor(sc);
-            rview.Name = name;
+            rview.Name = rname;
             rview.EditorCameraIndex = camIdx;
 
             EDITOR_TRY_READ(rview.Handle->ClearColor, node, "Clear color");
@@ -533,9 +533,9 @@ Result<EditorProject> EditorProject::Deserialize(const TKit::TierPath &ppath)
             const auto path = scene.GetPath();
             if (path.GetView().Contains(".yaml"))
             {
-                const auto res = EditorScene::Deserialize(path);
-                TKIT_RETURN_ON_ERROR(res);
-                project.CreateScene(*res);
+                const auto scRes = EditorScene::Deserialize(path);
+                TKIT_RETURN_ON_ERROR(scRes);
+                project.CreateScene(*scRes);
             }
         }
 

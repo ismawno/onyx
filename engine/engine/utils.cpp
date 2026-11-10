@@ -71,10 +71,10 @@ Result<TKit::StackArray<TKit::TierPath>> LoadRecentProjects()
     for (const ConstYamlNode path : paths)
     {
         TKit::StackString entry;
-        const auto res = path.TryRead(entry);
-        ONYX_RETURN_ERROR_IF(!res, Error_DeserializationFailed,
+        const auto pres = path.TryRead(entry);
+        ONYX_RETURN_ERROR_IF(!pres, Error_DeserializationFailed,
                              "[ONYX][EDITOR] Failed to load recent projects: Could not read '{}': got {} - {}",
-                             TKit::YamlGeneratePath(path), TKit::YamlDescribeNode(path), res.GetError().Message);
+                             TKit::YamlGeneratePath(path), TKit::YamlDescribeNode(path), pres.GetError().Message);
 
         const TKit::StackPath p = entry;
         if (TKit::PathExists(p))
