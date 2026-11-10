@@ -69,13 +69,11 @@
 #    include <atomic>
 #endif
 #include "graph/platform.hpp"
-#include "graph/swap_chain.hpp"
-#include "tkit/container/hash_map.hpp"
 #include "tkit/container/static_array.hpp"
-#include "tkit/profiling/clock.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/filesystem/file.hpp"
 #include "tkit/filesystem/path.hpp"
+#include "tkit/utils/utils.hpp"
 // what Toolkit has no counterpart for: floor, exp and popcount, pipes to the test runner, the environment, and the
 // reader thread with its mutex and flag
 #include <atomic>
@@ -2751,8 +2749,7 @@ static void listTests(TestRunner &tr)
     if (tr.Running.load())
         return;
     tr.Problem.Clear();
-    // no environment access in Toolkit
-    if (const char *env = std::getenv("ONYX_TESTS"); env && *env)
+    if (const char *env = TKit::GetEnvironmentVariable("ONYX_TESTS"); env && *env)
         tr.Executable = env;
     else
         tr.Executable = ONYX_TESTS_EXECUTABLE;

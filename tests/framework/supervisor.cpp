@@ -10,7 +10,7 @@
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/profiling/clock.hpp"
 #include "tkit/utils/literals.hpp"
-#include <atomic>
+#include "tkit/utils/utils.hpp"
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
@@ -885,7 +885,7 @@ static void writeSummary(const Options &options, const Array<Result> &results, c
 // GitHub shows these as annotations on the run and on the pull request. they go to stdout as they are, not as logs
 static void writeAnnotations(const Array<Result> &results)
 {
-    const char *actions = std::getenv("GITHUB_ACTIONS");
+    const char *actions = TKit::GetEnvironmentVariable("GITHUB_ACTIONS");
     if (!actions || std::strcmp(actions, "true") != 0)
         return;
     for (const Result &r : results)

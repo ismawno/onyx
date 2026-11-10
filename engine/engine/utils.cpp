@@ -1,16 +1,10 @@
 #include "utils.hpp"
 #include "tkit/filesystem/filesystem.hpp"
+#include "tkit/utils/utils.hpp"
 #include "tkit/serialization/yaml/container.hpp"
 
 namespace Engine
 {
-static const char *getEnvVar(const char *name)
-{
-    TKIT_COMPILER_WARNING_IGNORE_PUSH()
-    TKIT_MSVC_WARNING_IGNORE(4996)
-    return std::getenv(name);
-    TKIT_COMPILER_WARNING_IGNORE_POP()
-}
 
 TKit::TierPath GetHomePath()
 {
@@ -20,7 +14,7 @@ TKit::TierPath GetHomePath()
     const char *var = "HOME";
 #endif
 
-    const char *path = getEnvVar(var);
+    const char *path = TKit::GetEnvironmentVariable(var);
     return path ? path : "/";
 }
 
@@ -34,12 +28,12 @@ TKit::TierPath GetConfigPath()
     const char *var = "XDG_CONFIG_HOME";
 #endif
 
-    const char *root = getEnvVar(var);
+    const char *root = TKit::GetEnvironmentVariable(var);
 #ifdef TKIT_OS_LINUX
     if (root)
         return TKit::TierPath{root} / "onyx" / "config.yaml";
 
-    root = getEnvVar("HOME");
+    root = TKit::GetEnvironmentVariable("HOME");
     return root ? (TKit::TierPath{root} / ".config" / "onyx" / "config.yaml") : TKit::TierPath{};
 #elif defined(TKIT_OS_APPLE)
     return root ? (TKit::TierPath{root} / "Library" / "Application support" / "onyx" / "config.yaml")

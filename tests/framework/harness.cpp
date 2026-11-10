@@ -3,6 +3,7 @@
 #include "tkit/filesystem/filesystem.hpp"
 #include "tkit/preprocessor/system.hpp"
 #include "tkit/profiling/clock.hpp"
+#include "tkit/utils/utils.hpp"
 #include <cstdlib>
 #include <cstring>
 
@@ -104,7 +105,7 @@ bool CompositorPlacesWindows()
     if (GetPlatform() == Graph::Platform_Wayland)
         return true;
 #ifdef TKIT_OS_LINUX
-    const char *display = std::getenv("WAYLAND_DISPLAY");
+    const char *display = TKit::GetEnvironmentVariable("WAYLAND_DISPLAY");
     return display && *display;
 #else
     return false;

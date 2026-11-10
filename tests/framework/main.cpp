@@ -9,6 +9,7 @@
 // tools when asked to (--format events): that is how the control center drives it.
 
 #include "options.hpp"
+#include "tkit/utils/utils.hpp"
 #include <cstdlib>
 #include <cstring>
 
@@ -128,7 +129,8 @@ bool ParseOptions(const int argc, char **argv, Options &options)
                     options.Include.Append(pattern);
             });
     }
-    if (const char *summary = std::getenv("GITHUB_STEP_SUMMARY"); options.Summary.IsEmpty() && summary && *summary)
+    if (const char *summary = TKit::GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        options.Summary.IsEmpty() && summary && *summary)
         options.Summary = summary;
     return true;
 }
