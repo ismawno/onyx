@@ -55,7 +55,7 @@ void Frame(u32 count = 1);
 // windows resize, move and recreate swapchains asynchronously. tests wait for the platform instead of assuming it is
 // instantaneous: frames run until the condition holds, at most maxFrames of them. the condition is checked right after
 // polling, so it sees this frame's events (the render that follows flushes them)
-template <typename F> bool WaitFor(F &&condition, const u32 maxFrames = 240)
+template <typename F> bool WaitFor(F condition, const u32 maxFrames = 240)
 {
     for (u32 i = 0; i < maxFrames; ++i)
     {

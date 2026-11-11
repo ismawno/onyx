@@ -41,7 +41,7 @@ void PushThreadAllocator(usz maxAllocation);
 // calls part(StringView) for every piece of a text between delimiters, as String::Split cuts it, but without a string
 // per piece: Split reserves room for one string per character before it looks for delimiters, which is more than a
 // tier allocator can serve for a long text. This allocates nothing
-template <typename F> void ForEachPart(const StringView text, const char delimiter, F &&part)
+template <typename F> void ForEachPart(const StringView text, const char delimiter, F part)
 {
     usize start = 0;
     for (usize i = 0; i <= text.GetSize(); ++i)
@@ -52,7 +52,7 @@ template <typename F> void ForEachPart(const StringView text, const char delimit
         }
 }
 // the lines of a text, without their '\n'. a text that ends in one has no empty last line
-template <typename F> void ForEachLine(const StringView text, F &&line)
+template <typename F> void ForEachLine(const StringView text, F line)
 {
     ForEachPart(text, '\n', [&](const StringView part) {
         if (!part.IsEmpty() || part.GetData() != text.GetData() + text.GetSize())

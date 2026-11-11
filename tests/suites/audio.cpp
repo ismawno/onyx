@@ -45,7 +45,7 @@ static Onyx::Resource createBlip(Blip &blip, const f32 seconds, const Onyx::Audi
 }
 
 // audio lives on its own thread: wait in real time, running frames so main thread callbacks get drained
-template <typename F> static bool waitSeconds(const f32 seconds, F &&condition)
+template <typename F> static bool waitSeconds(const f32 seconds, F condition)
 {
     const TKit::Clock clock{};
     while (clock.GetElapsed().AsSeconds() < seconds)

@@ -2077,7 +2077,7 @@ static void endShadowPass(const Graph::CommandBuffer cmd)
 }
 
 template <Dimension D, typename F>
-void forEachDrawCommand(const ViewMask viewBit, const RenderModeFlags flags, const F fun,
+void forEachDrawCommand(const ViewMask viewBit, const RenderModeFlags flags, F func,
                         const BlendPass bpass = BlendPass_All)
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -2098,7 +2098,7 @@ void forEachDrawCommand(const ViewMask viewBit, const RenderModeFlags flags, con
 
             const u32 fi = u32(range.Offset / instanceSize);
             const u32 ic = u32(range.Size / instanceSize);
-            fun(geo, range, fi, ic);
+            func(geo, range, fi, ic);
         }
     }
 }

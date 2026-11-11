@@ -116,7 +116,7 @@ class UiEngine
     // runs frames: poll, gui, overlay draw, transfer, render
     void Yield(u32 frames = 1);
     // runs frames until the condition holds (checked after each one). false if it never did
-    template <typename F> bool YieldUntil(F &&condition, const u32 maxFrames = 240)
+    template <typename F> bool YieldUntil(F condition, const u32 maxFrames = 240)
     {
         for (u32 i = 0; i < maxFrames; ++i)
         {

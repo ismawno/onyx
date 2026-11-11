@@ -106,7 +106,7 @@ using Path = TKit::Path<Allocation<char>>;
 
 // calls line(TKit::StringView) for every line of a text, without the '\n'. String::Split would do, but it reserves room
 // for one string per character before it looks for delimiters: this allocates nothing
-template <typename F> static void forEachLine(const TKit::StringView text, F &&line)
+template <typename F> static void forEachLine(const TKit::StringView text, F line)
 {
     usize start = 0;
     for (usize i = 0; i <= text.GetSize(); ++i)

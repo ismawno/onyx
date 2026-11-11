@@ -142,8 +142,6 @@ const char *ToString(const RenderMode mode)
         return "RenderMode_Shaded";
     case RenderMode_Flat:
         return "RenderMode_Flat";
-    case RenderMode_Outlined:
-        return "RenderMode_Outlined";
     case RenderMode_ShadedOutlined:
         return "RenderMode_ShadedOutlined";
     case RenderMode_FlatOutlined:

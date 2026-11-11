@@ -2610,10 +2610,10 @@ class Overlay
     void removeAllFloatWindows();
     void manageWindowPromotions();
 
-    template <typename F> void iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F &&func);
-    template <typename F> void iterateReverseActiveWindows(F &&func)
+    template <typename F> void iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F func);
+    template <typename F> void iterateReverseActiveWindows(F func)
     {
-        iterateReverseWindows(m_ActiveWindows, std::forward<F>(func));
+        iterateReverseWindows(m_ActiveWindows, func);
     }
     NativeWindow *getMainNativeWindow()
     {
@@ -2672,7 +2672,7 @@ class Overlay
         return createDockHost(win, rootNode, false);
     }
 
-    template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F &&func);
+    template <typename F> void iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func);
 
     bool canDockingHappen(const OverlayWindow *target) const;
 

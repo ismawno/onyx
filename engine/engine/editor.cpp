@@ -1027,7 +1027,7 @@ template <typename F1, typename F2> static void undoRedo_LambdaContinuousWidget(
         s_Editor->UndoRedo.Do(std::move(cmd));
     }
 }
-template <typename F> static void undoRedo_LambdaContinuousWidget(F &&fun)
+template <typename F> static void undoRedo_LambdaContinuousWidget(F fun)
 {
     undoRedo_LambdaContinuousWidget(fun, fun);
 }

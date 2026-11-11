@@ -33,7 +33,7 @@ template <typename T, u32 N> class CircularStack
         return cmd;
     }
 
-    template <typename F> void Each(const F func)
+    template <typename F> void Each(F func)
     {
         for (u32 i = 0; i < m_Size; ++i)
             func(m_Stack[normalizeIndex(m_Cursor + i)]);

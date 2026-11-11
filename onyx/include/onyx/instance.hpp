@@ -215,7 +215,7 @@ struct LocalResourceRegistry
 {
     // NOTE(Isma): Is this enough?
     TKit::TierArray<u32> ResourceIds{};
-    TKit::StaticBitSet2048 UsedResourceIds{2048};
+    TKit::StaticBitSet<2048> UsedResourceIds{2048};
 
     void Clear()
     {

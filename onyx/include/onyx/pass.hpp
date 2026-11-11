@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/alias.hpp"
-#include "graph/core.hpp"
 
 namespace Onyx
 {
@@ -17,7 +16,6 @@ enum RenderMode : u8
 {
     RenderMode_Flat,
     RenderMode_Shaded,
-    RenderMode_Outlined,
     RenderMode_FlatOutlined,
     RenderMode_ShadedOutlined,
     RenderMode_Count,
@@ -42,8 +40,6 @@ constexpr RenderMode GetRenderMode(const RenderModeFlags flags)
         return RenderMode_Shaded;
     case RenderModeFlag_Flat:
         return RenderMode_Flat;
-    case RenderModeFlag_Outlined:
-        return RenderMode_Outlined;
     case RenderModeFlag_Shaded | RenderModeFlag_Outlined:
         return RenderMode_ShadedOutlined;
     case RenderModeFlag_Flat | RenderModeFlag_Outlined:
@@ -62,8 +58,6 @@ constexpr RenderModeFlags GetRenderModeFlags(const RenderMode mode)
         return RenderModeFlag_Shaded;
     case RenderMode_Flat:
         return RenderModeFlag_Flat;
-    case RenderMode_Outlined:
-        return RenderModeFlag_Outlined;
     case RenderMode_ShadedOutlined:
         return RenderModeFlag_Shaded | RenderModeFlag_Outlined;
     case RenderMode_FlatOutlined:

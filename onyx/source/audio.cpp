@@ -101,7 +101,7 @@ template <typename T> class SpscQueue
         return data;
     }
 
-    template <typename F> void Drain(const F func)
+    template <typename F> void Drain(F func)
     {
         for (;;)
         {

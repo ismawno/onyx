@@ -90,7 +90,7 @@ static String plainText(const String &line)
 }
 
 // a failure as people read it, a line at a time: where and what, what Catch2 expanded it to, the messages in force
-template <typename F> static void describe(const Failure &f, F &&line)
+template <typename F> static void describe(const Failure &f, F line)
 {
     if (f.Expression.IsEmpty())
         line(StringView{f.Where});
@@ -107,7 +107,7 @@ static String firstLine(const Failure &f)
 }
 
 // everything a result has to say besides its output, a line at a time
-template <typename F> static void details(const Result &result, F &&line)
+template <typename F> static void details(const Result &result, F line)
 {
     for (const Failure &f : result.Failures)
         describe(f, line);
@@ -725,7 +725,7 @@ class Report
 
   private:
     // replacement gives what a character becomes, or null for the character itself
-    template <typename F> void writeEscaped(const StringView text, F &&replacement)
+    template <typename F> void writeEscaped(const StringView text, F replacement)
     {
         char chunk[1024];
         usz size = 0;

@@ -124,11 +124,11 @@ struct CharSet
     void LoadBlock(const UnicodeBlock &range)
     {
         for (CodePoint c = range.First; c <= range.Last; ++c)
-            CodePoints.Insert(c);
+            CodePoints.TryInsert(c);
     }
     void Load(const CodePoint c)
     {
-        CodePoints.Insert(c);
+        CodePoints.TryInsert(c);
     }
     TKit::TierHashSet<CodePoint> CodePoints{};
 };
@@ -147,7 +147,7 @@ struct FontInfo
     f32 LineHeight = 0.f;
     f32 UnitRange = 0.f;
 
-    template <typename F> void WalkText(const TKit::StringView text, F &&fun) const
+    template <typename F> void WalkText(const TKit::StringView text, F func) const
     {
         u32 lastCode = TKIT_U32_MAX;
         for (u32 i = 0; i < text.GetSize();)
@@ -156,7 +156,7 @@ struct FontInfo
             const CodePoint code = DecodeUTF8(&text[i], &byteCount);
             if (code == '\n')
             {
-                if (!fun(i, code, 0.f))
+                if (!func(i, code, 0.f))
                     return;
                 i += byteCount;
                 continue;
@@ -170,7 +170,7 @@ struct FontInfo
                 continue;
             }
             const f32 width = gdata->Advance + GetKerning(lastCode, code);
-            if (!fun(i, code, width))
+            if (!func(i, code, width))
                 return;
 
             i += byteCount;

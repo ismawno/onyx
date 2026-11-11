@@ -280,14 +280,14 @@ struct RayMarchPushConstantData
     f32 DistanceBias;
 };
 
-template <Dimension D, typename F> void ForEachResourceGroup(F &&func)
+template <Dimension D, typename F> void ForEachResourceGroup(F func)
 {
     TKit::IterateMultiIndex<BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount>(
         [&](const u32 bpass, const u32 rmode, const u32 mtype) {
             const ResourceType rtype = ResourceType(mtype);
             const TKit::Span<const u32> poolIds = ResourcePool_GetIds<D>(rtype);
             for (const u32 pid : poolIds)
-                std::forward<F>(func)(bpass, rmode, mtype, pid);
+                func(bpass, rmode, mtype, pid);
         });
 }
 

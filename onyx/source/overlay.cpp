@@ -482,7 +482,7 @@ enum WindowInternalFlagBit : OverlayWindowFlags
 /// VALIDATION
 /////////////////////////////////////////////
 
-template <typename T, typename F> static bool iterateDockTree(T *parent, F &&func)
+template <typename T, typename F> static auto iterateDockTree(T *parent, F func)
 {
     constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, T *>, bool>;
     TKit::StaticArray64<T *> nodes{};
@@ -503,13 +503,14 @@ template <typename T, typename F> static bool iterateDockTree(T *parent, F &&fun
         }
         if constexpr (hasRet)
         {
-            if (!std::forward<F>(func)(node))
-                return true;
+            if (!func(node))
+                return false;
         }
         else
-            std::forward<F>(func)(node);
+            func(node);
     }
-    return false;
+    if constexpr (hasRet)
+        return true;
 }
 
 #ifdef TKIT_ENABLE_ENSURE
@@ -2176,7 +2177,7 @@ u32 Overlay::processWindows()
 
             bool mustUseHand = win->GetNative()->Window->IsKeyPressed(Graph::Key_LeftControl);
             if (rflags == 0 && win->DockRoot)
-                mustUseHand &= iterateDockTree(win->DockRoot, [&](DockNode *node) {
+                mustUseHand &= !iterateDockTree(win->DockRoot, [&](DockNode *node) {
                     const f32v2 &size = node->ReadOnlySize;
 
                     const LayoutId id = node->BorderId;
@@ -2897,17 +2898,17 @@ void Overlay::manageWindowPromotions()
     }
 }
 
-template <typename F> void Overlay::iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F &&func)
+template <typename F> void Overlay::iterateReverseWindows(TKit::StaticArray32<OverlayWindow *> &windows, F func)
 {
     constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, OverlayWindow *>, bool>;
     for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
         if constexpr (hasRet)
         {
-            if (!std::forward<F>(func)(windows[i]))
+            if (!func(windows[i]))
                 return;
         }
         else
-            std::forward<F>(func)(windows[i]);
+            func(windows[i]);
 }
 
 /////////////////////////////////////////////
@@ -3214,7 +3215,7 @@ OverlayWindow *Overlay::createDockHost(const OverlayWindow *win, DockNode *rootN
 }
 
 // this is the only function allowed to write ReadOnlyPosition and ReadOnlySize
-template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F &&func)
+template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const OverlayWindow *win, F func)
 {
     constexpr bool hasRet = std::is_same_v<std::invoke_result_t<F, DockNode *>, bool>;
 
@@ -3281,11 +3282,11 @@ template <typename F> void Overlay::iterateDockTreeWithLayoutUpdate(const Overla
 
         if constexpr (hasRet)
         {
-            if (!std::forward<F>(func)(node))
+            if (!func(node))
                 return;
         }
         else
-            std::forward<F>(func)(node);
+            func(node);
     }
 }
 
