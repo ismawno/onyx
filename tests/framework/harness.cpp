@@ -20,7 +20,7 @@ static const Path &tempDirectory()
     if (!s_TempDirectory.IsEmpty())
         return s_TempDirectory;
 
-    const auto system = TKit::GetTempDirectoryPath<Path>();
+    const auto system = TKit::GetTempDirectoryPath();
     // tells apart processes started in the same instant only by the clock's resolution: nanoseconds are enough
     s_TempDirectory = (system ? *system : Path{"."}) / String::Format("onyx-tests-{}", TKit::Clock::GetCurrentTime());
     [[maybe_unused]] const auto created = TKit::CreateDirectories(s_TempDirectory);
