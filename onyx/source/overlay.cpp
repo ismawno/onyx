@@ -2534,8 +2534,9 @@ u32 Overlay::processWindows()
                 m_Grabbed->ClampToNative();
             else
             {
-                nw->Window->SetPosition(i32v2{gpos});
-                nw->Window->SetSize(u32v2{m_Grabbed->Size});
+                nw->Window->MoveAndResize(i32v2{gpos}, u32v2{m_Grabbed->Size});
+                // nw->Window->SetPosition(i32v2{gpos});
+                // nw->Window->SetSize(u32v2{m_Grabbed->Size});
                 nw->UpdateBorders();
             }
         }
