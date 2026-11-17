@@ -81,8 +81,8 @@ enum Geometry : u8
     Geometry_Circle,
     Geometry_Static,
     Geometry_Parametric,
-    Geometry_Glyph,
     Geometry_Dynamic,
+    Geometry_Glyph,
     Geometry_Count,
 };
 
