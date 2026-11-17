@@ -413,7 +413,7 @@ Result<> EditorProject::Serialize(const TKit::TierPath &ppath)
     TKit::TierPath temp;
     if (projectExisted)
     {
-        const auto tempRes = TKit::GetTempDirectoryPath<TKit::StackPath>();
+        const auto tempRes = TKit::GetTempDirectoryPath();
         ONYX_RETURN_ERROR_IF(!tempRes, Error_SerializationFailed,
                              "[ONYX][EDITOR] Failed to save project: Could not query a temp directory");
 
