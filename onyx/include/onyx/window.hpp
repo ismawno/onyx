@@ -114,6 +114,14 @@ class Window final : public RenderTarget
     {
         return Graph::Window_GetMonitor(m_Window);
     }
+    void SetMonitor(const Graph::Monitor mon, const u32v2 &size, const u32 refreshRate = 0)
+    {
+        Graph::Window_SetMonitor(m_Window, mon, size, refreshRate);
+    }
+    void SetMonitor(const Graph::Monitor mon, const u32 refreshRate = 0)
+    {
+        Graph::Window_SetMonitor(m_Window, mon, refreshRate);
+    }
 
     void Show()
     {
@@ -157,6 +165,11 @@ class Window final : public RenderTarget
     void SetSize(const u32v2 &size)
     {
         Graph::Window_SetScreenSize(m_Window, ApplyScale(size, getScreenFactor()));
+    }
+    void MoveAndResize(const i32v2 &pos, const u32v2 &size)
+    {
+        const f32v2 factor = getScreenFactor();
+        Graph::Window_MoveAndResize(m_Window, ApplyScale(pos, factor), ApplyScale(size, factor));
     }
     void SetAspect(const u32 numer, const u32 denom)
     {
