@@ -9,6 +9,7 @@
 #ifndef ONYX_COMPILE_SHADERS_AT_RUNTIME
 #    include "spirv.hpp"
 #endif
+#include "graph/shader.hpp"
 #include "graph/pipeline.hpp"
 #include "graph/shader.hpp"
 #include "graph/execution.hpp"
@@ -481,7 +482,7 @@ static Graph::Shader shaderFromBinary(const ShaderBinary &binary)
 static void createShaders()
 {
 #ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
-    TKit::StackArray<Graph::ShaderArgument, 2> args{};
+    TKit::StaticArray<Graph::ShaderArgument, 3> args{};
     if (isOldMesa())
     {
         TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
@@ -495,8 +496,8 @@ static void createShaders()
 
     const char *const searchPaths[] = {ONYX_SHADERS_PATH};
 
-    const TKit::FixedArray<TKit::TierString, Geometry_Count> geos = {"circle", "static", "parametric", "glyph",
-                                                                     "dynamic"};
+    const TKit::FixedArray<TKit::TierString, Geometry_Count> geos = {"circle", "static", "parametric", "dynamic",
+                                                                     "glyph"};
     const TKit::FixedArray<TKit::TierString, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
     const TKit::FixedArray<TKit::TierString, D_Count> dims = {"2D", "3D"};
 
@@ -512,7 +513,7 @@ static void createShaders()
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
     TKit::StackArray<Graph::ShaderModule> modules{};
-    modules.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count) + 5);
+    modules.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count) + StandalonePass_Count + 1);
 
     // TODO(Isma): Would be nice to parallelize this
     for (const TKit::TierString &geo : geos)
@@ -528,14 +529,17 @@ static void createShaders()
     modules.Append(Graph::ShaderModule::Create("full-vertex", fullVertexEntries));
     modules.Append(Graph::ShaderModule::Create("ray-march", rayMarchEntries));
     modules.Append(Graph::ShaderModule::Create("blend", fragmentEntries));
-    modules.Append(Graph::ShaderModule::Create("post-process", fragmentEntries));
+    modules.Append(Graph::ShaderModule::Create("outline", fragmentEntries));
+    modules.Append(Graph::ShaderModule::Create("fxaa", fragmentEntries));
     modules.Append(Graph::ShaderModule::Create("compositor", fragmentEntries));
 
     Graph::CompilationSpecs cspecs{};
     cspecs.Modules = modules;
     cspecs.Arguments = args;
     cspecs.SearchPaths = searchPaths;
-    const Graph::Compilation cmp = ONYX_CHECK_RESULT(Graph::Compilation_Create(cspecs));
+    const auto res = Graph::Compilation_Create(cspecs);
+    TKIT_ASSERT(res, "{}", res.GetError());
+    const Graph::Compilation cmp = *res;
 
     u32 idx = 0;
     const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasTransparent) {
@@ -574,8 +578,8 @@ static void createShaders()
     s_LayoutData->Standalone[StandalonePass_RayMarch].Shader =
         Graph::Compilation_CreateShader(cmp, "main", "ray-march");
     s_LayoutData->Standalone[StandalonePass_Blend].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "blend");
-    s_LayoutData->Standalone[StandalonePass_Outline].Shader =
-        Graph::Compilation_CreateShader(cmp, "mainFS", "post-process");
+    s_LayoutData->Standalone[StandalonePass_Outline].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "outline");
+    s_LayoutData->Standalone[StandalonePass_FXAA].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "fxaa");
     s_LayoutData->Standalone[StandalonePass_Compositor].Shader =
         Graph::Compilation_CreateShader(cmp, "mainFS", "compositor");
 
