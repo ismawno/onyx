@@ -159,35 +159,29 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
     const u32 maxFbs = m_FrameBufferCount;
     const u32v2 extent = GetImageExtent();
 
-    const bool transparency = m_Flags & RenderViewFlag_Transparency;
     const bool outlines = m_Flags & RenderViewFlag_Outlines;
     const bool fxaa = m_Flags & RenderViewFlag_FXAA;
-    TKit::FixedArray<bool, AttachmentRole_Count> mustCreate{true, true, true, true, transparency, transparency};
 
     for (u32 i = 0; i < maxFbs; ++i)
     {
         u32 pingPong = 0;
         Framebuffer &fb = m_Framebuffers.Append();
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
-            fb.Attachments[att] = mustCreate[att] ? createAttachment(extent, AttachmentRole(att)) : ViewImage{};
+            fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
 
         const Graph::Sampler nearSampler = Renderer_GetNearSampler();
         const Graph::Sampler edgeSampler = Renderer_GetEdgeSampler();
         constexpr Graph::ImageLayout layout = Graph::ImageLayout_ShaderReadOnly;
 
-        if (transparency)
-        {
-            const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_Accumulation].Image), layout, nearSampler);
-            const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
-                Graph::Image_GetView(fb.Attachments[AttachmentRole_Revealage].Image), layout, nearSampler);
+        const Graph::DescriptorImageInfo transparent = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[AttachmentRole_Accumulation].Image), layout, nearSampler);
+        const Graph::DescriptorImageInfo revealage = Graph::DescriptorImageInfo::Create(
+            Graph::Image_GetView(fb.Attachments[AttachmentRole_Revealage].Image), layout, nearSampler);
 
-            Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
-            Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent,
-                                             i);
-            Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
-            Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
-        }
+        Graph::DescriptorSet_BeginRecordWrite(m_BlendSet);
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, transparent, i);
+        Graph::DescriptorSet_RecordWrite(m_BlendSet, ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, revealage, i);
+        Graph::DescriptorSet_EndRecordWrite(m_BlendSet);
 
         if (outlines)
         {
@@ -514,7 +508,7 @@ template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
 //                                                                                 |
 //   COMPOSITOR    in the target's own pass, samples the last color (linear view) <+
 //
-//   transparent and blend run only with RenderViewFlag_Transparency, outline with RenderViewFlag_Outlines, FXAA with
+//   transparent and blend run only on demand, outline with RenderViewFlag_Outlines, FXAA with
 //   RenderViewFlag_FXAA. Without transparency, opaque writes Color1 and the post process passes follow directly
 //
 // PING-PONG
@@ -563,7 +557,7 @@ template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
 //   expects, and the compositor copies them as they are into the unorm swapchain
 //   clang-format on
 
-template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandBuffer cmd, const bool hasTransparency)
 {
     TKIT_PROFILE_NSCOPE("Onyx::RenderView::BeginOpaquePass");
 
@@ -576,7 +570,6 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     const ViewImage &depthImg = fb.Attachments[AttachmentRole_DepthStencil];
 
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
-    const bool hasTransp = m_Flags & RenderViewFlag_Transparency;
 
     TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 6> barriers{};
     barriers.Append(toColorAttachment(colorImg.Image));
@@ -604,9 +597,9 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
                               f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
 
-    // hasTransp pass may read the multisampled image for outlines (only if outlines are enabled), to continue to
+    // hasTransparency pass may read the multisampled image for outlines (only if outlines are enabled), to continue to
     // append to it
-    const Graph::StoreOp outlStoreMs = (hasTransp && hasOutline) ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    const Graph::StoreOp outlStoreMs = (hasTransparency && hasOutline) ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     // outline pass will read the resolve attachment
     const Graph::StoreOp outlStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     // we dont care about the outlines if they wont be read later
@@ -615,7 +608,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     atts[1] = colorAttachment(outlImg, outlLoad, outlStoreRes, outlStoreMs);
 
     // transarent pass will load the multisampled depth attachment
-    const Graph::StoreOp depStoreMs = hasTransp ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
+    const Graph::StoreOp depStoreMs = hasTransparency ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     // outline pass will load the resolved depth attachment
     const Graph::StoreOp depStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
 
@@ -623,7 +616,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     beginRendering(cmd, atts, &depth, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
 
-template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd)
+template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuffer cmd, const bool hasTransparency)
 {
     TKIT_PROFILE_NSCOPE("Onyx::View::EndOpaquePass");
 
@@ -632,7 +625,7 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuf
     // if there is transparency, BlendPass still needs the color image used here as the attachment output, so opaque
     // must hold on applying layout barriers if there is no transparency, opaque is the last pass until we begin the
     // post process passes, so it must handle the barriers
-    if (!(m_Flags & RenderViewFlag_Transparency))
+    if (!hasTransparency)
         applyPostProcessBarriers(cmd);
 }
 
@@ -804,7 +797,7 @@ template <Dimension D> void RenderView<D>::SetFlags(const RenderViewFlags flags)
 
     m_Flags = flags;
 
-    const RenderViewFlags fbFlags = RenderViewFlag_Transparency | RenderViewFlag_Outlines | RenderViewFlag_FXAA;
+    const RenderViewFlags fbFlags = RenderViewFlag_Outlines | RenderViewFlag_FXAA;
     if ((flags & fbFlags) != (f & fbFlags))
     {
         drainWork();

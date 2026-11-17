@@ -2,9 +2,10 @@
 
 #include "onyx/dimension.hpp"
 #include "onyx/handle.hpp"
-#include "onyx/pass.hpp"
+#include "onyx/state.hpp"
 #include "graph/resources.hpp"
-#include "tkit/container/bitset.hpp"
+#include "tkit/container/bit_set.hpp"
+#include "tkit/container/bit_field_map.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
 // (without any cpu detours)
@@ -211,40 +212,130 @@ struct InstanceHostBuffer
     u32 Capacity = 0;
 };
 
-struct LocalResourceRegistry
+// groups purpose is to register what ids (either resource or pool ids) have been issued in between Flush() calls for a
+// context. it comes in to levels: Mesh and Pool groups. this only applies to meshes, so instead of resource id, ill
+// say mesh id
+//
+// when user submits a mesh id, we want to retrieve its instance data buffer quickly. thats what Buffers field is for.
+// we can index into it with the mesh id to get its buffer. however, walking that buffer array is not fun, taking into
+// account in most use cases only a handful of ids will be used. so we save a registry of the used resource ids
+//
+// for the pooled cases, its pretty much the same thing. now, instead of mesh ids we have pool ids, and instead of
+// actual buffers, we have InstanceMeshGroups
+//
+// there is also another thing to take into account: right now, everything is statically allocated. no resizes or
+// acommodations are needed because we already operate at the maximum allowed pool and mesh ids. the problem with this
+// is that, in the current state of things, ContextInstanceData can go up to 4mb in size with
+// ONYX_POSSIBLE_RESOURCE_POOLS to 15 and ONYX_MAX_MESH_RESOURCE_IDS to 256, which are fairly low
+//
+// we could switch to tier arrays and, every Flush(), resize based on how many pool ids and mesh ids (within said pools)
+// exist, so we allocate on demand. this would be doable, if only because of the ContextFieldMap<..., D> fields for
+// meshes. entries on these get created (TryInsert calls) on the spot based on the render state the user wants to
+// submit. to declare it upfront is not natural. mesh and pool id counts are declared upfront just because of the fact
+// they need to be created. but state does not. so instead, we should acommodate for all combinations, which is a bit
+// weird and wasteful as well. not as wasteful as this, because we arent allocating for max pools and meshes, only for
+// all render state possible combinations, but it increases complexity a lot
+template <u32 MaxIds> struct ActiveHandleIdRegistry
 {
-    // NOTE(Isma): Is this enough?
-    TKit::TierArray<u32> ResourceIds{};
-    TKit::StaticBitSet<2048> UsedResourceIds{2048};
+    TKit::StaticArray<u32, MaxIds> Ids{};
+    TKit::StaticBitSet<MaxIds> RegisteredIds{MaxIds};
+
+    void RegisterId(const u32 id)
+    {
+        if (!RegisteredIds[id])
+        {
+            RegisteredIds.Set(id);
+            Ids.Append(id);
+        }
+    }
 
     void Clear()
     {
-        ResourceIds.Clear();
-        UsedResourceIds.ClearAll();
+        Ids.Clear();
+        RegisteredIds.ClearAll();
     }
 
-    void RegisterResourceId(const u32 rid)
+    // void Acommodate(const u32 count)
+    // {
+    //     RegisteredIds.Resize(count);
+    //     Ids.Reserve(count);
+    // }
+};
+
+struct InstanceMeshGroup
+{
+    TKit::FixedArray<InstanceHostBuffer, ONYX_MAX_MESH_RESOURCE_IDS> Buffers{};
+    ActiveHandleIdRegistry<ONYX_MAX_MESH_RESOURCE_IDS> Registry{};
+
+    void Clear()
     {
-        if (!UsedResourceIds[rid])
-        {
-            UsedResourceIds.Set(rid);
-            ResourceIds.Append(rid);
-        }
+        for (const u32 mid : Registry.Ids)
+            Buffers[mid].Instances = 0;
+        Registry.Clear();
+    }
+
+    // void Acommodate(const u32 count)
+    // {
+    //     Buffers.Resize(count);
+    //     Registry.Acommodate(count);
+    // }
+};
+
+struct InstancePoolGroup
+{
+    TKit::FixedArray<InstanceMeshGroup, ONYX_POSSIBLE_RESOURCE_POOLS> ResourceGroups{};
+    ActiveHandleIdRegistry<ONYX_POSSIBLE_RESOURCE_POOLS> Registry{};
+
+    void Clear()
+    {
+        for (const u32 pid : Registry.Ids)
+            ResourceGroups[pid].Clear();
+        Registry.Clear();
+    }
+
+    // void Acommodate(const u32 count)
+    // {
+    //     ResourceGroups.Resize(count);
+    //     Registry.Acommodate(count);
+    // }
+};
+
+template <Dimension D> struct ContextFieldDesc
+{
+    static constexpr u32 BitCount = RenderState_GeometryBitCount;
+
+    static constexpr RenderState Canonicalize(const RenderState state)
+    {
+        if constexpr (D == D2)
+            return state & ~CullMode_Mask;
+        else
+            return state;
+    }
+
+    static constexpr bool IsValid(const RenderState state)
+    {
+        const bool hasFill = (state & FillMode_Mask) != FillMode_None;
+        const bool validFill = (state & FillMode_Mask) != FillMode_Mask;
+        const bool hasOutline = (state & OutlineMode_Mask) != OutlineMode_Disabled;
+        const bool validCull =
+            D == D2 ? (state & CullMode_Mask) == CullMode_None : (state & CullMode_Mask) != CullMode_Mask;
+        return (hasFill || hasOutline) && validCull && validFill;
     }
 };
 
-struct InstanceResourceGroup
+enum PooledMesh : u8
 {
-    TKit::TierArray<InstanceHostBuffer> Buffers{};
-    LocalResourceRegistry Registry{};
+    PooledMesh_Static,
+    PooledMesh_Parametric,
+    PooledMesh_Glyph,
+    PooledMesh_Count,
 };
 
-struct ContextInstanceData
+template <typename T, Dimension D> using ContextFieldMap = TKit::StaticBitFieldMap<T, ContextFieldDesc<D>>;
+template <Dimension D> struct ContextInstanceData
 {
-    ten<InstanceHostBuffer, BlendPass_Count, RenderMode_Count> Circles{};
-    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count> DynamicMeshes{};
-    ten<InstanceResourceGroup, BlendPass_Count, RenderMode_Count, Resource_MeshPoolCount, ONYX_MAX_RESOURCE_POOLS>
-        Meshes{};
+    ContextFieldMap<InstanceHostBuffer, D> Circles{};
+    ContextFieldMap<InstanceMeshGroup, D> DynamicMeshes{};
+    ten<ContextFieldMap<InstancePoolGroup, D>, PooledMesh_Count> Meshes{};
 };
-
 } // namespace Onyx

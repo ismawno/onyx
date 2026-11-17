@@ -1044,8 +1044,7 @@ static void setup(App &app)
     app.TexturesCam.Mode = Onyx::CameraMode_Viewport;
     resetCameras(app);
 
-    const Onyx::RenderViewFlags galleryFlags =
-        Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency;
+    const Onyx::RenderViewFlags galleryFlags = Onyx::RenderViewFlag_Shadows | Onyx::RenderViewFlag_Outlines;
     for (Pane &pane : app.Panes)
         pane.Texture = Onyx::CreateRenderTexture(InitialPaneTextureSize, {.ContentScale = win->GetContentScale()[0]});
 
@@ -1310,8 +1309,6 @@ static void updateLab(App &app)
     Onyx::RenderViewFlags flags = lab.Enabled && app.Mode == Mode_Direct ? 0 : Onyx::RenderViewFlag_Hidden;
     if (lab.Outlines)
         flags |= Onyx::RenderViewFlag_Outlines;
-    if (lab.Transparency)
-        flags |= Onyx::RenderViewFlag_Transparency;
     if (lab.FXAA)
         flags |= Onyx::RenderViewFlag_FXAA;
     if (flags != rv->GetFlags())
@@ -2267,7 +2264,7 @@ static void drawLab(const App &app)
         ctx->Pop();
     }
 
-    // outlines need RenderViewFlag_Outlines, the translucent square RenderViewFlag_Transparency. the thin lines and the
+    // outlines need RenderViewFlag_Outlines. the thin lines and the
     // circle are where FXAA shows most
     ctx->Push();
     ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
@@ -3870,9 +3867,8 @@ static void inspectView(App &app, const InspectedView slot, const Onyx::RenderVi
 {
     Onyx::Overlay *ui = app.Ui;
     const Onyx::RenderViewFlags flags = rv->GetFlags();
-    const Line tags = formatLine("{}{}{}{}{}", flags & Onyx::RenderViewFlag_Shadows ? " shadows" : "",
+    const Line tags = formatLine("{}{}{}{}", flags & Onyx::RenderViewFlag_Shadows ? " shadows" : "",
                                  flags & Onyx::RenderViewFlag_Outlines ? " outlines" : "",
-                                 flags & Onyx::RenderViewFlag_Transparency ? " transparency" : "",
                                  flags & Onyx::RenderViewFlag_FXAA ? " fxaa" : "",
                                  flags & Onyx::RenderViewFlag_Hidden ? " hidden" : "");
     // the id after ### keeps the tree open while its title changes
@@ -4144,7 +4140,7 @@ static void panelRendering(App &app)
         ui->DropDown("FXAA mode", &rs.FXAAMode, FXAAModes);
     if (oldShadows != rs.Shadows || oldFXAA != rs.FXAA || oldOutlines != rs.Outlines)
     {
-        Onyx::RenderViewFlags flags = Onyx::RenderViewFlag_Transparency;
+        Onyx::RenderViewFlags flags = 0;
         if (rs.Shadows)
             flags |= Onyx::RenderViewFlag_Shadows;
         if (rs.Outlines)
@@ -4839,8 +4835,8 @@ static void setupCategories(App &app)
         .Name = "Flags turn their passes on and off",
         .Do = "Untick Outlines: the circle and the square lose their outlines. Untick Transparency: the translucent "
               "square disappears. Nothing else changes.",
-        .More = "Outlined draws need RenderViewFlag_Outlines, translucent ones need RenderViewFlag_Transparency. "
-                "Toggling either recreates the view's framebuffers.",
+        .More = "Outlined draws need RenderViewFlag_Outlines. "
+                "Toggling it recreates the view's framebuffers.",
         .Priority = 59,
         .Pane = Pane_None,
         .Needs = Requires_DirectLayout});
@@ -4881,8 +4877,7 @@ static void setupCategories(App &app)
         "by the context's lights, using its material) and optionally outlined. Outlines are drawn in their own full "
         "screen pass, so the view needs RenderViewFlag_Outlines. RenderViewFlag_FXAA adds an anti-aliasing pass after "
         "it, with a quality set by RenderView::AntiAliasingMode.\n\nOpaque draws go first and "
-        "write depth. Translucent draws (alpha below 1) go to the transparent pass and are blended on top, if the view "
-        "has RenderViewFlag_Transparency.";
+        "write depth. Translucent draws (alpha below 1) go to the transparent pass and are blended on top.";
     rendering.Panel = panelRendering;
     rendering.Visuals.Append(VisualCheck{
         .Name = "Every 2D primitive is drawn",
@@ -4902,8 +4897,7 @@ static void setupCategories(App &app)
         .Name = "Transparency blends in order",
         .Do = "2D gallery, middle: three overlapping translucent squares. Every overlap is tinted by both colors, and "
               "the alpha slider fades all three.",
-        .More = "Translucent draws go to the transparent pass, which sorts and blends them. The view needs "
-                "RenderViewFlag_Transparency.",
+        .More = "Translucent draws go to the transparent pass, which sorts and blends them.",
         .Priority = 22,
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});

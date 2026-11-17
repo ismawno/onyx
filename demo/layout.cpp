@@ -157,8 +157,7 @@ int main()
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    Onyx::RenderView<D2> *view =
-        win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_Outlines | Onyx::RenderViewFlag_Transparency});
+    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, {.Flags = Onyx::RenderViewFlag_Outlines});
 
     ctx->AddTarget(view);
 
@@ -177,7 +176,7 @@ int main()
             if (!ImGui::GetIO().WantCaptureKeyboard)
                 win->ControlCamera(dt, &cam);
             ctx->Flush();
-            ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
+            ctx->SetRenderState(Onyx::FillMode_Flat | Onyx::OutlineMode_Enabled);
 
             DrawPanels(layout, root, panels);
             layout.Compile();

@@ -2,7 +2,7 @@
 
 #include "onyx/core.hpp"
 #include "onyx/window.hpp"
-#include "pass.hpp"
+#include "state.hpp"
 #include "graph/core.hpp"
 
 namespace Onyx

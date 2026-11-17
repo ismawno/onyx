@@ -421,6 +421,9 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Is ResourcePool_GetIds still necessary?
+// TODO(Isma): Create some pipelines up front by setting the render state desired
+// TODO(Isma): Drag & drop tests?
 // TODO(Isma): Use tkit defer for audio to return errors instead of ensuring!!!
 // TODO(Isma): Implement my own argparse. Use it in tests
 // TODO(Isma): Rename overlay to ui?
@@ -1186,7 +1189,6 @@ template <Dimension D> static void displayView(EditorView<D> &view)
     changed = undoRedo_Flags("Shadows", Onyx::RenderViewFlag_Shadows);
     changed |= undoRedo_Flags("Outlines", Onyx::RenderViewFlag_Outlines);
 
-    changed |= undoRedo_Flags("Transparency", Onyx::RenderViewFlag_Transparency);
     changed |= undoRedo_Flags("Hidden", Onyx::RenderViewFlag_Hidden);
 
     if (changed)

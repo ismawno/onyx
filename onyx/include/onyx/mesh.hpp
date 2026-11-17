@@ -21,17 +21,10 @@ template <Dimension D> struct BoundsData
     }
 };
 
-using MeshFlags = u8;
-enum MeshFlagBit : MeshFlags
-{
-    MeshFlag_BackCulled = 1U << 0, // no effect for 2D
-};
-
 template <typename Vertex> struct MeshData
 {
     TKit::DynamicArray<Vertex> Vertices{};
     TKit::DynamicArray<Index> Indices{};
-    MeshFlags Flags = 0;
 };
 
 template <Dimension D> struct MeshData<ParametricVertex<D>>
@@ -39,7 +32,6 @@ template <Dimension D> struct MeshData<ParametricVertex<D>>
     TKit::DynamicArray<ParametricVertex<D>> Vertices{};
     TKit::DynamicArray<Index> Indices{};
     ParametricShape Shape{};
-    MeshFlags Flags = 0;
 };
 
 template <Dimension D> using StaticMeshData = MeshData<StaticVertex<D>>;
@@ -93,17 +85,16 @@ ParametricMeshData<D3> Mesh_CreateRoundedBoxData(u32 rings = 16, u32 sectors = 3
 ParametricMeshData<D3> Mesh_CreateTorusData(u32 rings = 32, u32 sectors = 32);
 
 template <Dimension D>
-DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D>> vertices, TKit::Span<const Index> indices,
-                                          MeshFlags flags = 0);
+DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D>> vertices, TKit::Span<const Index> indices);
 template <Dimension D>
 DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const DynamicVertex<D>> vertices,
-                                          Topology topology = Topology_TriangleList, MeshFlags flags = 0);
+                                          Topology topology = Topology_TriangleList);
 template <Dimension D>
 DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const f32v<D>> vertices, TKit::Span<const Index> indices,
-                                          const Color &color = Color_White, MeshFlags flags = 0);
+                                          const Color &color = Color_White);
 template <Dimension D>
 DynamicMeshData<D> DynamicMesh_CreateData(TKit::Span<const f32v<D>> vertices, Topology topology = Topology_TriangleList,
-                                          const Color &color = Color_White, MeshFlags flags = 0);
+                                          const Color &color = Color_White);
 
 template <typename Vertex> BoundsData<Vertex::Dim> Bounds_CreateData(const MeshData<Vertex> &data)
 {

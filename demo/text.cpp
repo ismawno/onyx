@@ -33,10 +33,9 @@ int main()
     while (Onyx::Running())
     {
         ctx->Flush();
-        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
-
         ctx->Align(Onyx::Alignment_Center);
         ctx->Text("Hello world!");
+
         Onyx::Transfer();
         Onyx::Render();
     }

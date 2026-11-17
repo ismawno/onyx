@@ -1,7 +1,7 @@
 #include "pch.hpp"
 #include "onyx/material.hpp"
 #include "conversion.hpp"
-#include "pass.hpp"
+#include "state.hpp"
 
 namespace Onyx
 {
@@ -89,21 +89,6 @@ const char *ToString(const Geometry geo)
     }
 }
 
-const char *ToString(const BlendPass bpass)
-{
-    switch (bpass)
-    {
-    case BlendPass_Opaque:
-        return "BlendPass_Opaque";
-    case BlendPass_Transparent:
-        return "BlendPass_Transparent";
-    case BlendPass_All:
-        return "BlendPass_All";
-    default:
-        return "Unknown";
-    }
-}
-
 const char *ToString(const LightType light)
 {
     switch (light)
@@ -129,39 +114,6 @@ const char *ToString(const RenderPass pass)
         return "RenderPass_Flat";
     case RenderPass_Shadow:
         return "RenderPass_Shadow";
-    default:
-        return "Unknown";
-    }
-}
-
-const char *ToString(const RenderMode mode)
-{
-    switch (mode)
-    {
-    case RenderMode_Shaded:
-        return "RenderMode_Shaded";
-    case RenderMode_Flat:
-        return "RenderMode_Flat";
-    case RenderMode_ShadedOutlined:
-        return "RenderMode_ShadedOutlined";
-    case RenderMode_FlatOutlined:
-        return "RenderMode_FlatOutlined";
-    case RenderMode_None:
-        return "RenderMode_None";
-    default:
-        return "Unknown";
-    }
-}
-const char *ToString(const PipelinePass pass)
-{
-    switch (pass)
-    {
-    case PipelinePass_Shaded:
-        return "PipelinePass_Shaded";
-    case PipelinePass_Flat:
-        return "PipelinePass_Outlined";
-    case PipelinePass_Outlined:
-        return "PipelinePass_Outlined";
     default:
         return "Unknown";
     }

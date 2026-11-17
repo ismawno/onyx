@@ -1,17 +1,10 @@
 #pragma once
 
-#include "onyx/pass.hpp"
+#include "onyx/state.hpp"
+#include "graph/core.hpp"
 
 namespace Onyx
 {
-enum PipelinePass : u8
-{
-    PipelinePass_Flat,
-    PipelinePass_Shaded,
-    PipelinePass_Outlined,
-    PipelinePass_Count,
-};
-
 enum RenderPass : u8
 {
     RenderPass_Flat,

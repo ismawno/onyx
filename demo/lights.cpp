@@ -76,7 +76,7 @@ int main()
 
         {
             ctx2->Flush();
-            ctx2->RenderFlags(Onyx::RenderModeFlag_Shaded);
+            ctx2->SetRenderState(Onyx::FillMode_Shaded);
             ctx2->Material(lit2);
 
             ctx2->Push();
@@ -95,7 +95,7 @@ int main()
             ctx3->Flush();
 
             ctx3->Material(mat3);
-            ctx3->RenderFlags(Onyx::RenderModeFlag_Shaded);
+            ctx3->SetRenderState(Onyx::FillMode_Shaded);
             ctx3->DirectionalLight({.Cascades = {.View = view3}, .Flags = Onyx::LightFlag_CastShadows});
 
             ctx3->Push();

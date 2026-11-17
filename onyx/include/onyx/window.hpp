@@ -5,7 +5,7 @@
 #include "graph/platform.hpp"
 #include "graph/swap_chain.hpp"
 #include "tkit/profiling/timespan.hpp"
-#include "tkit/container/bitset.hpp"
+#include "tkit/container/bit_set.hpp"
 
 namespace Onyx
 {

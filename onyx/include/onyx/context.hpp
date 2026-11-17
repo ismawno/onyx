@@ -172,8 +172,7 @@ template <Dimension D> struct ContextState
     Resource Texture = NullHandle;
     Resource Font = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
-    RenderModeFlags RenderFlags = RenderModeFlag_Flat;
-    BlendPass Blend = BlendPass_Opaque;
+    RenderState RenderState = FillMode_Flat;
 };
 
 struct RenderContextSpecs
@@ -631,32 +630,25 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_StateStack.Pop();
     }
 
-    void RenderFlags(const RenderModeFlags flags)
+    void SetRenderState(const RenderState state)
     {
-        m_State.RenderFlags = flags;
+        m_State.RenderState = state;
     }
-    void AddRenderFlags(const RenderModeFlags flags)
+    void AddRenderState(const RenderState state)
     {
-        m_State.RenderFlags |= flags;
+        m_State.RenderState |= state;
     }
-    void RemoveRenderFlags(const RenderModeFlags flags)
+    void RemoveRenderState(const RenderState state)
     {
-        m_State.RenderFlags &= ~flags;
+        m_State.RenderState &= ~state;
     }
     void FillColor(const Color &color)
     {
         m_State.FillColor = color;
-        m_State.Blend = Math::Approximately(color.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
-    }
-    // required when material has a color factor with alpha < 1 or circles have fading
-    void Blend(const bool enable = true)
-    {
-        m_State.Blend = BlendPass(enable);
     }
     void Alpha(const f32 alpha)
     {
         m_State.FillColor.rgba[3] = alpha;
-        m_State.Blend = Math::Approximately(alpha, 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
     // there is no support for alpha channel in outlines
     void OutlineColor(const Color &color)
@@ -706,12 +698,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void SetState(const ContextState<D> &state)
     {
         m_State = state;
-        m_State.Blend = Math::Approximately(m_State.FillColor.rgba[3], 1.f) ? BlendPass_Opaque : BlendPass_Transparent;
     }
 
-    const ContextInstanceData &GetInstanceData() const
+    const ContextInstanceData<D> &GetInstanceData() const
     {
-        return m_InstanceData;
+        return *m_InstanceData;
     }
 
     const TKit::TierArray<PointLightParameters<D>> &GetPointLightParams() const
@@ -762,7 +753,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     DefaultResources m_DefaultResources{};
 
   private:
-    void acommodateResourceIds();
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
     ClipRect<D> computeClipRect(const f32v<D> &position, const f32v<D> &dimensions);
 
@@ -805,7 +795,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
     TKit::StaticArray16<ContextState<D>> m_StateStack{};
-    ContextInstanceData m_InstanceData{};
+    // this guy is so big, it needs its own heap-allocated block
+    ContextInstanceData<D> *m_InstanceData = nullptr;
 
     // NOTE(Isma): This is not good for multithreading, as, unless its context is dutifully pinned to a thread, this
     // tier array may try to race against another thread that is using the underlying tier allocator, because these

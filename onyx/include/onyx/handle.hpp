@@ -17,7 +17,7 @@
 
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(hndl)                                                       \
         ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl);                                                               \
-        TKIT_ASSERT(Onyx::Handle_GetResourceTypeAsInteger(hndl) < Onyx::Resource_PoolCount,                            \
+        TKIT_ASSERT(Onyx::Resource_HasPool(Onyx::Handle_GetResourceType(hndl)),                                        \
                     "[ONYX][RESOURCES] The handle {:#010x} is a '{}' handle, which does not have any resource pool "   \
                     "associated",                                                                                      \
                     hndl, Onyx::ToString(Onyx::Handle_GetResourceType(hndl)))
@@ -108,17 +108,27 @@ enum ResourceType : u8
     Resource_Texture,
     Resource_Audio,
     Resource_Count,
-
-    // not ideal to have them here but idc too much
-    Resource_MeshPoolCount = Resource_DynamicMesh,
-    Resource_PoolCount = Resource_Material,
     Resource_None = Resource_Count
 };
 
-static_assert(Resource_Count <= ONYX_MAX_RESOURCE_TYPES,
+static_assert(Resource_Count <= ONYX_POSSIBLE_RESOURCE_TYPES,
               "[ONYX][RESOURCES] The resource type count exceeds maximum resource types");
 
 const char *ToString(ResourceType rtype);
+constexpr bool Resource_HasPool(const ResourceType rtype)
+{
+    switch (rtype)
+    {
+    case Resource_StaticMesh:
+    case Resource_ParametricMesh:
+    case Resource_GlyphMesh:
+    case Resource_DynamicMesh:
+    case Resource_Font:
+        return true;
+    default:
+        return false;
+    }
+}
 
 // handles are re-used, so at some point generation tracking will be needed
 
@@ -162,17 +172,17 @@ constexpr ResourcePool Handle_GetResourcePool(const Resource handle)
 }
 
 constexpr Resource Handle_CreateForResource(const ResourceType rtype, const u32 resourceId,
-                                            const u32 poolId = ONYX_MAX_RESOURCE_POOLS)
+                                            const u32 poolId = ONYX_POSSIBLE_RESOURCE_POOLS)
 {
     TKIT_ASSERT(rtype < Resource_Count,
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
-    TKIT_ASSERT(resourceId <= ONYX_MAX_RESOURCE_IDS,
+    TKIT_ASSERT(resourceId <= ONYX_POSSIBLE_RESOURCE_IDS,
                 "[ONYX][RESOURCES] Cannot create a resource handle with a resource id ({:#010x}) "
                 "that exceeds the maximum bits allocated "
                 "for it, as it would break the handle",
                 resourceId);
     TKIT_ASSERT(
-        poolId <= ONYX_MAX_RESOURCE_POOLS,
+        poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
         "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({:#010x}) that exceeds the maximum bits "
         "allocated "
         "for it, as it would break the handle",
@@ -182,10 +192,10 @@ constexpr Resource Handle_CreateForResource(const ResourceType rtype, const u32 
 
 constexpr ResourcePool Handle_CreateForResourcePool(const ResourceType rtype, const u32 poolId)
 {
-    TKIT_ASSERT(rtype < Resource_PoolCount,
+    TKIT_ASSERT(Resource_HasPool(rtype),
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
     TKIT_ASSERT(
-        poolId <= ONYX_MAX_RESOURCE_POOLS,
+        poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
         "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({:#010x}) that exceeds the maximum bits "
         "allocated "
         "for it, as it would break the handle",

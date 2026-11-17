@@ -194,14 +194,12 @@ template <Dimension D> void ResourcePool_Destroy(ResourcePool pool);
 template <Dimension D> void ResourcePool_Release(ResourcePool pool);
 template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const StaticMeshData<D> &data);
 template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
-template <Dimension D> TKit::Span<const u32> ResourcePool_GetIds(ResourceType rtype);
 template <Dimension D> u32 ResourcePool_GetResourceCount(ResourcePool pool);
 
 ResourcePool FontPool_Create();
 void FontPool_Destroy(ResourcePool pool);
 void FontPool_Release(ResourcePool pool);
 Resource FontPool_RegisterFont(ResourcePool pool, const FontData &data);
-TKit::Span<const u32> FontPool_GetIds();
 u32 FontPool_GetFontCount(ResourcePool pool);
 u32 FontPool_GetGlyphCount(ResourcePool pool);
 // no way to update fonts bc they are amalgamated withing their pool. would require the new font to be the exact same

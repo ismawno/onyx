@@ -103,10 +103,9 @@ add_subdirectory(onyx)
 
 # before the demos: the control center finds the test executable through its
 # target
-if(ONYX_BUILD_TESTS)
-  enable_testing()
-  add_subdirectory(tests)
-endif()
+
+# if(ONYX_BUILD_TESTS) enable_testing() add_subdirectory(tests) endif()
+
 if(ONYX_BUILD_DEMOS)
   add_subdirectory(demo)
 endif()

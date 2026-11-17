@@ -24,13 +24,13 @@ target_link_libraries(onyx-render-texture PRIVATE onyx)
 
 if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-text text.cpp)
-  add_executable(onyx-control-center control_center.cpp)
+  # add_executable(onyx-control-center control_center.cpp)
 
   tkit_default_configure(onyx-text)
-  tkit_default_configure(onyx-control-center)
+  # tkit_default_configure(onyx-control-center)
 
   target_link_libraries(onyx-text PRIVATE onyx)
-  target_link_libraries(onyx-control-center PRIVATE onyx)
+  # target_link_libraries(onyx-control-center PRIVATE onyx)
 
   # the control center runs the automated tests through the onyx-tests
   # executable, when it is built

@@ -2,7 +2,7 @@
 #include "onyx/window.hpp"
 #include "onyx/overlay.hpp"
 #include "onyx/camera.hpp"
-#include "pass.hpp"
+#include "state.hpp"
 #include "graph/execution.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -212,7 +212,7 @@ void Window::createSwapchain()
 
     if (Graph::IsValidationEnabled())
     {
-        const TKit::StackString name = TKit::StackString::Format("onyx-swapchain-window-'{}'", GetTitle());
+        const TKit::StackString name = TKit::StackString::Format("onyx-swapchain-window-{}", GetTitle());
         Graph::Swapchain_SetName(m_Swapchain, name.CString());
     }
 }

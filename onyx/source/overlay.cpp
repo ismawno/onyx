@@ -3897,6 +3897,7 @@ void Overlay::dockInsertAndDrawPreview(OverlayWindow *target, RenderContext<D2> 
 
     const bool mreleased = (nw->Flags | m_DockSource->GetNative()->Flags) & NativeWindowFlag_LeftMouseReleased;
     bool canDrawPreview = true;
+    ctx->AddRenderState(BlendMode_OIT);
     if (!target->IsRoot())
     {
         const OverlayWindow *p = target->Parent;

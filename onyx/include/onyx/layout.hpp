@@ -4,7 +4,7 @@
 #include "onyx/handle.hpp"
 #include "onyx/color.hpp"
 #include "onyx/instance.hpp"
-#include "onyx/pass.hpp"
+#include "onyx/state.hpp"
 #include "onyx/font.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/hash_map.hpp"
@@ -350,7 +350,7 @@ struct LayoutDrawInfo
     f32v2 TexScale;
     u32 Depth;
     LayoutShapeType ShapeType;
-    RenderModeFlags RenderFlags;
+    RenderState RenderState;
     LayoutElementFlags Flags;
 };
 

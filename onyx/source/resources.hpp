@@ -17,7 +17,8 @@ template <Dimension D> MeshBuffers ResourcePool_GetMeshBuffers(ResourcePool pool
 MeshBuffers FontPool_GetFontBuffers(ResourcePool pool);
 MeshBuffers FontPool_GetGlyphBuffers(ResourcePool pool);
 
-bool Resources_IsBackCulled(Resource handle);
+template <Dimension D> TKit::Span<const u32> ResourcePool_GetIds(ResourceType rtype);
+TKit::Span<const u32> FontPool_GetIds();
 
 u32 Resources_CombineSamplerTexIntoId(Resource sampler, Resource texture);
 void Resources_UpdateTextureIdOffsetBuffer(Graph::CommandBuffer cmd);

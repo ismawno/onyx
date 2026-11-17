@@ -2,7 +2,6 @@
 
 #include "onyx/camera.hpp"
 #include "onyx/color.hpp"
-#include "onyx/pass.hpp"
 #include "graph/execution.hpp"
 #include "tkit/container/tier_array.hpp"
 
@@ -51,6 +50,17 @@ template <> struct ViewInfo<D3>
     ViewMask ViewBit;
 };
 
+enum AttachmentRole : u8
+{
+    AttachmentRole_Color0,
+    AttachmentRole_Color1,
+    AttachmentRole_OutlineColor,
+    AttachmentRole_DepthStencil,
+    AttachmentRole_Accumulation,
+    AttachmentRole_Revealage,
+    AttachmentRole_Count,
+};
+
 enum AntiAliasing : u8
 {
     FXAA_Fast,
@@ -65,10 +75,9 @@ enum RenderViewFlagBit : RenderViewFlags
 {
     RenderViewFlag_Shadows = 1U << 0,
     RenderViewFlag_Outlines = 1U << 1,
-    RenderViewFlag_Transparency = 1U << 2,
-    RenderViewFlag_ManualProjectionView = 1U << 3,
-    RenderViewFlag_FXAA = 1U << 4,
-    RenderViewFlag_Hidden = 1U << 5,
+    RenderViewFlag_ManualProjectionView = 1U << 2,
+    RenderViewFlag_FXAA = 1U << 3,
+    RenderViewFlag_Hidden = 1U << 4,
 };
 
 struct ViewImage
@@ -136,8 +145,8 @@ template <Dimension D> class RenderView
 
     void MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker);
 
-    void BeginOpaquePass(Graph::CommandBuffer cmd);
-    void EndOpaquePass(Graph::CommandBuffer cmd);
+    void BeginOpaquePass(Graph::CommandBuffer cmd, bool hasTransparency);
+    void EndOpaquePass(Graph::CommandBuffer cmd, bool hasTransparency);
 
     void BeginTransparentPass(Graph::CommandBuffer cmd);
     void EndTransparentPass(Graph::CommandBuffer cmd);

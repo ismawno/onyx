@@ -53,7 +53,6 @@ template <typename Vertex> struct MeshInfo
 {
     MeshRange Range;
     Resource Bounds;
-    MeshFlags Flags;
 };
 
 template <Dimension D> struct MeshInfo<ParametricVertex<D>>
@@ -61,7 +60,6 @@ template <Dimension D> struct MeshInfo<ParametricVertex<D>>
     MeshRange Range;
     Resource Bounds;
     ParametricShape Shape;
-    MeshFlags Flags;
 };
 
 template <> struct MeshInfo<GlyphVertex>
@@ -84,8 +82,8 @@ template <typename Vertex> struct MeshPool
 
 template <typename Vertex> struct MeshResourceData
 {
-    TKit::StaticHive<MeshPool<Vertex>, ONYX_MAX_RESOURCE_POOLS> Pools{};
-    TKit::StaticArray<ResourcePool, ONYX_MAX_RESOURCE_POOLS> ToDestroy{};
+    TKit::StaticHive<MeshPool<Vertex>, ONYX_POSSIBLE_RESOURCE_POOLS> Pools{};
+    TKit::StaticArray<ResourcePool, ONYX_POSSIBLE_RESOURCE_POOLS> ToDestroy{};
 };
 
 template <> struct MeshPool<GlyphVertex>
@@ -152,7 +150,7 @@ struct SamplerResourceData
 struct TextureResourceData
 {
     TKit::StaticHive<Texture, ONYX_MAX_TEXTURES> Resources{};
-    TKit::StaticHive<i32, ONYX_MAX_TEXTURE_OFFSET_IDS> Offsets{};
+    TKit::StaticHive<i32, ONYX_POSSIBLE_TEXTURE_OFFSET_IDS> Offsets{};
     TKit::StaticArray<Resource, ONYX_MAX_TEXTURES> ToDestroy{};
     Graph::Buffer OffsetBuffer = Graph::NullHandle;
     u32 DefaultOffsetId;
@@ -261,10 +259,10 @@ void Resources_Initialize()
     s_DefaultResources = {};
     s_Images->Resources.Reserve(Graph::GetSpecs().MaxImages);
 
-    // the amount of offsets is capped by ONYX_MAX_TEXTURE_OFFSET_IDS and is only relevant for render textures. only one
-    // of these ids is used for regular textures, meaning there can only be ONYX_MAX_TEXTURE_OFFSET_IDS - 1 render
-    // textures at a time
-    s_Textures->OffsetBuffer = Graph::Buffer_Create(ONYX_MAX_TEXTURE_OFFSET_IDS * sizeof(u32),
+    // the amount of offsets is capped by ONYX_POSSIBLE_TEXTURE_OFFSET_IDS and is only relevant for render textures.
+    // only one of these ids is used for regular textures, meaning there can only be ONYX_POSSIBLE_TEXTURE_OFFSET_IDS -
+    // 1 render textures at a time
+    s_Textures->OffsetBuffer = Graph::Buffer_Create(ONYX_POSSIBLE_TEXTURE_OFFSET_IDS * sizeof(u32),
                                                     Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Storage);
     texture_WriteOffsetDescriptors();
 
@@ -803,13 +801,15 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
     const u32 vcount = mpool.Vertices.GetSize();
     const u32 icount = mpool.Indices.GetSize();
 
+    TKIT_ASSERT(mpool.Meshes.GetSize() < ONYX_MAX_MESH_RESOURCE_IDS,
+                "[ONYX][RESOURCES] Trying to register more meshes than the maximum allowed of {}",
+                ONYX_MAX_MESH_RESOURCE_IDS);
     MeshInfo<Vertex> &minfo = mpool.Meshes.Append();
     minfo.Range.VertexOffset = vcount;
     minfo.Range.VertexCount = data.Vertices.GetSize();
     minfo.Range.IndexOffset = icount;
     minfo.Range.IndexCount = data.Indices.GetSize();
     minfo.Bounds = bounds_Create(Bounds_CreateData(data));
-    minfo.Flags = data.Flags;
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
         minfo.Shape = data.Shape;
@@ -1573,7 +1573,7 @@ u32 Resources_CombineSamplerTexIntoId(const Resource shandle, const Resource tha
 // NOTE(Isma): This shouldnt quite be here. Command buffer recording is a different concern
 void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
 {
-    const TKit::StaticHive<i32, ONYX_MAX_TEXTURE_OFFSET_IDS> &offsets = s_Textures->Offsets;
+    const TKit::StaticHive<i32, ONYX_POSSIBLE_TEXTURE_OFFSET_IDS> &offsets = s_Textures->Offsets;
     TKit::StackArray<u32> sparse{};
     sparse.Resize(offsets.GetIds().GetSize());
 
@@ -1598,25 +1598,6 @@ void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
     barrier.DstAccess = Graph::AccessFlag_ShaderRead | Graph::AccessFlag_TransferWrite;
 
     Graph::Command_BufferBarrier(cmd, barrier);
-}
-bool Resources_IsBackCulled(const Resource handle)
-{
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);
-    const ResourceType rtype = Handle_GetResourceType(handle);
-    const u32 rid = Handle_GetResourceId(handle);
-    if (rtype == Resource_DynamicMesh)
-        return s_ResourceData3->DynamicMeshes[rid].Flags & MeshFlag_BackCulled;
-
-    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);
-
-    if (rtype == Resource_GlyphMesh)
-        return false;
-
-    const u32 pid = Handle_GetResourcePoolId(handle);
-    if (rtype == Resource_StaticMesh)
-        return s_ResourceData3->StaticMeshes.Pools[pid].Meshes[rid].Flags & MeshFlag_BackCulled;
-
-    return s_ResourceData3->ParametricMeshes.Pools[pid].Meshes[rid].Flags & MeshFlag_BackCulled;
 }
 
 bool audio_IsResourceIdValid(const u32 id);
@@ -1664,7 +1645,7 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
 template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
 {
     const u32 itype = Handle_GetResourceTypeAsInteger(handle);
-    if (itype >= Resource_PoolCount || (itype != rtype && rtype != Resource_None))
+    if (!Resource_HasPool(rtype) || (itype != rtype && rtype != Resource_None))
         return false;
 
     const u32 pid = Handle_GetResourcePoolId(handle);

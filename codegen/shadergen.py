@@ -171,7 +171,7 @@ hpp = CPPGenerator()
 hpp.disclaimer("spirv.hpp")
 hpp("#pragma once")
 hpp.include("onyx/instance.hpp", quotes=True)
-hpp.include("pass.hpp", quotes=True)
+hpp.include("state.hpp", quotes=True)
 hpp.include("tkit/container/fixed_array.hpp", quotes=True)
 
 with hpp.scope("namespace Onyx", indent=0):

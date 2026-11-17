@@ -28,10 +28,8 @@ int main()
 
     Onyx::Window *win = Onyx::OpenWindow();
 
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Transparency;
-
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2);
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
 
     cam2.OrthoParameters.Size = 10.f;
@@ -39,7 +37,7 @@ int main()
     ctx2->AddTarget(view2);
 
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3);
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
 
     cam3.View.Translation[2] = 5.f;
@@ -67,6 +65,7 @@ int main()
             ctx2->Quad();
             ctx2->Pop();
 
+            ctx2->SetRenderState(Onyx::FillMode_Flat | Onyx::BlendMode_OIT);
             ctx2->Rotate(time);
 
             ctx2->FillColor(Onyx::Color_Red);
@@ -95,6 +94,7 @@ int main()
             ctx3->Quad();
             ctx3->Pop();
 
+            ctx3->SetRenderState(Onyx::FillMode_Flat | Onyx::BlendMode_OIT);
             ctx3->RotateZ(time);
 
             ctx3->FillColor(Onyx::Color_Red);

@@ -3,7 +3,7 @@
 #include "onyx/core.hpp"
 #include "onyx/window.hpp"
 #include "onyx/render_texture.hpp"
-#include "pass.hpp"
+#include "state.hpp"
 #include "graph/descriptor.hpp"
 
 namespace Onyx
@@ -32,7 +32,6 @@ void Renderer_Terminate();
 template <Dimension D> RenderContext<D> *Renderer_CreateContext(const RenderContextSpecs &specs);
 template <Dimension D> void Renderer_DestroyContext(const RenderContext<D> *context);
 void Renderer_FlushAllContexts();
-void Renderer_ReloadPipelines();
 
 // TODO(Isma): Remove this. will not be necessary, onyx.hpp handles it
 void Renderer_AddTarget(const ViewMask vmask);

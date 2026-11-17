@@ -49,7 +49,7 @@ Onyx::Camera<D2> cam{};
 Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam);
 ```
 
-Views can be configured with flags to enable features like shadows (`RenderViewFlag_Shadows`) or order-independent transparency (`RenderViewFlag_Transparency`). Each view also has a configurable viewport that controls what portion of the window it occupies and can operate in both normalized or absolute coordinates:
+Views can be configured with flags to enable features like shadows (`RenderViewFlag_Shadows`). Each view also has a configurable viewport that controls what portion of the window it occupies and can operate in both normalized or absolute coordinates:
 
 ```cpp
 view->SetNormalizedViewport({.Position = {0.f, 0.f}, .Extent = {0.5f, 1.f}}); // left half of the window
@@ -198,7 +198,7 @@ int main()
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2);
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
     cam2.OrthoParameters.Size = 10.f;
     view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
@@ -206,7 +206,7 @@ int main()
 
     // 3D view on the right half
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3);
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
     cam3.View.Translation[2] = 5.f;
     view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});
@@ -281,7 +281,7 @@ A few things worth noting: Materials are registered and synced before rendering 
 
 ### Transparency
 
-This example demonstrates order-independent transparency (OIT) with another split-screen layout. OIT is enabled per-view with the `RenderViewFlag_Transparency` flag, which means transparent objects are rendered correctly regardless of draw order:
+This example demonstrates order-independent transparency (OIT) with another split-screen layout. OIT is enabled per-view. Transparent objects are rendered correctly regardless of draw order:
 
 ```cpp
 #include "onyx/resources.hpp"
@@ -299,11 +299,10 @@ int main()
     Onyx::Resources_CreateDefault();
 
     Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
-    const Onyx::RenderViewFlags vflags = Onyx::RenderViewFlag_Transparency;
 
     // 2D view on the left half
     Onyx::Camera<D2> cam2{};
-    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2, {.Flags = vflags});
+    Onyx::RenderView<D2> *view2 = win->CreateRenderView<D2>(&cam2);
     Onyx::RenderContext<D2> *ctx2 = Onyx::CreateRenderContext<D2>();
     cam2.OrthoParameters.Size = 10.f;
     view2->SetNormalizedViewport({.Position = 0.f, .Extent = {0.5f, 1.f}});
@@ -311,7 +310,7 @@ int main()
 
     // 3D view on the right half
     Onyx::Camera<D3> cam3{};
-    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3, {.Flags = vflags});
+    Onyx::RenderView<D3> *view3 = win->CreateRenderView<D3>(&cam3);
     Onyx::RenderContext<D3> *ctx3 = Onyx::CreateRenderContext<D3>();
     cam3.View.Translation[2] = 5.f;
     view3->SetNormalizedViewport({.Position = {0.5f, 0.f}, .Extent = {0.5f, 1.f}});

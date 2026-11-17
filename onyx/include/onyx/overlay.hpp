@@ -5,7 +5,7 @@
 #include "onyx/context.hpp"
 #include "onyx/window.hpp"
 #include "tkit/profiling/clock.hpp"
-#include "tkit/container/bitset.hpp"
+#include "tkit/container/bit_set.hpp"
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
 #    include "tkit/filesystem/filesystem.hpp"
 #endif
@@ -2523,7 +2523,7 @@ class Overlay
     }
     static constexpr RenderViewFlags GetRenderViewFlags()
     {
-        return RenderViewFlag_Transparency | RenderViewFlag_Outlines;
+        return RenderViewFlag_Outlines;
     }
 
     /////////////////////////////////////////////
