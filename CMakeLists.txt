@@ -69,9 +69,14 @@ if(ONYX_INCLUDE_DEFAULT_FONT AND NOT ONYX_ENABLE_FONT_LOAD)
     "ONYX - Font loading is required to use the default font. Enable font loading as well"
   )
 endif()
-# if(ONYX_COMPILE_SHADERS_AT_RUNTIME AND NOT ONYX_ENABLE_SHADER_API) message(
-# ERROR "ONYX - Shader API is required to load shaders on execution. Enable the
-# shader api as well" ) endif()
+if(ONYX_COMPILE_SHADERS_AT_RUNTIME
+   AND (NOT GRAPHITE_SHADER_COMPILATION_BACKEND
+        OR GRAPHITE_SHADER_COMPILATION_BACKEND STREQUAL "none"))
+  message(
+    FATAL_ERROR
+      "ONYX - A shader backend is required to compile shaders at runtime. Enable it with GRAPHITE_SHADER_COMPILATION_BACKEND variable"
+  )
+endif()
 
 if(ONYX_BUILD_ENGINE
    AND (NOT ONYX_INCLUDE_DEFAULT_FONT
