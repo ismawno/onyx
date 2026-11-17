@@ -210,6 +210,10 @@ struct InstanceHostBuffer
     HostBuffer Data{};
     u32 Instances = 0;
     u32 Capacity = 0;
+    bool IsEmpty() const
+    {
+        return Instances == 0;
+    }
 };
 
 // groups purpose is to register what ids (either resource or pool ids) have been issued in between Flush() calls for a
@@ -274,6 +278,11 @@ struct InstanceMeshGroup
         Registry.Clear();
     }
 
+    bool IsEmpty() const
+    {
+        return Registry.Ids.IsEmpty();
+    }
+
     // void Acommodate(const u32 count)
     // {
     //     Buffers.Resize(count);
@@ -291,6 +300,11 @@ struct InstancePoolGroup
         for (const u32 pid : Registry.Ids)
             ResourceGroups[pid].Clear();
         Registry.Clear();
+    }
+
+    bool IsEmpty() const
+    {
+        return Registry.Ids.IsEmpty();
     }
 
     // void Acommodate(const u32 count)

@@ -30,7 +30,7 @@ ONYX_TEST(context, pop_restores_what_push_saved,
 
     CHECK(sameColor(ctx->GetState().FillColor, saved.FillColor));
     CHECK_THAT(ctx->GetState().Transform, IsNear(saved.Transform, 1e-6f));
-    CHECK(ctx->GetState().Blend == saved.Blend);
+    CHECK(ctx->GetState().RenderState == saved.RenderState);
 }
 
 ONYX_TEST(context, flush_resets_the_state,
@@ -41,14 +41,13 @@ ONYX_TEST(context, flush_resets_the_state,
     ctx->FillColor(Onyx::Color_Green);
     ctx->Translate(f32v3{1.f, 0.f, -3.f});
     ctx->Alpha(0.3f);
-    ctx->RenderFlags(Onyx::RenderModeFlag_Shaded);
+    ctx->SetRenderState(Onyx::FillMode_Shaded | Onyx::BlendMode_OIT);
     ctx->Flush();
 
     const Onyx::ContextState<D3> &state = ctx->GetState();
     CHECK_THAT(state.Transform, IsNear(f32m4::Identity(), 1e-6f));
     CHECK(sameColor(state.FillColor, Onyx::Color_White));
-    CHECK(state.RenderFlags == Onyx::RenderModeFlag_Flat);
-    CHECK(state.Blend == Onyx::BlendPass_Opaque);
+    CHECK(state.RenderState == Onyx::FillMode_Flat);
     CHECK(state.Font == Onyx::Resources_GetDefault().Font);
 }
 
@@ -143,14 +142,20 @@ ONYX_TEST(context, targets_are_added_and_removed,
     CHECK(a->GetViewBit() != b->GetViewBit());
 }
 
-ONYX_TEST(context, alpha_selects_the_transparent_pass,
-          .Description = "A translucent fill goes to the transparent pass and an opaque one back to the opaque pass")
+ONYX_TEST(context, blend_mode_is_chosen_with_the_render_state,
+          .Description = "Alpha only sets the fill alpha: a translucent fill goes to the transparent pass only when "
+                         "BlendMode_OIT is part of the render state")
 {
     Onyx::RenderContext<D2> *ctx = TestContext<D2>();
     ctx->Flush();
     ctx->Alpha(0.5f);
-    CHECK(ctx->GetState().Blend == Onyx::BlendPass_Transparent);
     CHECK_THAT(ctx->GetState().FillColor.rgba[3], IsNear(0.5f, 1e-6f));
-    ctx->Alpha(1.f);
-    CHECK(ctx->GetState().Blend == Onyx::BlendPass_Opaque);
+    CHECK((ctx->GetState().RenderState & Onyx::BlendMode_Mask) == Onyx::BlendMode_None);
+
+    ctx->AddRenderState(Onyx::BlendMode_OIT);
+    CHECK((ctx->GetState().RenderState & Onyx::BlendMode_Mask) == Onyx::BlendMode_OIT);
+    CHECK((ctx->GetState().RenderState & Onyx::FillMode_Mask) == Onyx::FillMode_Flat);
+
+    ctx->RemoveRenderState(Onyx::BlendMode_OIT);
+    CHECK((ctx->GetState().RenderState & Onyx::BlendMode_Mask) == Onyx::BlendMode_None);
 }

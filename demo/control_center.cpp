@@ -352,17 +352,12 @@ constexpr const char *VerdictMeanings[Verdict_Count] = {
     "TODO: visual check waiting for your verdict", "GOOD: visual check you judged right",
     "BAD: visual check you judged broken", "SKIP: visual check you chose to skip"};
 
-// sets the raw color and puts it back instead of PushStyleColor/PopStyleColor: the pop writes back the color with the
-// current alpha applied, so inside a disabled region every pair fades the text color for good, and every widget title
-// with it (overlay.style_colors_survive_a_push_inside_a_disabled_region)
 static void text(Onyx::Overlay *ui, const Onyx::Color &color, const TKit::StringView str,
                  const Onyx::LayoutTextMode mode = Onyx::TextMode_Unbounded)
 {
-    Onyx::Color &textColor = ui->GetStyle().Colors[Onyx::OverlayColor_Text];
-    const Onyx::Color old = textColor;
-    textColor = color;
+    ui->PushStyleColor(Onyx::OverlayColor_Text, color);
     ui->TextRaw(mode, str);
-    textColor = old;
+    ui->PopStyleColor();
 }
 
 static void badge(Onyx::Overlay *ui, const char *label, const Onyx::Color &color)
@@ -1393,23 +1388,23 @@ template <Onyx::Dimension D> struct UsageTally
 
 template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, const Onyx::RenderContext<D> &ctx)
 {
-    constexpr Onyx::Geometry poolGeometries[Onyx::Resource_MeshPoolCount] = {
-        Onyx::Geometry_Static, Onyx::Geometry_Parametric, Onyx::Geometry_Glyph};
-    const Onyx::ContextInstanceData &data = ctx.GetInstanceData();
+    constexpr Onyx::Geometry poolGeometries[Onyx::PooledMesh_Count] = {Onyx::Geometry_Static, Onyx::Geometry_Parametric,
+                                                                       Onyx::Geometry_Glyph};
+    const Onyx::ContextInstanceData<D> &data = ctx.GetInstanceData();
 
-    // every non empty range is one draw command per pipeline pass it uses, in every view the context targets
+    // every non empty range is one draw command per pipeline it uses (its fill and its outline), in every view the
+    // context targets
     u32 circleCommands = 0;
     u32 meshCommands = 0;
     u32 shadedCircles = 0;
     u32 shadedMeshes = 0;
-    const auto addRange = [&](const Onyx::Geometry geo, const u32 instances, const u32 mode) {
+    const auto addRange = [&](const Onyx::Geometry geo, const u32 instances, const Onyx::RenderState state) {
         if (instances == 0)
             return;
         tally.Instances[geo] += instances;
-        const Onyx::RenderModeFlags flags = Onyx::GetRenderModeFlags(Onyx::RenderMode(mode));
-        const bool shaded = flags & Onyx::RenderModeFlag_Shaded;
-        const u32 passes = u32(shaded) + u32((flags & Onyx::RenderModeFlag_Flat) != 0) +
-                           u32((flags & Onyx::RenderModeFlag_Outlined) != 0);
+        const Onyx::RenderState fill = state & Onyx::FillMode_Mask;
+        const bool shaded = fill == Onyx::FillMode_Shaded;
+        const u32 passes = u32(fill != Onyx::FillMode_None) + u32((state & Onyx::OutlineMode_Mask) != 0);
         if (geo == Onyx::Geometry_Circle)
         {
             circleCommands += passes;
@@ -1421,32 +1416,40 @@ template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, cons
             shadedMeshes += shaded;
         }
     };
-    for (u32 blend = 0; blend < Onyx::BlendPass_Count; ++blend)
-        for (u32 mode = 0; mode < Onyx::RenderMode_Count; ++mode)
+
+    for (u32 i = 0; i < data.Circles.GetSize(); ++i)
+        addRange(Onyx::Geometry_Circle, data.Circles.GetValue(i).Instances, data.Circles.GetKey(i));
+
+    for (u32 i = 0; i < data.DynamicMeshes.GetSize(); ++i)
+    {
+        const Onyx::RenderState state = data.DynamicMeshes.GetKey(i);
+        const Onyx::InstanceMeshGroup &dynamic = data.DynamicMeshes.GetValue(i);
+
+        // a dynamic mesh's vertices and indices are copied again for every range that draws it
+        for (const u32 rid : dynamic.Registry.Ids)
         {
-            addRange(Onyx::Geometry_Circle, data.Circles[blend][mode].Instances, mode);
+            const u32 instances = dynamic.Buffers[rid].Instances;
+            addRange(Onyx::Geometry_Dynamic, instances, state);
+            if (instances == 0)
+                continue;
+            const Onyx::DynamicMeshData<D> &mesh =
+                Onyx::DynamicMesh_GetData<D>(Onyx::Handle_CreateForResource(Onyx::Resource_DynamicMesh, rid));
+            tally.DynamicVertices += mesh.Vertices.GetSize();
+            tally.DynamicIndices += mesh.Indices.GetSize();
+        }
+    }
 
-            // a dynamic mesh's vertices and indices are copied again for every range that draws it
-            const Onyx::InstanceResourceGroup &dynamic = data.DynamicMeshes[blend][mode];
-            for (const u32 rid : dynamic.Registry.ResourceIds)
+    for (u32 type = 0; type < Onyx::PooledMesh_Count; ++type)
+        for (u32 i = 0; i < data.Meshes[type].GetSize(); ++i)
+        {
+            const Onyx::RenderState state = data.Meshes[type].GetKey(i);
+            const Onyx::InstancePoolGroup &pools = data.Meshes[type].GetValue(i);
+            for (const u32 pid : pools.Registry.Ids)
             {
-                const u32 instances = dynamic.Buffers[rid].Instances;
-                addRange(Onyx::Geometry_Dynamic, instances, mode);
-                if (instances == 0)
-                    continue;
-                const Onyx::DynamicMeshData<D> &mesh =
-                    Onyx::DynamicMesh_GetData<D>(Onyx::Handle_CreateForResource(Onyx::Resource_DynamicMesh, rid));
-                tally.DynamicVertices += mesh.Vertices.GetSize();
-                tally.DynamicIndices += mesh.Indices.GetSize();
+                const Onyx::InstanceMeshGroup &meshes = pools.ResourceGroups[pid];
+                for (const u32 rid : meshes.Registry.Ids)
+                    addRange(poolGeometries[type], meshes.Buffers[rid].Instances, state);
             }
-
-            for (u32 type = 0; type < Onyx::Resource_MeshPoolCount; ++type)
-                for (const u32 pid : Onyx::ResourcePool_GetIds<D>(Onyx::ResourceType(type)))
-                {
-                    const Onyx::InstanceResourceGroup &meshes = data.Meshes[blend][mode][type][pid];
-                    for (const u32 rid : meshes.Registry.ResourceIds)
-                        addRange(poolGeometries[type], meshes.Buffers[rid].Instances, mode);
-                }
         }
 
     // a shadow casting light takes one shadow map per targeted view, and renders it once per cube face or cascade
@@ -1709,7 +1712,7 @@ static void drawPixelView(const App &app)
 
     // outlined circle: the outline must keep its proportion at every scale
     ctx->Push();
-    ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
+    ctx->SetRenderState(Onyx::FillMode_Flat | Onyx::OutlineMode_Enabled);
     ctx->FillColor(Onyx::Color_Sky);
     ctx->OutlineColor(Onyx::Color_Honey);
     ctx->OutlineWidth(0.1f);
@@ -1805,7 +1808,7 @@ static void drawGallery2(App &app)
         ctx->Pop();
 
         ctx->Push();
-        ctx->RenderFlags(Onyx::RenderModeFlag_Shaded);
+        ctx->SetRenderState(Onyx::FillMode_Shaded);
         ctx->Material(app.Lit2);
         ctx->FillColor(Onyx::Color{70u, 74u, 96u});
         ctx->Scale(BandSize);
@@ -1877,10 +1880,10 @@ static void drawGallery2(App &app)
     }
 
     // top row: every 2D primitive, with the selected render mode
-    Onyx::RenderModeFlags flags = Onyx::RenderModeFlag_Flat;
+    Onyx::RenderState state = Onyx::FillMode_Flat;
     if (rs.Outlines)
-        flags |= Onyx::RenderModeFlag_Outlined;
-    ctx->RenderFlags(flags);
+        state |= Onyx::OutlineMode_Enabled;
+    ctx->SetRenderState(state);
     ctx->OutlineColor(Theme::Text);
     ctx->OutlineWidth(rs.OutlineWidth);
 
@@ -1902,7 +1905,7 @@ static void drawGallery2(App &app)
             break;
         case 2:
             if (rs.Circle.InnerFade > 0.f || rs.Circle.OuterFade > 0.f)
-                ctx->Blend();
+                ctx->AddRenderState(Onyx::BlendMode_OIT);
             ctx->Circle(rs.Circle);
             break;
         case 3:
@@ -1916,10 +1919,11 @@ static void drawGallery2(App &app)
     }
 
     // middle row: three overlapping translucent squares, between two lines
-    ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+    ctx->SetRenderState(Onyx::FillMode_Flat);
     for (u32 i = 0; i < 3; ++i)
     {
         ctx->Push();
+        ctx->AddRenderState(Onyx::BlendMode_OIT);
         ctx->FillColor(Theme::Shapes[i + 3]);
         ctx->Alpha(rs.Alpha);
         ctx->Scale(1.3f);
@@ -1982,7 +1986,7 @@ static void drawSpotCone(Onyx::RenderContext<D3> *ctx, const f32v3 &position, co
     }
 
     ctx->Push();
-    ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+    ctx->SetRenderState(Onyx::FillMode_Flat);
     ctx->FillColor(Onyx::Color_Sky);
     ctx->Line(position, position + 0.8f * direction, 0.04f);
     const f32v3 lift{0.f, 0.02f, 0.f};
@@ -2009,10 +2013,10 @@ static void drawGallery3(App &app)
     constexpr f32 floorY = -1.6f;
     ctx->Flush();
 
-    Onyx::RenderModeFlags flags = Onyx::RenderModeFlag_Shaded;
+    Onyx::RenderState state = Onyx::FillMode_Shaded;
     if (rs.Outlines)
-        flags |= Onyx::RenderModeFlag_Outlined;
-    ctx->RenderFlags(flags);
+        state |= Onyx::OutlineMode_Enabled;
+    ctx->SetRenderState(state);
     ctx->OutlineColor(Theme::Text);
     ctx->OutlineWidth(rs.OutlineWidth);
     ctx->Material(app.Mat3);
@@ -2044,7 +2048,7 @@ static void drawGallery3(App &app)
 
         // a flat marker: a shaded sphere around the light would block its own shadows
         ctx->Push();
-        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+        ctx->SetRenderState(Onyx::FillMode_Flat);
         ctx->FillColor(Onyx::Color_Buttercup);
         ctx->Scale(0.25f);
         ctx->Translate(req.Point3);
@@ -2076,7 +2080,7 @@ static void drawGallery3(App &app)
 
     // floor
     ctx->Push();
-    ctx->RemoveRenderFlags(Onyx::RenderModeFlag_Outlined);
+    ctx->RemoveRenderState(Onyx::OutlineMode_Enabled);
     ctx->FillColor(Onyx::Color{90u, 92u, 110u});
     ctx->ScaleX(24.f);
     ctx->ScaleY(24.f);
@@ -2131,6 +2135,7 @@ static void drawGallery3(App &app)
     for (u32 i = 0; i < 3; ++i)
     {
         ctx->Push();
+        ctx->AddRenderState(Onyx::BlendMode_OIT);
         ctx->FillColor(Theme::Shapes[2 * i]);
         ctx->Alpha(rs.Alpha3);
         ctx->Scale(1.1f);
@@ -2149,7 +2154,7 @@ static void drawGallery3(App &app)
     if (au.Available && au.Orbit == Orbit_3D)
     {
         ctx->Push();
-        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
+        ctx->SetRenderState(Onyx::FillMode_Flat);
         ctx->FillColor(Theme::Accent);
         ctx->Scale(0.2f);
         ctx->Translate(au.Source3);
@@ -2267,7 +2272,7 @@ static void drawLab(const App &app)
     // outlines need RenderViewFlag_Outlines. the thin lines and the
     // circle are where FXAA shows most
     ctx->Push();
-    ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
+    ctx->SetRenderState(Onyx::FillMode_Flat | Onyx::OutlineMode_Enabled);
     ctx->OutlineColor(Theme::Text);
     ctx->OutlineWidth(0.08f);
     ctx->FillColor(Onyx::Color_Sky);
@@ -2283,6 +2288,8 @@ static void drawLab(const App &app)
     ctx->Pop();
 
     ctx->Push();
+    if (lab.Transparency)
+        ctx->AddRenderState(Onyx::BlendMode_OIT);
     ctx->FillColor(Onyx::Color_Lavender);
     ctx->Alpha(0.5f);
     ctx->Scale(1.6f * step);
@@ -4834,7 +4841,7 @@ static void setupCategories(App &app)
     labCat.Visuals.Append(VisualCheck{
         .Name = "Flags turn their passes on and off",
         .Do = "Untick Outlines: the circle and the square lose their outlines. Untick Transparency: the translucent "
-              "square disappears. Nothing else changes.",
+              "square is no longer blended. Nothing else changes.",
         .More = "Outlined draws need RenderViewFlag_Outlines. "
                 "Toggling it recreates the view's framebuffers.",
         .Priority = 59,

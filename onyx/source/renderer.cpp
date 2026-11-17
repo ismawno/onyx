@@ -1894,10 +1894,11 @@ template <Dimension D> static void transfer()
                                        ContextFieldMap<TKit::TierArray<TKit::Pair<const T *, ViewMask>>, D> &dst,
                                        const ViewMask vmask) {
         for (u32 i = 0; i < src.GetSize(); ++i)
-        {
-            const RenderState state = src.GetKey(i);
-            dst.TryInsert(state).Append(&src.GetValue(i), vmask);
-        }
+            if (!src.GetValue(i).IsEmpty())
+            {
+                const RenderState state = src.GetKey(i);
+                dst.TryInsert(state).Append(&src.GetValue(i), vmask);
+            }
     };
 
     for (RenderContext<D> *ctx : contexts)
@@ -1917,9 +1918,10 @@ template <Dimension D> static void transfer()
     [[maybe_unused]] const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     const auto copyInstanceData = [&](const Geometry geo, const RenderState state, const InstanceHostBuffer &idata,
                                       const ViewMask vmask, const Resource handle = NullHandle) {
-        TKIT_ASSERT(idata.Instances != 0,
-                    "[ONYX][RENDERER] Found an instance data buffer to be copied with no instances. Context should be "
-                    "responsible of excluding empty buffers, not renderer");
+        // this actually can happen to circles
+        // TKIT_ASSERT(idata.Instances != 0,
+        //             "[ONYX][RENDERER] Found an instance data buffer to be copied with no instances. Context should be
+        //             " "responsible of excluding empty buffers, not renderer");
 
         InstanceDeviceBuffer &buff = group->InstanceBuffers[geo];
 

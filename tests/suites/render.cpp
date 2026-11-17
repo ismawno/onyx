@@ -211,12 +211,13 @@ ONYX_TEST(render, static_scenes_persist_until_flushed,
 }
 
 ONYX_TEST(render, transparency_is_order_independent,
-          .Description = "With RenderViewFlag_Transparency, overlapping translucent shapes blend to the same color "
-                         "whatever order they are drawn in")
+          .Description = "With BlendMode_OIT, overlapping translucent shapes blend to the same color whatever order "
+                         "they are drawn in")
 {
     const auto draw = [](const bool redFirst) {
-        Scene<D2> scene{{32, 32}, {.Flags = Onyx::RenderViewFlag_Transparency}};
+        Scene<D2> scene{{32, 32}};
         scene.Camera.OrthoParameters.Size = 2.f;
+        scene.Context->AddRenderState(Onyx::BlendMode_OIT);
         for (u32 i = 0; i < 2; ++i)
         {
             const bool red = (i == 0) == redFirst;
@@ -236,8 +237,9 @@ ONYX_TEST(render, transparency_is_order_independent,
 ONYX_TEST(render, translucent_fills_blend_with_the_background,
           .Description = "Half transparent white over black lands strictly between them")
 {
-    Scene<D2> scene{{32, 32}, {.Flags = Onyx::RenderViewFlag_Transparency}};
+    Scene<D2> scene{{32, 32}};
     scene.Camera.OrthoParameters.Size = 2.f;
+    scene.Context->AddRenderState(Onyx::BlendMode_OIT);
     scene.Context->Alpha(0.5f);
     scene.Context->Quad();
     const u8v4 p = Render(scene.Target).AtNormalized(0.5f, 0.5f);
@@ -278,7 +280,7 @@ ONYX_TEST(render, directional_light_shades_3d_shapes,
     // the unit sphere then spans about a third of the view
     scene.Camera.View.Translation = f32v3{0.f, 0.f, 2.f};
     scene.Context->Material(material);
-    scene.Context->RenderFlags(Onyx::RenderModeFlag_Shaded);
+    scene.Context->SetRenderState(Onyx::FillMode_Shaded);
     scene.Context->SetAmbientIntensity(0.05f);
     scene.Context->DirectionalLight({.Direction = f32v3{-1.f, 0.f, 0.f}, .Intensity = 1.f});
     scene.Context->Sphere();
@@ -298,7 +300,7 @@ ONYX_TEST(render, outlines_surround_shapes,
     scene.Context->FillColor(Onyx::Color_Red);
     scene.Context->OutlineColor(Onyx::Color_Green);
     scene.Context->OutlineWidth(0.2f);
-    scene.Context->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
+    scene.Context->SetRenderState(Onyx::FillMode_Flat | Onyx::OutlineMode_Enabled);
     scene.Context->Quad();
     const Capture img = Render(scene.Target);
     REQUIRE(!img.IsEmpty());

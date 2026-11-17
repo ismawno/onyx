@@ -1600,7 +1600,9 @@ void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
     Graph::Command_BufferBarrier(cmd, barrier);
 }
 
+#ifdef ONYX_ENABLE_AUDIO
 bool audio_IsResourceIdValid(const u32 id);
+#endif
 
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
 {
@@ -1636,8 +1638,10 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
         return Handle_IsResourcePoolNull(handle) && getData<D>().BoundingBoxes.Elements.Contains(rid);
     case Resource_Image:
         return Handle_IsResourcePoolNull(handle) && s_Images->Resources.Contains(rid);
+#ifdef ONYX_ENABLE_AUDIO
     case Resource_Audio:
         return audio_IsResourceIdValid(Handle_GetResourceId(handle));
+#endif
     default:
         return false;
     }

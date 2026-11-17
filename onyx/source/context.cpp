@@ -429,9 +429,13 @@ template <typename T> static void addInstanceData(InstanceHostBuffer &buffer, co
     buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = buffer.Instances++ * sizeof(T)});
 }
 
+static bool noRender(const RenderState state)
+{
+    return (state & FillMode_Mask) == FillMode_None && (state & OutlineMode_Mask) == OutlineMode_Disabled;
+}
 template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params)
 {
-    if ((m_State.RenderState & FillMode_Mask) == FillMode_None)
+    if (noRender(m_State.RenderState))
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_State, transform, params, ++DepthCounter);
     InstanceHostBuffer &buffer = m_InstanceData->Circles.TryInsert(m_State.RenderState);
@@ -440,7 +444,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
 
 template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh, const f32m<D> &transform)
 {
-    if ((m_State.RenderState & FillMode_Mask) == FillMode_None)
+    if (noRender(m_State.RenderState))
         return;
     CHECK_HANDLE(mesh, Resource_StaticMesh, D);
 
@@ -460,7 +464,7 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
 }
 template <Dimension D> void IRenderContext<D>::addDynamicData(const Resource mesh, const f32m<D> &transform)
 {
-    if ((m_State.RenderState & FillMode_Mask) == FillMode_None)
+    if (noRender(m_State.RenderState))
         return;
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(mesh);
     ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(mesh, Resource_DynamicMesh, D);
@@ -476,7 +480,7 @@ template <Dimension D>
 void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &transform,
                                           const InstanceParameters &params)
 {
-    if ((m_State.RenderState & FillMode_Mask) == FillMode_None)
+    if (noRender(m_State.RenderState))
         return;
     CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
 
@@ -514,7 +518,7 @@ template <Dimension D>
 void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &transform,
                                      const ContextTextParameters &params)
 {
-    if ((m_State.RenderState & FillMode_Mask) == FillMode_None || text.IsEmpty())
+    if (noRender(m_State.RenderState) || text.IsEmpty())
         return;
 
     TKIT_ASSERT(m_State.Sampler != NullHandle,
@@ -530,6 +534,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
 
     const Resource font = m_State.Font;
     const FontInfo &finfo = Font_GetInfo(font);
+    const u32 pid = Handle_GetResourcePoolId(font);
 
     TKit::TierString wrapped;
     if (params.MaxWidth != TKIT_F32_MAX)
@@ -616,6 +621,7 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     };
 
     InstancePoolGroup &pgroup = m_InstanceData->Meshes[PooledMesh_Glyph].TryInsert(m_State.RenderState);
+    pgroup.Registry.RegisterId(pid);
     for (const CharLine &ln : lines)
     {
         pos[0] = -xfactor * ln.Width;
@@ -623,7 +629,6 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
         {
             updateTransform();
             const Resource glyph = chars[i].Glyph;
-            const u32 pid = Handle_GetResourcePoolId(glyph);
             const u32 gid = Handle_GetResourceId(glyph);
 
             InstanceMeshGroup &mgroup = pgroup.ResourceGroups[pid];
