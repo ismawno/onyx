@@ -135,9 +135,45 @@ struct RangeSpan
     u32 End;
 };
 
+template <Dimension D> struct GeometryPipelineFieldDesc
+{
+    static constexpr u32 BitCount = RenderState_GeometryBitCount;
+
+    static constexpr bool IsValid(const RenderState state)
+    {
+        const bool hasFill = (state & FillMode_Mask) != FillMode_None;
+        const bool hasOutline = (state & OutlineMode_Mask) != OutlineMode_Disabled;
+        const bool hasOther = state & (CullMode_Mask | BlendMode_Mask);
+        return ContextFieldDesc<D>::IsValid(state) && (hasFill || hasOutline) && hasFill != hasOutline &&
+               (!hasOutline || !hasOther);
+    }
+};
+
+template <Dimension D> struct ShadowPipelineFieldDesc
+{
+    static constexpr u32 BitCount = RenderState_ShadowBitCount;
+
+    static constexpr RenderState Canonicalize(const RenderState state)
+    {
+        RenderState mask = (BlendMode_Mask | OutlineMode_Mask);
+        if constexpr (D == D2)
+            mask |= CullMode_Mask;
+        return state & ~mask;
+    }
+    static constexpr bool IsValid(const RenderState state)
+    {
+        return ContextFieldDesc<D>::IsValid(state) && (state & FillMode_Mask) == FillMode_Shaded;
+    }
+};
+
+template <typename T, Dimension D>
+using GeometryPipelineFieldMap = TKit::StaticBitFieldMap<T, GeometryPipelineFieldDesc<D>>;
+template <typename T, Dimension D>
+using ShadowPipelineFieldMap = TKit::StaticBitFieldMap<T, ShadowPipelineFieldDesc<D>>;
+
 struct PipelineRun
 {
-    Geometry Geo = Geometry_Count;
+    Graph::Pipeline Pipeline = Graph::NullHandle;
     RenderPass Pass = RenderPass_Count;
     ViewMask ViewMask = 0;
     TKit::TierArray<RangeSpan> Spans{};
@@ -152,11 +188,11 @@ template <Dimension D> struct ResourceGroup
     ten<Graph::DescriptorSet, RenderPass_Count, Geometry_Count> Descriptors{};
 
     // for blend modes, each pipeline runs within a different pass
-    TKit::TierHashMap<Graph::Pipeline, PipelineRun> OpaqueRuns{};
-    TKit::TierHashMap<Graph::Pipeline, PipelineRun> TransparentRuns{};
+    ten<GeometryPipelineFieldMap<PipelineRun, D>, Geometry_Count> OpaqueRuns{};
+    ten<GeometryPipelineFieldMap<PipelineRun, D>, Geometry_Count> TransparentRuns{};
     ViewMask TransparentViews = 0;
     //
-    TKit::TierHashMap<Graph::Pipeline, PipelineRun> ShadowRuns{};
+    ten<ShadowPipelineFieldMap<PipelineRun, D>, Geometry_Count> ShadowRuns{};
 
     Graph::Buffer VertexBuffer = Graph::NullHandle;
     Graph::Buffer IndexBuffer = Graph::NullHandle;
@@ -205,46 +241,11 @@ template <> struct LightData<D3>
     }
 };
 
-template <Dimension D> struct GeometryPipelineFieldDesc
-{
-    static constexpr u32 BitCount = RenderState_GeometryBitCount;
-
-    static constexpr bool IsValid(const RenderState state)
-    {
-        const bool hasFill = (state & FillMode_Mask) != FillMode_None;
-        const bool hasOutline = (state & OutlineMode_Mask) != OutlineMode_Disabled;
-        const bool hasOther = state & (CullMode_Mask | BlendMode_Mask);
-        return ContextFieldDesc<D>::IsValid(state) && (hasFill || hasOutline) && hasFill != hasOutline &&
-               (!hasOutline || !hasOther);
-    }
-};
-template <Dimension D>
-using GeometryPipelineFieldMap = TKit::StaticBitFieldMap<Graph::Pipeline, GeometryPipelineFieldDesc<D>>;
-
-template <Dimension D> struct ShadowPipelineFieldDesc
-{
-    static constexpr u32 BitCount = RenderState_ShadowBitCount;
-
-    static constexpr RenderState Canonicalize(const RenderState state)
-    {
-        RenderState mask = (BlendMode_Mask | OutlineMode_Mask);
-        if constexpr (D == D2)
-            mask |= CullMode_Mask;
-        return state & ~mask;
-    }
-    static constexpr bool IsValid(const RenderState state)
-    {
-        return ContextFieldDesc<D>::IsValid(state) && (state & FillMode_Mask) == FillMode_Shaded;
-    }
-};
-template <Dimension D>
-using ShadowPipelineFieldMap = TKit::StaticBitFieldMap<Graph::Pipeline, ShadowPipelineFieldDesc<D>>;
-
 template <Dimension D> struct ShadowData;
 
 template <> struct ShadowData<D2>
 {
-    ten<ShadowPipelineFieldMap<D2>, Geometry_Count> Pipelines{}; // occlusion pipelines
+    ten<ShadowPipelineFieldMap<Graph::Pipeline, D2>, Geometry_Count> Pipelines{}; // occlusion pipelines
     Graph::Format ShadowFormat = Graph::Format_Undefined;
 
     u32 ShadowResolution;
@@ -266,7 +267,7 @@ using ShadowMapId = u32;
 
 template <> struct ShadowData<D3>
 {
-    ten<ShadowPipelineFieldMap<D3>, Geometry_Count> Pipelines{};
+    ten<ShadowPipelineFieldMap<Graph::Pipeline, D3>, Geometry_Count> Pipelines{};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions;
 
     u32 GetShadowResolution(const u32 ltype) const
@@ -281,7 +282,7 @@ template <Dimension D> struct RendererData
 {
     TKit::TierArray<RenderContext<D> *> Contexts{};
     TKit::ArenaArray<ResourceGroup<D>> ResourceGroups{};
-    ten<GeometryPipelineFieldMap<D>, Geometry_Count> Pipelines{};
+    ten<GeometryPipelineFieldMap<Graph::Pipeline, D>, Geometry_Count> Pipelines{};
     ResourceGroup<D> *ActiveResourceGroup = nullptr;
 
     LightData<D> Lights{};
@@ -1349,9 +1350,12 @@ template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
         for (InstanceDeviceBuffer &buff : group.InstanceBuffers)
             buff.Ranges.Clear();
 
-        group.OpaqueRuns.Clear();
-        group.TransparentRuns.Clear();
-        group.ShadowRuns.Clear();
+        for (auto &map : group.OpaqueRuns)
+            map.Clear();
+        for (auto &map : group.TransparentRuns)
+            map.Clear();
+        for (auto &map : group.ShadowRuns)
+            map.Clear();
         group.TransparentViews = 0;
 
         group.LightData.Reset();
@@ -1987,30 +1991,30 @@ template <Dimension D> static void transfer()
         if (fill != FillMode_None)
         {
             const RenderState onlyFill = state & ~OutlineMode_Mask;
-            const Graph::Pipeline pip = getOrCreateGeometryPipeline<D>(geo, onlyFill);
+            const Graph::Pipeline gpip = getOrCreateGeometryPipeline<D>(geo, onlyFill);
 
             const bool shaded = fill == FillMode_Shaded;
             const RenderPass rpass = shaded ? RenderPass_Shaded : RenderPass_Flat;
 
             if (blend == BlendMode_OIT)
             {
-                updateRun(group->TransparentRuns.TryInsert(pip, geo, rpass));
+                updateRun(group->TransparentRuns[geo].TryInsert(onlyFill, gpip, rpass));
                 group->TransparentViews |= vmask;
             }
             else
-                updateRun(group->OpaqueRuns.TryInsert(pip, geo, rpass));
+                updateRun(group->OpaqueRuns[geo].TryInsert(onlyFill, gpip, rpass));
 
             if (shaded)
             {
-                const Graph::Pipeline pip = getOrCreateShadowPipeline<D>(geo, onlyFill);
-                updateRun(group->ShadowRuns.TryInsert(pip, geo, RenderPass_Shadow));
+                const Graph::Pipeline spip = getOrCreateShadowPipeline<D>(geo, onlyFill);
+                updateRun(group->ShadowRuns[geo].TryInsert(onlyFill, spip, RenderPass_Shadow));
             }
         }
         if (outline == OutlineMode_Enabled)
         {
             const RenderState onlyOutline = state & ~(FillMode_Mask | CullMode_Mask | BlendMode_Mask);
-            const Graph::Pipeline pip = getOrCreateGeometryPipeline<D>(geo, onlyOutline);
-            updateRun(group->OpaqueRuns.TryInsert(pip, geo, RenderPass_Flat));
+            const Graph::Pipeline opip = getOrCreateGeometryPipeline<D>(geo, onlyOutline);
+            updateRun(group->OpaqueRuns[geo].TryInsert(onlyOutline, opip, RenderPass_Flat));
         }
     };
 
@@ -2290,139 +2294,147 @@ static void setupPipelineState(const Graph::CommandBuffer cmd, const RenderPass 
     Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
 }
 
-template <Dimension D>
+template <Dimension D, typename FieldDesc>
 static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass rpass,
                                const Graph::PipelineLayout playout,
-                               const TKit::TierHashMap<Graph::Pipeline, PipelineRun> &runs, const ViewMask viewBit)
+                               const ten<TKit::StaticBitFieldMap<PipelineRun, FieldDesc>, Geometry_Count> &runs,
+                               const ViewMask viewBit)
 {
     RendererData<D> &rdata = getRendererData<D>();
     ResourceGroup<D> *group = rdata.ActiveResourceGroup;
 
-    for (const auto &[pip, run] : runs)
-        if (rpass == run.Pass && (run.ViewMask & viewBit))
-        {
-            const Geometry geo = run.Geo;
+    for (u32 g = 0; g < Geometry_Count; ++g)
+    {
+        const Geometry geo = Geometry(g);
+        const u32 instanceSize = GetInstanceSize<D>(geo);
 
-            const u32 instanceSize = GetInstanceSize<D>(geo);
-            const auto forEachRange = [&](auto func) {
-                for (const RangeSpan &span : run.Spans)
-                    for (u32 i = span.Start; i < span.End; ++i)
-                    {
-                        const InstanceRange &range = group->InstanceBuffers[geo].Ranges[i];
-                        if (range.ViewMask & viewBit)
-                            func(range);
-                    }
-            };
-
-            setupPipelineState<D>(cmd, rpass, geo, playout, pip);
-            if (geo == Geometry_Circle)
+        for (const PipelineRun &run : runs[g])
+            if (rpass == run.Pass && (run.ViewMask & viewBit))
             {
-                TKit::StackArray<Graph::DrawIndirectCommand> cmds{};
-                cmds.Reserve(run.CommandCount);
-                forEachRange(
-                    [&](const InstanceRange &range) { cmds.Append(createCircleCommand(range, instanceSize)); });
-                TKIT_ASSERT(!cmds.IsEmpty(), "[ONYX][RENDERER] Renderer should not be asked to submit 0 commands");
-
-                DrawCommandBuffer &drawBuffer = rdata.ActiveResourceGroup->DrawBuffer;
-                const u32 cmdCount = cmds.GetSize();
-                const usz cmdSize = cmds.GetBytes();
-                const usz offset = drawBuffer.Offset;
-                TKIT_ASSERT(
-                    offset + cmdSize <=
-                        GetSpecs().GetSpecific<D>().MaxDrawCommands * sizeof(Graph::DrawIndirectCommand),
-                    "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} circle draw commands. "
-                    "There is one per context, blend pass, render mode and pass, in every view and shadow map render. "
-                    "Raise it in the specs given to Onyx::Initialize",
-                    u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
-
-                Graph::Buffer_Write(drawBuffer.Buffer, cmds.GetData(), {.Size = cmdSize, .DstOffset = offset});
-                drawBuffer.Offset += cmdSize;
-
-                Graph::Command_DrawIndirect(cmd, drawBuffer.Buffer, cmdCount, offset);
-            }
-            else
-            {
-                const ResourceType rtype = getResourceType(geo);
-                TKit::StackArray<Graph::DrawIndexedIndirectCommand> cmds{};
-                cmds.Reserve(run.CommandCount);
-
-                const auto copyDrawBuffer = [&]() -> DrawCommandBuffer & {
-                    DrawCommandBuffer &drawBuffer = rdata.ActiveResourceGroup->IndexedDrawBuffer;
-                    const usz offset = drawBuffer.Offset;
-                    const usz cmdSize = cmds.GetBytes();
-
-                    TKIT_ASSERT(offset + cmdSize <= GetSpecs().GetSpecific<D>().MaxDrawCommands *
-                                                        sizeof(Graph::DrawIndexedIndirectCommand),
-                                "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} mesh draw "
-                                "commands. "
-                                "There is one per mesh, context, blend pass, render mode and pass, in every view and "
-                                "shadow map "
-                                "render. Raise it in the specs given to Onyx::Initialize",
-                                u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
-                    Graph::Buffer_Write(drawBuffer.Buffer, cmds.GetData(), {.Size = cmdSize, .DstOffset = offset});
-                    return drawBuffer;
+                const auto forEachRange = [&](auto func) {
+                    for (const RangeSpan &span : run.Spans)
+                        for (u32 i = span.Start; i < span.End; ++i)
+                        {
+                            const InstanceRange &range = group->InstanceBuffers[geo].Ranges[i];
+                            if (range.ViewMask & viewBit)
+                                func(range);
+                        }
                 };
 
-                if (geo == Geometry_Dynamic)
+                setupPipelineState<D>(cmd, rpass, geo, playout, run.Pipeline);
+                // could factor this condition outside the loop with some effort
+                if (geo == Geometry_Circle)
                 {
-                    forEachRange([&](const InstanceRange &range) {
-                        ONYX_CHECK_RESOURCE_IS_NOT_NULL(range.MeshHandle);
-                        ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
-                        cmds.Append(createDynamicMeshCommand<D>(range, instanceSize));
-                    });
+                    TKit::StackArray<Graph::DrawIndirectCommand> cmds{};
+                    cmds.Reserve(run.CommandCount);
+                    forEachRange(
+                        [&](const InstanceRange &range) { cmds.Append(createCircleCommand(range, instanceSize)); });
+                    TKIT_ASSERT(!cmds.IsEmpty(), "[ONYX][RENDERER] Renderer should not be asked to submit 0 commands");
+
+                    DrawCommandBuffer &drawBuffer = rdata.ActiveResourceGroup->DrawBuffer;
                     const u32 cmdCount = cmds.GetSize();
                     const usz cmdSize = cmds.GetBytes();
+                    const usz offset = drawBuffer.Offset;
+                    TKIT_ASSERT(offset + cmdSize <=
+                                    GetSpecs().GetSpecific<D>().MaxDrawCommands * sizeof(Graph::DrawIndirectCommand),
+                                "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} circle "
+                                "draw commands. "
+                                "There is one per context, blend pass, render mode and pass, in every view and shadow "
+                                "map render. "
+                                "Raise it in the specs given to Onyx::Initialize",
+                                u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
 
-                    Graph::Command_BindVertexBuffers(cmd, rdata.ActiveResourceGroup->VertexBuffer);
-                    Graph::Command_BindIndexBuffer(cmd, rdata.ActiveResourceGroup->IndexBuffer, s_IndexType);
-
-                    DrawCommandBuffer &drawBuffer = copyDrawBuffer();
-                    Graph::Command_DrawIndexedIndirect(cmd, drawBuffer.Buffer, cmdCount, drawBuffer.Offset);
+                    Graph::Buffer_Write(drawBuffer.Buffer, cmds.GetData(), {.Size = cmdSize, .DstOffset = offset});
                     drawBuffer.Offset += cmdSize;
+
+                    Graph::Command_DrawIndirect(cmd, drawBuffer.Buffer, cmdCount, offset);
                 }
                 else
                 {
-                    TKit::FixedArray<u32, ONYX_POSSIBLE_RESOURCE_POOLS> counts{};
-                    TKit::FixedArray<u32, ONYX_POSSIBLE_RESOURCE_POOLS> starts{};
+                    const ResourceType rtype = getResourceType(geo);
+                    TKit::StackArray<Graph::DrawIndexedIndirectCommand> cmds{};
+                    cmds.Reserve(run.CommandCount);
 
-                    forEachRange([&](const InstanceRange &range) {
-                        ONYX_CHECK_RESOURCE_IS_NOT_NULL(range.MeshHandle);
-                        ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(range.MeshHandle);
-                        ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
-                        ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
+                    const auto copyDrawBuffer = [&]() -> DrawCommandBuffer & {
+                        DrawCommandBuffer &drawBuffer = rdata.ActiveResourceGroup->IndexedDrawBuffer;
+                        const usz offset = drawBuffer.Offset;
+                        const usz cmdSize = cmds.GetBytes();
 
-                        const u32 pid = Handle_GetResourcePoolId(range.MeshHandle);
-                        counts[pid]++;
-                    });
+                        TKIT_ASSERT(
+                            offset + cmdSize <=
+                                GetSpecs().GetSpecific<D>().MaxDrawCommands * sizeof(Graph::DrawIndexedIndirectCommand),
+                            "[ONYX][RENDERER] This frame records more than .Specs{}.MaxDrawCommands = {} mesh draw "
+                            "commands. "
+                            "There is one per mesh, context, blend pass, render mode and pass, in every view and "
+                            "shadow map "
+                            "render. Raise it in the specs given to Onyx::Initialize",
+                            u8(D), GetSpecs().GetSpecific<D>().MaxDrawCommands);
+                        Graph::Buffer_Write(drawBuffer.Buffer, cmds.GetData(), {.Size = cmdSize, .DstOffset = offset});
+                        return drawBuffer;
+                    };
 
-                    u32 totalCount = 0;
-                    for (u32 pid = 1; pid < ONYX_POSSIBLE_RESOURCE_POOLS; ++pid)
+                    if (geo == Geometry_Dynamic)
                     {
-                        totalCount += counts[pid - 1];
-                        starts[pid] = totalCount;
+                        forEachRange([&](const InstanceRange &range) {
+                            ONYX_CHECK_RESOURCE_IS_NOT_NULL(range.MeshHandle);
+                            ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
+                            cmds.Append(createDynamicMeshCommand<D>(range, instanceSize));
+                        });
+                        const u32 cmdCount = cmds.GetSize();
+                        const usz cmdSize = cmds.GetBytes();
+
+                        Graph::Command_BindVertexBuffers(cmd, rdata.ActiveResourceGroup->VertexBuffer);
+                        Graph::Command_BindIndexBuffer(cmd, rdata.ActiveResourceGroup->IndexBuffer, s_IndexType);
+
+                        DrawCommandBuffer &drawBuffer = copyDrawBuffer();
+                        Graph::Command_DrawIndexedIndirect(cmd, drawBuffer.Buffer, cmdCount, drawBuffer.Offset);
+                        drawBuffer.Offset += cmdSize;
                     }
-                    cmds.Resize(totalCount);
+                    else
+                    {
+                        TKit::FixedArray<u32, ONYX_POSSIBLE_RESOURCE_POOLS> counts{};
+                        TKit::FixedArray<u32, ONYX_POSSIBLE_RESOURCE_POOLS> starts{};
 
-                    forEachRange([&](const InstanceRange &range) {
-                        const u32 pid = Handle_GetResourcePoolId(range.MeshHandle);
-                        cmds[starts[pid]++] = createMeshCommand<D>(range, instanceSize);
-                    });
-                    const usz cmdSize = cmds.GetBytes();
+                        forEachRange([&](const InstanceRange &range) {
+                            ONYX_CHECK_RESOURCE_IS_NOT_NULL(range.MeshHandle);
+                            ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(range.MeshHandle);
+                            ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
+                            ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
 
-                    DrawCommandBuffer &drawBuffer = copyDrawBuffer();
-                    u32 start = 0;
-                    for (u32 pid = 0; pid < ONYX_POSSIBLE_RESOURCE_POOLS; ++pid)
-                        if (counts[pid] != 0)
+                            const u32 pid = Handle_GetResourcePoolId(range.MeshHandle);
+                            counts[pid]++;
+                        });
+
+                        u32 totalCount = 0;
+                        for (u32 pid = 1; pid < ONYX_POSSIBLE_RESOURCE_POOLS; ++pid)
                         {
-                            bindMeshBuffers<D>(cmd, Handle_CreateForResourcePool(rtype, pid));
-                            const usz offset = drawBuffer.Offset + start * sizeof(Graph::DrawIndexedIndirectCommand);
-                            Graph::Command_DrawIndexedIndirect(cmd, drawBuffer.Buffer, counts[pid], offset);
-                            start += counts[pid];
+                            totalCount += counts[pid - 1];
+                            starts[pid] = totalCount;
                         }
-                    drawBuffer.Offset += cmdSize;
+                        cmds.Resize(totalCount);
+
+                        forEachRange([&](const InstanceRange &range) {
+                            const u32 pid = Handle_GetResourcePoolId(range.MeshHandle);
+                            cmds[starts[pid]++] = createMeshCommand<D>(range, instanceSize);
+                        });
+                        const usz cmdSize = cmds.GetBytes();
+
+                        DrawCommandBuffer &drawBuffer = copyDrawBuffer();
+                        u32 start = 0;
+                        for (u32 pid = 0; pid < ONYX_POSSIBLE_RESOURCE_POOLS; ++pid)
+                            if (counts[pid] != 0)
+                            {
+                                bindMeshBuffers<D>(cmd, Handle_CreateForResourcePool(rtype, pid));
+                                const usz offset =
+                                    drawBuffer.Offset + start * sizeof(Graph::DrawIndexedIndirectCommand);
+                                Graph::Command_DrawIndexedIndirect(cmd, drawBuffer.Buffer, counts[pid], offset);
+                                start += counts[pid];
+                            }
+                        drawBuffer.Offset += cmdSize;
+                    }
                 }
             }
-        }
+    }
 }
 
 template <Dimension D> static f32m4 unpackTransform(const PackedTransform<D> &packed)
@@ -2612,7 +2624,8 @@ template <Dimension D> static void renderShadows(const Graph::CommandBuffer cmd,
 
 template <Dimension D>
 static void renderGeometry(const Graph::CommandBuffer cmd, const ViewInfo<D> &vinfo,
-                           const TKit::TierHashMap<Graph::Pipeline, PipelineRun> &runs, const ShadedFlags flags)
+                           const ten<GeometryPipelineFieldMap<PipelineRun, D>, Geometry_Count> &runs,
+                           const ShadedFlags flags)
 {
     RendererData<D> &rdata = getRendererData<D>();
     const ViewMask viewBit = vinfo.ViewBit;

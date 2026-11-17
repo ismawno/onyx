@@ -1649,7 +1649,7 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
 template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType rtype)
 {
     const u32 itype = Handle_GetResourceTypeAsInteger(handle);
-    if (!Resource_HasPool(rtype) || (itype != rtype && rtype != Resource_None))
+    if (!Resource_HasPool(ResourceType(itype)) || (itype != rtype && rtype != Resource_None))
         return false;
 
     const u32 pid = Handle_GetResourcePoolId(handle);
