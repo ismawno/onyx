@@ -176,9 +176,6 @@ template <> struct SpecificSpecs<D2>
     u32 MaxLightInstances = 32;
     u32 MaxDrawCommands = 2048;
 
-    u32 MaxVerticesPerResourcePool = 4096;
-    u32 MaxIndicesPerResourcePool = 8192;
-
     u32 MaxDynamicVertices = 8192;
     u32 MaxDynamicIndices = 32768;
 
@@ -187,7 +184,6 @@ template <> struct SpecificSpecs<D2>
     u32 ShadowResolution = 1024;
     u32 OcclusionResolution = 1024;
 
-    u32 MaxDynamicMeshes = 128;
     u32 MaxMaterials = 64;
     u32 MaxBounds = 256;
 };
@@ -198,13 +194,9 @@ template <> struct SpecificSpecs<D3>
     u32 MaxLightInstances = 32;
     u32 MaxDrawCommands = 2048;
 
-    u32 MaxVerticesPerResourcePool = 15000;
-    u32 MaxIndicesPerResourcePool = 30000;
-
     u32 MaxDynamicVertices = 4096;
     u32 MaxDynamicIndices = 8192;
 
-    u32 MaxDynamicMeshes = 64;
     u32 MaxMaterials = 64;
     u32 MaxBounds = 256;
 
@@ -218,11 +210,8 @@ template <Dimension D> constexpr SpecificSpecs<D> CreateEmptySpecs()
     specs.MaxInstances = 0;
     specs.MaxLightInstances = 0;
     specs.MaxDrawCommands = 0;
-    specs.MaxVerticesPerResourcePool = 0;
-    specs.MaxIndicesPerResourcePool = 0;
     specs.MaxDynamicVertices = 0;
     specs.MaxDynamicIndices = 0;
-    specs.MaxDynamicMeshes = 0;
     specs.MaxMaterials = 0;
     specs.MaxBounds = 0;
     if constexpr (D == D2)
