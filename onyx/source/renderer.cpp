@@ -2415,6 +2415,8 @@ static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass 
                             totalCount += counts[pid - 1];
                             starts[pid] = totalCount;
                         }
+                        totalCount += counts[ONYX_POSSIBLE_RESOURCE_POOLS - 1];
+
                         cmds.Resize(totalCount);
 
                         forEachRange([&](const InstanceRange &range) {
