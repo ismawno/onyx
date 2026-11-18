@@ -148,7 +148,7 @@ class Window final : public RenderTarget
     u32v2 GetSize() const
     {
         const f32v2 pixels = f32v2{Graph::Window_GetPixelSize(m_Window)};
-        return u32v2{pixels / Graph::Window_GetContentScale(m_Window)};
+        return u32v2{Math::Round(pixels / Graph::Window_GetContentScale(m_Window))};
     }
     f32 GetAspect() const
     {
