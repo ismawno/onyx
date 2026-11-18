@@ -421,7 +421,6 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
-// TODO(Isma): Is ResourcePool_GetIds still necessary?
 // TODO(Isma): Create some pipelines up front by setting the render state desired
 // TODO(Isma): Drag & drop tests?
 // TODO(Isma): Use tkit defer for audio to return errors instead of ensuring!!!
