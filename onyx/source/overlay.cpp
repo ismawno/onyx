@@ -7225,17 +7225,6 @@ void Overlay::Draw()
 /// HELPERS
 /////////////////////////////////////////////
 
-Resource Overlay::getFont() const
-{
-    if (!m_NativeWindows.IsEmpty())
-    {
-        const NativeWindow *nw = m_NativeWindows[0];
-        const Resource font = nw->Context->GetState().Font;
-        return font;
-    }
-    return Resources_GetDefault().Font;
-}
-
 f32 Overlay::getLineHeight() const
 {
     return m_Style[OverlayStyle_FontSize] * getFontInfo().LineHeight;
