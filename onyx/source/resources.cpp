@@ -743,11 +743,10 @@ template <typename Vertex>
 static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data,
                                                  const u32 maxVertices, const u32 maxIndices)
 {
-    constexpr Dimension D = Vertex::Dim;
     TKIT_ASSERT(maxVertices != 0 && maxIndices != 0,
                 "[ONYX][RESOURCES] Cannot create a {}D '{}' pool: .Specs{}.MaxVerticesPerResourcePool ({}) and "
                 ".MaxIndicesPerResourcePool ({}) must not be 0",
-                u8(D), ToString(rtype), u8(D), maxVertices, maxIndices);
+                u8(Vertex::Dim), ToString(rtype), u8(Vertex::Dim), maxVertices, maxIndices);
     const Graph::Buffer vbuffer =
         Graph::Buffer_Create(maxVertices * sizeof(Vertex), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
     const Graph::Buffer ibuffer =
