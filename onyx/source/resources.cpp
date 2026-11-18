@@ -494,6 +494,7 @@ Resource Image_Create(const ImageData &data)
     return handle;
 }
 
+static void texture_Destroy(const Resource handle);
 void Image_Destroy(const Resource handle)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying image with handle {:#010x}", handle);
@@ -502,7 +503,7 @@ void Image_Destroy(const Resource handle)
     ImageInfo &img = image_Get(handle);
     const TKit::StackArray<Resource> texs = img.Textures;
     for (const Resource tex : texs)
-        Texture_Destroy(tex);
+        texture_Destroy(tex);
     img.Textures.Clear();
 
     Graph::Image_Destroy(img.Image);
