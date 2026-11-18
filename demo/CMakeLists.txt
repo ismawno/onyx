@@ -30,15 +30,18 @@ if(ONYX_INCLUDE_DEFAULT_FONT)
   tkit_default_configure(onyx-text)
   target_link_libraries(onyx-text PRIVATE onyx)
 
-  # add_executable(onyx-control-center control_center.cpp)
-  # tkit_default_configure(onyx-control-center)
-  # target_link_libraries(onyx-control-center PRIVATE onyx)
+  add_executable(onyx-control-center control_center.cpp)
+  tkit_default_configure(onyx-control-center)
+  target_link_libraries(onyx-control-center PRIVATE onyx)
 
   # the control center runs the automated tests through the onyx-tests
-  # executable, when it is built if(TARGET onyx-tests)
-  # target_compile_definitions( onyx-control-center PRIVATE
-  # ONYX_TESTS_EXECUTABLE="$<TARGET_FILE:onyx-tests>")
-  # add_dependencies(onyx-control-center onyx-tests) endif()
+  # executable, when it is built
+  if(TARGET onyx-tests)
+    target_compile_definitions(
+      onyx-control-center
+      PRIVATE ONYX_TESTS_EXECUTABLE="$<TARGET_FILE:onyx-tests>")
+    add_dependencies(onyx-control-center onyx-tests)
+  endif()
 endif()
 if(ONYX_ENABLE_IMGUI)
   add_executable(onyx-imgui imgui.cpp)

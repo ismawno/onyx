@@ -18,6 +18,24 @@ static bool beginTestWindow(Onyx::Overlay *ov, const char *title = "Test", const
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+//  Resources
+// ---------------------------------------------------------------------------------------------------------------------
+
+ONYX_TEST(overlay, overlays_register_their_dynamic_meshes,
+          .Description = "Every overlay registers ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES 2D dynamic meshes, and gives "
+                         "them back when destroyed")
+{
+    Onyx::Window *win = OpenTestWindow();
+    const u32 before = Onyx::DynamicMesh_GetCount<D2>();
+    const Onyx::Overlay *ov = win->CreateOverlay();
+    CHECK((Onyx::DynamicMesh_GetCount<D2>()) == before + u32(ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES));
+    CHECK((Onyx::DynamicMesh_GetCount<D2>()) <= u32(ONYX_MAX_MESH_IDS_PER_POOL));
+    win->DestroyOverlay(ov);
+    CHECK((Onyx::DynamicMesh_GetCount<D2>()) == before);
+    Onyx::CloseWindow(win);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 //  Windows
 // ---------------------------------------------------------------------------------------------------------------------
 

@@ -49,7 +49,7 @@
 //     4. Application state, the automated test runner's included
 //     5. Setup: resources, window, views, contexts, render textures, overlay
 //     6. Layouts, events and camera control
-//     7. Usage meters: what a frame asks of the renderer, against the Initialize specs
+//     7. Usage meters: what a frame and the resources use of every maximum Onyx has
 //     8. Scene drawing, one function per view
 //     9. Audio: procedural sources and spatial orbit
 //    10. Overlay panels: visual review, automated tests, report, manual, dashboard, docked galleries, category panels
@@ -575,8 +575,12 @@ struct LightSettings
     f32 SunAngle3 = Math::Radians(1.f);
 };
 
-// what a frame asks of the renderer, per dimension, next to the Initialize maximum each meter is bounded by. the
-// first five are the instance buffers, one per geometry and in Onyx::Geometry order
+// every maximum Onyx caps something with, per dimension, next to what is used of it. three kinds:
+//   - frame: per frame renderer buffers, sized at Initialize from Onyx::SpecificSpecs. a frame that overflows asserts
+//   - resources: what is registered and lives across frames, capped by the pool sizes given when the pool is created
+//     (DefaultResourcesOptions for the default pools) or by compile time maxima (definitions.hpp)
+//   - specs: the Initialize specs themselves, where a compile time maximum caps them. Initialize asserts past it
+// the first five are the instance buffers, one per geometry and in Onyx::Geometry order
 enum UsageMeter : u8
 {
     Usage_Circles,
@@ -590,37 +594,85 @@ enum UsageMeter : u8
     Usage_PointShadowMaps, // 3D: one maximum per light type
     Usage_DirectionalShadowMaps,
     Usage_SpotShadowMaps,
+    Usage_Cascades,
     Usage_DynamicVertices,
     Usage_DynamicIndices,
     Usage_DrawCommands,
-    Usage_PoolVertices,
-    Usage_PoolIndices,
+    Usage_DepthCounter,
+
+    Usage_StaticPoolVertices,
+    Usage_StaticPoolIndices,
+    Usage_StaticPoolMeshes,
+    Usage_ParametricPoolVertices,
+    Usage_ParametricPoolIndices,
+    Usage_ParametricPoolMeshes,
+    Usage_FontPoolVertices,
+    Usage_FontPoolIndices,
+    Usage_FontPoolFonts,
+    Usage_FontPoolGlyphs,
     Usage_DynamicMeshes,
+
+    Usage_ShadowAndOcclusionMapSpecs,
+    Usage_PointShadowMapSpecs,
+    Usage_DirectionalShadowMapSpecs,
+    Usage_SpotShadowMapSpecs,
     Usage_Count,
 };
+enum UsageGroup : u8
+{
+    UsageGroup_Frame,
+    UsageGroup_Resources,
+    UsageGroup_Specs,
+    UsageGroup_Count,
+};
+constexpr const char *UsageGroupNames[UsageGroup_Count] = {"Frame usage", "Registered resources",
+                                                           "Specs against compile time maxima"};
 struct UsageInfo
 {
     const char *Name;
-    const char *Spec; // the Onyx::SpecificSpecs field that bounds it
+    const char *Bound; // what caps it: a specs field, a pool size or a compile time maximum
+    const char *Raise; // how to give it more room
+    UsageGroup Group;
 };
+constexpr const char *RaiseSpecs = "Raise it in the specs given to Onyx::Initialize.";
+constexpr const char *RaisePool = "Raise it in the DefaultResourcesOptions given to Onyx::Resources_CreateDefault, or "
+                                  "register into more pools.";
+constexpr const char *RaiseMacro = "Raise it by defining the macro before Onyx is built.";
 constexpr UsageInfo UsageInfos[Usage_Count] = {
-    {"Circles ", "MaxInstances"},
-    {"Static meshes ", "MaxInstances"},
-    {"Parametric meshes ", "MaxInstances"},
-    {"Glyphs ", "MaxInstances"},
-    {"Dynamic mesh draws ", "MaxInstances"},
-    {"Lights, busiest type ", "MaxLightInstances"},
-    {"Shadow maps ", "MaxShadowMaps"},
-    {"Occlusion maps ", "MaxOcclusionMaps"},
-    {"Point light shadow maps ", "MaxShadowMaps[Light_Point]"},
-    {"Directional light shadow maps ", "MaxShadowMaps[Light_Directional]"},
-    {"Spot light shadow maps ", "MaxShadowMaps[Light_Spot]"},
-    {"Dynamic vertices ", "MaxDynamicVertices"},
-    {"Dynamic indices ", "MaxDynamicIndices"},
-    {"Draw commands (bound) ", "MaxDrawCommands"},
-    {"Pool vertices, fullest pool ", "MaxVerticesPerResourcePool"},
-    {"Pool indices, fullest pool ", "MaxIndicesPerResourcePool"},
-    {"Registered dynamic meshes ", "MaxDynamicMeshes"},
+    {"Circles", ".MaxInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Static meshes", ".MaxInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Parametric meshes", ".MaxInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Glyphs", ".MaxInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Dynamic mesh draws", ".MaxInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Lights, busiest type", ".MaxLightInstances", RaiseSpecs, UsageGroup_Frame},
+    {"Shadow maps", ".MaxShadowMaps", RaiseSpecs, UsageGroup_Frame},
+    {"Occlusion maps", ".MaxOcclusionMaps", RaiseSpecs, UsageGroup_Frame},
+    {"Point light shadow maps", ".MaxShadowMaps[Light_Point]", RaiseSpecs, UsageGroup_Frame},
+    {"Directional light shadow maps", ".MaxShadowMaps[Light_Directional]", RaiseSpecs, UsageGroup_Frame},
+    {"Spot light shadow maps", ".MaxShadowMaps[Light_Spot]", RaiseSpecs, UsageGroup_Frame},
+    {"Cascades, busiest directional light", "ONYX_3D_MAX_CASCADES", RaiseMacro, UsageGroup_Frame},
+    {"Dynamic vertices", ".MaxDynamicVertices", RaiseSpecs, UsageGroup_Frame},
+    {"Dynamic indices", ".MaxDynamicIndices", RaiseSpecs, UsageGroup_Frame},
+    {"Draw commands (bound)", ".MaxDrawCommands", RaiseSpecs, UsageGroup_Frame},
+    {"Depth counter, busiest context", "ONYX_MAX_DEPTH_COUNTER_VALUE", "It is fixed: 2D depth is a 24 bit counter.",
+     UsageGroup_Frame},
+
+    {"Default static pool vertices", ".MaxVerticesStaticPool", RaisePool, UsageGroup_Resources},
+    {"Default static pool indices", ".MaxIndicesStaticPool", RaisePool, UsageGroup_Resources},
+    {"Default static pool meshes", "ONYX_MAX_MESH_IDS_PER_POOL", RaiseMacro, UsageGroup_Resources},
+    {"Default parametric pool vertices", ".MaxVerticesParametricPool", RaisePool, UsageGroup_Resources},
+    {"Default parametric pool indices", ".MaxIndicesParametricPool", RaisePool, UsageGroup_Resources},
+    {"Default parametric pool meshes", "ONYX_MAX_MESH_IDS_PER_POOL", RaiseMacro, UsageGroup_Resources},
+    {"Default font pool vertices", ".MaxVerticesFontPool", RaisePool, UsageGroup_Resources},
+    {"Default font pool indices", ".MaxIndicesFontPool", RaisePool, UsageGroup_Resources},
+    {"Default font pool fonts", "ONYX_MAX_MESH_IDS_PER_POOL", RaiseMacro, UsageGroup_Resources},
+    {"Default font pool glyphs", "ONYX_MAX_MESH_IDS_PER_POOL", RaiseMacro, UsageGroup_Resources},
+    {"Registered dynamic meshes", "ONYX_MAX_MESH_IDS_PER_POOL", RaiseMacro, UsageGroup_Resources},
+
+    {"Shadow + occlusion maps", "ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS", RaiseMacro, UsageGroup_Specs},
+    {"Point light shadow maps", "ONYX_MAX_TEXTURE_MAPS", RaiseMacro, UsageGroup_Specs},
+    {"Directional light shadow maps", "ONYX_MAX_TEXTURE_MAPS", RaiseMacro, UsageGroup_Specs},
+    {"Spot light shadow maps", "ONYX_MAX_TEXTURE_MAPS", RaiseMacro, UsageGroup_Specs},
 };
 
 struct UsageMeters
@@ -629,6 +681,17 @@ struct UsageMeters
     TKit::FixedArray<u32, Usage_Count> Peak{};
     TKit::FixedArray<u32, Usage_Count> Limit{}; // 0 is a valid maximum: nothing may be used then
     TKit::FixedArray<bool, Usage_Count> Applies{};
+};
+
+// the sizes the default pools were created with, which no getter gives back
+struct PoolLimits
+{
+    u32 StaticVertices = 0;
+    u32 StaticIndices = 0;
+    u32 ParametricVertices = 0;
+    u32 ParametricIndices = 0;
+    u32 FontVertices = 0;
+    u32 FontIndices = 0;
 };
 
 // how full a meter got, relative to its maximum. anything used against a maximum of 0 is an overflow
@@ -975,6 +1038,8 @@ struct App
 
     // renderer usage per dimension, measured every frame right before the transfer
     TKit::FixedArray<UsageMeters, 2> Usage{};
+    // the default pool sizes, per dimension. fonts live in 2D pools only
+    TKit::FixedArray<PoolLimits, 2> Pools{};
 };
 
 // =====================================================================================================================
@@ -1377,6 +1442,8 @@ template <Onyx::Dimension D> struct UsageTally
     TKit::FixedArray<u32, Onyx::LightTypeCount<D>> ShadowMaps{}; // 2D has a single pool, in the first slot
     u32 DynamicVertices = 0;
     u32 DynamicIndices = 0;
+    u32 Cascades = 0;     // the most any 3D directional light renders
+    u32 DepthCounter = 0; // the highest any 2D context reached
     // per view: commands of its own passes, shaded ranges (drawn again by every shadow map render) and shadow map
     // renders, split into the plain (circles) and indexed (meshes) command buffers
     TKit::FixedArray<u32, ONYX_MAX_VIEWS> CircleCommands{};
@@ -1465,7 +1532,10 @@ template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, cons
             if constexpr (std::is_same_v<Params, Onyx::PointLightParameters<D3>>)
                 renders += 6;
             else if constexpr (std::is_same_v<Params, Onyx::DirectionalLightParameters<D3>>)
+            {
                 renders += light.Cascades.Count;
+                tally.Cascades = Math::Max(tally.Cascades, light.Cascades.Count);
+            }
             else
                 ++renders;
         }
@@ -1474,6 +1544,8 @@ template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, cons
     addLights(Onyx::Light_Directional, ctx.GetDirectionalLightParams());
     if constexpr (D == D3)
         addLights(Onyx::Light_Spot, ctx.GetSpotLightParams());
+    else
+        tally.DepthCounter = Math::Max(tally.DepthCounter, ctx.DepthCounter);
 
     for (u32 view = 0; view < ONYX_MAX_VIEWS; ++view)
         if (ctx.ViewMask & (Onyx::ViewMask(1) << view))
@@ -1486,8 +1558,8 @@ template <Onyx::Dimension D> static void tallyContext(UsageTally<D> &tally, cons
         }
 }
 
-// the fill of the fullest default mesh pool, in vertices and indices. this demo registers no meshes of its own, and
-// the default font lives in a 2D pool
+// how much of each default pool is filled: the end of its last mesh, in vertices and indices. this demo registers no
+// meshes of its own, so the default ones are all there is. the default font lives in the 2D font pool
 static void addPoolFill(u32 &vertices, u32 &indices, const Onyx::MeshRange &range)
 {
     vertices = Math::Max(vertices, range.VertexOffset + range.VertexCount);
@@ -1497,41 +1569,48 @@ static void addPoolFill(u32 &vertices, u32 &indices, const Onyx::MeshRange &rang
 template <Onyx::Dimension D> static void measurePools(UsageMeters &meters)
 {
     const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
-    u32 vertices = 0;
-    u32 indices = 0;
-    const auto pool = [&](const TKit::Span<const Onyx::Resource> meshes) {
+    const Onyx::SpecificDefaultResources<D> &dres = res.GetResources<D>();
+    TKit::FixedArray<u32, Usage_Count> &now = meters.Now;
+    const auto pool = [&](const TKit::Span<const Onyx::Resource> meshes, const Onyx::ResourcePool handle,
+                          const UsageMeter vertices) {
         u32 v = 0;
         u32 i = 0;
         for (const Onyx::Resource mesh : meshes)
             addPoolFill(v, i, Onyx::Mesh_GetRange<D>(mesh));
-        vertices = Math::Max(vertices, v);
-        indices = Math::Max(indices, i);
+        now[vertices] = v;
+        now[vertices + 1] = i;
+        now[vertices + 2] = Onyx::ResourcePool_GetResourceCount<D>(handle);
     };
     if constexpr (D == D2)
     {
-        const Onyx::SpecificDefaultResources<D2> &res2 = res.Resources2;
-        const Onyx::Resource statics[] = {res2.Triangle, res2.Quad};
-        const Onyx::Resource parametrics[] = {res2.Stadium, res2.RoundedRect};
-        pool(TKit::Span<const Onyx::Resource>(statics));
-        pool(TKit::Span<const Onyx::Resource>(parametrics));
+        const Onyx::Resource statics[] = {dres.Triangle, dres.Quad};
+        const Onyx::Resource parametrics[] = {dres.Stadium, dres.RoundedRect};
+        pool(TKit::Span<const Onyx::Resource>(statics), dres.StaticPool, Usage_StaticPoolVertices);
+        pool(TKit::Span<const Onyx::Resource>(parametrics), dres.ParametricPool, Usage_ParametricPoolVertices);
+
+        u32 v = 0;
+        u32 i = 0;
         if (res.Font != Onyx::NullHandle)
-            addPoolFill(vertices, indices, Onyx::Font_GetRange(res.Font));
+            addPoolFill(v, i, Onyx::Font_GetRange(res.Font));
+        now[Usage_FontPoolVertices] = v;
+        now[Usage_FontPoolIndices] = i;
+        now[Usage_FontPoolFonts] = Onyx::FontPool_GetFontCount(res.FontPool);
+        now[Usage_FontPoolGlyphs] = Onyx::FontPool_GetGlyphCount(res.FontPool);
     }
     else
     {
-        const Onyx::SpecificDefaultResources<D3> &res3 = res.Resources3;
-        const Onyx::Resource statics[] = {res3.Triangle, res3.Quad, res3.Box, res3.Sphere, res3.Cylinder};
-        const Onyx::Resource parametrics[] = {res3.Stadium, res3.RoundedRect, res3.Capsule, res3.RoundedBox,
-                                              res3.Torus};
-        pool(TKit::Span<const Onyx::Resource>(statics));
-        pool(TKit::Span<const Onyx::Resource>(parametrics));
+        const Onyx::Resource statics[] = {dres.Triangle, dres.Quad, dres.Box, dres.Sphere, dres.Cylinder};
+        const Onyx::Resource parametrics[] = {dres.Stadium, dres.RoundedRect, dres.Capsule, dres.RoundedBox,
+                                              dres.Torus};
+        pool(TKit::Span<const Onyx::Resource>(statics), dres.StaticPool, Usage_StaticPoolVertices);
+        pool(TKit::Span<const Onyx::Resource>(parametrics), dres.ParametricPool, Usage_ParametricPoolVertices);
     }
-    meters.Now[Usage_PoolVertices] = vertices;
-    meters.Now[Usage_PoolIndices] = indices;
+    now[Usage_DynamicMeshes] = Onyx::DynamicMesh_GetCount<D>();
 }
 
 template <Onyx::Dimension D>
-static void measureUsage(UsageMeters &meters, const TKit::Span<const Onyx::RenderContext<D> *const> contexts)
+static void measureUsage(UsageMeters &meters, const PoolLimits &pools,
+                         const TKit::Span<const Onyx::RenderContext<D> *const> contexts)
 {
     UsageTally<D> tally{};
     for (const Onyx::RenderContext<D> *ctx : contexts)
@@ -1553,8 +1632,10 @@ static void measureUsage(UsageMeters &meters, const TKit::Span<const Onyx::Rende
     else
         for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
             now[Usage_PointShadowMaps + type] = tally.ShadowMaps[type];
+    now[Usage_Cascades] = tally.Cascades;
     now[Usage_DynamicVertices] = tally.DynamicVertices;
     now[Usage_DynamicIndices] = tally.DynamicIndices;
+    now[Usage_DepthCounter] = tally.DepthCounter;
     u32 circleCommands = 0;
     u32 meshCommands = 0;
     for (u32 view = 0; view < ONYX_MAX_VIEWS; ++view)
@@ -1564,35 +1645,64 @@ static void measureUsage(UsageMeters &meters, const TKit::Span<const Onyx::Rende
     }
     now[Usage_DrawCommands] = Math::Max(circleCommands, meshCommands);
     measurePools<D>(meters);
-    now[Usage_DynamicMeshes] = Onyx::DynamicMesh_GetCount<D>();
 
     const Onyx::SpecificSpecs<D> &specs = Onyx::GetSpecs().GetSpecific<D>();
     TKit::FixedArray<u32, Usage_Count> &limit = meters.Limit;
+    TKit::FixedArray<bool, Usage_Count> &applies = meters.Applies;
     for (u32 geo = 0; geo < Onyx::Geometry_Count; ++geo)
         limit[Usage_Circles + geo] = specs.MaxInstances;
     limit[Usage_Lights] = specs.MaxLightInstances;
-    for (bool &applies : meters.Applies)
-        applies = true;
+    for (bool &a : applies)
+        a = true;
     if constexpr (D == D2)
     {
         limit[Usage_ShadowMaps] = specs.MaxShadowMaps;
         limit[Usage_OcclusionMaps] = specs.MaxOcclusionMaps;
+        limit[Usage_DepthCounter] = ONYX_MAX_DEPTH_COUNTER_VALUE;
+
+        now[Usage_ShadowAndOcclusionMapSpecs] = specs.MaxShadowMaps + specs.MaxOcclusionMaps;
+        limit[Usage_ShadowAndOcclusionMapSpecs] = ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS;
+
+        limit[Usage_FontPoolVertices] = pools.FontVertices;
+        limit[Usage_FontPoolIndices] = pools.FontIndices;
+        limit[Usage_FontPoolFonts] = ONYX_MAX_MESH_IDS_PER_POOL;
+        limit[Usage_FontPoolGlyphs] = ONYX_MAX_MESH_IDS_PER_POOL;
+
         for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
-            meters.Applies[Usage_PointShadowMaps + type] = false;
+        {
+            applies[Usage_PointShadowMaps + type] = false;
+            applies[Usage_PointShadowMapSpecs + type] = false;
+        }
+        applies[Usage_Cascades] = false;
     }
     else
     {
         for (u32 type = 0; type < Onyx::LightTypeCount<D3>; ++type)
+        {
             limit[Usage_PointShadowMaps + type] = specs.MaxShadowMaps[type];
-        meters.Applies[Usage_ShadowMaps] = false;
-        meters.Applies[Usage_OcclusionMaps] = false;
+            now[Usage_PointShadowMapSpecs + type] = specs.MaxShadowMaps[type];
+            limit[Usage_PointShadowMapSpecs + type] = ONYX_MAX_TEXTURE_MAPS;
+        }
+        limit[Usage_Cascades] = ONYX_3D_MAX_CASCADES;
+
+        applies[Usage_ShadowMaps] = false;
+        applies[Usage_OcclusionMaps] = false;
+        applies[Usage_ShadowAndOcclusionMapSpecs] = false;
+        applies[Usage_DepthCounter] = false;
+        for (u32 i = Usage_FontPoolVertices; i <= Usage_FontPoolGlyphs; ++i)
+            applies[i] = false;
     }
     limit[Usage_DynamicVertices] = specs.MaxDynamicVertices;
     limit[Usage_DynamicIndices] = specs.MaxDynamicIndices;
     limit[Usage_DrawCommands] = specs.MaxDrawCommands;
-    limit[Usage_PoolVertices] = specs.MaxVerticesPerResourcePool;
-    limit[Usage_PoolIndices] = specs.MaxIndicesPerResourcePool;
-    limit[Usage_DynamicMeshes] = specs.MaxDynamicMeshes;
+
+    limit[Usage_StaticPoolVertices] = pools.StaticVertices;
+    limit[Usage_StaticPoolIndices] = pools.StaticIndices;
+    limit[Usage_StaticPoolMeshes] = ONYX_MAX_MESH_IDS_PER_POOL;
+    limit[Usage_ParametricPoolVertices] = pools.ParametricVertices;
+    limit[Usage_ParametricPoolIndices] = pools.ParametricIndices;
+    limit[Usage_ParametricPoolMeshes] = ONYX_MAX_MESH_IDS_PER_POOL;
+    limit[Usage_DynamicMeshes] = ONYX_MAX_MESH_IDS_PER_POOL;
 
     for (u32 i = 0; i < Usage_Count; ++i)
         meters.Peak[i] = Math::Max(meters.Peak[i], now[i]);
@@ -1611,8 +1721,8 @@ static void measureUsage(App &app)
                                                   app.LabCtx,
                                                   native ? native->Context : nullptr};
     const Onyx::RenderContext<D3> *contexts3[] = {app.Ctx3};
-    measureUsage<D2>(app.Usage[0], TKit::Span<const Onyx::RenderContext<D2> *const>(contexts2));
-    measureUsage<D3>(app.Usage[1], TKit::Span<const Onyx::RenderContext<D3> *const>(contexts3));
+    measureUsage<D2>(app.Usage[0], app.Pools[0], TKit::Span<const Onyx::RenderContext<D2> *const>(contexts2));
+    measureUsage<D3>(app.Usage[1], app.Pools[1], TKit::Span<const Onyx::RenderContext<D3> *const>(contexts3));
 }
 
 // =====================================================================================================================
@@ -4403,36 +4513,88 @@ static void panelAudio([[maybe_unused]] App &app)
 #endif
 }
 
+// one meter: a bar filled up to its peak, colored by how close the peak got to the maximum, and the numbers in it. the
+// tooltip names what bounds it and how to raise it
+static void usageRow(Onyx::Overlay *ui, const UsageMeters &meters, const u32 meter, const u32 dim)
+{
+    const UsageInfo &info = UsageInfos[meter];
+    const u32 now = meters.Now[meter];
+    const u32 peak = meters.Peak[meter];
+    const u32 limit = meters.Limit[meter];
+    const f32 fill = usageFill(meters, meter);
+    const Onyx::Color &color = fill > 1.f ? Theme::Fail : (fill > 0.75f ? Theme::Todo : Theme::Pass);
+
+    ui->PushStyleColor(Onyx::OverlayColor_ProgressBarInner, Onyx::Color{color, 0.45f});
+    const Line label = formatLine("{}##usage{}_{}", info.Name, dim, meter);
+    if (limit == 0)
+        ui->ProgressBar(label.View(), peak == 0 ? 0.f : 1.f, "{} now, {} peak, {} is 0", now, peak, info.Bound);
+    else
+        ui->ProgressBar(label.View(), Math::Min(fill, 1.f), "{} now, {} peak of {} ({:.0f}%)", now, peak, limit,
+                        100.f * fill);
+    ui->PopStyleColor();
+    tooltip(ui, color, info.Bound,
+            formatLine("{} {}D maximum: {}. {}", limit == 0 ? "No room at all, the" : "The", dim + 2, limit, info.Raise)
+                .View());
+}
+
+// a maximum nothing here can measure the use of: its name and value
+static void fixedMaximum(Onyx::Overlay *ui, const char *name, const u32 value)
+{
+    field(ui, name, formatLine("{}", value).View());
+}
+
 static void panelResources(App &app)
 {
     Onyx::Overlay *ui = app.Ui;
     const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
     ui->HorizontalSeparator("Counts");
     field(ui, "Dynamic meshes (2D / 3D) ",
-          formatLine("{} / {}", Onyx::DynamicMesh_GetCount<D2>(), Onyx::DynamicMesh_GetCount<D3>()).View());
+          formatLine("{} / {} (every overlay registers {} 2D ones)", Onyx::DynamicMesh_GetCount<D2>(),
+                     Onyx::DynamicMesh_GetCount<D3>(), ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES)
+              .View());
     field(ui, "Font pool ",
           formatLine("{} fonts, {} glyphs", Onyx::FontPool_GetFontCount(res.FontPool),
                      Onyx::FontPool_GetGlyphCount(res.FontPool))
               .View());
 
+    // the fullest meter, and how many are close to their maximum or past it
+    u32 close = 0;
+    u32 over = 0;
+    f32 fullest = -1.f;
+    u32 fullestMeter = 0;
+    u32 fullestDim = 0;
     for (u32 dim = 0; dim < 2; ++dim)
-    {
-        ui->HorizontalSeparator(dim == 0 ? "Frame usage, 2D" : "Frame usage, 3D");
-        const UsageMeters &meters = app.Usage[dim];
         for (u32 i = 0; i < Usage_Count; ++i)
+            if (app.Usage[dim].Applies[i])
+            {
+                const f32 fill = usageFill(app.Usage[dim], i);
+                close += fill > 0.75f && fill <= 1.f;
+                over += fill > 1.f;
+                if (fill > fullest)
+                {
+                    fullest = fill;
+                    fullestMeter = i;
+                    fullestDim = dim;
+                }
+            }
+    const Onyx::Color &summary = over ? Theme::Fail : (close ? Theme::Todo : Theme::Pass);
+    field(
+        ui, "Fullest ",
+        fullest > 1.f
+            ? formatLine("{}D {}, past its maximum", fullestDim + 2, UsageInfos[fullestMeter].Name).View()
+            : formatLine("{}D {}, at {:.0f}%", fullestDim + 2, UsageInfos[fullestMeter].Name, 100.f * fullest).View());
+    text(ui, summary, formatLine("{} past their maximum, {} above 75%", over, close).View());
+
+    for (u32 group = 0; group < UsageGroup_Count; ++group)
+    {
+        ui->HorizontalSeparator(UsageGroupNames[group]);
+        for (u32 dim = 0; dim < 2; ++dim)
         {
-            if (!meters.Applies[i])
-                continue;
-            const f32 fill = usageFill(meters, i);
-            ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
-            text(ui, Theme::Dim, UsageInfos[i].Name);
-            text(ui, fill > 1.f ? Theme::Fail : (fill > 0.75f ? Theme::Todo : Theme::Info),
-                 meters.Limit[i] == 0
-                     ? formatLine("{} now, {} peak, {} is 0", meters.Now[i], meters.Peak[i], UsageInfos[i].Spec).View()
-                     : formatLine("{} now, {} peak of {} {} ({:.0f}%)", meters.Now[i], meters.Peak[i], meters.Limit[i],
-                                  UsageInfos[i].Spec, 100.f * fill)
-                           .View());
-            ui->PopPanel();
+            const UsageMeters &meters = app.Usage[dim];
+            text(ui, Theme::Accent, dim == 0 ? "2D" : "3D");
+            for (u32 i = 0; i < Usage_Count; ++i)
+                if (meters.Applies[i] && UsageInfos[i].Group == group)
+                    usageRow(ui, meters, i, dim);
         }
     }
     if (ui->Button("Reset peaks"))
@@ -4440,7 +4602,57 @@ static void panelResources(App &app)
             meters.Peak = meters.Now;
     tooltip(ui, Theme::Accent, "Measured right before the transfer",
             "From every context, the way the renderer copies them. Open every panel, switch layouts and turn on the "
-            "lab to find the real peaks. Draw commands are an upper bound.");
+            "lab to find the real peaks. Draw commands are an upper bound. Bars fill up to the peak.");
+
+    if (ui->PushTree("Compile time maxima, not measured here"))
+    {
+        fixedMaximum(ui, "ONYX_MAX_VIEWS (views, windows, render textures) ", ONYX_MAX_VIEWS);
+        fixedMaximum(ui, "ONYX_MAX_ATTACHMENTS (per view and pass) ", ONYX_MAX_ATTACHMENTS);
+        fixedMaximum(ui, "ONYX_MAX_SAMPLERS ", ONYX_MAX_SAMPLERS);
+        fixedMaximum(ui, "ONYX_MAX_TEXTURES ", ONYX_MAX_TEXTURES);
+        fixedMaximum(ui, "ONYX_MAX_TEXTURE_MAPS (3D shadow maps, per light type) ", ONYX_MAX_TEXTURE_MAPS);
+        fixedMaximum(ui, "ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS ", ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS);
+        fixedMaximum(ui, "ONYX_3D_MAX_CASCADES ", ONYX_3D_MAX_CASCADES);
+        fixedMaximum(ui, "ONYX_POSSIBLE_RESOURCE_POOLS (per resource type) ", ONYX_POSSIBLE_RESOURCE_POOLS);
+        fixedMaximum(ui, "ONYX_MAX_MESH_IDS_PER_POOL ", ONYX_MAX_MESH_IDS_PER_POOL);
+        fixedMaximum(ui, "ONYX_POSSIBLE_FONT_POOL_VERTICES ", ONYX_POSSIBLE_FONT_POOL_VERTICES);
+        fixedMaximum(ui, "ONYX_POSSIBLE_FONT_POOL_INDICES ", ONYX_POSSIBLE_FONT_POOL_INDICES);
+        fixedMaximum(ui, "ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES (per overlay) ",
+                     ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES);
+        fixedMaximum(ui, "ONYX_POSSIBLE_SAMPLER_IDS ", ONYX_POSSIBLE_SAMPLER_IDS);
+        fixedMaximum(ui, "ONYX_POSSIBLE_TEXTURE_OFFSET_IDS ", ONYX_POSSIBLE_TEXTURE_OFFSET_IDS);
+        fixedMaximum(ui, "ONYX_POSSIBLE_TEXTURE_IDS ", ONYX_POSSIBLE_TEXTURE_IDS);
+        ui->PopTree();
+    }
+    tooltip(ui, Theme::Accent, "Fixed when Onyx is built",
+            "Define any of them before Onyx is built to change it. Nothing reports how much of these is used.");
+
+    if (ui->PushTree("Initialize maxima, not measured here"))
+    {
+        const Onyx::Specs &specs = Onyx::GetSpecs();
+        fixedMaximum(ui, ".MaxCommandPools ", specs.MaxCommandPools);
+        fixedMaximum(ui, ".MaxCommandBuffers ", specs.MaxCommandBuffers);
+        fixedMaximum(ui, ".MaxDescriptorSets ", specs.MaxDescriptorSets);
+        fixedMaximum(ui, ".MaxBuffers ", specs.MaxBuffers);
+        fixedMaximum(ui, ".MaxImages ", specs.MaxImages);
+        fixedMaximum(ui, ".MaxSamplers ", specs.MaxSamplers);
+        fixedMaximum(ui, ".MaxImageViews ", specs.MaxImageViews);
+        fixedMaximum(ui, ".MaxShaders ", specs.MaxShaders);
+        fixedMaximum(ui, ".MaxCompilations ", specs.MaxCompilations);
+        fixedMaximum(ui, ".MaxReflections ", specs.MaxReflections);
+        fixedMaximum(ui, ".MaxPipelineLayouts ", specs.MaxPipelineLayouts);
+        fixedMaximum(ui, ".MaxPipelines ", specs.MaxPipelines);
+        fixedMaximum(ui, ".Specs2.ResourceGroupCount ", specs.Specs2.ResourceGroupCount);
+        fixedMaximum(ui, ".Specs2.MaxMaterials ", specs.Specs2.MaxMaterials);
+        fixedMaximum(ui, ".Specs2.MaxBounds ", specs.Specs2.MaxBounds);
+        fixedMaximum(ui, ".Specs3.ResourceGroupCount ", specs.Specs3.ResourceGroupCount);
+        fixedMaximum(ui, ".Specs3.MaxMaterials ", specs.Specs3.MaxMaterials);
+        fixedMaximum(ui, ".Specs3.MaxBounds ", specs.Specs3.MaxBounds);
+        ui->PopTree();
+    }
+    tooltip(ui, Theme::Accent, "Handle pools and per resource group maxima",
+            "Graphite reserves handles for these at Initialize, and Onyx sizes the material and bounds buffers from "
+            "them. Nothing reports how many are in use.");
 
 #ifdef TKIT_ENABLE_ENSURE
     if (ui->PushTree("Tier allocator statistics"))
@@ -5259,7 +5471,7 @@ static void setupCategories(App &app)
 
     Category &resources = app.Categories[Category_Resources];
     resources.Title = "Resources";
-    resources.Summary = "Default resources, materials, fonts, pools, frame usage against the specs";
+    resources.Summary = "Default resources, materials, fonts, pools, and every maximum against what is used of it";
     resources.Concepts =
         "Meshes, fonts, materials, samplers, images and textures are referred to by handles (Onyx::Resource). Unlike "
         "raw Graphite handles, they are bound and ready to use: give a handle to a context or a material and it just "
@@ -5267,7 +5479,11 @@ static void setupCategories(App &app)
         "everything pending to the GPU, so sync after a batch of registrations.\n\nOnyx::Initialize sizes the "
         "renderer's per frame buffers from Onyx::Specs: instance buffers per geometry, lights, shadow maps, dynamic "
         "vertices, draw commands. Each is created once per resource group, so their cost multiplies by "
-        "ResourceGroupCount. Overflowing one asserts.";
+        "ResourceGroupCount. Overflowing one asserts.\n\nPools are sized when they are created: the vertices and "
+        "indices they hold are given to ResourcePool_Create and FontPool_Create (DefaultResourcesOptions for the "
+        "default pools). How many meshes, fonts, glyphs and dynamic meshes a pool holds is fixed at compile time by "
+        "ONYX_MAX_MESH_IDS_PER_POOL, and every overlay registers ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES 2D dynamic "
+        "meshes of its own.";
     resources.Panel = panelResources;
 
     Category &platform = app.Categories[Category_Platform];
@@ -5305,21 +5521,32 @@ int main()
     // the defaults cover most of this demo: only what differs is asked for, and the Resources panel measures every
     // maximum against what a frame uses. the per dimension maxima size real buffers once per resource group, while
     // pool caps such as MaxImages only reserve handles
-    Onyx::Initialize({.Platform = DemoPlatform,
-                      .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
-                      .ListenerCount = 1,
-                      // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
-                      .Specs2 = {.MaxInstances = 32000},
-                      // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
-                      // so the default single shadow map per light type is enough
-                      .Specs3 = {.MaxInstances = 1024,
-                                 .MaxDrawCommands = 1024,
-                                 .MaxDynamicVertices = 0,
-                                 .MaxDynamicIndices = 0,
-                                 .MaxDynamicMeshes = 0}});
-    Onyx::Resources_CreateDefault();
+    Onyx::Initialize(
+        {.Platform = DemoPlatform,
+         .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
+         .ListenerCount = 1,
+         // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
+         .Specs2 = {.MaxInstances = 32000},
+         // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
+         // so the default single shadow map per light type is enough
+         .Specs3 = {.MaxInstances = 1024, .MaxDrawCommands = 1024, .MaxDynamicVertices = 0, .MaxDynamicIndices = 0}});
+    // the default pool sizes are kept: no getter gives them back, and the Resources panel measures the pools against
+    // them
+    const Onyx::DefaultResourcesOptions resourceOptions{};
+    Onyx::Resources_CreateDefault(resourceOptions);
 
     App app{};
+    const auto keepPoolLimits = [&]<Onyx::Dimension D>(PoolLimits &limits) {
+        const Onyx::SpecificDefaultResourcesOptions<D> &opts = resourceOptions.GetOptions<D>();
+        limits.StaticVertices = opts.MaxVerticesStaticPool;
+        limits.StaticIndices = opts.MaxIndicesStaticPool;
+        limits.ParametricVertices = opts.MaxVerticesParametricPool;
+        limits.ParametricIndices = opts.MaxIndicesParametricPool;
+    };
+    keepPoolLimits.operator()<D2>(app.Pools[0]);
+    keepPoolLimits.operator()<D3>(app.Pools[1]);
+    app.Pools[0].FontVertices = resourceOptions.MaxVerticesFontPool;
+    app.Pools[0].FontIndices = resourceOptions.MaxIndicesFontPool;
     setup(app);
     setLayout(app, Mode_Direct);
     setupCategories(app);
