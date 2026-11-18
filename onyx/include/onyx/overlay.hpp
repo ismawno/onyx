@@ -10,6 +10,10 @@
 #    include "tkit/filesystem/filesystem.hpp"
 #endif
 
+#ifndef ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES
+#    define ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES 96
+#endif
+
 // in general, elements beginning with OverlayXXX are to be used by the public
 // note that ive used llms support to help me with the documentation
 
@@ -3223,7 +3227,7 @@ class Overlay
     /////////////////////////////////////////////
 
     Camera<D2> m_Camera;
-    TKit::FixedArray<Resource, 3 * 32> m_DynamicMeshes{};
+    TKit::FixedArray<Resource, ONYX_OVERLAY_REGISTERED_DYNAMIC_MESHES> m_DynamicMeshes{};
     u32 m_DynamicMeshIndex = 0;
 
     /////////////////////////////////////////////

@@ -230,7 +230,7 @@ struct InstanceHostBuffer
 // there is also another thing to take into account: right now, everything is statically allocated. no resizes or
 // acommodations are needed because we already operate at the maximum allowed pool and mesh ids. the problem with this
 // is that, in the current state of things, ContextInstanceData can go up to 4mb in size with
-// ONYX_POSSIBLE_RESOURCE_POOLS to 15 and ONYX_MAX_MESH_RESOURCE_IDS to 256, which are fairly low
+// ONYX_POSSIBLE_RESOURCE_POOLS to 15 and ONYX_MAX_MESH_IDS_PER_POOL to 256, which are fairly low
 //
 // we could switch to tier arrays and, every Flush(), resize based on how many pool ids and mesh ids (within said pools)
 // exist, so we allocate on demand. this would be doable, if only because of the ContextFieldMap<..., D> fields for
@@ -268,8 +268,8 @@ template <u32 MaxIds> struct ActiveHandleIdRegistry
 
 struct InstanceMeshGroup
 {
-    TKit::FixedArray<InstanceHostBuffer, ONYX_MAX_MESH_RESOURCE_IDS> Buffers{};
-    ActiveHandleIdRegistry<ONYX_MAX_MESH_RESOURCE_IDS> Registry{};
+    TKit::FixedArray<InstanceHostBuffer, ONYX_MAX_MESH_IDS_PER_POOL> Buffers{};
+    ActiveHandleIdRegistry<ONYX_MAX_MESH_IDS_PER_POOL> Registry{};
 
     void Clear()
     {

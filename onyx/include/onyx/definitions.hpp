@@ -34,9 +34,12 @@
 
 // possible resource ids is absurdly big, so we define an array-friendly maximum for mesh resource ids. this maximum is
 // per resource pool
-#ifndef ONYX_MAX_MESH_RESOURCE_IDS
-#    define ONYX_MAX_MESH_RESOURCE_IDS 256
+#ifndef ONYX_MAX_MESH_IDS_PER_POOL
+#    define ONYX_MAX_MESH_IDS_PER_POOL 256
 #endif
+
+#define ONYX_POSSIBLE_FONT_POOL_VERTICES (4 * ONYX_MAX_MESH_IDS_PER_POOL)
+#define ONYX_POSSIBLE_FONT_POOL_INDICES (6 * ONYX_MAX_MESH_IDS_PER_POOL)
 
 ///
 

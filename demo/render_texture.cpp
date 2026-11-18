@@ -14,9 +14,6 @@ int main()
     specs.Specs2 = Onyx::CreateEmptySpecs<D2>();
     specs.Specs2.MaxInstances = 4096;
     specs.Specs2.MaxDrawCommands = 1024;
-    specs.Specs2.MaxVerticesPerResourcePool = 1024;
-    specs.Specs2.MaxIndicesPerResourcePool = 2048;
-    specs.Specs2.MaxDynamicMeshes = 96; // registered by the overlay
     specs.Specs2.MaxBounds = 4;
     specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
     Onyx::Initialize(specs);

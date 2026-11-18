@@ -76,7 +76,9 @@ template <typename Vertex> struct MeshPool
     Graph::Buffer IndexBuffer = Graph::NullHandle;
     TKit::DynamicArray<Vertex> Vertices{};
     TKit::DynamicArray<Index> Indices{};
-    TKit::TierArray<MeshInfo<Vertex>> Meshes{};
+    TKit::StaticArray<MeshInfo<Vertex>, ONYX_MAX_MESH_IDS_PER_POOL> Meshes{};
+    u32 MaxVertices = 0;
+    u32 MaxIndices = 0;
     StatusFlags Flags = 0;
 };
 
@@ -90,10 +92,12 @@ template <> struct MeshPool<GlyphVertex>
 {
     Graph::Buffer VertexBuffer = Graph::NullHandle;
     Graph::Buffer IndexBuffer = Graph::NullHandle;
-    TKit::TierArray<GlyphVertex> Vertices{};
-    TKit::TierArray<Index> Indices{};
+    TKit::StaticArray<GlyphVertex, ONYX_POSSIBLE_FONT_POOL_VERTICES> Vertices{};
+    TKit::StaticArray<Index, ONYX_POSSIBLE_FONT_POOL_INDICES> Indices{};
+    TKit::StaticArray<MeshInfo<GlyphVertex>, ONYX_MAX_MESH_IDS_PER_POOL> Meshes{};
     TKit::TierArray<u32> GlyphIdToFontId{};
-    TKit::TierArray<MeshInfo<GlyphVertex>> Meshes{};
+    u32 MaxVertices = 0;
+    u32 MaxIndices = 0;
     StatusFlags Flags = 0;
 };
 
@@ -159,7 +163,7 @@ struct TextureResourceData
 template <Dimension D> struct ResourceData
 {
     StaticMeshResourceData<D> StaticMeshes{};
-    TKit::ArenaHive<DynamicMeshData<D>> DynamicMeshes{};
+    TKit::StaticHive<DynamicMeshData<D>, ONYX_MAX_MESH_IDS_PER_POOL> DynamicMeshes{};
     ParametricMeshResourceData<D> ParametricMeshes{};
     MaterialResourceData<D> Materials{};
     BoundsResourceData<D> BoundingBoxes{};
@@ -267,9 +271,6 @@ void Resources_Initialize()
     texture_WriteOffsetDescriptors();
 
     s_Textures->DefaultOffsetId = s_Textures->Offsets.Insert(0);
-
-    s_ResourceData2->DynamicMeshes.Reserve(GetSpecs().GetSpecific<D2>().MaxDynamicMeshes);
-    s_ResourceData3->DynamicMeshes.Reserve(GetSpecs().GetSpecific<D3>().MaxDynamicMeshes);
 
     materials_Initialize<D2>();
     materials_Initialize<D3>();
@@ -738,24 +739,25 @@ template <Dimension D> const BoundsData<D> &Bounds_GetData(const Resource handle
 }
 
 template <typename Vertex>
-static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data)
+static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshResourceData<Vertex> &data,
+                                                 const u32 maxVertices, const u32 maxIndices)
 {
     constexpr Dimension D = Vertex::Dim;
-    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
-
-    TKIT_ASSERT(specs.MaxVerticesPerResourcePool != 0 && specs.MaxIndicesPerResourcePool != 0,
+    TKIT_ASSERT(maxVertices != 0 && maxIndices != 0,
                 "[ONYX][RESOURCES] Cannot create a {}D '{}' pool: .Specs{}.MaxVerticesPerResourcePool ({}) and "
-                ".MaxIndicesPerResourcePool ({}) must not be 0. Fonts live in 2D pools, whatever their use",
-                u8(D), ToString(rtype), u8(D), specs.MaxVerticesPerResourcePool, specs.MaxIndicesPerResourcePool);
-    const Graph::Buffer vbuffer = Graph::Buffer_Create(specs.MaxVerticesPerResourcePool * sizeof(Vertex),
-                                                       Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
-    const Graph::Buffer ibuffer = Graph::Buffer_Create(specs.MaxIndicesPerResourcePool * sizeof(Index),
-                                                       Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Index);
+                ".MaxIndicesPerResourcePool ({}) must not be 0",
+                u8(D), ToString(rtype), u8(D), maxVertices, maxIndices);
+    const Graph::Buffer vbuffer =
+        Graph::Buffer_Create(maxVertices * sizeof(Vertex), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Vertex);
+    const Graph::Buffer ibuffer =
+        Graph::Buffer_Create(maxIndices * sizeof(Index), Graph::BufferFlag_DeviceLocal | Graph::BufferFlag_Index);
 
     const u32 pid = data.Pools.Insert();
     MeshPool<Vertex> &mpool = data.Pools[pid];
     mpool.VertexBuffer = vbuffer;
     mpool.IndexBuffer = ibuffer;
+    mpool.MaxVertices = maxVertices;
+    mpool.MaxIndices = maxIndices;
 
     const ResourcePool pool = Handle_CreateForResourcePool(rtype, pid);
     if (Graph::IsValidationEnabled())
@@ -801,9 +803,9 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
     const u32 vcount = mpool.Vertices.GetSize();
     const u32 icount = mpool.Indices.GetSize();
 
-    TKIT_ASSERT(mpool.Meshes.GetSize() < ONYX_MAX_MESH_RESOURCE_IDS,
+    TKIT_ASSERT(mpool.Meshes.GetSize() < ONYX_MAX_MESH_IDS_PER_POOL,
                 "[ONYX][RESOURCES] Trying to register more meshes than the maximum allowed of {}",
-                ONYX_MAX_MESH_RESOURCE_IDS);
+                ONYX_MAX_MESH_IDS_PER_POOL);
     MeshInfo<Vertex> &minfo = mpool.Meshes.Append();
     minfo.Range.VertexOffset = vcount;
     minfo.Range.VertexCount = data.Vertices.GetSize();
@@ -816,22 +818,35 @@ static Resource resourcePool_RegisterMesh(const ResourcePool pool, MeshResourceD
 
     auto &vertices = mpool.Vertices;
     auto &indices = mpool.Indices;
+
+    TKIT_ASSERT(vertices.GetSize() + data.Vertices.GetSize() <= mpool.MaxVertices &&
+                    indices.GetSize() + data.Indices.GetSize() <= mpool.MaxIndices,
+                "[ONYX][RESOURCES] The {}D '{}' pool associated with this mesh registration would hold {} vertices and "
+                "{} indices after registering such mesh, but "
+                "its MaxVertices is {} and MaxIndices is {}. Raise them when creating the pool, or split the meshes "
+                "across more pools",
+                u8(Vertex::Dim), ToString(Vertex::Resource), vertices.GetSize() + data.Vertices.GetSize(),
+                indices.GetSize() + data.Indices.GetSize(), mpool.MaxVertices, mpool.MaxIndices);
+
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
+
     return Handle_CreateForResource(rtype, mid, pid);
 }
 
-template <Dimension D> ResourcePool ResourcePool_Create(const ResourceType rtype)
+template <Dimension D>
+ResourcePool ResourcePool_Create(const ResourceType rtype, const u32 maxVertices, const u32 maxIndices)
 {
     switch (rtype)
     {
     case Resource_StaticMesh:
-        return resourcePool_CreateForMeshes(Resource_StaticMesh, getData<D>().StaticMeshes);
+        return resourcePool_CreateForMeshes(Resource_StaticMesh, getData<D>().StaticMeshes, maxVertices, maxIndices);
     case Resource_ParametricMesh:
-        return resourcePool_CreateForMeshes(Resource_ParametricMesh, getData<D>().ParametricMeshes);
+        return resourcePool_CreateForMeshes(Resource_ParametricMesh, getData<D>().ParametricMeshes, maxVertices,
+                                            maxIndices);
     case Resource_Font:
     case Resource_GlyphMesh:
-        return FontPool_Create();
+        return FontPool_Create(maxVertices, maxIndices);
     default:
         TKIT_FATAL("[ONYX][RESOURCES] A resource pool cannot be created for resources of type '{}'", ToString(rtype));
         return NullHandle;
@@ -972,9 +987,15 @@ template <Dimension D> MeshBuffers ResourcePool_GetMeshBuffers(const ResourcePoo
     }
 }
 
-ResourcePool FontPool_Create()
+ResourcePool FontPool_Create(const u32 maxVertices, const u32 maxIndices)
 {
-    return resourcePool_CreateForMeshes(Resource_Font, *s_FontData);
+    TKIT_ASSERT(
+        maxVertices <= ONYX_POSSIBLE_FONT_POOL_VERTICES && maxIndices <= ONYX_POSSIBLE_FONT_POOL_INDICES,
+        "[ONYX][RESOURCES] The requested font pool to be created would hold {} vertices and {} indices, but "
+        "the maximum possible font pool vertices is ONYX_POSSIBLE_FONT_POOL_VERTICES = 4 * ONYX_MAX_MESH_IDS_PER_POOL "
+        "= {} and indices is ONYX_POSSIBLE_FONT_POOL_INDICES = 6 * ONYX_MAX_MESH_IDS_PER_POOL = {}",
+        maxVertices, maxIndices, ONYX_POSSIBLE_FONT_POOL_VERTICES, ONYX_POSSIBLE_FONT_POOL_INDICES);
+    return resourcePool_CreateForMeshes(Resource_Font, *s_FontData, maxVertices, maxIndices);
 }
 void FontPool_Destroy(const ResourcePool pool)
 {
@@ -997,6 +1018,9 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
 
     const u32 pid = Handle_GetResourcePoolId(pool);
     FontPool &fpool = s_FontData->Pools[pid];
+    TKIT_ASSERT(fpool.Meshes.GetSize() < ONYX_MAX_MESH_IDS_PER_POOL,
+                "[ONYX][RESOURCES] Trying to register more glyph meshes than the maximum allowed of {}",
+                ONYX_MAX_MESH_IDS_PER_POOL);
 
     const u32 fid = fpool.Meshes.GetSize();
     FontMeshInfo &finfo = fpool.Meshes.Append();
@@ -1012,19 +1036,30 @@ Resource FontPool_RegisterFont(const ResourcePool pool, const FontData &data)
     finfo.AtlasImage = Image_Create(adata);
     finfo.AtlasTexture = Texture_Create(finfo.AtlasImage);
 
+    auto &vertices = fpool.Vertices;
+    auto &indices = fpool.Indices;
+
     const u32 gsize = data.Info.Glyphs.GetSize();
-    finfo.Range.VertexOffset = fpool.Vertices.GetSize();
-    finfo.Range.VertexCount = gsize * 4;
-    finfo.Range.IndexOffset = fpool.Indices.GetSize();
-    finfo.Range.IndexCount = gsize * 6;
+    const u32 vcount = gsize * 4;
+    const u32 icount = gsize * 6;
+
+    finfo.Range.VertexOffset = vertices.GetSize();
+    finfo.Range.VertexCount = vcount;
+    finfo.Range.IndexOffset = indices.GetSize();
+    finfo.Range.IndexCount = icount;
     fpool.Flags = StatusFlag_NeedsSync;
 
-    const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
-        fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
+    TKIT_ASSERT(vertices.GetSize() + vcount <= fpool.MaxVertices && indices.GetSize() + icount <= fpool.MaxIndices,
+                "[ONYX][RESOURCES] The font pool associated with this font registration would hold {} vertices and "
+                "{} indices after registering such font, but "
+                "its MaxVertices is {} and MaxIndices is {}. Raise them when creating the pool, or split the fonts "
+                "across more pools",
+                vertices.GetSize() + vcount, indices.GetSize() + icount, fpool.MaxVertices, fpool.MaxIndices);
+
+    const auto addVertex = [&](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
+        vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
     };
-    const auto addIndex = [&fpool, &finfo](const u32 idx) {
-        fpool.Indices.Append(Index(idx + finfo.Range.VertexOffset));
-    };
+    const auto addIndex = [&](const u32 idx) { indices.Append(Index(idx + finfo.Range.VertexOffset)); };
 
     for (u32 i = 0; i < data.Info.Glyphs.GetSize(); ++i)
     {
@@ -1098,10 +1133,11 @@ MeshBuffers FontPool_GetGlyphBuffers(const ResourcePool pool)
 }
 
 template <Dimension D>
-static void resourcePool_CreateDefault(ResourcePool &pool, const ResourcePool fallback, const ResourceType rtype)
+static void resourcePool_CreateDefault(ResourcePool &pool, const ResourcePool fallback, const ResourceType rtype,
+                                       const u32 maxVertices, const u32 maxIndices)
 {
     if (fallback == NullHandle)
-        pool = ResourcePool_Create<D>(rtype);
+        pool = ResourcePool_Create<D>(rtype, maxVertices, maxIndices);
     else
         pool = fallback;
 }
@@ -1231,11 +1267,11 @@ template <Dimension D> ParametricShape Mesh_GetParametricShape(const Resource ha
 
 template <Dimension D> Resource DynamicMesh_Register()
 {
-    TKit::ArenaHive<DynamicMeshData<D>> &meshes = getData<D>().DynamicMeshes;
-    TKIT_ASSERT(meshes.GetSize() < GetSpecs().GetSpecific<D>().MaxDynamicMeshes,
-                "[ONYX][RESOURCES] There are already .Specs{}.MaxDynamicMeshes = {} {}D dynamic meshes (every overlay "
-                "registers 96 2D ones). Raise it in the specs given to Onyx::Initialize",
-                u8(D), GetSpecs().GetSpecific<D>().MaxDynamicMeshes, u8(D));
+    TKit::StaticHive<DynamicMeshData<D>, ONYX_MAX_MESH_IDS_PER_POOL> &meshes = getData<D>().DynamicMeshes;
+    TKIT_ASSERT(meshes.GetSize() < ONYX_MAX_MESH_IDS_PER_POOL,
+                "[ONYX][RESOURCES] There are already ONYX_MAX_MESH_IDS_PER_POOL = {} {}D dynamic meshes (every overlay "
+                "registers 96 2D ones). Raise it at compile time by defining ONYX_MAX_MESH_IDS_PER_POOL yourself",
+                ONYX_MAX_MESH_IDS_PER_POOL, u8(D));
     const u32 mid = meshes.Insert();
 
     return Handle_CreateForResource(Resource_DynamicMesh, mid);
@@ -1450,7 +1486,7 @@ MeshRange Glyph_GetRange(const Resource handle)
 static void resources_CreateDefault(DefaultResources &def, const DefaultResourcesOptions &opts)
 {
     if (opts.FontPool == NullHandle)
-        def.FontPool = FontPool_Create();
+        def.FontPool = FontPool_Create(opts.MaxVerticesFontPool, opts.MaxIndicesFontPool);
     else
         def.FontPool = opts.FontPool;
 
@@ -1472,8 +1508,10 @@ static void resources_CreateDefault(DefaultResources &def, const DefaultResource
 template <Dimension D>
 static void resources_CreateDefault(SpecificDefaultResources<D> &def, const SpecificDefaultResourcesOptions<D> &opts)
 {
-    resourcePool_CreateDefault<D>(def.StaticPool, opts.StaticPool, Resource_StaticMesh);
-    resourcePool_CreateDefault<D>(def.ParametricPool, opts.ParametricPool, Resource_ParametricMesh);
+    resourcePool_CreateDefault<D>(def.StaticPool, opts.StaticPool, Resource_StaticMesh, opts.MaxVerticesStaticPool,
+                                  opts.MaxIndicesStaticPool);
+    resourcePool_CreateDefault<D>(def.ParametricPool, opts.ParametricPool, Resource_ParametricMesh,
+                                  opts.MaxVerticesParametricPool, opts.MaxIndicesParametricPool);
 
     def.Triangle = ResourcePool_RegisterMesh(def.StaticPool, opts.TriangleData);
     def.Quad = ResourcePool_RegisterMesh(def.StaticPool, opts.QuadData);
@@ -1694,16 +1732,19 @@ template <typename T> static void uploadFromHost(Graph::Buffer &buffer, const TK
 template <typename Vertex> static void uploadMeshPool(MeshPool<Vertex> &mpool)
 {
     [[maybe_unused]] const SpecificSpecs<Vertex::Dim> &specs = GetSpecs().GetSpecific<Vertex::Dim>();
-    TKIT_ASSERT(mpool.Vertices.GetSize() <= specs.MaxVerticesPerResourcePool &&
-                    mpool.Indices.GetSize() <= specs.MaxIndicesPerResourcePool,
-                "[ONYX][RESOURCES] A {}D '{}' pool holds {} vertices and {} indices, but "
-                ".Specs{}.MaxVerticesPerResourcePool is {} and .MaxIndicesPerResourcePool is {}. Raise them in the "
-                "specs given to Onyx::Initialize, or split the meshes across more pools",
-                u8(Vertex::Dim), ToString(Vertex::Resource), mpool.Vertices.GetSize(), mpool.Indices.GetSize(),
-                u8(Vertex::Dim), specs.MaxVerticesPerResourcePool, specs.MaxIndicesPerResourcePool);
+    const auto &vertices = mpool.Vertices;
+    const auto &indices = mpool.Indices;
 
-    uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices);
-    uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices);
+    // this is kind of a double check. it is a bit redundant
+    TKIT_ASSERT(vertices.GetSize() <= mpool.MaxVertices && indices.GetSize() <= mpool.MaxIndices,
+                "[ONYX][RESOURCES] A {}D '{}' pool holds {} vertices and {} indices, but "
+                "its MaxVertices is {} and MaxIndices is {}. Raise them when creating the pool, or split the meshes "
+                "across more pools",
+                u8(Vertex::Dim), ToString(Vertex::Resource), vertices.GetSize(), indices.GetSize(), mpool.MaxVertices,
+                mpool.MaxIndices);
+
+    uploadFromHost<Vertex>(mpool.VertexBuffer, vertices);
+    uploadFromHost<Index>(mpool.IndexBuffer, indices);
 
     mpool.Flags = 0;
 }
@@ -1940,8 +1981,8 @@ template Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricM
 template void Mesh_Update(Resource handle, const ParametricMeshData<D2> &data);
 template void Mesh_Update(Resource handle, const ParametricMeshData<D3> &data);
 
-template ResourcePool ResourcePool_Create<D2>(ResourceType rtype);
-template ResourcePool ResourcePool_Create<D3>(ResourceType rtype);
+template ResourcePool ResourcePool_Create<D2>(ResourceType rtype, u32 maxVertices, u32 maxIndices);
+template ResourcePool ResourcePool_Create<D3>(ResourceType rtype, u32 maxVertices, u32 maxIndices);
 
 template void ResourcePool_Destroy<D2>(ResourcePool pool);
 template void ResourcePool_Destroy<D3>(ResourcePool pool);

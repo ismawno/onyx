@@ -15,8 +15,6 @@ int main()
     specs.Specs2.MaxInstances = 16;
     specs.Specs2.MaxLightInstances = 1;
     specs.Specs2.MaxDrawCommands = 32;
-    specs.Specs2.MaxVerticesPerResourcePool = 1024;
-    specs.Specs2.MaxIndicesPerResourcePool = 2048;
     specs.Specs2.MaxShadowMaps = 1;
     specs.Specs2.MaxOcclusionMaps = 1;
     specs.Specs2.MaxMaterials = 2;
@@ -25,8 +23,6 @@ int main()
     specs.Specs3.MaxInstances = 16;
     specs.Specs3.MaxLightInstances = 1;
     specs.Specs3.MaxDrawCommands = 64; // the shaded shapes are drawn again for every cascade
-    specs.Specs3.MaxVerticesPerResourcePool = 15000;
-    specs.Specs3.MaxIndicesPerResourcePool = 30000;
     specs.Specs3.MaxMaterials = 1;
     specs.Specs3.MaxBounds = 10;
     specs.Specs3.MaxShadowMaps[Onyx::Light_Directional] = 1;

@@ -99,6 +99,12 @@ template <> struct SpecificDefaultResourcesOptions<D2>
 
     ParametricMeshData<D2> StadiumData = Mesh_CreateStadiumData<D2>();
     ParametricMeshData<D2> RoundedRectData = Mesh_CreateRoundedRectData<D2>();
+
+    u32 MaxVerticesStaticPool = 6000;
+    u32 MaxIndicesStaticPool = 10000;
+
+    u32 MaxVerticesParametricPool = 6000;
+    u32 MaxIndicesParametricPool = 10000;
 };
 template <> struct SpecificDefaultResourcesOptions<D3>
 {
@@ -116,6 +122,12 @@ template <> struct SpecificDefaultResourcesOptions<D3>
     ParametricMeshData<D3> CapsuleData = Mesh_CreateCapsuleData();
     ParametricMeshData<D3> RoundedBoxData = Mesh_CreateRoundedBoxData();
     ParametricMeshData<D3> TorusData = Mesh_CreateTorusData();
+
+    u32 MaxVerticesStaticPool = 12000;
+    u32 MaxIndicesStaticPool = 30000;
+
+    u32 MaxVerticesParametricPool = 12000;
+    u32 MaxIndicesParametricPool = 30000;
 };
 
 constexpr CodePoint CodePoint_ArrowDown = 0x25BC;
@@ -137,6 +149,9 @@ struct DefaultResourcesOptions
 #endif
     ResourcePool FontPool = NullHandle;
     Resource DefaultFont = NullHandle; // If null, will load default font if enabled
+
+    u32 MaxVerticesFontPool = ONYX_POSSIBLE_FONT_POOL_VERTICES;
+    u32 MaxIndicesFontPool = ONYX_POSSIBLE_FONT_POOL_INDICES;
 
     SamplerData SamplerData{};
 #ifdef ONYX_INCLUDE_DEFAULT_FONT
@@ -189,14 +204,14 @@ void Texture_Release(Resource texture);
 
 template <Dimension D> const BoundsData<D> &Bounds_GetData(Resource bounds);
 
-template <Dimension D> ResourcePool ResourcePool_Create(ResourceType rtype);
+template <Dimension D> ResourcePool ResourcePool_Create(ResourceType rtype, u32 maxVertices, u32 maxIndices);
 template <Dimension D> void ResourcePool_Destroy(ResourcePool pool);
 template <Dimension D> void ResourcePool_Release(ResourcePool pool);
 template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const StaticMeshData<D> &data);
 template <Dimension D> Resource ResourcePool_RegisterMesh(ResourcePool pool, const ParametricMeshData<D> &data);
 template <Dimension D> u32 ResourcePool_GetResourceCount(ResourcePool pool);
 
-ResourcePool FontPool_Create();
+ResourcePool FontPool_Create(u32 maxVertices, u32 maxIndices);
 void FontPool_Destroy(ResourcePool pool);
 void FontPool_Release(ResourcePool pool);
 Resource FontPool_RegisterFont(ResourcePool pool, const FontData &data);

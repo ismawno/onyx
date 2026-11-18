@@ -2,44 +2,43 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx-demo)
 
 add_executable(onyx-hello-world hello_world.cpp)
-add_executable(onyx-layout layout.cpp)
-add_executable(onyx-overlay overlay.cpp)
-add_executable(onyx-lights lights.cpp)
-add_executable(onyx-transparency transparency.cpp)
-add_executable(onyx-render-texture render_texture.cpp)
-
 tkit_default_configure(onyx-hello-world)
-tkit_default_configure(onyx-layout)
-tkit_default_configure(onyx-overlay)
-tkit_default_configure(onyx-lights)
-tkit_default_configure(onyx-transparency)
-tkit_default_configure(onyx-render-texture)
-
 target_link_libraries(onyx-hello-world PRIVATE onyx)
+
+add_executable(onyx-layout layout.cpp)
+tkit_default_configure(onyx-layout)
 target_link_libraries(onyx-layout PRIVATE onyx)
+
+add_executable(onyx-overlay overlay.cpp)
+tkit_default_configure(onyx-overlay)
 target_link_libraries(onyx-overlay PRIVATE onyx)
+
+add_executable(onyx-lights lights.cpp)
+tkit_default_configure(onyx-lights)
 target_link_libraries(onyx-lights PRIVATE onyx)
+
+add_executable(onyx-transparency transparency.cpp)
+tkit_default_configure(onyx-transparency)
 target_link_libraries(onyx-transparency PRIVATE onyx)
+
+add_executable(onyx-render-texture render_texture.cpp)
+tkit_default_configure(onyx-render-texture)
 target_link_libraries(onyx-render-texture PRIVATE onyx)
 
 if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-text text.cpp)
-  add_executable(onyx-control-center control_center.cpp)
-
   tkit_default_configure(onyx-text)
-  tkit_default_configure(onyx-control-center)
-
   target_link_libraries(onyx-text PRIVATE onyx)
-  target_link_libraries(onyx-control-center PRIVATE onyx)
+
+  # add_executable(onyx-control-center control_center.cpp)
+  # tkit_default_configure(onyx-control-center)
+  # target_link_libraries(onyx-control-center PRIVATE onyx)
 
   # the control center runs the automated tests through the onyx-tests
-  # executable, when it is built
-  if(TARGET onyx-tests)
-    target_compile_definitions(
-      onyx-control-center
-      PRIVATE ONYX_TESTS_EXECUTABLE="$<TARGET_FILE:onyx-tests>")
-    add_dependencies(onyx-control-center onyx-tests)
-  endif()
+  # executable, when it is built if(TARGET onyx-tests)
+  # target_compile_definitions( onyx-control-center PRIVATE
+  # ONYX_TESTS_EXECUTABLE="$<TARGET_FILE:onyx-tests>")
+  # add_dependencies(onyx-control-center onyx-tests) endif()
 endif()
 if(ONYX_ENABLE_IMGUI)
   add_executable(onyx-imgui imgui.cpp)
