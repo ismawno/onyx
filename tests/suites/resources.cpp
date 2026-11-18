@@ -34,8 +34,9 @@ ONYX_TEST(resources, materials_read_back,
 ONYX_TEST(resources, static_meshes_read_back,
           .Description = "A mesh registered in a pool reads back with the same vertices and indices")
 {
-    const Onyx::ResourcePool pool = Onyx::ResourcePool_Create<D2>(Onyx::Resource_StaticMesh);
     const Onyx::StaticMeshData<D2> data = Onyx::Mesh_CreateRegularPolygonData<D2>(6);
+    const Onyx::ResourcePool pool =
+        Onyx::ResourcePool_Create<D2>(Onyx::Resource_StaticMesh, data.Vertices.GetSize(), data.Indices.GetSize());
     const Onyx::Resource mesh = Onyx::ResourcePool_RegisterMesh<D2>(pool, data);
     Onyx::Resources_Sync(Onyx::SyncFlag_StaticMeshes);
     REQUIRE(Onyx::IsResourceValid<D2>(mesh, Onyx::Resource_StaticMesh));
@@ -47,6 +48,107 @@ ONYX_TEST(resources, static_meshes_read_back,
     const Onyx::MeshRange range = Onyx::Mesh_GetRange<D2>(mesh);
     CHECK(range.VertexCount == data.Vertices.GetSize());
     CHECK(range.IndexCount == data.Indices.GetSize());
+    Onyx::ResourcePool_Destroy<D2>(pool);
+}
+
+ONYX_TEST(resources, pools_fill_up_to_their_maximum,
+          .Description = "A pool takes meshes until its vertices and indices are exactly used up, one after the other")
+{
+    const Onyx::StaticMeshData<D2> data = Onyx::Mesh_CreateRegularPolygonData<D2>(5);
+    const u32 vcount = data.Vertices.GetSize();
+    const u32 icount = data.Indices.GetSize();
+    const Onyx::ResourcePool pool = Onyx::ResourcePool_Create<D2>(Onyx::Resource_StaticMesh, 3 * vcount, 3 * icount);
+    Onyx::Resource meshes[3];
+    for (Onyx::Resource &mesh : meshes)
+        mesh = Onyx::ResourcePool_RegisterMesh<D2>(pool, data);
+    Onyx::Resources_Sync(Onyx::SyncFlag_StaticMeshes);
+    CHECK((Onyx::ResourcePool_GetResourceCount<D2>(pool)) == 3u);
+
+    for (u32 i = 0; i < 3; ++i)
+    {
+        REQUIRE(Onyx::IsResourceValid<D2>(meshes[i], Onyx::Resource_StaticMesh));
+        const Onyx::MeshRange range = Onyx::Mesh_GetRange<D2>(meshes[i]);
+        CHECK_MSG(range.VertexOffset == i * vcount, "Mesh {} starts at vertex {}, expected {}", i, range.VertexOffset,
+                  i * vcount);
+        CHECK_MSG(range.IndexOffset == i * icount, "Mesh {} starts at index {}, expected {}", i, range.IndexOffset,
+                  i * icount);
+    }
+    const Onyx::MeshRange last = Onyx::Mesh_GetRange<D2>(meshes[2]);
+    CHECK(last.VertexOffset + last.VertexCount == 3 * vcount);
+    CHECK(last.IndexOffset + last.IndexCount == 3 * icount);
+    Frame(1);
+    Onyx::ResourcePool_Destroy<D2>(pool);
+}
+
+// every mesh has bounds of its own, and bounds are capped per dimension by .MaxBounds: the default 256 would not leave
+// room for a full pool next to the default meshes
+ONYX_TEST(resources, pools_hold_up_to_max_mesh_ids,
+          .Description = "A pool registers ONYX_MAX_MESH_IDS_PER_POOL meshes, each with an id of its own",
+          .Init = Init_Manual)
+{
+    Onyx::Specs specs{};
+    specs.Specs2.MaxBounds = ONYX_MAX_MESH_IDS_PER_POOL + 16;
+    Onyx::Initialize(specs);
+    {
+        const Onyx::StaticMeshData<D2> data = Onyx::Mesh_CreateTriangleData<D2>();
+        const u32 vcount = data.Vertices.GetSize();
+        const u32 icount = data.Indices.GetSize();
+        const Onyx::ResourcePool pool = Onyx::ResourcePool_Create<D2>(
+            Onyx::Resource_StaticMesh, ONYX_MAX_MESH_IDS_PER_POOL * vcount, ONYX_MAX_MESH_IDS_PER_POOL * icount);
+
+        u32 invalid = 0;
+        Onyx::Resource last = Onyx::NullHandle;
+        for (u32 i = 0; i < ONYX_MAX_MESH_IDS_PER_POOL; ++i)
+        {
+            last = Onyx::ResourcePool_RegisterMesh<D2>(pool, data);
+            invalid += !Onyx::IsResourceValid<D2>(last, Onyx::Resource_StaticMesh);
+        }
+        Onyx::Resources_Sync(Onyx::SyncFlag_StaticMeshes);
+        CHECK_MSG(invalid == 0, "{} of {} meshes are not valid", invalid, ONYX_MAX_MESH_IDS_PER_POOL);
+        CHECK((Onyx::ResourcePool_GetResourceCount<D2>(pool)) == u32(ONYX_MAX_MESH_IDS_PER_POOL));
+        CHECK(Onyx::Handle_GetResourceId(last) == u32(ONYX_MAX_MESH_IDS_PER_POOL - 1));
+        const Onyx::MeshRange range = Onyx::Mesh_GetRange<D2>(last);
+        CHECK(range.VertexOffset + range.VertexCount == ONYX_MAX_MESH_IDS_PER_POOL * vcount);
+        Onyx::ResourcePool_Destroy<D2>(pool);
+    }
+    Onyx::Terminate();
+}
+
+ONYX_TEST(resources, default_pools_take_their_sizes_from_the_options,
+          .Description = "The default pools can be sized to hold exactly the default meshes", .Init = Init_Manual)
+{
+    Onyx::Initialize();
+    {
+        Onyx::DefaultResourcesOptions opts{};
+        const auto fit = [](u32 &vertices, u32 &indices, const auto &...data) {
+            vertices = (data.Vertices.GetSize() + ...);
+            indices = (data.Indices.GetSize() + ...);
+        };
+        auto &o2 = opts.Options2;
+        fit(o2.MaxVerticesStaticPool, o2.MaxIndicesStaticPool, o2.TriangleData, o2.QuadData);
+        fit(o2.MaxVerticesParametricPool, o2.MaxIndicesParametricPool, o2.StadiumData, o2.RoundedRectData);
+        auto &o3 = opts.Options3;
+        fit(o3.MaxVerticesStaticPool, o3.MaxIndicesStaticPool, o3.TriangleData, o3.QuadData, o3.BoxData, o3.SphereData,
+            o3.CylinderData);
+        fit(o3.MaxVerticesParametricPool, o3.MaxIndicesParametricPool, o3.StadiumData, o3.RoundedRectData,
+            o3.CapsuleData, o3.RoundedBoxData, o3.TorusData);
+
+        const Onyx::DefaultResources &res = Onyx::Resources_CreateDefault(opts);
+        const auto &r2 = res.Resources2;
+        const auto &r3 = res.Resources3;
+        const Onyx::MeshRange quad = Onyx::Mesh_GetRange<D2>(r2.Quad);
+        CHECK(quad.VertexOffset + quad.VertexCount == o2.MaxVerticesStaticPool);
+        CHECK(quad.IndexOffset + quad.IndexCount == o2.MaxIndicesStaticPool);
+        const Onyx::MeshRange torus = Onyx::Mesh_GetRange<D3>(r3.Torus);
+        CHECK(torus.VertexOffset + torus.VertexCount == o3.MaxVerticesParametricPool);
+        CHECK(torus.IndexOffset + torus.IndexCount == o3.MaxIndicesParametricPool);
+        for (const Onyx::Resource mesh : {r3.Triangle, r3.Quad, r3.Box, r3.Sphere, r3.Cylinder})
+            CHECK(Onyx::IsResourceValid<D3>(mesh, Onyx::Resource_StaticMesh));
+        Onyx::Window *win = OpenTestWindow();
+        Frame(2);
+        Onyx::CloseWindow(win);
+    }
+    Onyx::Terminate();
 }
 
 ONYX_TEST(resources, dynamic_meshes_register_and_destroy,
@@ -58,6 +160,35 @@ ONYX_TEST(resources, dynamic_meshes_register_and_destroy,
     CHECK((Onyx::DynamicMesh_GetCount<D2>()) == (before + 1));
     Onyx::DynamicMesh_Destroy<D2>(mesh);
     CHECK((Onyx::DynamicMesh_GetCount<D2>()) == before);
+}
+
+ONYX_TEST(resources, dynamic_meshes_fill_up_to_max_mesh_ids,
+          .Description = "Dynamic meshes can be registered until there are ONYX_MAX_MESH_IDS_PER_POOL of them")
+{
+    for (const bool is2D : {true, false})
+    {
+        const auto fill = [&]<Onyx::Dimension D>() {
+            const u32 before = Onyx::DynamicMesh_GetCount<D>();
+            REQUIRE(before <= u32(ONYX_MAX_MESH_IDS_PER_POOL));
+            Array<Onyx::Resource> meshes{};
+            for (u32 i = before; i < ONYX_MAX_MESH_IDS_PER_POOL; ++i)
+                meshes.Append(Onyx::DynamicMesh_Register<D>());
+            CHECK_MSG((Onyx::DynamicMesh_GetCount<D>()) == u32(ONYX_MAX_MESH_IDS_PER_POOL),
+                      "{}D: {} dynamic meshes registered, expected {}", u8(D), Onyx::DynamicMesh_GetCount<D>(),
+                      ONYX_MAX_MESH_IDS_PER_POOL);
+            u32 invalid = 0;
+            for (const Onyx::Resource mesh : meshes)
+                invalid += !Onyx::IsResourceValid<D>(mesh, Onyx::Resource_DynamicMesh);
+            CHECK_MSG(invalid == 0, "{}D: {} dynamic meshes are not valid", u8(D), invalid);
+            for (const Onyx::Resource mesh : meshes)
+                Onyx::DynamicMesh_Destroy<D>(mesh);
+            CHECK((Onyx::DynamicMesh_GetCount<D>()) == before);
+        };
+        if (is2D)
+            fill.operator()<D2>();
+        else
+            fill.operator()<D3>();
+    }
 }
 
 ONYX_TEST(resources, images_textures_and_samplers_live_and_die,
@@ -120,6 +251,27 @@ ONYX_TEST(resources, default_font_metrics_are_sane,
     CHECK(info.UnitRange > 0.f);
     CHECK(!info.Glyphs.IsEmpty());
 }
+
+ONYX_TEST(resources, default_font_fits_the_font_pool_maxima,
+          .Description = "The default font's glyphs fit the default font pool and the compile time font pool maxima")
+{
+    const Onyx::DefaultResources &res = Onyx::Resources_GetDefault();
+    const Onyx::DefaultResourcesOptions opts{};
+    CHECK(opts.MaxVerticesFontPool <= u32(ONYX_POSSIBLE_FONT_POOL_VERTICES));
+    CHECK(opts.MaxIndicesFontPool <= u32(ONYX_POSSIBLE_FONT_POOL_INDICES));
+
+    const u32 glyphs = Onyx::FontPool_GetGlyphCount(res.FontPool);
+    CHECK(glyphs == Onyx::Font_GetInfo(res.Font).Glyphs.GetSize());
+    CHECK_MSG(glyphs <= u32(ONYX_MAX_MESH_IDS_PER_POOL), "{} glyphs, but ONYX_MAX_MESH_IDS_PER_POOL is {}", glyphs,
+              ONYX_MAX_MESH_IDS_PER_POOL);
+    CHECK((Onyx::FontPool_GetFontCount(res.FontPool)) == 1u);
+
+    const Onyx::MeshRange range = Onyx::Font_GetRange(res.Font);
+    CHECK(range.VertexCount == 4 * glyphs);
+    CHECK(range.IndexCount == 6 * glyphs);
+    CHECK(range.VertexOffset + range.VertexCount <= opts.MaxVerticesFontPool);
+    CHECK(range.IndexOffset + range.IndexCount <= opts.MaxIndicesFontPool);
+}
 #endif
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
@@ -139,10 +291,12 @@ ONYX_TEST(resources, obj_files_load,
     CHECK(data.Indices.GetSize() == 6u);
     CHECK((data.Vertices.GetSize() >= 4 && data.Vertices.GetSize() <= 6));
 
-    const Onyx::ResourcePool pool = Onyx::ResourcePool_Create<D3>(Onyx::Resource_StaticMesh);
+    const Onyx::ResourcePool pool =
+        Onyx::ResourcePool_Create<D3>(Onyx::Resource_StaticMesh, data.Vertices.GetSize(), data.Indices.GetSize());
     const Onyx::Resource mesh = Onyx::ResourcePool_RegisterMesh<D3>(pool, data);
     Onyx::Resources_Sync(Onyx::SyncFlag_StaticMeshes);
     CHECK(Onyx::IsResourceValid<D3>(mesh, Onyx::Resource_StaticMesh));
+    Onyx::ResourcePool_Destroy<D3>(pool);
 }
 #endif
 
