@@ -1486,6 +1486,7 @@ struct OverlayDragDropPayload
 struct OverlaySpecs
 {
     RenderContextSpecs Context{};
+    RenderViewSpecs ViewSpecs{};
     LayoutSpecs Layout{.RootAlignment = {Alignment_Left, Alignment_Top}};
     OverlayStyle Style{};
     OverlayFlags Flags = 0;
@@ -2525,10 +2526,6 @@ class Overlay
     {
         return m_Camera;
     }
-    static constexpr RenderViewFlags GetRenderViewFlags()
-    {
-        return RenderViewFlag_Outlines;
-    }
 
     /////////////////////////////////////////////
     /// END RENDERING PUBLIC
@@ -2549,9 +2546,10 @@ class Overlay
     /////////////////////////////////////////////
 
     OverlayFlags Flags = 0;
-    RenderContextSpecs ContextSpecs{};
 
   private:
+    RenderContextSpecs m_ContextSpecs{};
+    RenderViewSpecs m_ViewSpecs{};
     StateFlags m_StateFlags = 0;
 #ifdef TKIT_ENABLE_YAML_SERIALIZATION
     TKit::TierPath m_SerializationPath{};

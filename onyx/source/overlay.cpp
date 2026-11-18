@@ -733,9 +733,10 @@ static void debugDumpDockTree(const TKit::TierArray<DockNode *> &dockNodes, cons
 /////////////////////////////////////////////
 
 Overlay::Overlay(Window *win, const OverlaySpecs &specs)
-    : Flags(specs.Flags), ContextSpecs(specs.Context), m_LayoutSpecs(specs.Layout), m_Style(specs.Style),
-      m_DefaultStyle(specs.Style)
+    : Flags(specs.Flags), m_ContextSpecs(specs.Context), m_ViewSpecs(specs.ViewSpecs), m_LayoutSpecs(specs.Layout),
+      m_Style(specs.Style), m_DefaultStyle(specs.Style)
 {
+    m_ViewSpecs.Flags |= RenderViewFlag_Outlines;
     TKIT_ASSERT(
         specs.Layout.RootAlignment[0] == Alignment_Left && specs.Layout.RootAlignment[1] == Alignment_Top,
         "[ONYX][OVERLAY] Root alignment for layouts must be Top Left. Other alignments are not supported for root");
@@ -2661,10 +2662,10 @@ NativeWindow *Overlay::createNativeWindow(Window *win)
 
     m_NativeWindows.Append(nw);
     nw->Window = win;
-    nw->View = win->CreateRenderView<D2>(&m_Camera, {.Flags = GetRenderViewFlags()});
+    nw->View = win->CreateRenderView<D2>(&m_Camera, m_ViewSpecs);
     nw->View->ClearColor.rgba[3] = 0.f;
 
-    nw->Context = CreateRenderContext<D2>(ContextSpecs);
+    nw->Context = CreateRenderContext<D2>(m_ContextSpecs);
     nw->Context->AddTarget(nw->View);
     nw->UpdateBorders();
 
