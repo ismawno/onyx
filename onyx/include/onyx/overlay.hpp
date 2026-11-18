@@ -3236,15 +3236,14 @@ class Overlay
     /// HELPERS PRIVATE
     /////////////////////////////////////////////
 
-    Resource getFont() const;
     const FontInfo &getFontInfo() const
     {
-        return Font_GetInfo(getFont());
+        return Font_GetInfo(m_FontStack.GetBack());
     }
 
     CodePoint getCodePoint(const CodePoint cp, const CodePoint fallback) const
     {
-        if (Font_HasGlyph(getFont(), cp))
+        if (Font_HasGlyph(m_FontStack.GetBack(), cp))
             return cp;
         return fallback;
     }
