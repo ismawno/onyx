@@ -250,9 +250,12 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
 
     TKIT_ASSERT(pending != TKIT_U32_MAX, "[ONYX][VIEW] Failed to find an available frame buffer");
 
-    TKIT_BEGIN_INFO_CLOCK();
+    TKIT_BEGIN_WARNING_CLOCK();
     Graph::Queue_WaitForTracker(m_Framebuffers[pending].Tracker);
-    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][RENDER-VIEW] Waited {:.2f} ms for a new framebuffer");
+    TKIT_END_WARNING_CLOCK(Milliseconds,
+                           "[ONYX][RENDER-VIEW] Waited {:.2f} ms for a new framebuffer. If you see this message often, "
+                           "consider increasing FrameBufferCount when creating this view. Right now is set to {}",
+                           m_FrameBufferCount);
 
     m_AttachmentIndex = pending;
 }

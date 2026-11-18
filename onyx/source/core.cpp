@@ -102,9 +102,13 @@ Graph::CommandPool FindAvailableCommandPool()
             pending = &pool;
 
     TKIT_ASSERT(pending, "[ONYX][EXECUTION] Failed to find an available command pool");
-    TKIT_BEGIN_INFO_CLOCK();
+    TKIT_BEGIN_WARNING_CLOCK();
     Graph::Queue_WaitForTracker(pending->Tracker);
-    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][EXECUTION] Waited {:.2f} ms for a new command pool");
+    TKIT_END_WARNING_CLOCK(
+        Milliseconds,
+        "[ONYX][EXECUTION] Waited {:.2f} ms for a new command pool. If you see this message often, consider increasing "
+        ".Specs.MaxCommandPools when calling ::Initialize(). Right now is set to {}",
+        GetSpecs().MaxCommandPools);
     return pending->Pool;
 }
 
