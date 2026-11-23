@@ -94,7 +94,7 @@ struct WindowSpecs
     const char *Title = "Onyx window";
     i32v2 Position{TKIT_I32_MAX}; // i32 max means let it be decided automatically
     u32v2 ScreenSize{800, 600};
-    Graph::PresentMode PresentMode = Graph::PresentMode_Immediate;
+    Graph::PresentMode PresentMode = Graph::PresentMode_VSync;
     WindowFlags Flags = 0;
 };
 
