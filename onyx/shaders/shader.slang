@@ -194,9 +194,15 @@ struct FragInput
     f32v4 VertexColor;
 #endif
 
+// three vectors and not one f32m3: slang versions and backends do not agree on how a matrix crosses stages (a plain
+// mat3 or a struct wrapping three vectors), and hooked and default stages may come from different ones
 #if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
     [[vk::location(7)]]
-    f32m3 TBN;
+    f32v3 Tangent;
+    [[vk::location(8)]]
+    f32v3 Bitangent;
+    [[vk::location(9)]]
+    f32v3 Normal;
 #endif
 #ifdef ONYX_HOOK_VARYINGS
     [[vk::location(10)]]
@@ -350,7 +356,9 @@ FragInput mainVS(
 
 #    endif
 
-    finput.TBN = f32m3(T, B, N);
+    finput.Tangent = T;
+    finput.Bitangent = B;
+    finput.Normal = N;
 #endif
 
 #ifdef ONYX_VERTEX_HOOK
@@ -365,7 +373,7 @@ FragInput mainVS(
     vhInput.VertexIndex = vertexId;
 #    ifdef ONYX_DIMENSION_3D
 #        ifdef ONYX_PASS_SHADED
-    vhInput.TBN = finput.TBN;
+    vhInput.TBN = f32m3(T, B, N);
 #        else
     vhInput.TBN = f32m3(1.0);
 #        endif
@@ -569,7 +577,8 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     resources.DirectionalMaps = g_DirectionalMaps;
     resources.SpotMaps = g_SpotMaps;
     out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
-                                    input.TBN, isFrontFacing, data.TexOffset, data.TexScale);
+                                    f32m3(input.Tangent, input.Bitangent, input.Normal), isFrontFacing,
+                                    data.TexOffset, data.TexScale);
 #        else
     resources.ShadowMaps = g_ShadowMaps;
     out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
@@ -594,7 +603,7 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #        endif
 #        ifdef ONYX_DIMENSION_3D
 #            ifdef ONYX_PASS_SHADED
-    fhInput.TBN = input.TBN;
+    fhInput.TBN = f32m3(input.Tangent, input.Bitangent, input.Normal);
 #            else
     fhInput.TBN = f32m3(1.0);
 #            endif

@@ -1,7 +1,7 @@
 // Vertex hook for the control center. Varyings: Height (float, smooth). Works in 2D and 3D.
 //
 // Moves every vertex up and down with a wave that travels along x, and hands the offset to the fragment hook as the
-// Height varying. Pair it with height.slang, declared with the same varying.
+// Height varying. Pair it with height.frag, declared with the same varying.
 
 export VertexHookOutput VertexHook(const VertexHookInput input)
 {

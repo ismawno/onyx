@@ -1040,7 +1040,7 @@ struct ReadbackState
     u32 Ticket = 0;
     u32v2 Extent{0};
     f32 RequestedAt = 0.f;
-    Array<std::byte> Data{};
+    TKit::DynamicArray<std::byte> Data{};
     // the last image read back, shown in the panel
     Onyx::Resource Image = Onyx::NullHandle;
     Onyx::Resource Texture = Onyx::NullHandle;
@@ -5077,8 +5077,8 @@ struct SampleHook
     const char *Varying;
 };
 constexpr SampleHook SampleHooks[] = {
-    {"stripes.slang", nullptr}, {"wave.slang", "Height"},  {"height.slang", "Height"},
-    {"ripple.slang", "Ripple"}, {"broken.slang", nullptr},
+    {"stripes.frag", nullptr},  {"wave.vert", "Height"},  {"height.frag", "Height"},
+    {"ripple.slang", "Ripple"}, {"broken.frag", nullptr},
 };
 
 static const SampleHook *findSampleHook(const HookSlot &slot)
@@ -6272,7 +6272,7 @@ static void setupCategories(App &app)
 
     shaders.Visuals.Append(VisualCheck{
         .Name = "A fragment hook recolors the gallery",
-        .Do = "Load shader_hooks/stripes.slang as the 2D fragment hook, without varyings, precompile it and turn Apply "
+        .Do = "Load shader_hooks/stripes.frag as the 2D fragment hook, without varyings, precompile it and turn Apply "
               "on: every 2D gallery shape gets moving stripes, the grid stays plain.",
         .More = "The hook inverts the color Onyx computed where a stripe is. Shaded shapes keep their lighting under "
                 "the stripes: the hook runs after it.",
@@ -6281,8 +6281,8 @@ static void setupCategories(App &app)
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
         .Name = "Varyings reach the fragment hook",
-        .Do = "Give both 2D hooks one varying, Height (float, smooth), then load shader_hooks/wave.slang as the vertex "
-              "hook and shader_hooks/height.slang as the fragment hook, and apply both: shapes bob up and down, blue "
+        .Do = "Give both 2D hooks one varying, Height (float, smooth), then load shader_hooks/wave.vert as the vertex "
+              "hook and shader_hooks/height.frag as the fragment hook, and apply both: shapes bob up and down, blue "
               "low, "
               "gold high.",
         .More = "The vertex hook moves each vertex and writes the offset as a varying, interpolated across each "
@@ -6303,7 +6303,7 @@ static void setupCategories(App &app)
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
         .Name = "Hook errors are readable",
-        .Do = "Load shader_hooks/broken.slang as a fragment hook and precompile it: the panel shows the compiler's "
+        .Do = "Load shader_hooks/broken.frag as a fragment hook and precompile it: the panel shows the compiler's "
               "message with the file's own line numbers, and the gallery keeps drawing without it.",
         .More = "Onyx puts an import in front of the hook's source and restores the line numbers after it, so a line "
                 "in the message is a line in the file.",
@@ -6312,7 +6312,7 @@ static void setupCategories(App &app)
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
         .Name = "The readback shows the hook output",
-        .Do = "With stripes.slang applied to the 2D gallery, press Read back: the image shows the stripes in white "
+        .Do = "With stripes.frag applied to the 2D gallery, press Read back: the image shows the stripes in white "
               "wherever a 2D shape is, black elsewhere, framed like the gallery.",
         .More = "Every view renders the Mask output, and only hooked shapes write to it. The readback copies the "
                 "gallery's whole image once, and the panel turns it into a texture.",

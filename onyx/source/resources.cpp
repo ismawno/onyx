@@ -262,6 +262,7 @@ void Resources_Initialize()
 
     s_DefaultResources = {};
     s_Images->Resources.Reserve(Graph::GetSpecs().MaxImages);
+    s_Images->ToDestroy.Reserve(Graph::GetSpecs().MaxImages);
 
     // the amount of offsets is capped by ONYX_POSSIBLE_TEXTURE_OFFSET_IDS and is only relevant for render textures.
     // only one of these ids is used for regular textures, meaning there can only be ONYX_POSSIBLE_TEXTURE_OFFSET_IDS -
