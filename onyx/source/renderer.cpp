@@ -964,7 +964,7 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
 
     TKit::StaticArray<Graph::ShaderModule, 2> hookModules{};
     TKit::TierString hookTypeSource{};
-    const TKit::TierString userSource = TKit::TierString::Format("import onyx_hook_types;\n#line 1\n{}", hopts->Source);
+    TKit::TierString userSource{};
 
     if (hopts)
     {
@@ -1001,6 +1001,7 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
         if (!hopts->Varyings.IsEmpty())
             hookMacros.Append("ONYX_HOOK_VARYINGS");
 
+        userSource = TKit::TierString::Format("import onyx_hook_types;\n#line 1\n{}", hopts->Source);
         hookModules.Append(Graph::ShaderModule::Create("onyx_hook", userSource.CString()));
         cspecs.Macros = hookMacros;
         cspecs.Libraries = hookModules;
