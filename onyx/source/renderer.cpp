@@ -627,8 +627,8 @@ enum HookGeometry : uint
     HookGeometry_Circle,
     HookGeometry_Static,
     HookGeometry_Parametric,
-    HookGeometry_Glyph,
     HookGeometry_Dynamic,
+    HookGeometry_Glyph,
 }
 
 )";
@@ -743,10 +743,11 @@ static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> va
     return src;
 }
 #    endif
-Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
+Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
 {
+    const ShaderCompileOptions &opts = ropts.Options;
 #    ifdef ONYX_ENABLE_HOOKS
-    const HookCompileOptions *hopts = opts.HookOptions;
+    const HookCompileOptions *hopts = ropts.HookOptions;
     TKIT_ASSERT(!hopts || (opts.Dimensions[Dim2] + opts.Dimensions[Dim3]) == 1,
                 "[ONYX][RENDERER] When compiling shaders for a hook exactly one dimension must be toggled");
     TKIT_ASSERT(!hopts || hopts->VertexOrOpaque || hopts->Transparent,
@@ -782,7 +783,7 @@ Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
     searchPaths.Append(ONYX_SHADERS_PATH);
 #    ifdef ONYX_ENABLE_HOOKS
     if (hopts && !hopts->SearchPath.IsEmpty())
-        searchPaths.Append(opts.HookOptions->SearchPath.GetData());
+        searchPaths.Append(hopts->SearchPath.GetData());
 #    endif
 
     const TKit::FixedArray<TKit::TierString, D_Count> dimNames = {"2D", "3D"};
@@ -980,6 +981,7 @@ Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
     const auto clearPipeline = [](Graph::Pipeline &pip) {
         if (pip != Graph::NullHandle)
         {
+            Graph::DeviceWaitIdle();
             Graph::Pipeline_Destroy(pip);
             pip = Graph::NullHandle;
         }
@@ -1206,7 +1208,13 @@ template <Dimension D> static Graph::Pipeline createGeometryPipeline(const Geome
         }
 
         for (const HookOutput &hout : houtputs)
-            attachments.Append(color).Format = hout.Format;
+        {
+            Graph::ColorAttachment &att = attachments.Append(color);
+            att.Format = hout.Format;
+            att.BlendEnabled = false;
+            if (fs != hsh.Opaque && fs != hsh.Transparent)
+                att.WriteMask = 0;
+        }
     }
 #endif
 
@@ -1515,7 +1523,7 @@ template <Dimension D> static Graph::Pipeline getOrCreateGeometryPipeline(const 
     RendererData<D> &rdata = getRendererData<D>();
     bool didInsert;
     Graph::Pipeline &pip = rdata.Pipelines[geo].TryInsert(&didInsert, state);
-    if (didInsert)
+    if (didInsert || pip == Graph::NullHandle)
         pip = createGeometryPipeline<D>(geo, state);
     return pip;
 }
@@ -1525,7 +1533,7 @@ template <Dimension D> static Graph::Pipeline getOrCreateShadowPipeline(const Ge
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     bool didInsert;
     Graph::Pipeline &pip = sdata.Pipelines[geo].TryInsert(&didInsert, state);
-    if (didInsert)
+    if (didInsert || pip == Graph::NullHandle)
         pip = createShadowPipeline<D>(geo, state);
     return pip;
 }

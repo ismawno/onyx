@@ -285,10 +285,18 @@ template <Dimension D> void SetHookGlobalData(const void *data, const u32 size)
                 "[ONYX][CONTEXT] Hook instance data has a size of {} but the maximum amount of per-instance hook "
                 "data .Specs{}.HookGlobalsSize is {}. Raise it in the specs given to Onyx::Initialize",
                 size, u8(D), GetSpecs().GetSpecific<D>().HookGlobalsSize);
+
     if constexpr (D == D2)
         s_Data->TransferInfo.HookGlobalData2 = {data, size};
     else
         s_Data->TransferInfo.HookGlobalData3 = {data, size};
+}
+#endif
+
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+ONYX_NO_DISCARD Result<> ReloadShaders(const ShaderCompileOptions &opts)
+{
+    return Renderer_CompileShaders({.Options = opts});
 }
 #endif
 

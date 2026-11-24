@@ -1,8 +1,7 @@
 #pragma once
 
 #ifndef ONYX_ENABLE_HOOKS
-#    error                                                                                                             \
-        "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_HOOKS"
+#    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_HOOKS"
 #endif
 
 #include "onyx/core.hpp"
@@ -47,27 +46,28 @@ enum HookType : u8
 
 struct HookVarying
 {
-    const char *Name;
+    TKit::TierString Name;
     HookType Type;
     HookInterp Interpolation;
 };
 
 struct HookSpecs
 {
-    HookStage Stage = HookStage_Fragment;
     TKit::Span<const HookVarying> Varyings{};
     TKit::StringView SearchPath{};
 };
 
 using ShaderCombination = ten<Graph::Shader, RenderPass_Count, Geometry_Count>;
 
-template <Dimension D> Resource Hook_FromSource(TKit::StringView source, const HookSpecs &specs = {});
+template <Dimension D> Resource Hook_FromSource(HookStage stage, TKit::StringView source, const HookSpecs &specs = {});
 template <Dimension D>
-ONYX_NO_DISCARD Result<Resource> Hook_FromFile(const TKit::TierPath &filepath, const HookSpecs &specs = {});
+ONYX_NO_DISCARD Result<Resource> Hook_FromFile(HookStage stage, const TKit::TierPath &filepath,
+                                               const HookSpecs &specs = {});
 
-template <Dimension D> ONYX_NO_DISCARD Result<> Hook_UpdateFromSource(Resource hook, TKit::StringView source);
+template <Dimension D> void Hook_UpdateFromSource(Resource hook, TKit::StringView source, const HookSpecs &specs = {});
 template <Dimension D>
-ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(Resource hook, const TKit::TierPath &filepath);
+ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(Resource hook, const TKit::TierPath &filepath,
+                                             const HookSpecs &specs = {});
 
 struct HookPrecompileOptions
 {
@@ -91,8 +91,8 @@ struct HookPrecompileOptions
 };
 
 template <Dimension D>
-ONYX_NO_DISCARD Result<> Hook_Precompile(
-    Resource hook, const HookPrecompileOptions &opts = HookPrecompileOptions::Full());
+ONYX_NO_DISCARD Result<> Hook_Precompile(Resource hook,
+                                         const HookPrecompileOptions &opts = HookPrecompileOptions::Full());
 
 const char *ToString(HookStage stage);
 } // namespace Onyx

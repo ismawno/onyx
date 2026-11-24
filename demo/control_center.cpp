@@ -42,6 +42,11 @@
 //
 //  Audio is optional: it is compiled only with ONYX_ENABLE_AUDIO, and every sound is generated in code
 //
+//  Shaders: the Shaders panel recompiles the default shaders from their sources (needs a shader compilation backend)
+//  and, with ONYX_ENABLE_HOOKS, loads vertex and fragment hooks from files (the dialog needs ONYX_ENABLE_NFD), with
+//  their varyings, applies them to the galleries and reads the hook output declared at Initialize back into a texture.
+//  Sample hooks live in demo/shader_hooks
+//
 //  File sections
 //     1. Configuration and theme
 //     2. Visual review bookkeeping: visual checks, categories and saved verdicts
@@ -67,6 +72,12 @@
 #ifdef ONYX_ENABLE_AUDIO
 #    include "onyx/audio.hpp"
 #    include <atomic>
+#endif
+#ifdef ONYX_ENABLE_HOOKS
+#    include "onyx/hook.hpp"
+#endif
+#ifdef ONYX_ENABLE_NFD
+#    include "onyx/dialog.hpp"
 #endif
 #include "graph/platform.hpp"
 #include "tkit/container/static_array.hpp"
@@ -141,6 +152,22 @@ constexpr f32 TooltipWidth = 380.f;
 constexpr f32 PopupWidth = 460.f;
 
 constexpr const char *VerdictFile = "onyx-control-center-verdicts.txt";
+
+#ifdef ONYX_ENABLE_HOOKS
+// the one hook output this demo declares at Initialize, for both dimensions. fragment hooks write it as
+// output.Outputs.Mask, and the Shaders panel reads it back into a texture
+constexpr const char *HookOutputName = "Mask";
+constexpr Graph::Format HookOutputFormat = Graph::Format_R8G8B8A8_UNORM;
+constexpr u32 MaxHookVaryings = 8;
+#    ifdef ONYX_ENABLE_NFD
+// where the file dialog opens: the sample hooks, when CMake says where they are
+#        ifdef ONYX_DEMO_SHADER_HOOKS_PATH
+constexpr const char *SampleHooksPath = ONYX_DEMO_SHADER_HOOKS_PATH;
+#        else
+constexpr const char *SampleHooksPath = nullptr;
+#        endif
+#    endif
+#endif
 
 // indexed by Graph::Platform
 constexpr const char *PlatformNames[] = {"Any", "Win32", "Cocoa", "Wayland", "X11"};
@@ -279,6 +306,7 @@ enum CategoryId : u8
     Category_Audio,
     Category_Resources,
     Category_Platform,
+    Category_Shaders,
     Category_Count,
 };
 
@@ -944,6 +972,95 @@ struct TestRunner
     }
 };
 
+// the Shaders panel: default shader reloads, hooks loaded from files and the hook output readback
+struct ShaderReloadState
+{
+    String Error{};
+    f32 ReloadedAt = -100.f;
+    f32 Milliseconds = 0.f;
+    u32 Reloads = 0;
+};
+
+#ifdef ONYX_ENABLE_HOOKS
+// every hook reads these, as input.Globals.LoadF32(offset). their size is fixed at Initialize, and shaders read them in
+// rows of 16 bytes
+struct HookGlobals
+{
+    f32 Time = 0.f;
+    f32 Padding[3]{};
+};
+
+// a varying as the panel edits it. the hook keeps a pointer to the name, so the names a hook was loaded with are copied
+// apart (HookSlot::LoadedVaryings) and never edited
+struct VaryingEntry
+{
+    char Name[32] = "Value";
+    u32 Type = Onyx::HookType_F32;
+    u32 Interpolation = Onyx::HookInterp_Smooth;
+};
+using VaryingArray = TKit::StaticArray<VaryingEntry, MaxHookVaryings>;
+
+enum HookSlotId : u8
+{
+    HookSlot_Vertex2,
+    HookSlot_Fragment2,
+    HookSlot_Vertex3,
+    HookSlot_Fragment3,
+    HookSlot_Count,
+};
+
+struct HookSlot
+{
+    const char *Name = "";
+    Onyx::HookStage Stage = Onyx::HookStage_Fragment;
+    u32 Dimension = 0; // 0 for 2D, 1 for 3D
+    Onyx::Resource Handle = Onyx::NullHandle;
+    Path File{};
+    VaryingArray Varyings{};       // as edited
+    VaryingArray LoadedVaryings{}; // as the hook was loaded with
+    bool Apply = true;
+    bool Compiled = false; // precompiled since it was last loaded
+    String Error{};        // from the last load or precompile
+    f32 SucceededAt = -100.f;
+    f32 Milliseconds = 0.f;
+};
+
+struct ReadbackState
+{
+    u32 Dimension = 0; // the gallery to read from: 0 for 2D, 1 for 3D
+    // a request in flight: the view it was made on, its ticket and the extent it covers
+    Onyx::RenderView<D2> *View2 = nullptr;
+    Onyx::RenderView<D3> *View3 = nullptr;
+    u32 Ticket = 0;
+    u32v2 Extent{0};
+    f32 RequestedAt = 0.f;
+    Array<std::byte> Data{};
+    // the last image read back, shown in the panel
+    Onyx::Resource Image = Onyx::NullHandle;
+    Onyx::Resource Texture = Onyx::NullHandle;
+    u32v2 ImageSize{0};
+    f32 ArrivedAt = -100.f;
+    f32 Latency = 0.f;
+    u32 Readbacks = 0;
+    String Error{};
+
+    bool IsPending() const
+    {
+        return View2 || View3;
+    }
+};
+#endif
+
+struct ShaderState
+{
+    ShaderReloadState Reload{};
+#ifdef ONYX_ENABLE_HOOKS
+    HookGlobals Globals{};
+    TKit::FixedArray<HookSlot, HookSlot_Count> Slots{}; // named by setupCategories()
+    ReadbackState Readback{};
+#endif
+};
+
 struct App
 {
     Onyx::Window *Window = nullptr;
@@ -1035,6 +1152,7 @@ struct App
 
     CategoryArray Categories{};
     TestRunner Tests{};
+    ShaderState Shaders{};
 
     // renderer usage per dimension, measured every frame right before the transfer
     TKit::FixedArray<UsageMeters, 2> Usage{};
@@ -1851,6 +1969,60 @@ static void drawPixelView(const App &app)
 constexpr f32v2 BandCenter{0.f, -3.f};
 constexpr f32v2 BandSize{9.8f, 3.8f};
 
+#ifdef ONYX_ENABLE_HOOKS
+static bool isHookApplied(const HookSlot &slot)
+{
+    return slot.Apply && slot.Handle != Onyx::NullHandle;
+}
+
+static bool sameVaryings(const VaryingArray &a, const VaryingArray &b)
+{
+    if (a.GetSize() != b.GetSize())
+        return false;
+    for (u32 i = 0; i < a.GetSize(); ++i)
+        if (std::strcmp(a[i].Name, b[i].Name) != 0 || a[i].Type != b[i].Type ||
+            a[i].Interpolation != b[i].Interpolation)
+            return false;
+    return true;
+}
+
+// a fragment hook that reads varyings needs a vertex hook writing the same ones, or the stages of the pipeline would
+// not match. empty when it can be applied, the reason otherwise
+static const char *fragmentHookBlocker(const HookSlot &vertex, const HookSlot &fragment)
+{
+    if (fragment.LoadedVaryings.IsEmpty())
+        return nullptr;
+    if (!isHookApplied(vertex))
+        return "It reads varyings, and no vertex hook is applied to write them.";
+    if (!sameVaryings(vertex.LoadedVaryings, fragment.LoadedVaryings))
+        return "It reads varyings the applied vertex hook does not write the same way: names, types and interpolations "
+               "must match, in the same order.";
+    return nullptr;
+}
+#endif
+
+// hooks are part of the render state, and SetRenderState() replaces all of it, so the galleries go through
+// setRenderState(), which puts the Shaders panel's hooks back
+template <Onyx::Dimension D>
+static void applyHooks([[maybe_unused]] const App &app, [[maybe_unused]] Onyx::RenderContext<D> *ctx)
+{
+#ifdef ONYX_ENABLE_HOOKS
+    const auto &slots = app.Shaders.Slots;
+    const HookSlot &vertex = slots[D == D2 ? HookSlot_Vertex2 : HookSlot_Vertex3];
+    const HookSlot &fragment = slots[D == D2 ? HookSlot_Fragment2 : HookSlot_Fragment3];
+    const bool applyFragment = isHookApplied(fragment) && !fragmentHookBlocker(vertex, fragment);
+    ctx->VertexHook(isHookApplied(vertex) ? vertex.Handle : Onyx::NullHandle);
+    ctx->FragmentHook(applyFragment ? fragment.Handle : Onyx::NullHandle);
+#endif
+}
+
+template <Onyx::Dimension D>
+static void setRenderState(const App &app, Onyx::RenderContext<D> *ctx, const Onyx::RenderState state)
+{
+    ctx->SetRenderState(state);
+    applyHooks(app, ctx);
+}
+
 static void drawGallery2(App &app)
 {
     Onyx::RenderContext<D2> *ctx = app.GalleryCtx;
@@ -1869,6 +2041,9 @@ static void drawGallery2(App &app)
         ctx->Line(f32v2{f32(i), -15.f}, f32v2{f32(i), 15.f}, 0.02f);
         ctx->Line(f32v2{-15.f, f32(i)}, f32v2{15.f, f32(i)}, 0.02f);
     }
+
+    // the Shaders panel's hooks apply to everything from here on, the grid left alone
+    applyHooks(app, ctx);
 
     if (ls.Lights2)
     {
@@ -1918,7 +2093,7 @@ static void drawGallery2(App &app)
         ctx->Pop();
 
         ctx->Push();
-        ctx->SetRenderState(Onyx::FillMode_Shaded);
+        setRenderState(app, ctx, Onyx::FillMode_Shaded);
         ctx->Material(app.Lit2);
         ctx->FillColor(Onyx::Color{70u, 74u, 96u});
         ctx->Scale(BandSize);
@@ -1993,7 +2168,7 @@ static void drawGallery2(App &app)
     Onyx::RenderState state = Onyx::FillMode_Flat;
     if (rs.Outlines)
         state |= Onyx::OutlineMode_Enabled;
-    ctx->SetRenderState(state);
+    setRenderState(app, ctx, state);
     ctx->OutlineColor(Theme::Text);
     ctx->OutlineWidth(rs.OutlineWidth);
 
@@ -2029,7 +2204,7 @@ static void drawGallery2(App &app)
     }
 
     // middle row: three overlapping translucent squares, between two lines
-    ctx->SetRenderState(Onyx::FillMode_Flat);
+    setRenderState(app, ctx, Onyx::FillMode_Flat);
     for (u32 i = 0; i < 3; ++i)
     {
         ctx->Push();
@@ -2123,10 +2298,11 @@ static void drawGallery3(App &app)
     constexpr f32 floorY = -1.6f;
     ctx->Flush();
 
+    // setRenderState() also applies the Shaders panel's hooks
     Onyx::RenderState state = Onyx::FillMode_Shaded;
     if (rs.Outlines)
         state |= Onyx::OutlineMode_Enabled;
-    ctx->SetRenderState(state);
+    setRenderState(app, ctx, state);
     ctx->OutlineColor(Theme::Text);
     ctx->OutlineWidth(rs.OutlineWidth);
     ctx->Material(app.Mat3);
@@ -2158,7 +2334,7 @@ static void drawGallery3(App &app)
 
         // a flat marker: a shaded sphere around the light would block its own shadows
         ctx->Push();
-        ctx->SetRenderState(Onyx::FillMode_Flat);
+        setRenderState(app, ctx, Onyx::FillMode_Flat);
         ctx->FillColor(Onyx::Color_Buttercup);
         ctx->Scale(0.25f);
         ctx->Translate(req.Point3);
@@ -2264,7 +2440,7 @@ static void drawGallery3(App &app)
     if (au.Available && au.Orbit == Orbit_3D)
     {
         ctx->Push();
-        ctx->SetRenderState(Onyx::FillMode_Flat);
+        setRenderState(app, ctx, Onyx::FillMode_Flat);
         ctx->FillColor(Theme::Accent);
         ctx->Scale(0.2f);
         ctx->Translate(au.Source3);
@@ -4747,6 +4923,393 @@ static void panelPlatform(App &app)
             "Each change recreates the swapchain. window.present_modes_switch_cleanly checks the same on its own.");
 }
 
+// returns what the call returns, and how long it took in milliseconds. shader compilations block the frame, so the
+// panel says how much
+template <typename F> static auto measureMilliseconds(f32 &milliseconds, F &&call)
+{
+    const auto start = std::chrono::steady_clock::now();
+    auto result = call();
+    milliseconds = std::chrono::duration<f32, std::milli>(std::chrono::steady_clock::now() - start).count();
+    return result;
+}
+
+// a compiler error can span dozens of lines: a heading, a button to copy all of it and the message in a scrolled box.
+// unused when Onyx has neither hooks nor a shader compilation backend
+[[maybe_unused]] static void errorBox(Onyx::Overlay *ui, const char *heading, const String &error)
+{
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    badge(ui, "FAIL", Theme::Fail);
+    text(ui, Theme::Fail, heading);
+    if (ui->Button("Copy##error", Onyx::OverlayButtonFlag_Small))
+        Graph::SetClipboard(error.CString());
+    ui->PopPanel();
+    tooltip(ui, Theme::Accent, "Copies the whole message", "");
+    ui->BeginScroll("error", 220.f, Onyx::OverlayScrollFlag_Borders);
+    forEachLine(error, [&](const TKit::StringView line) { text(ui, Theme::Text, line, Onyx::TextMode_Wrapped); });
+    ui->EndScroll();
+}
+
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+static void reloadDefaultShaders(App &app)
+{
+    ShaderReloadState &rl = app.Shaders.Reload;
+    const Onyx::Result<> result = measureMilliseconds(rl.Milliseconds, [] { return Onyx::ReloadShaders(); });
+    if (!result)
+    {
+        rl.Error = String::Format("{}", result.GetError().ToString());
+        return;
+    }
+    rl.Error.Clear();
+    rl.ReloadedAt = app.Time;
+    ++rl.Reloads;
+}
+#endif
+
+#ifdef ONYX_ENABLE_HOOKS
+// indexed by Onyx::HookType and Onyx::HookInterp
+constexpr const char *HookTypeNames = "float#float2#float3#float4#int#int2#int3#int4#uint#uint2#uint3#uint4";
+constexpr const char *HookInterpNames = "Smooth#Flat#No perspective";
+
+// creates the slot's hook from its file the first time, and updates it after that: the gallery keeps the same handle.
+// a load only reads the file. compiling is the job of the Precompile button, or of the gallery on first use
+static void loadHook(App &app, HookSlot &slot)
+{
+    // the hook keeps pointers to the varying names: these stay put until the next load
+    slot.LoadedVaryings = slot.Varyings;
+    TKit::StaticArray<Onyx::HookVarying, MaxHookVaryings> varyings{};
+    for (const VaryingEntry &v : slot.LoadedVaryings)
+        varyings.Append(Onyx::HookVarying{
+            .Name = v.Name, .Type = Onyx::HookType(v.Type), .Interpolation = Onyx::HookInterp(v.Interpolation)});
+
+    // imports in the hook resolve from its own folder
+    const Path folder = slot.File.GetParentPath();
+    const Onyx::HookSpecs specs{.Stage = slot.Stage,
+                                .Varyings = TKit::Span<const Onyx::HookVarying>(varyings),
+                                .SearchPath = TKit::StringView{folder.GetString()}};
+
+    const auto load = [&]<Onyx::Dimension D>() -> Onyx::Result<> {
+        if (slot.Handle != Onyx::NullHandle)
+            return Onyx::Hook_UpdateFromFile<D>(slot.Handle, slot.File, specs);
+        const auto handle = Onyx::Hook_FromFile<D>(slot.File, specs);
+        if (!handle)
+            return handle.GetError();
+        slot.Handle = *handle;
+        return Onyx::Result<>::Ok();
+    };
+    const Onyx::Result<> result = slot.Dimension == 0 ? load.template operator()<D2>() : load.template operator()<D3>();
+
+    slot.Compiled = false;
+    if (!result)
+    {
+        slot.Error = String::Format("{}", result.GetError().ToString());
+        return;
+    }
+    slot.Error.Clear();
+    slot.SucceededAt = app.Time;
+}
+
+static void precompileHook(App &app, HookSlot &slot)
+{
+    const Onyx::Result<> result = measureMilliseconds(slot.Milliseconds, [&] {
+        return slot.Dimension == 0 ? Onyx::Hook_Precompile<D2>(slot.Handle) : Onyx::Hook_Precompile<D3>(slot.Handle);
+    });
+    if (!result)
+    {
+        slot.Compiled = false;
+        slot.Error = String::Format("{}", result.GetError().ToString());
+        return;
+    }
+    slot.Compiled = true;
+    slot.Error.Clear();
+    slot.SucceededAt = app.Time;
+}
+
+#    ifdef ONYX_ENABLE_NFD
+// the dialog blocks the frame until it closes. a cancel leaves the slot as it was
+static void browseHook(App &app, HookSlot &slot)
+{
+    const Onyx::Filter filters[] = {{.Name = "Slang shader hooks", .Extensions = "slang"}};
+    const auto path =
+        Onyx::OpenSingleDialog({.DefaultPath = SampleHooksPath, .Filters = TKit::Span<const Onyx::Filter>(filters)});
+    if (!path)
+    {
+        if (path.GetError() == Onyx::Dialog_Error)
+            slot.Error = String::Format("The file dialog failed: {}", Onyx::GetDialogError());
+        return;
+    }
+    slot.File = *path;
+    loadHook(app, slot);
+}
+#    endif
+
+// the varyings a hook is loaded with: name, type and interpolation each. a vertex hook writes them as
+// output.Varyings.<name> and a fragment hook reads them as input.Varyings.<name>
+static void varyingsEditor(Onyx::Overlay *ui, HookSlot &slot)
+{
+    text(ui, Theme::Dim, slot.Varyings.IsEmpty() ? "No varyings" : "Varyings");
+    u32 remove = TKIT_U32_MAX;
+    for (u32 i = 0; i < slot.Varyings.GetSize(); ++i)
+    {
+        VaryingEntry &v = slot.Varyings[i];
+        ui->PushId(Onyx::LayoutId{&v});
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+        ui->InputText("##name", v.Name, sizeof(v.Name), "name");
+        ui->DropDown("##type", &v.Type, HookTypeNames);
+        // integers cannot be interpolated
+        const bool integer = v.Type >= Onyx::HookType_I32;
+        if (integer)
+            v.Interpolation = Onyx::HookInterp_Flat;
+        ui->BeginDisabled(integer);
+        ui->DropDown("##interpolation", &v.Interpolation, HookInterpNames);
+        ui->EndDisabled();
+        if (ui->Button("Remove##remove", Onyx::OverlayButtonFlag_Small))
+            remove = i;
+        ui->PopPanel();
+        ui->PopId();
+    }
+    if (remove != TKIT_U32_MAX)
+        slot.Varyings.RemoveOrdered(slot.Varyings.begin() + remove);
+
+    ui->BeginDisabled(slot.Varyings.IsFull());
+    if (ui->Button("Add varying", Onyx::OverlayButtonFlag_Small))
+        slot.Varyings.Append(VaryingEntry{});
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "Declared before loading",
+            "A vertex hook writes them as output.Varyings.<name>, a fragment hook reads them as "
+            "input.Varyings.<name>. A fragment hook with varyings is only applied together with a vertex hook "
+            "loaded with the same ones, in the same order. Integer varyings are always flat.");
+}
+
+static void hookSlotPanel(App &app, HookSlot &slot, const HookSlot *vertex)
+{
+    Onyx::Overlay *ui = app.Ui;
+    const bool loaded = slot.Handle != Onyx::NullHandle;
+    ui->PushId(Onyx::LayoutId{&slot});
+    const Line title = loaded ? formatLine("{}: {}###hook", slot.Name, slot.File.GetFilename().GetString())
+                              : formatLine("{}: none loaded###hook", slot.Name);
+    if (ui->PushTree(title.View()))
+    {
+        varyingsEditor(ui, slot);
+        if (loaded && !sameVaryings(slot.Varyings, slot.LoadedVaryings))
+            text(ui, Theme::Todo, "The varyings changed since the hook was loaded: reload it to use them.",
+                 Onyx::TextMode_Wrapped);
+
+        ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+#    ifdef ONYX_ENABLE_NFD
+        if (ui->Button("Browse...##browse"))
+            browseHook(app, slot);
+        tooltip(ui, Theme::Accent, "Loads a hook from a file",
+                "With the varyings above. The dialog opens on demo/shader_hooks, whose files say which varyings they "
+                "need.");
+#    endif
+        ui->BeginDisabled(slot.File.IsEmpty());
+        if (ui->Button("Reload##reload"))
+            loadHook(app, slot);
+        ui->EndDisabled();
+        tooltip(ui, Theme::Accent, "Reads the same file again",
+                "With the varyings above. The gallery recompiles it on first use, or press Precompile.");
+        ui->BeginDisabled(!loaded);
+        if (ui->Button("Precompile##precompile"))
+            precompileHook(app, slot);
+        ui->EndDisabled();
+        tooltip(
+            ui, Theme::Accent, "Compiles every variant it is used in",
+            "Every geometry and pass, linked against the default shaders. Errors show here. Without it, the gallery "
+            "compiles each variant on first use, and errors only reach the log.");
+        ui->PopPanel();
+
+        ui->CheckBox(slot.Dimension == 0 ? "Apply to the 2D gallery##apply" : "Apply to the 3D gallery##apply",
+                     &slot.Apply);
+
+        if (!slot.Error.IsEmpty())
+            errorBox(ui, "The last load or precompile failed", slot.Error);
+        else if (slot.Compiled)
+            text(ui, Theme::Pass,
+                 formatLine("Precompiled in {:.0f} ms, {:.1f} s ago", slot.Milliseconds, app.Time - slot.SucceededAt)
+                     .View());
+        else if (loaded)
+            text(ui, Theme::Info, "Loaded, not compiled yet.");
+
+        if (vertex && isHookApplied(slot))
+            if (const char *why = fragmentHookBlocker(*vertex, slot))
+                text(ui, Theme::Todo, formatLine("Not applied. {}", why).View(), Onyx::TextMode_Wrapped);
+        ui->PopTree();
+    }
+    ui->PopId();
+}
+
+static void requestReadback(App &app)
+{
+    ReadbackState &rb = app.Shaders.Readback;
+    rb.Error.Clear();
+    const auto request = [&](auto *view) {
+        rb.Extent = view->GetImageExtent();
+        const auto ticket = view->RequestHookReadback({.Slot = 0, .Offset = u32v2{0}, .Extent = rb.Extent});
+        if (!ticket)
+        {
+            rb.Error = String::Format("{}", ticket.GetError().ToString());
+            return false;
+        }
+        rb.Ticket = ticket->TicketNo;
+        rb.Data.Resize(ticket->RequiredSize);
+        rb.RequestedAt = app.Time;
+        return true;
+    };
+    if (rb.Dimension == 0)
+    {
+        Onyx::RenderView<D2> *view = app.Panes[Pane_Gallery2].Frame[app.Mode];
+        if (request(view))
+            rb.View2 = view;
+    }
+    else
+    {
+        Onyx::RenderView<D3> *view = app.View3[app.Mode];
+        if (request(view))
+            rb.View3 = view;
+    }
+}
+
+// a readback arrives a frame or more after its request, once the gallery that recorded it is done on the GPU. it runs
+// before anything is drawn, so the panel never shows a texture this frame already destroyed
+static void updateReadback(App &app)
+{
+    ReadbackState &rb = app.Shaders.Readback;
+    if (!rb.IsPending())
+        return;
+    const bool arrived = rb.View2 ? rb.View2->TryGetHookReadback(rb.Ticket, rb.Data.GetData())
+                                  : rb.View3->TryGetHookReadback(rb.Ticket, rb.Data.GetData());
+    if (!arrived)
+        return;
+    rb.View2 = nullptr;
+    rb.View3 = nullptr;
+    rb.Latency = app.Time - rb.RequestedAt;
+    rb.ArrivedAt = app.Time;
+    ++rb.Readbacks;
+
+    // the previous image goes first, its texture with it. the sync waits for the device, so nothing samples it anymore
+    if (rb.Image != Onyx::NullHandle)
+    {
+        Onyx::Image_Release(rb.Image);
+        Onyx::Resources_Sync(Onyx::SyncFlag_Images);
+    }
+    // the bytes are the output's texels, tightly packed, in its own format: they make an image as they are
+    const Onyx::ImageData data{.Data = rb.Data.GetData(),
+                               .Width = rb.Extent[0],
+                               .Height = rb.Extent[1],
+                               .Components = 4,
+                               .Format = HookOutputFormat};
+    rb.Image = Onyx::Image_Create(data);
+    rb.Texture = Onyx::Texture_Create(rb.Image);
+    rb.ImageSize = rb.Extent;
+}
+
+static void readbackPanel(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    ReadbackState &rb = app.Shaders.Readback;
+    text(ui, Theme::Dim,
+         formatLine(
+             "Onyx::Initialize declares one hook output for each dimension, {} ({}). Every view gets an image for "
+             "it, and fragment hooks write it as output.Outputs.{}.",
+             HookOutputName, "RGBA, 8 bits per channel", HookOutputName)
+             .View(),
+         Onyx::TextMode_Wrapped);
+
+    const bool pending = rb.IsPending();
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    ui->BeginDisabled(pending);
+    ui->DropDown("##gallery", &rb.Dimension, "2D gallery#3D gallery");
+    if (ui->Button(pending ? "Reading back...##readback" : "Read back##readback"))
+        requestReadback(app);
+    ui->EndDisabled();
+    ui->PopPanel();
+    tooltip(ui, Theme::Accent, "Copies the whole output image to the CPU, once",
+            "The copy is recorded when the gallery renders, and lands a frame or more later. It then becomes an image "
+            "and a texture, shown below. Each click replaces them.");
+
+    if (pending)
+        text(ui, Theme::Todo,
+             formatLine("Waiting for the gallery to render it, {:.2f} s so far", app.Time - rb.RequestedAt).View());
+    if (!rb.Error.IsEmpty())
+        errorBox(ui, "The request failed", rb.Error);
+    if (rb.Texture == Onyx::NullHandle)
+        return;
+
+    field(ui, "Last readback ",
+          formatLine("{} x {}, arrived {:.0f} ms after its request, {:.1f} s ago ({} so far)", rb.ImageSize[0],
+                     rb.ImageSize[1], 1000.f * rb.Latency, app.Time - rb.ArrivedAt, rb.Readbacks)
+              .View());
+    constexpr f32 width = 440.f;
+    const f32 height = width * f32(rb.ImageSize[1]) / f32(Math::Max(rb.ImageSize[0], 1u));
+    ui->Image(rb.Texture, f32v2{width, height});
+}
+
+// every frame, before anything is drawn: the globals every hook reads, and readbacks that may have arrived
+static void updateHooks(App &app)
+{
+    app.Shaders.Globals.Time = app.Time;
+    Onyx::SetHookGlobalData<D2>(&app.Shaders.Globals);
+    Onyx::SetHookGlobalData<D3>(&app.Shaders.Globals);
+    updateReadback(app);
+}
+#endif
+
+static void panelShaders(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    ui->HorizontalSeparator("Default shaders");
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+    const ShaderReloadState &rl = app.Shaders.Reload;
+    if (ui->Button("Reload default shaders"))
+        reloadDefaultShaders(app);
+    tooltip(ui, Theme::Accent, "Recompiles them from their sources",
+            formatLine("Every geometry and post process shader, from {}. Their pipelines are rebuilt on next use, and "
+                       "so are the hooks' variants, which link against them. The frame blocks while they compile.",
+                       ONYX_SHADERS_PATH)
+                .View());
+    if (!rl.Error.IsEmpty())
+        errorBox(ui, "The reload failed: the previous shaders stay", rl.Error);
+    else if (rl.Reloads)
+        text(ui, Theme::Pass,
+             formatLine("Reloaded {} times, the last one {:.1f} s ago, in {:.0f} ms", rl.Reloads,
+                        app.Time - rl.ReloadedAt, rl.Milliseconds)
+                 .View());
+    text(ui, Theme::Dim, "Edit a file under onyx/shaders and reload: the scene changes without restarting.",
+         Onyx::TextMode_Wrapped);
+#else
+    text(ui, Theme::Info,
+         "Onyx was built without a shader compilation backend. Configure Graphite with "
+         "GRAPHITE_SHADER_COMPILATION_BACKEND=slang to reload shaders at runtime.",
+         Onyx::TextMode_Wrapped);
+#endif
+
+    ui->HorizontalSeparator("Hooks");
+#ifndef ONYX_ENABLE_HOOKS
+    text(ui, Theme::Info, "Hooks are not compiled in. Configure Onyx with ONYX_ENABLE_HOOKS=ON to try them.",
+         Onyx::TextMode_Wrapped);
+#else
+#    ifndef ONYX_ENABLE_NFD
+    text(ui, Theme::Todo, "Loading a hook needs the file dialog: configure Onyx with ONYX_ENABLE_NFD=ON.",
+         Onyx::TextMode_Wrapped);
+#    endif
+    text(ui, Theme::Dim,
+         "A hook is a Slang file exporting VertexHook or FragmentHook. Declare its varyings, then load it: it applies "
+         "to the whole gallery of its dimension, the background grid aside.",
+         Onyx::TextMode_Wrapped);
+    auto &slots = app.Shaders.Slots;
+    for (HookSlot &slot : slots)
+    {
+        const HookSlot *vertex = nullptr;
+        if (slot.Stage == Onyx::HookStage_Fragment)
+            vertex = &slots[slot.Dimension == 0 ? HookSlot_Vertex2 : HookSlot_Vertex3];
+        hookSlotPanel(app, slot, vertex);
+    }
+
+    ui->HorizontalSeparator("Hook output readback");
+    readbackPanel(app);
+#endif
+}
+
 // left: the dashboard and the manual as tabs, over the tests window. middle: the four galleries. right: the category
 // panels, as tabs. a window that is still docked cannot join a tree (asserted), and one can be left docked: a closed
 // panel inside a group the user docked together by hand. so every window of the tree is undocked first, which happens
@@ -5509,6 +6072,84 @@ static void setupCategories(App &app)
         .Pane = Pane_None,
         .Needs = Requires_Nothing});
 
+    Category &shaders = app.Categories[Category_Shaders];
+    shaders.Title = "Shaders";
+    shaders.Summary = "Default shader hot reload, shader hooks loaded from files, hook output readback";
+    shaders.Concepts =
+        "Onyx's default shaders are Slang, embedded as SPIR-V when Onyx is built. With a shader compilation backend "
+        "(GRAPHITE_SHADER_COMPILATION_BACKEND=slang) they can also be compiled at runtime from onyx/shaders: "
+        "ReloadShaders() recompiles them and drops every pipeline built from the old ones.\n\nA hook "
+        "(ONYX_ENABLE_HOOKS) "
+        "customizes the built in shapes without writing a whole shader: a vertex hook exports VertexHook and moves "
+        "vertices, a fragment hook exports FragmentHook and changes the color. Each is linked into the default shader "
+        "of "
+        "every geometry and pass it is used in, so it sees the instance, material and lighting work already done. A "
+        "context applies hooks like any other state (VertexHook(), FragmentHook()), and each variant compiles on first "
+        "use, or up front with Hook_Precompile.\n\nVaryings carry values from a vertex hook to a fragment hook. Global "
+        "data (SetHookGlobalData) and per instance data are read with Load functions, and hook outputs, declared at "
+        "Initialize, are extra images every view renders: a fragment hook writes them, and RequestHookReadback copies "
+        "one back to the CPU, a frame or more later.";
+    shaders.Panel = panelShaders;
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+    shaders.Visuals.Append(VisualCheck{
+        .Name = "Reloading the default shaders keeps the scene",
+        .Do = "Shaders panel: press Reload default shaders. No error shows, and every view looks the same after.",
+        .More = "Every pipeline is rebuilt from the new shaders on its next use. A difference means the runtime "
+                "compilation does not match the embedded shaders: compiler options, defines or search paths.",
+        .Priority = 95,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+#endif
+#ifdef ONYX_ENABLE_HOOKS
+    const auto nameSlot = [&](const HookSlotId id, const char *name, const Onyx::HookStage stage, const u32 dim) {
+        HookSlot &slot = app.Shaders.Slots[id];
+        slot.Name = name;
+        slot.Stage = stage;
+        slot.Dimension = dim;
+    };
+    nameSlot(HookSlot_Vertex2, "2D vertex hook", Onyx::HookStage_Vertex, 0);
+    nameSlot(HookSlot_Fragment2, "2D fragment hook", Onyx::HookStage_Fragment, 0);
+    nameSlot(HookSlot_Vertex3, "3D vertex hook", Onyx::HookStage_Vertex, 1);
+    nameSlot(HookSlot_Fragment3, "3D fragment hook", Onyx::HookStage_Fragment, 1);
+
+    shaders.Visuals.Append(VisualCheck{
+        .Name = "A fragment hook recolors the gallery",
+        .Do = "Load shader_hooks/stripes.slang as the 2D fragment hook, without varyings, and precompile it: every "
+              "2D gallery shape gets moving stripes, the grid stays plain.",
+        .More = "The hook inverts the color Onyx computed where a stripe is. Shaded shapes keep their lighting under "
+                "the stripes: the hook runs after it.",
+        .Priority = 96,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    shaders.Visuals.Append(VisualCheck{
+        .Name = "Varyings reach the fragment hook",
+        .Do = "Give both 2D hooks one varying, Height (float, smooth), then load shader_hooks/wave.slang as the vertex "
+              "hook and shader_hooks/height.slang as the fragment hook: shapes bob up and down, blue low, gold high.",
+        .More = "The vertex hook moves each vertex and writes the offset as a varying, interpolated across each "
+                "triangle. The color follows the motion exactly when the varying arrives intact.",
+        .Priority = 97,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    shaders.Visuals.Append(VisualCheck{
+        .Name = "Hook errors are readable",
+        .Do = "Load shader_hooks/broken.slang as a fragment hook and precompile it: the panel shows the compiler's "
+              "message with the file's own line numbers, and the gallery keeps drawing without it.",
+        .More = "Onyx puts an import in front of the hook's source and restores the line numbers after it, so a line "
+                "in the message is a line in the file.",
+        .Priority = 98,
+        .Pane = Pane_None,
+        .Needs = Requires_Nothing});
+    shaders.Visuals.Append(VisualCheck{
+        .Name = "The readback shows the hook output",
+        .Do = "With stripes.slang applied to the 2D gallery, press Read back: the image shows the stripes in white "
+              "wherever a 2D shape is, black elsewhere, framed like the gallery.",
+        .More = "Every view renders the Mask output, and only hooked shapes write to it. The readback copies the "
+                "gallery's whole image once, and the panel turns it into a texture.",
+        .Priority = 99,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+#endif
+
     app.LoadedVerdicts = loadVerdicts(app.Categories);
 }
 
@@ -5521,15 +6162,28 @@ int main()
     // the defaults cover most of this demo: only what differs is asked for, and the Resources panel measures every
     // maximum against what a frame uses. the per dimension maxima size real buffers once per resource group, while
     // pool caps such as MaxImages only reserve handles
-    Onyx::Initialize(
-        {.Platform = DemoPlatform,
-         .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
-         .ListenerCount = 1,
-         // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
-         .Specs2 = {.MaxInstances = 32000},
-         // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
-         // so the default single shadow map per light type is enough
-         .Specs3 = {.MaxInstances = 1024, .MaxDrawCommands = 1024, .MaxDynamicVertices = 0, .MaxDynamicIndices = 0}});
+    Onyx::Specs specs{
+        .Platform = DemoPlatform,
+        .MaxImages = 512, // framebuffers of 14 views (up to 18 images each), textures, shadow maps
+        .ListenerCount = 1,
+        // every visible glyph of the overlay is a 2D instance, and they peak with every panel open
+        .Specs2 = {.MaxInstances = 32000},
+        // a few dozen shapes, and no 3D dynamic meshes at all. the 3D gallery targets one view at a time,
+        // so the default single shadow map per light type is enough
+        .Specs3 = {.MaxInstances = 1024, .MaxDrawCommands = 1024, .MaxDynamicVertices = 0, .MaxDynamicIndices = 0}};
+#ifdef ONYX_ENABLE_HOOKS
+    // the globals every hook reads, and one output for fragment hooks to write, in both dimensions. every view gets an
+    // image for the output, cleared to opaque black, which the Shaders panel reads back
+    const Onyx::HookOutput mask{
+        .Name = HookOutputName, .Format = HookOutputFormat, .ClearValue = {.Float32 = f32v4{0.f, 0.f, 0.f, 1.f}}};
+    specs.Specs2.HookGlobalsSize = sizeof(HookGlobals);
+    specs.Specs2.HookOutputs.Append(mask);
+    specs.Specs3.HookGlobalsSize = sizeof(HookGlobals);
+    specs.Specs3.HookOutputs.Append(mask);
+    // the output adds an image to every framebuffer of every view, and a multisampled one with MSAA
+    specs.MaxImages += 128;
+#endif
+    Onyx::Initialize(specs);
     // the default pool sizes are kept: no getter gives them back, and the Resources panel measures the pools against
     // them
     const Onyx::DefaultResourcesOptions resourceOptions{};
@@ -5577,6 +6231,9 @@ int main()
         updatePresentCycle(app);
 #ifdef ONYX_ENABLE_AUDIO
         updateAudio(app);
+#endif
+#ifdef ONYX_ENABLE_HOOKS
+        updateHooks(app);
 #endif
 
         updateTests(app);

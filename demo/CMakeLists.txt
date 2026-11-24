@@ -25,6 +25,12 @@ add_executable(onyx-render-texture render_texture.cpp)
 tkit_default_configure(onyx-render-texture)
 target_link_libraries(onyx-render-texture PRIVATE onyx)
 
+if(ONYX_ENABLE_HOOKS)
+  add_executable(onyx-hooks hooks.cpp)
+  tkit_default_configure(onyx-hooks)
+  target_link_libraries(onyx-hooks PRIVATE onyx)
+endif()
+
 if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-text text.cpp)
   tkit_default_configure(onyx-text)
@@ -33,6 +39,10 @@ if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-control-center control_center.cpp)
   tkit_default_configure(onyx-control-center)
   target_link_libraries(onyx-control-center PRIVATE onyx)
+  # the Shaders panel's file dialog opens on the sample hooks
+  target_compile_definitions(
+    onyx-control-center
+    PRIVATE ONYX_DEMO_SHADER_HOOKS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shader_hooks")
 
   # the control center runs the automated tests through the onyx-tests
   # executable, when it is built

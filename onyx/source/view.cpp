@@ -11,11 +11,11 @@
 namespace Onyx
 {
 static ViewImage createColorAttachment(const u32v2 &ext, const TKit::Span<const Graph::Format> formats,
-                                       const Graph::SampleCount samples)
+                                       const Graph::SampleCount samples, const Graph::ImageFlags extraFlags = 0)
 {
     ViewImage img;
-    img.Image =
-        Graph::Image_Create(ext, {.Formats = formats}, Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled);
+    img.Image = Graph::Image_Create(ext, {.Formats = formats},
+                                    Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | extraFlags);
 
     for (const Graph::Format fmt : formats)
         Graph::Image_AddView(img.Image, {.Format = fmt});
@@ -170,8 +170,9 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
             fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
 #ifdef ONYX_ENABLE_HOOKS
         for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookOutputs)
-            fb.HookOutputs.Append(createColorAttachment(extent, output.Format, GetSpecs().SampleCount),
-                                  output.ClearValue);
+            fb.HookOutputs.Append(
+                createColorAttachment(extent, output.Format, GetSpecs().SampleCount, Graph::ImageFlag_Source),
+                output.ClearValue);
 #endif
 
         const Graph::Sampler nearSampler = Renderer_GetNearSampler();
@@ -870,6 +871,7 @@ template <Dimension D> bool RenderView<D>::TryGetHookReadback(const u32 ticket, 
     if (rb.State != HookReadbackState_Submitted || rb.Tracker.InUse())
         return false;
 
+    Graph::Buffer_Invalidate(rb.Buffer);
     TKit::ForwardCopy(data, Graph::Buffer_GetData(rb.Buffer), rb.Size);
     Graph::Buffer_Destroy(rb.Buffer);
     rb = HookReadback{};

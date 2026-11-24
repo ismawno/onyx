@@ -22,8 +22,8 @@ static void resetComb(ShaderCombination &comb, const bool forInit = false)
 }
 struct Hook
 {
-    Hook(const TKit::StringView source, const HookSpecs &specs)
-        : Source(source), SearchPath(specs.SearchPath), Varyings(specs.Varyings), Stage(specs.Stage)
+    Hook(const HookStage stage, const TKit::StringView source, const HookSpecs &specs)
+        : Source(source), SearchPath(specs.SearchPath), Varyings(specs.Varyings), Stage(stage)
     {
         resetComb(VertexOrOpaque, true);
         resetComb(Transparent, true);
@@ -37,9 +37,17 @@ struct Hook
     ShaderCombination VertexOrOpaque{};
     ShaderCombination Transparent{};
 
-    void Reset(const TKit::StringView source)
+    void Reset()
+    {
+        resetComb(VertexOrOpaque);
+        resetComb(Transparent);
+    }
+
+    void Reset(const TKit::StringView source, const HookSpecs &specs)
     {
         Source = source;
+        SearchPath = specs.SearchPath;
+        Varyings = specs.Varyings;
         resetComb(VertexOrOpaque);
         resetComb(Transparent);
     }
@@ -76,30 +84,31 @@ void Hook_Terminate()
     s_Data.Destruct();
 }
 
-template <Dimension D> Resource Hook_FromSource(const TKit::StringView source, const HookSpecs &specs)
+template <Dimension D>
+Resource Hook_FromSource(const HookStage stage, const TKit::StringView source, const HookSpecs &specs)
 {
     HookData &data = s_Data->At(D - 2);
     // in debug youll see counts be max + 1 if this trips, its fine
-    TKIT_ENSURE(
-        data.Counts[specs.Stage]++ < s_MaxHooks[specs.Stage],
-        "[ONYX][SHADER-HOOK] Cannot create {}D shader hook of specs.Stage {} as there are already the maximum amount "
-        "for this specs.Stage ({})",
-        u8(D), ToString(specs.Stage), s_MaxHooks[specs.Stage]);
+    TKIT_ENSURE(data.Counts[stage]++ < s_MaxHooks[stage],
+                "[ONYX][SHADER-HOOK] Cannot create {}D shader hook of stage {} as there are already the maximum amount "
+                "for this stage ({})",
+                u8(D), ToString(stage), s_MaxHooks[stage]);
 
-    const ResourceType rtype = specs.Stage == HookStage_Vertex ? Resource_VertexHook : Resource_FragmentHook;
-    return Handle_CreateForResource(rtype, data.Hooks[specs.Stage].Insert(source, specs));
+    const ResourceType rtype = stage == HookStage_Vertex ? Resource_VertexHook : Resource_FragmentHook;
+    return Handle_CreateForResource(rtype, data.Hooks[stage].Insert(stage, source, specs));
 }
 
-template <Dimension D> Result<Resource> Hook_FromFile(const TKit::TierPath &filepath, const HookSpecs &specs)
+template <Dimension D>
+Result<Resource> Hook_FromFile(const HookStage stage, const TKit::TierPath &filepath, const HookSpecs &specs)
 {
-    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][SHADER-HOOK] Audio file '{}' does not exist",
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][SHADER-HOOK] Shader file '{}' does not exist",
                                        "[ONYX][SHADER-HOOK] Expected an audio file at '{}', but found a directory");
 
     const auto res = TKit::ReadFile<TKit::StackString>(filepath);
     ONYX_RETURN_ERROR_IF(!res, Error_LoadFailed, "[ONYX][SHADER-HOOK] Failed to load shader at '{}' with error: {}",
                          filepath, TKit::ToString(res.GetError()));
 
-    return Hook_FromSource<D>(*res, specs);
+    return Hook_FromSource<D>(stage, *res, specs);
 }
 
 template <Dimension D> static Hook &getHook(const Resource handle)
@@ -114,6 +123,27 @@ template <Dimension D> static Hook &getHook(const Resource handle)
     return s_Data->At(D - 2).Hooks[HookStage_Fragment][Handle_GetResourceId(handle)];
 }
 
+template <Dimension D>
+void Hook_UpdateFromSource(const Resource handle, const TKit::StringView source, const HookSpecs &specs)
+{
+    Hook &hook = getHook<D>(handle);
+    hook.Reset(source, specs);
+}
+template <Dimension D>
+ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(const Resource handle, const TKit::TierPath &filepath,
+                                             const HookSpecs &specs)
+{
+    ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][SHADER-HOOK] Shader file '{}' does not exist",
+                                       "[ONYX][SHADER-HOOK] Expected an audio file at '{}', but found a directory");
+
+    const auto res = TKit::ReadFile<TKit::StackString>(filepath);
+    ONYX_RETURN_ERROR_IF(!res, Error_LoadFailed, "[ONYX][SHADER-HOOK] Failed to load shader at '{}' with error: {}",
+                         filepath, TKit::ToString(res.GetError()));
+
+    Hook_UpdateFromSource<D>(handle, *res, specs);
+    return Result<>::Ok();
+}
+
 template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts)
 {
     ShaderCompileOptions copts{};
@@ -124,8 +154,8 @@ template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 fie
         copts.RenderPasses[RenderPass_Shadow] = false;
 
     HookCompileOptions hopts{};
-    const RenderState mask = hook.Stage == HookStage_Vertex ? VertexHook_Mask : FragmentHook_Mask;
-    hopts.HookBitField = field << mask;
+    const RenderState offset = hook.Stage == HookStage_Vertex ? VertexHook_Offset : FragmentHook_Offset;
+    hopts.HookBitField = field << offset;
     hopts.Stage = hook.Stage;
     hopts.Varyings = hook.Varyings;
     hopts.SearchPath = hook.SearchPath;
@@ -186,6 +216,19 @@ HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, 
     return shaders;
 }
 
+template <Dimension D> void hook_ResetAll()
+{
+    for (auto &hooks : s_Data->At(D - 2).Hooks)
+        for (Hook &hook : hooks)
+            hook.Reset();
+}
+
+void Hook_ResetAll()
+{
+    hook_ResetAll<D2>();
+    hook_ResetAll<D3>();
+}
+
 template <Dimension D> bool vertexHook_IsResourceValid(const u32 id)
 {
     return s_Data->At(D - 2).Hooks[HookStage_Vertex].Contains(id);
@@ -208,8 +251,17 @@ const char *ToString(const HookStage stage)
         return "Unknown";
     }
 }
-template Resource Hook_FromSource<D2>(TKit::StringView source, const HookSpecs &specs);
-template Resource Hook_FromSource<D3>(TKit::StringView source, const HookSpecs &specs);
+template Resource Hook_FromSource<D2>(HookStage stage, TKit::StringView source, const HookSpecs &specs);
+template Resource Hook_FromSource<D3>(HookStage stage, TKit::StringView source, const HookSpecs &specs);
+
+template Result<Resource> Hook_FromFile<D2>(HookStage stage, const TKit::TierPath &filepath, const HookSpecs &specs);
+template Result<Resource> Hook_FromFile<D3>(HookStage stage, const TKit::TierPath &filepath, const HookSpecs &specs);
+
+template void Hook_UpdateFromSource<D2>(Resource hook, TKit::StringView source, const HookSpecs &specs);
+template void Hook_UpdateFromSource<D3>(Resource hook, TKit::StringView source, const HookSpecs &specs);
+
+template Result<> Hook_UpdateFromFile<D2>(Resource hook, const TKit::TierPath &filepath, const HookSpecs &specs);
+template Result<> Hook_UpdateFromFile<D3>(Resource hook, const TKit::TierPath &filepath, const HookSpecs &specs);
 
 template Result<> Hook_Precompile<D2>(Resource handle, const HookPrecompileOptions &opts);
 template Result<> Hook_Precompile<D3>(Resource handle, const HookPrecompileOptions &opts);

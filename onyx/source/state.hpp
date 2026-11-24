@@ -5,16 +5,6 @@
 
 namespace Onyx
 {
-enum StandalonePass : u8
-{
-    StandalonePass_RayMarch,
-    StandalonePass_Blend,
-    StandalonePass_Outline,
-    StandalonePass_FXAA,
-    StandalonePass_Compositor,
-    StandalonePass_Count,
-};
-
 enum AttachmentKind : u8
 {
     AttachmentKind_SrgbColor,

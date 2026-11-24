@@ -554,6 +554,14 @@ void Initialize(const Specs &specs)
 {
     TKIT_BEGIN_INFO_CLOCK();
     s_Specs = specs;
+#ifdef ONYX_ENABLE_HOOKS
+    const auto roundp2 = [](const u32 size, const u32 round) { return (size + (round - 1)) & ~(round - 1); };
+    s_Specs.Specs2.HookGlobalsSize = roundp2(s_Specs.Specs2.HookGlobalsSize, 16);
+    s_Specs.Specs3.HookGlobalsSize = roundp2(s_Specs.Specs3.HookGlobalsSize, 16);
+
+    s_Specs.Specs2.HookInstanceSize = roundp2(s_Specs.Specs2.HookInstanceSize, 4);
+    s_Specs.Specs3.HookInstanceSize = roundp2(s_Specs.Specs3.HookInstanceSize, 4);
+#endif
 
     core_Initialize(specs);
     platform_Initialize();

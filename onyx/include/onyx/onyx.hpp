@@ -72,6 +72,34 @@ void SetHookGlobalData(const T *data)
 bool Running();
 void Quit(QuitFlags flags = 0);
 
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+struct ShaderCompileOptions
+{
+    TKit::FixedArray<bool, D_Count> Dimensions{};
+    TKit::FixedArray<bool, RenderPass_Count> RenderPasses{};
+    TKit::FixedArray<bool, Geometry_Count> Geometries{};
+    TKit::FixedArray<bool, StandalonePass_Count> Standalone{};
+
+    template <u32 Count> static constexpr TKit::FixedArray<bool, Count> &Full(TKit::FixedArray<bool, Count> &arr)
+    {
+        for (bool &b : arr)
+            b = true;
+        return arr;
+    }
+
+    static constexpr ShaderCompileOptions Full()
+    {
+        ShaderCompileOptions opts;
+        Full(opts.Dimensions);
+        Full(opts.RenderPasses);
+        Full(opts.Geometries);
+        Full(opts.Standalone);
+        return opts;
+    }
+};
+ONYX_NO_DISCARD Result<> ReloadShaders(const ShaderCompileOptions &opts);
+#endif
+
 struct RenderInfo
 {
     u64 AcquireImageTimeout = Block;

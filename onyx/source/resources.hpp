@@ -39,5 +39,6 @@ struct HookShaders
     Graph::Shader Transparent = Graph::NullHandle;
 };
 template <Dimension D> HookShaders Hook_GetFromRenderState(RenderPass rpass, Geometry geo, RenderState state);
+void Hook_ResetAll();
 #endif
 } // namespace Onyx

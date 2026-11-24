@@ -6,7 +6,7 @@
 #ifdef ONYX_ENABLE_HOOKS
 #    include "onyx/hook.hpp"
 #endif
-#include "state.hpp"
+#include "onyx/onyx.hpp"
 #include "graph/descriptor.hpp"
 
 namespace Onyx
@@ -76,13 +76,10 @@ struct HookCompileOptions
     RenderState HookBitField = 0;
 };
 #    endif
-struct ShaderCompileOptions
+struct RendererShaderCompileOptions
 {
-    TKit::FixedArray<bool, D_Count> Dimensions{};
-    TKit::FixedArray<bool, RenderPass_Count> RenderPasses{};
-    TKit::FixedArray<bool, Geometry_Count> Geometries{};
-    // ignored if HookOptions is not null
-    TKit::FixedArray<bool, StandalonePass_Count> Standalone{};
+    // Standalone is ignored if HookOptions is not null
+    ShaderCompileOptions Options{};
 
 #    ifdef ONYX_ENABLE_HOOKS
     // if hook options are null, compilation will be done for the default shaders with no hooks, replacing old default
@@ -91,25 +88,8 @@ struct ShaderCompileOptions
     // will be replaced
     const HookCompileOptions *HookOptions = nullptr;
 #    endif
-
-    template <u32 Count> static constexpr TKit::FixedArray<bool, Count> &Full(TKit::FixedArray<bool, Count> &arr)
-    {
-        for (bool &b : arr)
-            b = true;
-        return arr;
-    }
-
-    static constexpr ShaderCompileOptions Full()
-    {
-        ShaderCompileOptions opts;
-        Full(opts.Dimensions);
-        Full(opts.RenderPasses);
-        Full(opts.Geometries);
-        Full(opts.Standalone);
-        return opts;
-    }
 };
-ONYX_NO_DISCARD Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts);
+ONYX_NO_DISCARD Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &opts);
 #endif
 
 // consider having arrays of semaphores to allow for some flexibility

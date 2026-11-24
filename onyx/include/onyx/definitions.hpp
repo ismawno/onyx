@@ -85,11 +85,11 @@
 
 #ifdef ONYX_ENABLE_HOOKS
 #    ifndef ONYX_MAX_VERTEX_HOOKS
-#        define ONYX_MAX_VERTEX_HOOKS 4
+#        define ONYX_MAX_VERTEX_HOOKS 2
 #    endif
 
 #    ifndef ONYX_MAX_FRAGMENT_HOOKS
-#        define ONYX_MAX_FRAGMENT_HOOKS 4
+#        define ONYX_MAX_FRAGMENT_HOOKS 2
 #    endif
 
 #else

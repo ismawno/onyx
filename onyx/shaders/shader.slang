@@ -199,7 +199,7 @@ struct FragInput
     f32m3 TBN;
 #endif
 #ifdef ONYX_HOOK_VARYINGS
-    [[vk::location(8)]]
+    [[vk::location(10)]]
     HookVaryings Varyings;
 #endif
 
@@ -355,8 +355,8 @@ FragInput mainVS(
 
 #ifdef ONYX_VERTEX_HOOK
     VertexHookInput vhInput;
-    vhInput.LocalPosition = HookVec(shiftedPos);
-    vhInput.WorldPosition = HookVec(worldPos);
+    vhInput.LocalPosition = ONYX_VEC(shiftedPos);
+    vhInput.WorldPosition = ONYX_VEC(worldPos);
 #    ifndef ONYX_PASS_SHADOW
     vhInput.TexCoord = uv;
 #    else
@@ -380,10 +380,15 @@ FragInput mainVS(
     vhInput.Instance = g_HookInstances[instanceIndex];
 #    endif
     const VertexHookOutput vhOutput = VertexHook(vhInput);
-    finput.Position = mul(ONYX_VEC4(vhOutput.WorldPosition), g_PushData.ProjectionView);
-#ifdef ONYX_HOOK_VARYINGS
+#    ifdef ONYX_DIMENSION_2D
+    const f32v4 wpos = f32v4(vhOutput.WorldPosition, 0.0, 1.0);
+#    else
+    const f32v4 wpos = f32v4(vhOutput.WorldPosition, 1.0);
+#    endif
+    finput.Position = mul(wpos, g_PushData.ProjectionView);
+#    ifdef ONYX_HOOK_VARYINGS
     finput.Varyings = vhOutput.Varyings;
-#endif
+#    endif
 #else
     finput.Position = mul(worldPos, g_PushData.ProjectionView);
 #endif
