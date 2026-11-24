@@ -1024,9 +1024,9 @@ struct HookSlot
     Path File{};
     VaryingArray Varyings{};       // as edited
     VaryingArray LoadedVaryings{}; // as the hook was loaded with
-    bool Apply = true;
-    bool Compiled = false; // precompiled since it was last loaded
-    String Error{};        // from the last load or precompile
+    bool Apply = false;            // off until asked, so a hook can be precompiled and its errors read here first
+    bool Compiled = false;         // precompiled since it was last loaded
+    String Error{};                // from the last load or precompile
     f32 SucceededAt = -100.f;
     f32 Milliseconds = 0.f;
 };
@@ -5212,6 +5212,9 @@ static void hookSlotPanel(App &app, HookSlot &slot, const HookSlot *vertex)
 
         ui->CheckBox(slot.Dimension == 0 ? "Apply to the 2D gallery##apply" : "Apply to the 3D gallery##apply",
                      &slot.Apply);
+        tooltip(ui, Theme::Accent, "Draws the gallery with this hook",
+                "Variants that are not precompiled compile on first use, and their errors only reach the log. "
+                "Precompile first to read them here.");
 
         if (!slot.Error.IsEmpty())
             errorBox(ui, "The last load or precompile failed", slot.Error);
@@ -6193,8 +6196,8 @@ static void setupCategories(App &app)
 
     shaders.Visuals.Append(VisualCheck{
         .Name = "A fragment hook recolors the gallery",
-        .Do = "Load shader_hooks/stripes.slang as the 2D fragment hook, without varyings, and precompile it: every "
-              "2D gallery shape gets moving stripes, the grid stays plain.",
+        .Do = "Load shader_hooks/stripes.slang as the 2D fragment hook, without varyings, precompile it and turn Apply "
+              "on: every 2D gallery shape gets moving stripes, the grid stays plain.",
         .More = "The hook inverts the color Onyx computed where a stripe is. Shaded shapes keep their lighting under "
                 "the stripes: the hook runs after it.",
         .Priority = 96,
@@ -6203,7 +6206,9 @@ static void setupCategories(App &app)
     shaders.Visuals.Append(VisualCheck{
         .Name = "Varyings reach the fragment hook",
         .Do = "Give both 2D hooks one varying, Height (float, smooth), then load shader_hooks/wave.slang as the vertex "
-              "hook and shader_hooks/height.slang as the fragment hook: shapes bob up and down, blue low, gold high.",
+              "hook and shader_hooks/height.slang as the fragment hook, and apply both: shapes bob up and down, blue "
+              "low, "
+              "gold high.",
         .More = "The vertex hook moves each vertex and writes the offset as a varying, interpolated across each "
                 "triangle. The color follows the motion exactly when the varying arrives intact.",
         .Priority = 97,
