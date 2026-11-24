@@ -421,6 +421,7 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Async shader compilation
 // TODO(Isma): Implement materials in shaders
 // TODO(Isma): Implement forward rendering+
 // TODO(Isma): Fix ENGINE_BUGS.md
