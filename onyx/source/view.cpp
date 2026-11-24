@@ -169,7 +169,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
             fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
 #ifdef ONYX_ENABLE_HOOKS
-        for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookImages)
+        for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookOutputs)
             fb.HookImages.Append(
                 createColorAttachment(extent, output.Format, GetSpecs().SampleCount, Graph::ImageFlag_Source),
                 output.ClearValue);
@@ -839,7 +839,7 @@ template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffe
 #ifdef ONYX_ENABLE_HOOKS
 template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookReadback(const HookReadbackSpecs &specs)
 {
-    TKIT_ASSERT(specs.Slot < GetSpecs().GetSpecific<D>().HookImages.GetSize(),
+    TKIT_ASSERT(specs.Slot < GetSpecs().GetSpecific<D>().HookOutputs.GetSize(),
                 "[ONYX][VIEW] Hook output slot {} does not exist", specs.Slot);
     TKIT_ASSERT(specs.Extent[0] != 0 && specs.Extent[1] != 0, "[ONYX][VIEW] Hook readback extent must not be empty");
 
@@ -854,7 +854,7 @@ template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookRead
         if (rb.State != HookReadbackState_Free)
             continue;
 
-        const usz bpp = Graph::Format_GetBytesPerPixel(GetSpecs().GetSpecific<D>().HookImages[specs.Slot].Format);
+        const usz bpp = Graph::Format_GetBytesPerPixel(GetSpecs().GetSpecific<D>().HookOutputs[specs.Slot].Format);
         rb.Size = usz(specs.Extent[0]) * specs.Extent[1] * bpp;
         rb.Buffer = Graph::Buffer_Create(rb.Size, Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess |
                                                       Graph::BufferFlag_Destination);
