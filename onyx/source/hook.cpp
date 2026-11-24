@@ -166,6 +166,11 @@ ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(const Resource handle, const TKit::
     return Result<>::Ok();
 }
 
+template <Dimension D> HookStage Hook_GetStage(const Resource handle)
+{
+    return getHook<D>(handle).Stage;
+}
+
 template <Dimension D>
 static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts,
                                 const bool removeStalePipelines = true)
@@ -201,6 +206,16 @@ template <Dimension D> Result<> Hook_Precompile(const Resource handle, const Hoo
     return hook_Precompile<D>(hook, Handle_GetResourceId(handle) + 1, opts);
 }
 
+static bool sameVaryings(const TKit::TierArray<HookVarying> &a, const TKit::TierArray<HookVarying> &b)
+{
+    if (a.GetSize() != b.GetSize())
+        return false;
+    for (u32 i = 0; i < a.GetSize(); ++i)
+        if (a[i].Name != b[i].Name || a[i].Type != b[i].Type || a[i].Interpolation != b[i].Interpolation)
+            return false;
+    return true;
+}
+
 template <Dimension D>
 HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, const RenderState state)
 {
@@ -224,19 +239,30 @@ HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, 
         return &hook;
     };
 
+    const Hook *vhook = nullptr;
     if (vfield != 0)
     {
-        const Hook *hook = precompileIfNeeded(HookStage_Vertex, vfield);
-        if (hook)
-            shaders.Vertex = hook->VertexOrOpaque[rpass][geo];
+        vhook = precompileIfNeeded(HookStage_Vertex, vfield);
+        if (vhook)
+            shaders.Vertex = vhook->VertexOrOpaque[rpass][geo];
     }
     if (ffield != 0)
     {
-        const Hook *hook = precompileIfNeeded(HookStage_Fragment, ffield);
-        if (hook)
+        const Hook *fhook = precompileIfNeeded(HookStage_Fragment, ffield);
+
+        TKIT_LOG_WARNING(
+            "[ONYX][SHADER-HOOK] {}D fragment hook {} reads varyings that no vertex hook writes for this draw: the "
+            "vertex hook is missing, failed to compile, or declares different varyings. The default fragment "
+            "shader is used instead",
+            u8(D), ffield - 1);
+
+        const bool varyingsMatch =
+            fhook && (fhook->Varyings.IsEmpty() ||
+                      (vhook && shaders.Vertex != Graph::NullHandle && sameVaryings(vhook->Varyings, fhook->Varyings)));
+        if (varyingsMatch)
         {
-            shaders.Opaque = hook->VertexOrOpaque[rpass][geo];
-            shaders.Transparent = hook->Transparent[rpass][geo];
+            shaders.Opaque = fhook->VertexOrOpaque[rpass][geo];
+            shaders.Transparent = fhook->Transparent[rpass][geo];
         }
     }
     return shaders;
@@ -300,4 +326,7 @@ template bool fragmentHook_IsResourceValid<D3>(u32 id);
 
 template HookShaders Hook_GetFromRenderState<D2>(RenderPass rpass, Geometry geo, RenderState state);
 template HookShaders Hook_GetFromRenderState<D3>(RenderPass rpass, Geometry geo, RenderState state);
+
+template HookStage Hook_GetStage<D2>(Resource handle);
+template HookStage Hook_GetStage<D3>(Resource handle);
 } // namespace Onyx

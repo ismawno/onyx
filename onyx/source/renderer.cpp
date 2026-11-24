@@ -515,6 +515,9 @@ template <Dimension D> static void removeStalePipelines(const RemoveStalePipelin
         }
 #    endif
         pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
+        // outline only pipelines (no fill) are built for the flat pass too
+        if (rpass == RenderPass_Flat)
+            pips.Query(value & ~FillMode_Mask, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
     }
 }
 static bool isOldMesa()

@@ -69,6 +69,8 @@ template <Dimension D>
 ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(Resource hook, const TKit::TierPath &filepath,
                                              const HookSpecs &specs = {});
 
+template <Dimension D> HookStage Hook_GetStage(Resource hook);
+
 struct HookPrecompileOptions
 {
     TKit::FixedArray<bool, RenderPass_Count> RenderPasses{};

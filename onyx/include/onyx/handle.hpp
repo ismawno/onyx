@@ -18,14 +18,17 @@
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(hndl)                                                       \
         ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl);                                                               \
         TKIT_ASSERT(Onyx::Resource_HasPool(Onyx::Handle_GetResourceType(hndl)),                                        \
-                    "[ONYX][RESOURCES] The handle {:#010x} is a '{}' handle, which does not have any resource pool "   \
+                    "[ONYX][RESOURCES] The handle {:#010x} (with id {}) is a '{}' handle, which does not have any "    \
+                    "resource pool "                                                                                   \
                     "associated",                                                                                      \
-                    hndl, Onyx::ToString(Onyx::Handle_GetResourceType(hndl)))
+                    hndl, Onyx::Handle_GetResourceId(hndl), Onyx::ToString(Onyx::Handle_GetResourceType(hndl)))
 
 #    define __ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype)                                                         \
-        TKIT_ASSERT(Onyx::Handle_GetResourceType(hndl) == rtype,                                                       \
-                    "[ONYX][RESOURCES] The handle {:#010x} is not a '{}' handle, but rather a '{}' handle", hndl,      \
-                    Onyx::ToString(rtype), Onyx::ToString(Onyx::Handle_GetResourceType(hndl)))
+        TKIT_ASSERT(                                                                                                   \
+            Onyx::Handle_GetResourceType(hndl) == rtype,                                                               \
+            "[ONYX][RESOURCES] The handle {:#010x} (with id {}) is not a '{}' handle, but rather a '{}' handle", hndl, \
+            Onyx::Handle_GetResourceId(hndl), Onyx::ToString(rtype),                                                   \
+            Onyx::ToString(Onyx::Handle_GetResourceType(hndl)))
 
 #    define ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype)                                                           \
         ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(hndl);                                                               \
@@ -50,24 +53,26 @@
 #    define ONYX_CHECK_RESOURCE_IS_VALID(hndl, rtype)                                                                  \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype);                                                              \
         TKIT_ASSERT(Onyx::IsResourceValid(hndl, rtype),                                                                \
-                    "[ONYX][RESOURCES] The handle {:#010x} is not a valid '{}' handle", hndl, ToString(rtype))
+                    "[ONYX][RESOURCES] The handle {:#010x} (with id {}) is not a valid '{}' handle", hndl,             \
+                    Onyx::Handle_GetResourceId(hndl), ToString(rtype))
 
 #    define ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(hndl, rtype, dim)                                                    \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(hndl, rtype);                                                              \
         TKIT_ASSERT(Onyx::IsResourceValid<dim>(hndl, rtype),                                                           \
-                    "[ONYX][RESOURCES] The handle {:#010x} is not a valid '{}' handle", hndl, ToString(rtype))
+                    "[ONYX][RESOURCES] The handle {:#010x} (with id {}) is not a valid '{}' handle", hndl,             \
+                    Onyx::Handle_GetResourceId(hndl), ToString(rtype))
 
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID(hndl, ptype)                                                             \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(hndl, ptype);                                                         \
         TKIT_ASSERT(Onyx::IsResourcePoolValid(hndl, ptype),                                                            \
-                    "[ONYX][RESOURCES] The handle {:#010x} does not contain a valid '{}' pool handle", hndl,           \
-                    ToString(ptype))
+                    "[ONYX][RESOURCES] The handle {:#010x} (with id {}) does not contain a valid '{}' pool handle",    \
+                    hndl, Onyx::Handle_GetResourcePoolId(hndl), ToString(ptype))
 
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(hndl, ptype, dim)                                               \
         ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(hndl, ptype);                                                         \
         TKIT_ASSERT(Onyx::IsResourcePoolValid<dim>(hndl, ptype),                                                       \
-                    "[ONYX][RESOURCES] The handle {:#010x} does not contain a valid '{}' pool handle", hndl,           \
-                    ToString(ptype))
+                    "[ONYX][RESOURCES] The handle {:#010x} (with id {}) does not contain a valid '{}' pool handle",    \
+                    hndl, Onyx::Handle_GetResourcePoolId(hndl), ToString(ptype))
 
 #    define ONYX_CHECK_RESOURCE_HANDLE(handle, rtype)                                                                  \
         ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                       \
@@ -188,16 +193,15 @@ constexpr Resource Handle_CreateForResource(const ResourceType rtype, const u32 
     TKIT_ASSERT(rtype < Resource_Count,
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
     TKIT_ASSERT(resourceId <= ONYX_POSSIBLE_RESOURCE_IDS,
-                "[ONYX][RESOURCES] Cannot create a resource handle with a resource id ({:#010x}) "
+                "[ONYX][RESOURCES] Cannot create a resource handle with a resource id ({}) "
                 "that exceeds the maximum bits allocated "
-                "for it, as it would break the handle",
-                resourceId);
-    TKIT_ASSERT(
-        poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
-        "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({:#010x}) that exceeds the maximum bits "
-        "allocated "
-        "for it, as it would break the handle",
-        poolId);
+                "for it, as it would break the handle. Resource type: {}",
+                resourceId, ToString(rtype));
+    TKIT_ASSERT(poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
+                "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({}) that exceeds the maximum bits "
+                "allocated "
+                "for it, as it would break the handle. Resource type: {}",
+                poolId, ToString(rtype));
     return (u32(rtype) << ONYX_RESOURCE_TYPE_SHIFT) | (poolId << ONYX_RESOURCE_POOL_SHIFT) | resourceId;
 }
 
@@ -205,12 +209,11 @@ constexpr ResourcePool Handle_CreateForResourcePool(const ResourceType rtype, co
 {
     TKIT_ASSERT(Resource_HasPool(rtype),
                 "[ONYX][RESOURCES] Cannot create a resource handle with an invalid resource type");
-    TKIT_ASSERT(
-        poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
-        "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({:#010x}) that exceeds the maximum bits "
-        "allocated "
-        "for it, as it would break the handle",
-        poolId);
+    TKIT_ASSERT(poolId <= ONYX_POSSIBLE_RESOURCE_POOLS,
+                "[ONYX][RESOURCES] Cannot create a resource handle with a pool id ({}) that exceeds the maximum bits "
+                "allocated "
+                "for it, as it would break the handle. Resource type: {}",
+                poolId, ToString(rtype));
     return (u32(rtype) << ONYX_RESOURCE_TYPE_SHIFT) | (poolId << ONYX_RESOURCE_POOL_SHIFT) | NullResource;
 }
 // namespace Resources

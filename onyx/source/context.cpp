@@ -97,25 +97,26 @@ void checkSampler(const Resource sampler, const Resource material = NullHandle,
     if (material == NullHandle)
     {
         TKIT_ENSURE(Handle_IsResourceNull(sampler) || IsResourceValid<D>(sampler, Resource_Sampler),
-                    "[ONYX][CONTEXT] The sampler handle {:#010x} is invalid and is not "
+                    "[ONYX][CONTEXT] The sampler handle {:#010x} (with id {}) is invalid and is not "
                     "an explicit null sampler",
-                    sampler);
+                    sampler, Handle_GetResourceId(sampler));
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
         TKIT_ENSURE(Handle_IsResourceNull(sampler) || IsResourceValid<D>(sampler, Resource_Sampler),
-                    "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
+                    "[ONYX][CONTEXT] The sampler handle {:#010x} (with id {}) from the material handle {:#010x} (with "
+                    "id {}) at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null sampler",
-                    sampler, material, ToString(slot));
+                    sampler, Handle_GetResourceId(sampler), material, Handle_GetResourceId(material), ToString(slot));
     }
     else
     {
-        TKIT_ENSURE(
-            Handle_IsResourceNull(sampler) || IsResourceValid<D>(sampler, Resource_Sampler),
-            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
-            "an explicit null sampler",
-            sampler, material);
+        TKIT_ENSURE(Handle_IsResourceNull(sampler) || IsResourceValid<D>(sampler, Resource_Sampler),
+                    "[ONYX][CONTEXT] The sampler handle {:#010x} (with id {}) from the material handle {:#010x} (with "
+                    "id {}) is invalid and is not "
+                    "an explicit null sampler",
+                    sampler, Handle_GetResourceId(sampler), material, Handle_GetResourceId(material));
     }
     TKIT_COMPILER_WARNING_IGNORE_POP()
 }
@@ -127,33 +128,35 @@ void checkTexture(const Resource tex, const Resource material = NullHandle, cons
     if (material == NullHandle)
     {
         TKIT_ENSURE(Handle_IsResourceNull(tex) || IsResourceValid<D>(tex, Resource_Texture),
-                    "[ONYX][CONTEXT] The texture handle {:#010x} is invalid and is not "
+                    "[ONYX][CONTEXT] The texture handle {:#010x} (with id {}) is invalid and is not "
                     "an explicit null texture",
-                    tex);
+                    tex, Handle_GetResourceId(tex));
     }
     else if (D == D3 && slot != TextureSlot_Count)
     {
         TKIT_ENSURE(Handle_IsResourceNull(tex) || IsResourceValid<D>(tex, Resource_Texture),
-                    "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
+                    "[ONYX][CONTEXT] The texture handle {:#010x} (with id {}) from the material handle {:#010x} (with "
+                    "id {}) at texture "
                     "slot '{}' is "
                     "invalid and is not an explicit null texture",
-                    tex, material, ToString(slot));
+                    tex, Handle_GetResourceId(tex), material, Handle_GetResourceId(material), ToString(slot));
     }
     else
     {
-        TKIT_ENSURE(
-            Handle_IsResourceNull(tex) || IsResourceValid<D>(tex, Resource_Texture),
-            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
-            "an explicit null texture",
-            tex, material);
+        TKIT_ENSURE(Handle_IsResourceNull(tex) || IsResourceValid<D>(tex, Resource_Texture),
+                    "[ONYX][CONTEXT] The texture handle {:#010x} (with id {}) from the material handle {:#010x} is "
+                    "invalid and is not "
+                    "an explicit null texture",
+                    tex, material, Handle_GetResourceId(material));
     }
     TKIT_COMPILER_WARNING_IGNORE_POP()
 }
 template <Dimension D> void checkMaterial(const Resource material)
 {
-    TKIT_ENSURE(Handle_IsResourceNull(material) || IsResourceValid<D>(material, Resource_Material),
-                "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
-                material);
+    TKIT_ENSURE(
+        Handle_IsResourceNull(material) || IsResourceValid<D>(material, Resource_Material),
+        "[ONYX][CONTEX] The material handle {:#010x} (with id {}) is invalid and is not an explicit null material",
+        material, Handle_GetResourceId(material));
     if (!Handle_IsResourceNull(material))
     {
         const MaterialData<D> &data = Material_GetData<D>(material);

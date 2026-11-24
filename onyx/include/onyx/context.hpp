@@ -6,6 +6,9 @@
 #include "onyx/font.hpp"
 #include "onyx/view.hpp"
 #include "onyx/layout.hpp"
+#ifdef ONYX_ENABLE_HOOKS
+#    include "onyx/hook.hpp"
+#endif
 
 namespace Onyx
 {
@@ -642,6 +645,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         if (hook != Graph::NullHandle)
         {
             ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_VertexHook);
+            TKIT_ASSERT(Hook_GetStage<D>(hook) == HookStage_Vertex,
+                        "[ONYX][CONTEXT] The hook handle {:#010x} does not point to a vertex hook", hook);
             m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << VertexHook_Offset;
         }
     }
@@ -651,6 +656,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         if (hook != Graph::NullHandle)
         {
             ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_FragmentHook);
+            TKIT_ASSERT(Hook_GetStage<D>(hook) == HookStage_Fragment,
+                        "[ONYX][CONTEXT] The hook handle {:#010x} does not point to a fragment hook", hook);
             m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << FragmentHook_Offset;
         }
     }

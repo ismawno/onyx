@@ -363,7 +363,9 @@ static void sampler_WriteDescriptors(const Resource handle)
 {
     const Graph::Sampler sampler = sampler_Get(handle);
     if (Graph::IsValidationEnabled())
-        Graph::Sampler_SetName(sampler, TKit::StackString::Format("onyx-resources-sampler-{:#010x}", handle).CString());
+        Graph::Sampler_SetName(sampler, TKit::StackString::Format("onyx-resources-sampler-{:#010x}-id-{}", handle,
+                                                                  Handle_GetResourceId(handle))
+                                            .CString());
 
     const u32 sid = Handle_GetResourceId(handle);
     Renderer_WriteSamplerDescriptor<D2>(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, RenderPass_Shaded, sid);
@@ -414,7 +416,8 @@ void Sampler_Update(const Resource handle, const SamplerData &data)
 
 void Sampler_Destroy(const Resource handle)
 {
-    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying sampler with handle {:#010x}", handle);
+    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying sampler with handle {:#010x} an id {}", handle,
+                   Handle_GetResourceId(handle));
     ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
     sampler_RemoveReferences<D2>(handle);
@@ -495,7 +498,8 @@ Resource Image_Create(const ImageData &data)
 
     if (Graph::IsValidationEnabled())
     {
-        const TKit::StackString name = TKit::StackString::Format("onyx-resources-image-{:#010x}", handle);
+        const TKit::StackString name =
+            TKit::StackString::Format("onyx-resources-image-{:#010x}-id-{}", handle, Handle_GetResourceId(handle));
         Graph::Image_SetName(img.Image, name.CString());
     }
     return handle;
@@ -504,7 +508,8 @@ Resource Image_Create(const ImageData &data)
 static void texture_Destroy(const Resource handle);
 void Image_Destroy(const Resource handle)
 {
-    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying image with handle {:#010x}", handle);
+    TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying image with handle {:#010x} and id {}", handle,
+                   Handle_GetResourceId(handle));
     ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     ImageInfo &img = image_Get(handle);
@@ -635,11 +640,12 @@ void texture_CheckNotAtlas(const Resource handle)
     for (const FontPool &fpool : s_FontData->Pools)
         for (const FontMeshInfo &finfo : fpool.Meshes)
         {
-            TKIT_ENSURE(finfo.AtlasTexture != handle,
-                        "[ONYX][RESOURCES] Attempting to destroy texture with handle {:#010x}, which is a font atlas "
-                        "managed by an active font! It is not possible to directly destroy or manage font atlases "
-                        "through the texture API",
-                        handle);
+            TKIT_ENSURE(
+                finfo.AtlasTexture != handle,
+                "[ONYX][RESOURCES] Attempting to destroy texture with handle {:#010x} and id {}, which is a font atlas "
+                "managed by an active font! It is not possible to directly destroy or manage font atlases "
+                "through the texture API",
+                handle, Handle_GetResourceId(handle));
         }
 }
 #endif
@@ -769,8 +775,10 @@ static ResourcePool resourcePool_CreateForMeshes(const ResourceType rtype, MeshR
     const ResourcePool pool = Handle_CreateForResourcePool(rtype, pid);
     if (Graph::IsValidationEnabled())
     {
-        const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
-        const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}", pool);
+        const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}-id{}", pool,
+                                                               Handle_GetResourcePoolId(pool));
+        const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}-id{}", pool,
+                                                               Handle_GetResourcePoolId(pool));
 
         Graph::Buffer_SetName(vbuffer, vb.CString());
         Graph::Buffer_SetName(ibuffer, ib.CString());
