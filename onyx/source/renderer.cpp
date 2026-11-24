@@ -843,13 +843,13 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
                 "[ONYX][RENDERER] When compiling shaders for a hook at least one non-null shader "
                 "destination must be provided");
     TKIT_ASSERT(!hopts || hopts->Stage != HookStage_Count,
-                "[ONYX][RENDERER] When compiling shaders for a hook only vertex or fragment shaders are supported");
+                "[ONYX][RENDERER] When compiling shaders for a hook a valid shader stage must be provided");
     TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Vertex || !opts.RenderPasses[RenderPass_Shadow],
                 "[ONYX][RENDERER], When compiling shaders for a hook shadow render passes are only allowed to be "
                 "toggled on if the hook is a vertex hook");
     TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Fragment || !hopts->Transparent,
                 "[ONYX][RENDERER] When compiling shaders for a vertex hook Transparent must be null");
-    TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Fragment || hopts->Transparent,
+    TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Vertex || hopts->Transparent,
                 "[ONYX][RENDERER] When compiling shaders for a fragment hook Transparent must not be null");
     TKIT_ASSERT(!hopts || hopts->HookBitField != 0,
                 "[ONYX][RENDERER] When compiling shaders for a hook its bit field must not be zero");
