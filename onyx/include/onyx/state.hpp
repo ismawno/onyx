@@ -3,8 +3,9 @@
 #include "onyx/alias.hpp"
 #include "tkit/utils/bit.hpp"
 
-#define ONYX_VERTEX_HOOK_BIT_COUNT std::countr_zero(TKit::NextPowerOfTwo(u32(ONYX_MAX_VERTEX_HOOKS)))
-#define ONYX_FRAGMENT_HOOK_BIT_COUNT std::countr_zero(TKit::NextPowerOfTwo(u32(ONYX_MAX_FRAGMENT_HOOKS)))
+// plus one because we have to save one bit for the "no hook" case
+#define ONYX_VERTEX_HOOK_BIT_COUNT std::countr_zero(TKit::NextPowerOfTwo(u32(ONYX_MAX_VERTEX_HOOKS + 1)))
+#define ONYX_FRAGMENT_HOOK_BIT_COUNT std::countr_zero(TKit::NextPowerOfTwo(u32(ONYX_MAX_FRAGMENT_HOOKS + 1)))
 
 namespace Onyx
 {
@@ -52,8 +53,8 @@ enum RenderStateBit : RenderState
 
     OutlineMode_Offset = BlendMode_Offset + BlendMode_BitCount,
     OutlineMode_BitCount = 1,
-    OutlineMode_Disabled = 0U << 5,
-    OutlineMode_Enabled = 1U << 5,
+    OutlineMode_Disabled = 0U << OutlineMode_Offset,
+    OutlineMode_Enabled = 1U << OutlineMode_Offset,
     OutlineMode_Mask = CreateBitFieldMask(OutlineMode_BitCount, OutlineMode_Offset),
 
 #ifdef ONYX_ENABLE_HOOKS

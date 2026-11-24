@@ -642,7 +642,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         if (hook != Graph::NullHandle)
         {
             ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_VertexHook);
-            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << VertexHook_Mask;
+            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << VertexHook_Offset;
         }
     }
     void FragmentHook(const Resource hook)
@@ -651,7 +651,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         if (hook != Graph::NullHandle)
         {
             ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_FragmentHook);
-            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << FragmentHook_Mask;
+            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << FragmentHook_Offset;
         }
     }
     void HookInstanceData(const void *data, const u32 size)

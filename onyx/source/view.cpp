@@ -434,7 +434,10 @@ static Graph::AttachmentInfo colorAttachment(const ViewImage &image, const Graph
 static Graph::AttachmentInfo depthAttachment(const ViewImage &image, const Graph::LoadOp load,
                                              const Graph::StoreOp storeResolve, const Graph::StoreOp storeMs)
 {
-    return attachmentInfo(image, Graph::ImageLayout_DepthStencilAttachment, load, storeResolve, storeMs);
+    Graph::AttachmentInfo att =
+        attachmentInfo(image, Graph::ImageLayout_DepthStencilAttachment, load, storeResolve, storeMs);
+    att.ClearValue.DepthStencil = {1.f, 0};
+    return att;
 }
 
 static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
