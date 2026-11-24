@@ -551,20 +551,21 @@ void Renderer_RemoveStaleHookPipelines(const ShaderCompileOptions &opts, const R
 
     s_ShouldWaitWhenRemovingStalePipeline = true;
     for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
-        for (u32 geo = 0; geo < Geometry_Count; ++geo)
-            if (opts.RenderPasses[rpass] && opts.Geometries[geo])
-            {
-                if (opts.Dimensions[Dim2])
-                    removeStalePipelines<D2>({.Pass = RenderPass(rpass),
-                                              .Geo = Geometry(geo),
-                                              .HookBitField = hookBitField,
-                                              .Stage = stage});
-                if (opts.Dimensions[Dim3])
-                    removeStalePipelines<D3>({.Pass = RenderPass(rpass),
-                                              .Geo = Geometry(geo),
-                                              .HookBitField = hookBitField,
-                                              .Stage = stage});
-            }
+        if (stage == HookStage_Vertex || rpass != RenderPass_Shadow)
+            for (u32 geo = 0; geo < Geometry_Count; ++geo)
+                if (opts.RenderPasses[rpass] && opts.Geometries[geo])
+                {
+                    if (opts.Dimensions[Dim2])
+                        removeStalePipelines<D2>({.Pass = RenderPass(rpass),
+                                                  .Geo = Geometry(geo),
+                                                  .HookBitField = hookBitField,
+                                                  .Stage = stage});
+                    if (opts.Dimensions[Dim3])
+                        removeStalePipelines<D3>({.Pass = RenderPass(rpass),
+                                                  .Geo = Geometry(geo),
+                                                  .HookBitField = hookBitField,
+                                                  .Stage = stage});
+                }
 }
 
 static const char *toShader(const HookType type)
