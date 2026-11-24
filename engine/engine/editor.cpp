@@ -421,6 +421,7 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
+// TODO(Isma): Implement materials in shaders
 // TODO(Isma): Implement forward rendering+
 // TODO(Isma): Fix ENGINE_BUGS.md
 // TODO(Isma): Remember add is resource valid for shader hooks
