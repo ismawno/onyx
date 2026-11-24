@@ -169,8 +169,8 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
             fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
 #ifdef ONYX_ENABLE_HOOKS
-        for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookOutputs)
-            fb.HookOutputs.Append(
+        for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookImages)
+            fb.HookImages.Append(
                 createColorAttachment(extent, output.Format, GetSpecs().SampleCount, Graph::ImageFlag_Source),
                 output.ClearValue);
 #endif
@@ -274,14 +274,21 @@ template <Dimension D> void RenderView<D>::drainWork() const
 
 template <Dimension D> void RenderView<D>::destroyFramebuffers()
 {
+    const auto destroy = [](const ViewImage &img) {
+        if (img.Image != Graph::NullHandle)
+            Graph::Image_Destroy(img.Image);
+        if (img.MultiSampled != Graph::NullHandle)
+            Graph::Image_Destroy(img.MultiSampled);
+    };
     for (const Framebuffer &fb : m_Framebuffers)
+    {
         for (const ViewImage &img : fb.Attachments)
-        {
-            if (img.Image != Graph::NullHandle)
-                Graph::Image_Destroy(img.Image);
-            if (img.MultiSampled != Graph::NullHandle)
-                Graph::Image_Destroy(img.MultiSampled);
-        }
+            destroy(img);
+#ifdef ONYX_ENABLE_HOOKS
+        for (const HookImage &himg : fb.HookImages)
+            destroy(himg.ImageResource);
+#endif
+    }
     m_Framebuffers.Clear();
 }
 
@@ -596,7 +603,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     barriers.Append(toColorAttachment(outlImg.Image));
     barriers.Append(toDepthAttachment(depthImg.Image, hasOutline));
 #ifdef ONYX_ENABLE_HOOKS
-    for (const HookImage &hookOut : fb.HookOutputs)
+    for (const HookImage &hookOut : fb.HookImages)
         barriers.Append(toColorAttachment(hookOut.ImageResource.Image, false));
 #endif
 
@@ -612,7 +619,7 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
 #ifdef ONYX_ENABLE_HOOKS
-        for (const HookImage &hookOut : fb.HookOutputs)
+        for (const HookImage &hookOut : fb.HookImages)
             barriers.Append(toColorAttachment(hookOut.ImageResource.MultiSampled, false));
 #endif
     }
@@ -637,11 +644,11 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     atts.Append(colorAttachment(outlImg, outlLoad, outlStoreRes, outlStoreMs));
 
 #ifdef ONYX_ENABLE_HOOKS
-    if (!fb.HookOutputs.IsEmpty())
+    if (!fb.HookImages.IsEmpty())
     {
         // slot 2 is revealage in the transparent pass. leave it empty so hook outputs start at 3 in both passes
         atts.Append(Graph::AttachmentInfo{}); // null view
-        for (const HookImage &hookOut : fb.HookOutputs)
+        for (const HookImage &hookOut : fb.HookImages)
             atts.Append(colorAttachment(hookOut.ImageResource, Graph::LoadOp_Clear, Graph::StoreOp_Store,
                                         hasTransparency ? Graph::StoreOp_Store : Graph::StoreOp_DontCare,
                                         hookOut.ClearValue));
@@ -694,7 +701,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
     barriers.Append(toColorAttachment(outlImg.Image));
     barriers.Append(toDepthAttachment(depthImg.Image));
 #ifdef ONYX_ENABLE_HOOKS
-    for (const HookImage &hookOut : fb.HookOutputs)
+    for (const HookImage &hookOut : fb.HookImages)
         barriers.Append(toColorAttachment(hookOut.ImageResource.Image, false));
 #endif
     if (msaa)
@@ -712,7 +719,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
 #ifdef ONYX_ENABLE_HOOKS
-        for (const HookImage &hookOut : fb.HookOutputs)
+        for (const HookImage &hookOut : fb.HookImages)
             barriers.Append(toColorAttachment(hookOut.ImageResource.MultiSampled, false));
 #endif
     }
@@ -730,7 +737,7 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
                                 Graph::ClearColor{.Float32 = f32v4{1.f, 0.f, 0.f, 0.f}}));
 
 #ifdef ONYX_ENABLE_HOOKS
-    for (const HookImage &hookOut : fb.HookOutputs)
+    for (const HookImage &hookOut : fb.HookImages)
         atts.Append(
             colorAttachment(hookOut.ImageResource, Graph::LoadOp_Load, Graph::StoreOp_Store, Graph::StoreOp_DontCare));
 #endif
@@ -832,7 +839,7 @@ template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffe
 #ifdef ONYX_ENABLE_HOOKS
 template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookReadback(const HookReadbackSpecs &specs)
 {
-    TKIT_ASSERT(specs.Slot < GetSpecs().GetSpecific<D>().HookOutputs.GetSize(),
+    TKIT_ASSERT(specs.Slot < GetSpecs().GetSpecific<D>().HookImages.GetSize(),
                 "[ONYX][VIEW] Hook output slot {} does not exist", specs.Slot);
     TKIT_ASSERT(specs.Extent[0] != 0 && specs.Extent[1] != 0, "[ONYX][VIEW] Hook readback extent must not be empty");
 
@@ -847,7 +854,7 @@ template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookRead
         if (rb.State != HookReadbackState_Free)
             continue;
 
-        const usz bpp = Graph::Format_GetBytesPerPixel(GetSpecs().GetSpecific<D>().HookOutputs[specs.Slot].Format);
+        const usz bpp = Graph::Format_GetBytesPerPixel(GetSpecs().GetSpecific<D>().HookImages[specs.Slot].Format);
         rb.Size = usz(specs.Extent[0]) * specs.Extent[1] * bpp;
         rb.Buffer = Graph::Buffer_Create(rb.Size, Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess |
                                                       Graph::BufferFlag_Destination);
@@ -889,7 +896,7 @@ template <Dimension D> void RenderView<D>::recordHookReadbacks(const Graph::Comm
         {
             transitioned[rb.Specs.Slot] = true;
             Graph::ImageMemoryBarrierInfo b{};
-            b.Image = fb.HookOutputs[rb.Specs.Slot].ImageResource.Image; // resolved (or only) image
+            b.Image = fb.HookImages[rb.Specs.Slot].ImageResource.Image; // resolved (or only) image
             b.NewLayout = Graph::ImageLayout_TransferSrc;
             b.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
             b.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
@@ -908,7 +915,7 @@ template <Dimension D> void RenderView<D>::recordHookReadbacks(const Graph::Comm
             Graph::BufferImageCopy region{};
             region.ImageOffset = u32v3{rb.Specs.Offset, 0};
             region.ImageExtent = u32v3{rb.Specs.Extent, 1};
-            Graph::Command_CopyImageToBuffer(cmd, fb.HookOutputs[rb.Specs.Slot].ImageResource.Image, rb.Buffer, region);
+            Graph::Command_CopyImageToBuffer(cmd, fb.HookImages[rb.Specs.Slot].ImageResource.Image, rb.Buffer, region);
             rb.State = HookReadbackState_Recorded;
         }
 }

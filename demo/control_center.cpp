@@ -975,7 +975,13 @@ struct TestRunner
 // the Shaders panel: default shader reloads, hooks loaded from files and the hook output readback
 struct ShaderReloadState
 {
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+    // what the next reload recompiles: every combination of the checked dimensions, passes and geometries, plus the
+    // checked post process passes
+    Onyx::ShaderCompileOptions Selection = Onyx::ShaderCompileOptions::Full();
+#endif
     String Error{};
+    Line Last{}; // what the last successful reload covered
     f32 ReloadedAt = -100.f;
     f32 Milliseconds = 0.f;
     u32 Reloads = 0;
@@ -990,8 +996,8 @@ struct HookGlobals
     f32 Padding[3]{};
 };
 
-// a varying as the panel edits it. the hook keeps a pointer to the name, so the names a hook was loaded with are copied
-// apart (HookSlot::LoadedVaryings) and never edited
+// a varying as the panel edits it. the ones a hook was last loaded with are kept apart (HookSlot::LoadedVaryings), to
+// tell whether a vertex and a fragment hook agree on them
 struct VaryingEntry
 {
     char Name[32] = "Value";
@@ -4950,18 +4956,104 @@ template <typename F> static auto measureMilliseconds(f32 &milliseconds, F &&cal
 }
 
 #ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
-static void reloadDefaultShaders(App &app)
+// indexed like the toggles of Onyx::ShaderCompileOptions
+constexpr const char *DimensionNames[Onyx::D_Count] = {"2D", "3D"};
+constexpr const char *RenderPassNames[Onyx::RenderPass_Count] = {"Flat", "Shaded", "Shadow"};
+constexpr const char *GeometryNames[Onyx::Geometry_Count] = {"Circle", "Static", "Parametric", "Dynamic", "Glyph"};
+constexpr const char *StandaloneNames[Onyx::StandalonePass_Count] = {"Ray march", "Blend", "Outline", "FXAA",
+                                                                     "Compositor"};
+
+template <u32 Count> static u32 countToggles(const TKit::FixedArray<bool, Count> &toggles)
+{
+    u32 count = 0;
+    for (const bool on : toggles)
+        count += on;
+    return count;
+}
+
+// geometry shaders are compiled for every combination of the toggled dimensions, passes and geometries
+static u32 geometryVariants(const Onyx::ShaderCompileOptions &opts)
+{
+    return countToggles(opts.Dimensions) * countToggles(opts.RenderPasses) * countToggles(opts.Geometries);
+}
+
+static void reloadDefaultShaders(App &app, const Onyx::ShaderCompileOptions &opts)
 {
     ShaderReloadState &rl = app.Shaders.Reload;
-    const Onyx::Result<> result = measureMilliseconds(rl.Milliseconds, [] { return Onyx::ReloadShaders(); });
+    const Onyx::Result<> result = measureMilliseconds(rl.Milliseconds, [&] { return Onyx::ReloadShaders(opts); });
     if (!result)
     {
         rl.Error = String::Format("{}", result.GetError().ToString());
         return;
     }
     rl.Error.Clear();
+    rl.Last = formatLine("{} geometry variants and {} post process passes", geometryVariants(opts),
+                         countToggles(opts.Standalone));
     rl.ReloadedAt = app.Time;
     ++rl.Reloads;
+}
+
+// a row of check boxes, one per toggle
+template <u32 Count>
+static void toggleRow(Onyx::Overlay *ui, const char *label, TKit::FixedArray<bool, Count> &toggles,
+                      const char *const (&names)[Count])
+{
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    ui->PushId(Onyx::LayoutId{label});
+    text(ui, Theme::Dim, label);
+    for (u32 i = 0; i < Count; ++i)
+        ui->CheckBox(names[i], &toggles[i]);
+    ui->PopId();
+    ui->PopPanel();
+}
+
+static void reloadPanel(App &app)
+{
+    Onyx::Overlay *ui = app.Ui;
+    ShaderReloadState &rl = app.Shaders.Reload;
+    Onyx::ShaderCompileOptions &sel = rl.Selection;
+
+    toggleRow(ui, "Dimensions ", sel.Dimensions, DimensionNames);
+    toggleRow(ui, "Passes ", sel.RenderPasses, RenderPassNames);
+    toggleRow(ui, "Geometries ", sel.Geometries, GeometryNames);
+    toggleRow(ui, "Post process ", sel.Standalone, StandaloneNames);
+
+    const u32 variants = geometryVariants(sel);
+    const u32 standalone = countToggles(sel.Standalone);
+    text(ui, Theme::Dim,
+         formatLine("Selected: {} geometry variants, {} post process passes", variants, standalone).View());
+
+    ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
+    ui->BeginDisabled(variants + standalone == 0);
+    if (ui->Button("Reload selected"))
+        reloadDefaultShaders(app, sel);
+    ui->EndDisabled();
+    tooltip(ui, Theme::Accent, "Recompiles only what is checked",
+            "Every combination of the checked dimensions, passes and geometries, plus the checked post process "
+            "passes. The pipelines built from them are rebuilt on next use, and so are the hook variants linked "
+            "against them. The frame blocks while they compile.");
+    if (ui->Button("Reload all"))
+        reloadDefaultShaders(app, Onyx::ShaderCompileOptions::Full());
+    tooltip(ui, Theme::Accent, "Recompiles every default shader",
+            formatLine("Every geometry and post process shader, from {}.", ONYX_SHADERS_PATH).View());
+    if (ui->Button("Check all##checkall", Onyx::OverlayButtonFlag_Small))
+        sel = Onyx::ShaderCompileOptions::Full();
+    if (ui->Button("Uncheck all##uncheckall", Onyx::OverlayButtonFlag_Small))
+        sel = Onyx::ShaderCompileOptions{};
+    ui->PopPanel();
+
+    if (!rl.Error.IsEmpty())
+        errorBox(ui, "The reload failed: the previous shaders stay", rl.Error);
+    else if (rl.Reloads)
+        text(ui, Theme::Pass,
+             formatLine("Reload {}: {}, {:.1f} s ago, in {:.0f} ms", rl.Reloads, rl.Last.View(),
+                        app.Time - rl.ReloadedAt, rl.Milliseconds)
+                 .View(),
+             Onyx::TextMode_Wrapped);
+    text(ui, Theme::Dim,
+         "Edit a file under onyx/shaders, check what it affects and reload: the scene changes without restarting. "
+         "Fewer variants compile faster.",
+         Onyx::TextMode_Wrapped);
 }
 #endif
 
@@ -4974,23 +5066,22 @@ constexpr const char *HookInterpNames = "Smooth#Flat#No perspective";
 // a load only reads the file. compiling is the job of the Precompile button, or of the gallery on first use
 static void loadHook(App &app, HookSlot &slot)
 {
-    // the hook keeps pointers to the varying names: these stay put until the next load
-    slot.LoadedVaryings = slot.Varyings;
+    // the hook copies the varyings, names included
     TKit::StaticArray<Onyx::HookVarying, MaxHookVaryings> varyings{};
-    for (const VaryingEntry &v : slot.LoadedVaryings)
-        varyings.Append(Onyx::HookVarying{
-            .Name = v.Name, .Type = Onyx::HookType(v.Type), .Interpolation = Onyx::HookInterp(v.Interpolation)});
+    for (const VaryingEntry &v : slot.Varyings)
+        varyings.Append(Onyx::HookVarying{.Name = TKit::TierString{v.Name},
+                                          .Type = Onyx::HookType(v.Type),
+                                          .Interpolation = Onyx::HookInterp(v.Interpolation)});
 
     // imports in the hook resolve from its own folder
     const Path folder = slot.File.GetParentPath();
-    const Onyx::HookSpecs specs{.Stage = slot.Stage,
-                                .Varyings = TKit::Span<const Onyx::HookVarying>(varyings),
+    const Onyx::HookSpecs specs{.Varyings = TKit::Span<const Onyx::HookVarying>(varyings),
                                 .SearchPath = TKit::StringView{folder.GetString()}};
 
     const auto load = [&]<Onyx::Dimension D>() -> Onyx::Result<> {
         if (slot.Handle != Onyx::NullHandle)
             return Onyx::Hook_UpdateFromFile<D>(slot.Handle, slot.File, specs);
-        const auto handle = Onyx::Hook_FromFile<D>(slot.File, specs);
+        const auto handle = Onyx::Hook_FromFile<D>(slot.Stage, slot.File, specs);
         if (!handle)
             return handle.GetError();
         slot.Handle = *handle;
@@ -4998,12 +5089,13 @@ static void loadHook(App &app, HookSlot &slot)
     };
     const Onyx::Result<> result = slot.Dimension == 0 ? load.template operator()<D2>() : load.template operator()<D3>();
 
-    slot.Compiled = false;
     if (!result)
     {
         slot.Error = String::Format("{}", result.GetError().ToString());
         return;
     }
+    slot.LoadedVaryings = slot.Varyings;
+    slot.Compiled = false;
     slot.Error.Clear();
     slot.SucceededAt = app.Time;
 }
@@ -5259,23 +5351,7 @@ static void panelShaders(App &app)
     Onyx::Overlay *ui = app.Ui;
     ui->HorizontalSeparator("Default shaders");
 #ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
-    const ShaderReloadState &rl = app.Shaders.Reload;
-    if (ui->Button("Reload default shaders"))
-        reloadDefaultShaders(app);
-    tooltip(ui, Theme::Accent, "Recompiles them from their sources",
-            formatLine("Every geometry and post process shader, from {}. Their pipelines are rebuilt on next use, and "
-                       "so are the hooks' variants, which link against them. The frame blocks while they compile.",
-                       ONYX_SHADERS_PATH)
-                .View());
-    if (!rl.Error.IsEmpty())
-        errorBox(ui, "The reload failed: the previous shaders stay", rl.Error);
-    else if (rl.Reloads)
-        text(ui, Theme::Pass,
-             formatLine("Reloaded {} times, the last one {:.1f} s ago, in {:.0f} ms", rl.Reloads,
-                        app.Time - rl.ReloadedAt, rl.Milliseconds)
-                 .View());
-    text(ui, Theme::Dim, "Edit a file under onyx/shaders and reload: the scene changes without restarting.",
-         Onyx::TextMode_Wrapped);
+    reloadPanel(app);
 #else
     text(ui, Theme::Info,
          "Onyx was built without a shader compilation backend. Configure Graphite with "
@@ -6078,8 +6154,9 @@ static void setupCategories(App &app)
     shaders.Concepts =
         "Onyx's default shaders are Slang, embedded as SPIR-V when Onyx is built. With a shader compilation backend "
         "(GRAPHITE_SHADER_COMPILATION_BACKEND=slang) they can also be compiled at runtime from onyx/shaders: "
-        "ReloadShaders() recompiles them and drops every pipeline built from the old ones.\n\nA hook "
-        "(ONYX_ENABLE_HOOKS) "
+        "ReloadShaders() recompiles them and drops every pipeline built from the old ones. Its options pick what to "
+        "recompile: dimensions, passes and geometries, whose combinations are recompiled, and post process "
+        "passes.\n\nA hook (ONYX_ENABLE_HOOKS) "
         "customizes the built in shapes without writing a whole shader: a vertex hook exports VertexHook and moves "
         "vertices, a fragment hook exports FragmentHook and changes the color. Each is linked into the default shader "
         "of "
@@ -6093,9 +6170,11 @@ static void setupCategories(App &app)
 #ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
     shaders.Visuals.Append(VisualCheck{
         .Name = "Reloading the default shaders keeps the scene",
-        .Do = "Shaders panel: press Reload default shaders. No error shows, and every view looks the same after.",
-        .More = "Every pipeline is rebuilt from the new shaders on its next use. A difference means the runtime "
-                "compilation does not match the embedded shaders: compiler options, defines or search paths.",
+        .Do = "Shaders panel: press Reload all, then reload only the 3D shaded pass. No error shows, and every view "
+              "looks the same after each.",
+        .More =
+            "The pipelines built from what was reloaded are rebuilt on their next use. A difference means the runtime "
+            "compilation does not match the embedded shaders: compiler options, defines or search paths.",
         .Priority = 95,
         .Pane = Pane_None,
         .Needs = Requires_Nothing});

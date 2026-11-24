@@ -139,7 +139,7 @@ struct Framebuffer
     Graph::Tracker Tracker{};
     TKit::FixedArray<ViewImage, AttachmentRole_Count> Attachments{};
 #ifdef ONYX_ENABLE_HOOKS
-    TKit::StaticArray<HookImage, ONYX_MAX_HOOK_OUTPUTS> HookOutputs{};
+    TKit::StaticArray<HookImage, ONYX_MAX_HOOK_OUTPUTS> HookImages{};
 #endif
 };
 

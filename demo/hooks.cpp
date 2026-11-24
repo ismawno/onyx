@@ -54,8 +54,8 @@ int main()
     Onyx::Initialize(specs);
     Onyx::Resources_CreateDefault<D2>();
 
-    const Onyx::Resource fragment = Onyx::Hook_FromSource<D2>(FragmentHookSource, {.Stage = Onyx::HookStage_Fragment});
-    const Onyx::Resource vertex = Onyx::Hook_FromSource<D2>(VertexHookSource, {.Stage = Onyx::HookStage_Vertex});
+    const Onyx::Resource fragment = Onyx::Hook_FromSource<D2>(Onyx::HookStage_Fragment, FragmentHookSource);
+    const Onyx::Resource vertex = Onyx::Hook_FromSource<D2>(Onyx::HookStage_Vertex, VertexHookSource);
 
     // optional: hooks also compile on first use. compiling them up front reports errors here instead
     ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(fragment));
