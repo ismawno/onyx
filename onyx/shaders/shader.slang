@@ -373,10 +373,10 @@ FragInput mainVS(
     vhInput.InstanceIndex = instanceIndex;
     vhInput.Pass = ONYX_HOOK_PASS;
     vhInput.Geometry = ONYX_HOOK_GEOMETRY;
-#    if ONYX_HOOK_GLOBALS_SIZE > 0
+#    ifdef ONYX_HOOK_GLOBALS_SIZE
     vhInput.Globals = g_HookGlobals;
 #    endif
-#    if ONYX_HOOK_INSTANCE_SIZE > 0
+#    ifdef ONYX_HOOK_INSTANCE_SIZE
     vhInput.Instance = g_HookInstances[instanceIndex];
 #    endif
     const VertexHookOutput vhOutput = VertexHook(vhInput);

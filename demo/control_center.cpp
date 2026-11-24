@@ -244,7 +244,7 @@ constexpr f32 QuadrantSize = 0.5f;
 // small fixed size string, so check details can be stored across frames without touching any allocator
 struct Line
 {
-    char Data[208];
+    char Data[512];
     u32 Size = 0;
 
     TKit::StringView View() const
@@ -5062,6 +5062,43 @@ static void reloadPanel(App &app)
 constexpr const char *HookTypeNames = "float#float2#float3#float4#int#int2#int3#int4#uint#uint2#uint3#uint4";
 constexpr const char *HookInterpNames = "Smooth#Flat#No perspective";
 
+// the sample hooks in demo/shader_hooks and the varying each one needs, if any: always one float, smooth. they all
+// write the Mask output this demo declares at Initialize. loaded with other varyings, they fail to compile
+struct SampleHook
+{
+    const char *File;
+    const char *Varying;
+};
+constexpr SampleHook SampleHooks[] = {
+    {"stripes.slang", nullptr}, {"wave.slang", "Height"},  {"height.slang", "Height"},
+    {"ripple.slang", "Ripple"}, {"broken.slang", nullptr},
+};
+
+static const SampleHook *findSampleHook(const HookSlot &slot)
+{
+    if (slot.File.IsEmpty())
+        return nullptr;
+    const Path name = slot.File.GetFilename();
+    const TKit::StringView view{name.GetString()};
+    for (const SampleHook &sample : SampleHooks)
+        if (view == sample.File)
+            return &sample;
+    return nullptr;
+}
+
+static VaryingArray sampleVaryings(const SampleHook &sample)
+{
+    VaryingArray varyings{};
+    if (sample.Varying)
+    {
+        VaryingEntry &v = varyings.Append();
+        std::snprintf(v.Name, sizeof(v.Name), "%s", sample.Varying);
+        v.Type = Onyx::HookType_F32;
+        v.Interpolation = Onyx::HookInterp_Smooth;
+    }
+    return varyings;
+}
+
 // creates the slot's hook from its file the first time, and updates it after that: the gallery keeps the same handle.
 // a load only reads the file. compiling is the job of the Precompile button, or of the gallery on first use
 static void loadHook(App &app, HookSlot &slot)
@@ -5185,6 +5222,30 @@ static void hookSlotPanel(App &app, HookSlot &slot, const HookSlot *vertex)
         if (loaded && !sameVaryings(slot.Varyings, slot.LoadedVaryings))
             text(ui, Theme::Todo, "The varyings changed since the hook was loaded: reload it to use them.",
                  Onyx::TextMode_Wrapped);
+
+        // a known sample with other varyings than it needs fails to compile: say so, and offer to fix it
+        if (const SampleHook *sample = findSampleHook(slot))
+        {
+            const VaryingArray needed = sampleVaryings(*sample);
+            if (!sameVaryings(slot.Varyings, needed) || !sameVaryings(slot.LoadedVaryings, needed))
+            {
+                const Line what = sample->Varying ? formatLine("one varying, {} (float, smooth)", sample->Varying)
+                                                  : formatLine("no varyings");
+                text(ui, Theme::Todo,
+                     formatLine("{} is a sample hook that needs {}. With other varyings it fails to compile.",
+                                sample->File, what.View())
+                         .View(),
+                     Onyx::TextMode_Wrapped);
+                if (ui->Button("Declare them and reload##sample"))
+                {
+                    slot.Varyings = needed;
+                    loadHook(app, slot);
+                }
+                tooltip(ui, Theme::Accent, "Sets the varyings this sample needs and loads it again",
+                        "Pair it with a hook declared with the same varyings: a fragment hook that reads varyings is "
+                        "only applied together with a vertex hook writing the same ones.");
+            }
+        }
 
         ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
 #    ifdef ONYX_ENABLE_NFD
@@ -5372,8 +5433,16 @@ static void panelShaders(App &app)
          Onyx::TextMode_Wrapped);
 #    endif
     text(ui, Theme::Dim,
-         "A hook is a Slang file exporting VertexHook or FragmentHook. Declare its varyings, then load it: it applies "
-         "to the whole gallery of its dimension, the background grid aside.",
+         "A hook is a Slang file exporting VertexHook, FragmentHook or both. Declare its varyings, then load it: "
+         "applied, it covers the whole gallery of its dimension, the background grid aside. A file exporting both can "
+         "be loaded as the vertex and the fragment hook at once, with the same varyings on both.",
+         Onyx::TextMode_Wrapped);
+    text(ui, Theme::Todo,
+         formatLine("The samples in demo/shader_hooks need the varyings their header names, and their fragment hooks "
+                    "write the {} output this demo declares. A sample that fails to compile most likely misses its "
+                    "varyings: its slot offers to declare them.",
+                    HookOutputName)
+             .View(),
          Onyx::TextMode_Wrapped);
     auto &slots = app.Shaders.Slots;
     for (HookSlot &slot : slots)
@@ -6215,12 +6284,23 @@ static void setupCategories(App &app)
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
+        .Name = "One file holds both hooks",
+        .Do = "Load shader_hooks/ripple.slang as the 2D vertex hook and as the 2D fragment hook, both with the "
+              "varying Ripple (float, smooth), and apply both: rings travel out from the center, pushing shapes in and "
+              "out and shading them by the same wave.",
+        .More = "Each compile only links the function of its own stage, but the whole file compiles for both, so both "
+                "hooks must be declared with the varying. Without it on the vertex hook, its precompile fails on the "
+                "fragment hook's line.",
+        .Priority = 98,
+        .Pane = Pane_Gallery2,
+        .Needs = Requires_Nothing});
+    shaders.Visuals.Append(VisualCheck{
         .Name = "Hook errors are readable",
         .Do = "Load shader_hooks/broken.slang as a fragment hook and precompile it: the panel shows the compiler's "
               "message with the file's own line numbers, and the gallery keeps drawing without it.",
         .More = "Onyx puts an import in front of the hook's source and restores the line numbers after it, so a line "
                 "in the message is a line in the file.",
-        .Priority = 98,
+        .Priority = 99,
         .Pane = Pane_None,
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
@@ -6229,7 +6309,7 @@ static void setupCategories(App &app)
               "wherever a 2D shape is, black elsewhere, framed like the gallery.",
         .More = "Every view renders the Mask output, and only hooked shapes write to it. The readback copies the "
                 "gallery's whole image once, and the panel turns it into a texture.",
-        .Priority = 99,
+        .Priority = 100,
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
 #endif
