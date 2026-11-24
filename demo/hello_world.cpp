@@ -2,6 +2,7 @@
 #include "onyx/context.hpp"
 #include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
+#include "onyx/hook.hpp"
 #include "onyx/sanitizer_options.hpp"
 
 using Onyx::D2;
@@ -27,11 +28,16 @@ int main()
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
 
+    const Onyx::Resource hook = Onyx::Hook_FromSource<D2>(R"(
+                                                          )");
+    ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(hook));
+
     f32 time = 0.f;
     while (Onyx::Running())
     {
         time += Onyx::GetDeltaTime(win).AsSeconds();
         ctx->Flush();
+        ctx->FragmentHook(hook);
         ctx->Rotate(time);
         ctx->Triangle();
 

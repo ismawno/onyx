@@ -1,6 +1,6 @@
 #include "qol.slang"
 #ifdef ONYX_ENABLE_HOOKS
-import onyx_hook_types
+import onyx_hook_types;
 #endif
 
 // 2D shadows uses materials to check if they are an occluder or not
@@ -102,6 +102,26 @@ import onyx_hook_types
 #        define GeometryInstanceData DynamicInstanceData3D
 #    endif
 
+#endif
+
+#ifdef ONYX_PASS_FLAT
+#    define ONYX_HOOK_PASS HookPass_Flat
+#elif defined(ONYX_PASS_SHADED)
+#    define ONYX_HOOK_PASS HookPass_Shaded
+#else
+#    define ONYX_HOOK_PASS HookPass_Shadow
+#endif
+
+#ifdef ONYX_GEOMETRY_CIRCLE
+#    define ONYX_HOOK_GEOMETRY HookGeometry_Circle
+#elif defined(ONYX_GEOMETRY_STATIC)
+#    define ONYX_HOOK_GEOMETRY HookGeometry_Static
+#elif defined(ONYX_GEOMETRY_PARAMETRIC)
+#    define ONYX_HOOK_GEOMETRY HookGeometry_Parametric
+#elif defined(ONYX_GEOMETRY_GLYPH)
+#    define ONYX_HOOK_GEOMETRY HookGeometry_Glyph
+#else
+#    define ONYX_HOOK_GEOMETRY HookGeometry_Dynamic
 #endif
 
 #ifndef ONYX_GEOMETRY_CIRCLE
@@ -337,23 +357,29 @@ FragInput mainVS(
     VertexHookInput vhInput;
     vhInput.LocalPosition = HookVec(shiftedPos);
     vhInput.WorldPosition = HookVec(worldPos);
-#ifndef ONYX_PASS_SHADOW
+#    ifndef ONYX_PASS_SHADOW
     vhInput.TexCoord = uv;
-#else
+#    else
     vhInput.TexCoord = f32v2(0.0);
-#endif
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-    vhInput.TBN = finput.TBN;
-#endif
-    vhInput.InstanceIndex = instanceIndex;
+#    endif
     vhInput.VertexIndex = vertexId;
-#ifdef ONYX_HOOK_GLOBALS_SIZE
+#    ifdef ONYX_DIMENSION_3D
+#        ifdef ONYX_PASS_SHADED
+    vhInput.TBN = finput.TBN;
+#        else
+    vhInput.TBN = f32m3(1.0);
+#        endif
+#    endif
+    vhInput.InstanceIndex = instanceIndex;
+    vhInput.Pass = ONYX_HOOK_PASS;
+    vhInput.Geometry = ONYX_HOOK_GEOMETRY;
+#    if ONYX_HOOK_GLOBALS_SIZE > 0
     vhInput.Globals = g_HookGlobals;
-#endif
-#ifdef ONYX_HOOK_INSTANCE_SIZE
+#    endif
+#    if ONYX_HOOK_INSTANCE_SIZE > 0
     vhInput.Instance = g_HookInstances[instanceIndex];
-#endif
-    const VertexHookOuput vhOutput = VertexHook(vhInput);
+#    endif
+    const VertexHookOutput vhOutput = VertexHook(vhInput);
     finput.Position = mul(ONYX_VEC4(vhOutput.WorldPosition), g_PushData.ProjectionView);
 #ifdef ONYX_HOOK_VARYINGS
     finput.Varyings = vhOutput.Varyings;
@@ -556,31 +582,31 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     fhInput.WorldPosition = input.WorldPosition;
     fhInput.TexCoord = input.TexCoord;
     fhInput.ScreenPosition = input.Position.xy;
-#        if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-    fhInput.TBN = input.TBN;
-#        endif
 #        ifdef ONYX_PASS_SHADED
     fhInput.HasMaterial = mtid != NullResource;
 #        else
     fhInput.HasMaterial = false; // in flat passes mtid is a sampler/texture id, not a material
 #        endif
+#        ifdef ONYX_DIMENSION_3D
+#            ifdef ONYX_PASS_SHADED
+    fhInput.TBN = input.TBN;
+#            else
+    fhInput.TBN = f32m3(1.0);
+#            endif
+#        endif
     fhInput.InstanceIndex = input.InstanceIndex;
-#        if ONYX_HOOK_GLOBALS_SIZE > 0
+    fhInput.Pass = ONYX_HOOK_PASS;
+    fhInput.Geometry = ONYX_HOOK_GEOMETRY;
+#        ifdef ONYX_HOOK_GLOBALS_SIZE
     fhInput.Globals = g_HookGlobals;
 #        endif
-#        if ONYX_HOOK_INSTANCE_SIZE > 0
+#        ifdef ONYX_HOOK_INSTANCE_SIZE
     fhInput.Instance = g_HookInstances[input.InstanceIndex];
 #        endif
 #        ifdef ONYX_HOOK_VARYINGS
     fhInput.Varyings = input.Varyings;
 #        endif
-
-    const FragmentHookOutput fhOutput = FragmentHook(fhInput);
-    out.Fill = fhOutput.Color;
-#        ifdef ONYX_HOOK_OUTPUTS
-    out.Hooks = fhOutput.Outputs;
-#        endif
-#    endif
+    #endif
 
     return out;
 #endif

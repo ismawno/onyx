@@ -9,7 +9,7 @@
 
 namespace Onyx
 {
-using RenderState = u8;
+using RenderState = u16;
 constexpr RenderState CreateBitFieldMask(const RenderState bits, const RenderState offset)
 {
     return ((1U << bits) - 1) << offset;

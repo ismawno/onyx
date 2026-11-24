@@ -60,12 +60,12 @@ RenderTexture *CreateRenderTexture(const u32v2 &dimensions, const RenderTextureS
 void DestroyRenderTexture(const RenderTexture *rtex);
 
 #ifdef ONYX_ENABLE_HOOKS
-template <Dimension D> void HookGlobalData(const void *data, u32 size);
+template <Dimension D> void SetHookGlobalData(const void *data, u32 size);
 template <Dimension D, typename T>
     requires(!std::same_as<std::remove_cvref_t<T>, void>)
-void HookGlobalData(const T *data)
+void SetHookGlobalData(const T *data)
 {
-    HookGlobalData<D>(data, sizeof(T));
+    SetHookGlobalData<D>(data, sizeof(T));
 }
 #endif
 

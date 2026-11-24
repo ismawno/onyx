@@ -55,7 +55,7 @@
         "ONYX_ENABLE_GLTF_LOAD": "ON",
         "ONYX_ENABLE_FONT_LOAD": "ON",
         "ONYX_ENABLE_AUDIO": "ON",
-        "ONYX_ENABLE_HOOKS": "OFF",
+        "ONYX_ENABLE_HOOKS": "ON",
         "ONYX_INCLUDE_DEFAULT_FONT": "ON",
         "ONYX_COMPILE_SHADERS_AT_RUNTIME": "OFF"
       }

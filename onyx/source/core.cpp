@@ -201,11 +201,11 @@ static void createDescriptorData()
 #ifdef ONYX_ENABLE_HOOKS
         const auto &specs = s_Specs.GetSpecific<D>();
         if (specs.HookGlobalsSize != 0)
-            bindings.Append(
-                Binding::Create(ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
+            bindings.Append(Binding::Create(ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT,
+                                            Graph::Descriptor_UniformBuffer, vertex | fragment, 1, pbound));
         if (specs.HookInstanceSize != 0)
-            bindings.Append(
-                Binding::Create(ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
+            bindings.Append(Binding::Create(ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT,
+                                            Graph::Descriptor_UniformBuffer, vertex | fragment, 1, pbound));
 #else
         return bindings;
 #endif

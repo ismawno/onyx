@@ -612,108 +612,84 @@ static const char *toShader(const HookInterp interp)
         return nullptr;
     }
 }
-static constexpr const char *s_HookApi = R"(
-#ifdef ONYX_DIMENSION_2D
-typedef float2 HookVec;
-#else
-typedef float3 HookVec;
-#endif
-
-#ifdef ONYX_HOOK_GLOBALS_SIZE
-struct HookGlobals
+static constexpr const char *s_HookEnums = R"(
+[UnscopedEnum]
+enum HookPass : uint
 {
-    uint4 Data[(ONYX_HOOK_GLOBALS_SIZE + 15) / 16];
-
-    uint LoadU32(const uint offset) { return Data[offset / 16][(offset / 4) % 4]; }
-    int LoadI32(const uint offset) { return asint(LoadU32(offset)); }
-    float LoadF32(const uint offset) { return asfloat(LoadU32(offset)); }
-    float2 LoadF32V2(const uint offset) { return float2(LoadF32(offset), LoadF32(offset + 4)); }
-    float3 LoadF32V3(const uint offset) { return float3(LoadF32V2(offset), LoadF32(offset + 8)); }
-    float4 LoadF32V4(const uint offset) { return float4(LoadF32V3(offset), LoadF32(offset + 12)); }
+    HookPass_Flat,
+    HookPass_Shaded,
+    HookPass_Shadow,
 }
 
-[[vk::binding(ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT)]]
-ConstantBuffer<HookGlobals> g_HookGlobals;
-#endif
-
-#ifdef ONYX_HOOK_INSTANCE_SIZE
-struct HookInstance
+[UnscopedEnum]
+enum HookGeometry : uint
 {
-    uint Data[ONYX_HOOK_INSTANCE_SIZE / 4];
-
-    uint LoadU32(const uint offset) { return Data[offset / 4]; }
-    int LoadI32(const uint offset) { return asint(LoadU32(offset)); }
-    float LoadF32(const uint offset) { return asfloat(LoadU32(offset)); }
-    float2 LoadF32V2(const uint offset) { return float2(LoadF32(offset), LoadF32(offset + 4)); }
-    float3 LoadF32V3(const uint offset) { return float3(LoadF32V2(offset), LoadF32(offset + 8)); }
-    float4 LoadF32V4(const uint offset) { return float4(LoadF32V3(offset), LoadF32(offset + 12)); }
+    HookGeometry_Circle,
+    HookGeometry_Static,
+    HookGeometry_Parametric,
+    HookGeometry_Glyph,
+    HookGeometry_Dynamic,
 }
 
-[[vk::binding(ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT)]]
-StructuredBuffer<HookInstance, Std430DataLayout> g_HookInstances;
-#endif
-
-struct VertexHookInput
-{
-    HookVec LocalPosition;
-    HookVec WorldPosition;
-    float2 TexCoord;
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-    float3x3 TBN;
-#endif
-    uint InstanceIndex;
-    uint VertexIndex;
-#ifdef ONYX_HOOK_GLOBALS_SIZE
-    HookGlobals Globals;
-#endif
-#ifdef ONYX_HOOK_INSTANCE_SIZE
-    HookInstance Instance;
-#endif
-}
-
-struct VertexHookOutput
-{
-    HookVec WorldPosition;
-#ifdef ONYX_HOOK_VARYINGS
-    HookVaryings Varyings;
-#endif
-}
-
-struct FragmentHookInput
-{
-    float4 Color;
-    HookVec WorldPosition;
-    float2 TexCoord;
-    float2 ScreenPosition;
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-    float3 Normal;
-#endif
-    bool HasMaterial;
-    uint InstanceIndex;
-#ifdef ONYX_HOOK_GLOBALS_SIZE
-    HookGlobals Globals;
-#endif
-#ifdef ONYX_HOOK_INSTANCE_SIZE
-    HookInstance Instance;
-#endif
-#ifdef ONYX_HOOK_VARYINGS
-    HookVaryings Varyings;
-#endif
-}
-
-struct FragmentHookOutput
-{
-    float4 Color;
-#ifdef ONYX_HOOK_OUTPUTS
-    HookOutputs Outputs;
-#endif
-}
 )";
 
+// {0}: uint4 count, {1}: binding point
+static constexpr const char *s_HookGlobalsApi = R"(
+struct HookGlobals
+{{
+    uint4 Data[{0}];
+
+    uint LoadU32(const uint offset) {{ return Data[offset / 16][(offset / 4) % 4]; }}
+    int LoadI32(const uint offset) {{ return asint(LoadU32(offset)); }}
+    float LoadF32(const uint offset) {{ return asfloat(LoadU32(offset)); }}
+    float2 LoadF32V2(const uint offset) {{ return float2(LoadF32(offset), LoadF32(offset + 4)); }}
+    float3 LoadF32V3(const uint offset) {{ return float3(LoadF32V2(offset), LoadF32(offset + 8)); }}
+    float4 LoadF32V4(const uint offset) {{ return float4(LoadF32V3(offset), LoadF32(offset + 12)); }}
+}}
+
+[[vk::binding({1})]]
+ConstantBuffer<HookGlobals> g_HookGlobals;
+
+)";
+
+// {0}: uint count, {1}: binding point
+static constexpr const char *s_HookInstanceApi = R"(
+struct HookInstance
+{{
+    uint Data[{0}];
+
+    uint LoadU32(const uint offset) {{ return Data[offset / 4]; }}
+    int LoadI32(const uint offset) {{ return asint(LoadU32(offset)); }}
+    float LoadF32(const uint offset) {{ return asfloat(LoadU32(offset)); }}
+    float2 LoadF32V2(const uint offset) {{ return float2(LoadF32(offset), LoadF32(offset + 4)); }}
+    float3 LoadF32V3(const uint offset) {{ return float3(LoadF32V2(offset), LoadF32(offset + 8)); }}
+    float4 LoadF32V4(const uint offset) {{ return float4(LoadF32V3(offset), LoadF32(offset + 12)); }}
+}}
+
+[[vk::binding({1})]]
+StructuredBuffer<HookInstance, Std430DataLayout> g_HookInstances;
+
+)";
+
+template <Dimension D>
 static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> varyings,
                                           const TKit::Span<const HookOutput> outputs, const u32 firstTarget)
 {
+    const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
+    const bool hasGlobals = specs.HookGlobalsSize != 0;
+    const bool hasInstance = specs.HookInstanceSize != 0;
+    const bool is3D = D == D3;
+
     TKit::TierString src{};
+    src += is3D ? "typedef float3 HookVec;\n" : "typedef float2 HookVec;\n";
+    src += s_HookEnums;
+
+    if (hasGlobals)
+        src += TKit::TierString::Format(s_HookGlobalsApi, (specs.HookGlobalsSize + 15) / 16,
+                                        ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT);
+    if (hasInstance)
+        src += TKit::TierString::Format(s_HookInstanceApi, specs.HookInstanceSize / 4,
+                                        ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT);
 
     if (!varyings.IsEmpty())
     {
@@ -732,7 +708,38 @@ static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> va
         src += "}\n\n";
     }
 
-    src += s_HookApi;
+    const auto common = [&] {
+        if (is3D)
+            src += "    float3x3 TBN;\n";
+        src += "    uint InstanceIndex;\n    HookPass Pass;\n    HookGeometry Geometry;\n";
+        if (hasGlobals)
+            src += "    HookGlobals Globals;\n";
+        if (hasInstance)
+            src += "    HookInstance Instance;\n";
+    };
+
+    src += "struct VertexHookInput\n{\n    HookVec LocalPosition;\n    HookVec WorldPosition;\n    float2 TexCoord;\n"
+           "    uint VertexIndex;\n";
+    common();
+    src += "}\n\n";
+
+    src += "struct VertexHookOutput\n{\n    HookVec WorldPosition;\n";
+    if (!varyings.IsEmpty())
+        src += "    HookVaryings Varyings;\n";
+    src += "}\n\n";
+
+    src += "struct FragmentHookInput\n{\n    float4 Color;\n    HookVec WorldPosition;\n    float2 TexCoord;\n"
+           "    float2 ScreenPosition;\n    bool HasMaterial;\n";
+    common();
+    if (!varyings.IsEmpty())
+        src += "    HookVaryings Varyings;\n";
+    src += "}\n\n";
+
+    src += "struct FragmentHookOutput\n{\n    float4 Color;\n";
+    if (!outputs.IsEmpty())
+        src += "    HookOutputs Outputs;\n";
+    src += "}\n";
+
     return src;
 }
 #    endif
@@ -822,7 +829,7 @@ Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
         for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
             for (u32 dim = 0; dim < D_Count; ++dim)
-                if (opts.Geometries[geo] && opts.RenderPasses[rpass])
+                if (opts.Geometries[geo] && opts.RenderPasses[rpass] && opts.Dimensions[dim])
                 {
                     TKit::TierString &name = names[index];
                     Graph::ShaderModule &module = modules[index++];
@@ -867,7 +874,7 @@ Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
 
     TKit::StaticArray<Graph::ShaderModule, 2> hookModules{};
     TKit::TierString hookTypeSource{};
-    const TKit::TierString userSource = TKit::TierString::Format("import onyx_hook_types;\n#line 1\n{}", userSource);
+    const TKit::TierString userSource = TKit::TierString::Format("import onyx_hook_types;\n#line 1\n{}", hopts->Source);
 
     if (hopts)
     {
@@ -876,7 +883,10 @@ Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
         const bool d2 = opts.Dimensions[Dim2];
 
         const TKit::Span<const HookOutput> outputs = d2 ? sp2.HookOutputs : sp3.HookOutputs;
-        hookTypeSource = generateHookTypes(hopts->Varyings, outputs, ONYX_ENGINE_TARGET_COUNT);
+        if (d2)
+            hookTypeSource = generateHookTypes<D2>(hopts->Varyings, outputs, ONYX_ENGINE_TARGET_COUNT);
+        else
+            hookTypeSource = generateHookTypes<D3>(hopts->Varyings, outputs, ONYX_ENGINE_TARGET_COUNT);
         hookModules.Append(Graph::ShaderModule::Create("onyx_hook_types", hookTypeSource.CString()));
 
         hookMacros.Append("ONYX_ENABLE_HOOKS");

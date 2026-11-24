@@ -78,7 +78,7 @@ void Hook_Terminate()
 
 template <Dimension D> Resource Hook_FromSource(const TKit::StringView source, const HookSpecs &specs)
 {
-    HookData &data = s_Data->At(D);
+    HookData &data = s_Data->At(D - 2);
     // in debug youll see counts be max + 1 if this trips, its fine
     TKIT_ENSURE(
         data.Counts[specs.Stage]++ < s_MaxHooks[specs.Stage],
@@ -108,18 +108,20 @@ template <Dimension D> static Hook &getHook(const Resource handle)
     if (rtype == Resource_VertexHook)
     {
         ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_VertexHook);
-        return s_Data->At(D).Hooks[HookStage_Vertex][Handle_GetResourceId(handle)];
+        return s_Data->At(D - 2).Hooks[HookStage_Vertex][Handle_GetResourceId(handle)];
     }
     ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_FragmentHook);
-    return s_Data->At(D).Hooks[HookStage_Fragment][Handle_GetResourceId(handle)];
+    return s_Data->At(D - 2).Hooks[HookStage_Fragment][Handle_GetResourceId(handle)];
 }
 
-template <Dimension D> static Result<> Hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts)
+template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts)
 {
     ShaderCompileOptions copts{};
     copts.Dimensions[D - 2] = true;
     copts.Geometries = opts.Geometries;
     copts.RenderPasses = opts.RenderPasses;
+    if (hook.Stage == HookStage_Fragment)
+        copts.RenderPasses[RenderPass_Shadow] = false;
 
     HookCompileOptions hopts{};
     const RenderState mask = hook.Stage == HookStage_Vertex ? VertexHook_Mask : FragmentHook_Mask;
@@ -140,7 +142,7 @@ template <Dimension D> static Result<> Hook_Precompile(Hook &hook, const u32 fie
 template <Dimension D> Result<> Hook_Precompile(const Resource handle, const HookPrecompileOptions &opts)
 {
     Hook &hook = getHook<D>(handle);
-    Hook_Precompile<D>(hook, Handle_GetResourceId(handle) + 1, opts);
+    return hook_Precompile<D>(hook, Handle_GetResourceId(handle) + 1, opts);
 }
 
 template <Dimension D>
@@ -150,40 +152,47 @@ HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, 
     const u32 vfield = (state & VertexHook_Mask) >> VertexHook_Offset;
     const u32 ffield = (state & FragmentHook_Mask) >> FragmentHook_Offset;
 
-    const auto precompileIfNeeded = [&](const HookStage stage, const u32 field) -> const Hook & {
+    const auto precompileIfNeeded = [&](const HookStage stage, const u32 field) -> const Hook * {
         const u32 id = field - 1;
-        const Hook &hook = s_Data->At(D).Hooks[stage][id];
+        Hook &hook = s_Data->At(D - 2).Hooks[stage][id];
         if (!hook.HasShader(rpass, geo))
         {
             HookPrecompileOptions opts{};
             opts.Geometries[geo] = true;
             opts.RenderPasses[rpass] = true;
-            Hook_Precompile<D>(hook, field, opts);
+            const auto res = hook_Precompile<D>(hook, field, opts);
+            ONYX_LOG_RESULT_ERROR(res);
+            if (!res)
+                return nullptr;
         }
-        return hook;
+        return &hook;
     };
 
     if (vfield != 0)
     {
-        const Hook &hook = precompileIfNeeded(HookStage_Vertex, vfield);
-        shaders.Vertex = hook.VertexOrOpaque[rpass][geo];
+        const Hook *hook = precompileIfNeeded(HookStage_Vertex, vfield);
+        if (hook)
+            shaders.Vertex = hook->VertexOrOpaque[rpass][geo];
     }
     if (ffield != 0)
     {
-        const Hook &hook = precompileIfNeeded(HookStage_Fragment, ffield);
-        shaders.Opaque = hook.VertexOrOpaque[rpass][geo];
-        shaders.Transparent = hook.Transparent[rpass][geo];
+        const Hook *hook = precompileIfNeeded(HookStage_Fragment, ffield);
+        if (hook)
+        {
+            shaders.Opaque = hook->VertexOrOpaque[rpass][geo];
+            shaders.Transparent = hook->Transparent[rpass][geo];
+        }
     }
     return shaders;
 }
 
 template <Dimension D> bool vertexHook_IsResourceValid(const u32 id)
 {
-    return s_Data->At(D).Hooks[HookStage_Vertex].Contains(id);
+    return s_Data->At(D - 2).Hooks[HookStage_Vertex].Contains(id);
 }
 template <Dimension D> bool fragmentHook_IsResourceValid(const u32 id)
 {
-    return s_Data->At(D).Hooks[HookStage_Fragment].Contains(id);
+    return s_Data->At(D - 2).Hooks[HookStage_Fragment].Contains(id);
 }
 
 const char *ToString(const HookStage stage)
@@ -199,4 +208,18 @@ const char *ToString(const HookStage stage)
         return "Unknown";
     }
 }
+template Resource Hook_FromSource<D2>(TKit::StringView source, const HookSpecs &specs);
+template Resource Hook_FromSource<D3>(TKit::StringView source, const HookSpecs &specs);
+
+template Result<> Hook_Precompile<D2>(Resource handle, const HookPrecompileOptions &opts);
+template Result<> Hook_Precompile<D3>(Resource handle, const HookPrecompileOptions &opts);
+
+template bool vertexHook_IsResourceValid<D2>(u32 id);
+template bool vertexHook_IsResourceValid<D3>(u32 id);
+
+template bool fragmentHook_IsResourceValid<D2>(u32 id);
+template bool fragmentHook_IsResourceValid<D3>(u32 id);
+
+template HookShaders Hook_GetFromRenderState<D2>(RenderPass rpass, Geometry geo, RenderState state);
+template HookShaders Hook_GetFromRenderState<D3>(RenderPass rpass, Geometry geo, RenderState state);
 } // namespace Onyx

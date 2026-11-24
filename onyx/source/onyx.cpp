@@ -279,7 +279,7 @@ void DestroyRenderTexture(const RenderTexture *rtex)
 }
 
 #ifdef ONYX_ENABLE_HOOKS
-template <Dimension D> void HookGlobalData(const void *data, const u32 size)
+template <Dimension D> void SetHookGlobalData(const void *data, const u32 size)
 {
     TKIT_ASSERT(size <= GetSpecs().GetSpecific<D>().HookGlobalsSize,
                 "[ONYX][CONTEXT] Hook instance data has a size of {} but the maximum amount of per-instance hook "
@@ -541,8 +541,8 @@ void Frontend_Terminate()
 }
 
 #ifdef ONYX_ENABLE_HOOKS
-template void HookGlobalData<D2>(const void *data, const u32 size);
-template void HookGlobalData<D3>(const void *data, const u32 size);
+template void SetHookGlobalData<D2>(const void *data, const u32 size);
+template void SetHookGlobalData<D3>(const void *data, const u32 size);
 #endif
 
 template RenderContext<D2> *CreateRenderContext(const RenderContextSpecs &specs);
