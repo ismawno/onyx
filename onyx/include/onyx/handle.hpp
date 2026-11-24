@@ -69,6 +69,11 @@
                     "[ONYX][RESOURCES] The handle {:#010x} does not contain a valid '{}' pool handle", hndl,           \
                     ToString(ptype))
 
+#    define ONYX_CHECK_RESOURCE_HANDLE(handle, rtype)                                                                  \
+        ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                       \
+        ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                            \
+        ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
+
 #else
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_TYPE(...)
 #    define ONYX_CHECK_HANDLE_HAS_VALID_RESOURCE_POOL_TYPE(...)
@@ -106,7 +111,13 @@ enum ResourceType : u8
     Resource_Sampler,
     Resource_Image,
     Resource_Texture,
+#ifdef ONYX_ENABLE_AUDIO
     Resource_Audio,
+#endif
+#ifdef ONYX_ENABLE_HOOKS
+    Resource_VertexHook,
+    Resource_FragmentHook,
+#endif
     Resource_Count,
     Resource_None = Resource_Count
 };

@@ -3,6 +3,9 @@
 #include "onyx/core.hpp"
 #include "onyx/window.hpp"
 #include "onyx/render_texture.hpp"
+#ifdef ONYX_ENABLE_HOOKS
+#    include "onyx/hook.hpp"
+#endif
 #include "state.hpp"
 #include "graph/descriptor.hpp"
 
@@ -51,17 +54,89 @@ Graph::Sampler Renderer_GetNearSampler();
 Graph::Sampler Renderer_GetLinearSampler();
 Graph::Sampler Renderer_GetEdgeSampler();
 
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+#    ifdef ONYX_ENABLE_HOOKS
+struct HookGlobalData
+{
+    const void *Data;
+    u32 Size;
+};
+struct HookCompileOptions
+{
+    TKit::StringView Source{};
+    // must be null terminated!!
+    TKit::StringView SearchPath{};
+    //
+    TKit::Span<const HookVarying> Varyings{};
+
+    ShaderCombination *VertexOrOpaque = nullptr;
+    ShaderCombination *Transparent = nullptr;
+    HookStage Stage = HookStage_Count;
+
+    RenderState HookBitField = 0;
+};
+#    endif
+struct ShaderCompileOptions
+{
+    TKit::FixedArray<bool, D_Count> Dimensions{};
+    TKit::FixedArray<bool, RenderPass_Count> RenderPasses{};
+    TKit::FixedArray<bool, Geometry_Count> Geometries{};
+    // ignored if HookOptions is not null
+    TKit::FixedArray<bool, StandalonePass_Count> Standalone{};
+
+#    ifdef ONYX_ENABLE_HOOKS
+    // if hook options are null, compilation will be done for the default shaders with no hooks, replacing old default
+    // shaders and invalidating all pipelines using the specified shader combination. if hook options are present,
+    // compilation will be done against current default shaders including the hook, and only pipelines using such hooks
+    // will be replaced
+    const HookCompileOptions *HookOptions = nullptr;
+#    endif
+
+    template <u32 Count> static constexpr TKit::FixedArray<bool, Count> &Full(TKit::FixedArray<bool, Count> &arr)
+    {
+        for (bool &b : arr)
+            b = true;
+        return arr;
+    }
+
+    static constexpr ShaderCompileOptions Full()
+    {
+        ShaderCompileOptions opts;
+        Full(opts.Dimensions);
+        Full(opts.RenderPasses);
+        Full(opts.Geometries);
+        Full(opts.Standalone);
+        return opts;
+    }
+};
+ONYX_NO_DISCARD Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts);
+#endif
+
 // consider having arrays of semaphores to allow for some flexibility
 
 // NOTE(Isma): Same family index multi queue support was dropped. passing queues around is in theory no longer needed
 // anymore
-void Renderer_Transfer();
+struct TransferInfo
+{
+#ifdef ONYX_ENABLE_HOOKS
+    HookGlobalData HookGlobalData2{};
+    HookGlobalData HookGlobalData3{};
+
+    template <Dimension D> const HookGlobalData &GetHookGlobalData() const
+    {
+        if constexpr (D == D2)
+            return HookGlobalData2;
+        else
+            return HookGlobalData3;
+    }
+#endif
+};
+void Renderer_Transfer(const TransferInfo &info);
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)
 RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, Window *window, RenderFlags flags = 0);
 RenderSubmitInfo Renderer_Render(Graph::CommandBuffer command, RenderTexture *rtex);
 
 void Renderer_SubmitRender(Graph::CommandPool pool, TKit::Span<const RenderSubmitInfo> info);
-void Renderer_Coalesce(u32 maxRanges = 512);
 
 } // namespace Onyx

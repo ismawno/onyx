@@ -19,11 +19,6 @@ namespace Onyx
     ONYX_CHECK_HANDLE_HAS_RESOURCE_POOL_TYPE(pool, rtype);                                                             \
     ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(pool, rtype, dim)
 
-#define CHECK_RESOURCE_HANDLE(handle, rtype)                                                                           \
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
-    ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
-
 #define CHECK_RESOURCE_HANDLE_WITH_DIM(handle, rtype, dim)                                                             \
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
     ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
@@ -242,8 +237,13 @@ static void texture_WriteOffsetDescriptors()
 
 // lets write this magically into existence
 #ifdef ONYX_ENABLE_AUDIO
-ONYX_NO_DISCARD Result<> audio_Initialize(u32 listenerCount);
+ONYX_NO_DISCARD Result<> audio_Initialize();
 void audio_Terminate();
+#endif
+
+#ifdef ONYX_ENABLE_HOOKS
+void Hook_Initialize();
+void Hook_Terminate();
 #endif
 
 // TODO(Isma): If there is a max bounds and material... why allow resizes on its buffer. Remove the resize path,
@@ -276,8 +276,11 @@ void Resources_Initialize()
     materials_Initialize<D3>();
     bounds_Initialize<D2>();
     bounds_Initialize<D3>();
+#ifdef ONYX_ENABLE_HOOKS
+    Hook_Initialize();
+#endif
 #ifdef ONYX_ENABLE_AUDIO
-    ONYX_LOG_EXPRESSION_ERROR(audio_Initialize(GetSpecs().ListenerCount));
+    ONYX_LOG_EXPRESSION_ERROR(audio_Initialize());
 #endif
 }
 
@@ -317,6 +320,9 @@ void Resources_Terminate()
 #ifdef ONYX_ENABLE_AUDIO
     audio_Terminate();
 #endif
+#ifdef ONYX_ENABLE_HOOKS
+    Hook_Terminate();
+#endif
     terminate<D2>();
     terminate<D3>();
     meshes_Terminate(*s_FontData);
@@ -346,7 +352,7 @@ static Graph::Sampler sampler_Create(const SamplerData &data)
 
 static Graph::Sampler sampler_Get(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
     const u32 sid = Handle_GetResourceId(handle);
     return s_Samplers->Resources[sid];
@@ -397,7 +403,7 @@ Resource Sampler_Create(const SamplerData &data)
 
 void Sampler_Update(const Resource handle, const SamplerData &data)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
     const u32 sid = Handle_GetResourceId(handle);
     Graph::Sampler_Destroy(s_Samplers->Resources[sid]);
@@ -408,7 +414,7 @@ void Sampler_Update(const Resource handle, const SamplerData &data)
 void Sampler_Destroy(const Resource handle)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying sampler with handle {:#010x}", handle);
-    CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
 
     sampler_RemoveReferences<D2>(handle);
     sampler_RemoveReferences<D3>(handle);
@@ -420,13 +426,13 @@ void Sampler_Destroy(const Resource handle)
 
 void Sampler_Release(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Sampler);
     s_Samplers->ToDestroy.Append(handle);
 }
 
 static ImageInfo &image_Get(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     const u32 iid = Handle_GetResourceId(handle);
     return s_Images->Resources[iid];
@@ -498,7 +504,7 @@ static void texture_Destroy(const Resource handle);
 void Image_Destroy(const Resource handle)
 {
     TKIT_LOG_DEBUG("[ONYX][RESOURCES]    Destroying image with handle {:#010x}", handle);
-    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     ImageInfo &img = image_Get(handle);
     const TKit::StackArray<Resource> texs = img.Textures;
@@ -513,13 +519,13 @@ void Image_Destroy(const Resource handle)
 
 void Image_Release(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Image);
     s_Images->ToDestroy.Append(handle);
 }
 
 void Image_Update(const Resource handle, const ImageData &data)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Image);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Image);
 
     ImageInfo &img = image_Get(handle);
     const TKit::StackArray<Resource> texs = img.Textures;
@@ -607,7 +613,7 @@ static void texture_UnlinkImage(const Resource handle)
 
 static void texture_Destroy(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
 
     texture_UnlinkImage(handle);
 
@@ -646,7 +652,7 @@ void Texture_Destroy(const Resource handle)
 }
 void Texture_Release(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
     s_Textures->ToDestroy.Append(handle);
 }
 
@@ -690,8 +696,8 @@ Resource Texture_CreateSecondaryRenderTexture(const Graph::ImageView view)
 }
 void Texture_UpdateHandleOffset(const Resource handle, const Resource target)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
-    CHECK_RESOURCE_HANDLE(target, Resource_Texture);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Texture);
+    ONYX_CHECK_RESOURCE_HANDLE(target, Resource_Texture);
 
     const u32 tid = Handle_GetResourceId(handle);
     const u32 targid = Handle_GetResourceId(target);
@@ -733,7 +739,7 @@ template <Dimension D> static void bounds_Destroy(const Resource handle)
 
 template <Dimension D> const BoundsData<D> &Bounds_GetData(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Bounds);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Bounds);
 
     const u32 bid = Handle_GetResourceId(handle);
     return getData<D>().BoundingBoxes.Elements[bid];
@@ -1639,7 +1645,12 @@ void Resources_UpdateTextureIdOffsetBuffer(const Graph::CommandBuffer cmd)
 }
 
 #ifdef ONYX_ENABLE_AUDIO
-bool audio_IsResourceIdValid(const u32 id);
+bool audio_IsResourceIdValid(u32 id);
+#endif
+
+#ifdef ONYX_ENABLE_HOOKS
+template <Dimension D> bool vertexHook_IsResourceValid(u32 id);
+template <Dimension D> bool fragmentHook_IsResourceValid(u32 id);
 #endif
 
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType rtype)
@@ -1679,6 +1690,12 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
 #ifdef ONYX_ENABLE_AUDIO
     case Resource_Audio:
         return audio_IsResourceIdValid(Handle_GetResourceId(handle));
+#endif
+#ifdef ONYX_ENABLE_HOOKS
+    case Resource_VertexHook:
+        return vertexHook_IsResourceValid<D>(Handle_GetResourceId(handle));
+    case Resource_FragmentHook:
+        return fragmentHook_IsResourceValid<D>(Handle_GetResourceId(handle));
 #endif
     default:
         return false;

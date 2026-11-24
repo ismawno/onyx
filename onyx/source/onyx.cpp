@@ -23,6 +23,7 @@ struct WindowData
     TKit::Timespan DeltaTarget{};
     TKit::Timespan DeltaTime{};
     TKit::Timespan DeltaError{};
+
 #ifdef ONYX_ENABLE_IMGUI
     ImGuiContext *ImContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -30,6 +31,7 @@ struct WindowData
 #    endif
     bool ImGuiRendered = false;
 #endif
+
     OpenWindowFlags Flags = 0;
 
     bool IsDue() const
@@ -51,6 +53,8 @@ struct FrontendData
     TKit::StaticArray<RenderTexture *, ONYX_MAX_VIEWS> RenderTextures{};
 
     TKit::StaticArray<Overlay *, ONYX_MAX_VIEWS> Overlays{};
+
+    TransferInfo TransferInfo{};
 
     TKit::Clock FrameClock{};
     TKit::Clock TimeClock{};
@@ -274,6 +278,20 @@ void DestroyRenderTexture(const RenderTexture *rtex)
                "CreateRenderTexture() function");
 }
 
+#ifdef ONYX_ENABLE_HOOKS
+template <Dimension D> void HookGlobalData(const void *data, const u32 size)
+{
+    TKIT_ASSERT(size <= GetSpecs().GetSpecific<D>().HookGlobalsSize,
+                "[ONYX][CONTEXT] Hook instance data has a size of {} but the maximum amount of per-instance hook "
+                "data .Specs{}.HookGlobalsSize is {}. Raise it in the specs given to Onyx::Initialize",
+                size, u8(D), GetSpecs().GetSpecific<D>().HookGlobalsSize);
+    if constexpr (D == D2)
+        s_Data->TransferInfo.HookGlobalData2 = {data, size};
+    else
+        s_Data->TransferInfo.HookGlobalData3 = {data, size};
+}
+#endif
+
 #ifdef ONYX_ENABLE_AUDIO
 void audio_Update();
 #endif
@@ -313,7 +331,7 @@ void Transfer()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Transfer");
     Graph::UpdateCompletedTimelineValuesForAllQueues();
-    Renderer_Transfer();
+    Renderer_Transfer(s_Data->TransferInfo);
 }
 void Render(const RenderInfo &info)
 {
@@ -521,6 +539,11 @@ void Frontend_Terminate()
         tier->Destroy(rtex);
     s_Data.Destruct();
 }
+
+#ifdef ONYX_ENABLE_HOOKS
+template void HookGlobalData<D2>(const void *data, const u32 size);
+template void HookGlobalData<D3>(const void *data, const u32 size);
+#endif
 
 template RenderContext<D2> *CreateRenderContext(const RenderContextSpecs &specs);
 template RenderContext<D3> *CreateRenderContext(const RenderContextSpecs &specs);

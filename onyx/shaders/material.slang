@@ -23,7 +23,7 @@ struct Material2D
 }
 
 [UnscopedEnum]
-enum TextureSlot : u8
+enum TextureSlot : u32
 {
     TextureSlot_Albedo,
     TextureSlot_MetallicRoughness,
@@ -50,7 +50,7 @@ struct Material3D
 }
 
 [UnscopedEnum]
-enum LightType : u8
+enum LightType : u32
 {
     Light_Point = 0,
     Light_Directional = 1,

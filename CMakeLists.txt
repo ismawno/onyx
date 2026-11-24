@@ -51,6 +51,9 @@ set(ONYX_ENABLE_AUDIO
     CACHE BOOL "")
 # requires graphite to have a shader compilation backend set with
 # GRAPHITE_SHADER_COMPILATION_BACKEND
+set(ONYX_ENABLE_HOOKS
+    OFF
+    CACHE BOOL "")
 set(ONYX_COMPILE_SHADERS_AT_RUNTIME
     OFF
     CACHE BOOL "")
@@ -69,12 +72,12 @@ if(ONYX_INCLUDE_DEFAULT_FONT AND NOT ONYX_ENABLE_FONT_LOAD)
     "ONYX - Font loading is required to use the default font. Enable font loading as well"
   )
 endif()
-if(ONYX_COMPILE_SHADERS_AT_RUNTIME
+if((ONYX_COMPILE_SHADERS_AT_RUNTIME OR ONYX_ENABLE_HOOKS)
    AND (NOT GRAPHITE_SHADER_COMPILATION_BACKEND
         OR GRAPHITE_SHADER_COMPILATION_BACKEND STREQUAL "none"))
   message(
     FATAL_ERROR
-      "ONYX - A shader backend is required to compile shaders at runtime. Enable it with GRAPHITE_SHADER_COMPILATION_BACKEND variable"
+      "ONYX - A shader backend is required to compile shaders at runtime or to enable hooks. Enable it with GRAPHITE_SHADER_COMPILATION_BACKEND variable"
   )
 endif()
 
@@ -99,6 +102,7 @@ message(STATUS "ONYX - IMAGE LOAD: ${ONYX_ENABLE_IMAGE_LOAD}")
 message(STATUS "ONYX - FONT LOAD: ${ONYX_ENABLE_FONT_LOAD}")
 message(STATUS "ONYX - DEFAULT FONT: ${ONYX_INCLUDE_DEFAULT_FONT}")
 message(STATUS "ONYX - GLTF LOAD: ${ONYX_ENABLE_GLTF_LOAD}")
+message(STATUS "ONYX - HOOKS: ${ONYX_ENABLE_HOOKS}")
 message(STATUS "ONYX - COMPILE SHADERS: ${ONYX_COMPILE_SHADERS_AT_RUNTIME}")
 message(STATUS "ONYX - AUDIO: ${ONYX_ENABLE_AUDIO}")
 

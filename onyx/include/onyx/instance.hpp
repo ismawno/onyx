@@ -208,6 +208,9 @@ class HostBuffer
 struct InstanceHostBuffer
 {
     HostBuffer Data{};
+#ifdef ONYX_ENABLE_HOOKS
+    HostBuffer HookData{};
+#endif
     u32 Instances = 0;
     u32 Capacity = 0;
     bool IsEmpty() const

@@ -421,7 +421,17 @@ static ProjectLauncherResult runProjectLauncher()
     return res;
 }
 
-// renamear ONYX_MAX_MESH_IDS_PER_POOL a _PER_POOL y adaptar control center
+// TODO(Isma): Implement forward rendering+
+// TODO(Isma): Fix ENGINE_BUGS.md
+// TODO(Isma): Remember add is resource valid for shader hooks
+// TODO(Isma): Add tests for hooks? if enabled
+// TODO(Isma): onyx must be able to look up where shader path is
+// TODO(Isma): At runtime, choose the number of outputs of hooks, and maybe even inputs? Pass info as well from vertex
+// to fragment hooks
+// TODO(Isma): Implement input text multiline
+// TODO(Isma): Context per-instance, transfer() and bind?
+// TODO(Isma): The editor can have a scene that is the control center
+// TODO(Isma): Add shader hooks to editor and allow reloading default shaders
 // TODO(Isma): Create some pipelines up front by setting the render state desired
 // TODO(Isma): Drag & drop tests?
 // TODO(Isma): Use tkit defer for audio to return errors instead of ensuring!!!

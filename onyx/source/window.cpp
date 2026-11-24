@@ -273,7 +273,7 @@ void Window::BeginRendering(const Graph::CommandBuffer cmd)
     att.LoadOp = Graph::LoadOp_Clear;
     att.StoreOp = Graph::StoreOp_Store;
     att.View = Graph::Image_GetView(pimage);
-    att.ClearValue.Color = ClearColor.rgba;
+    att.ClearValue.Color.Float32 = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
     info.RenderArea = {{0, 0}, Graph::Swapchain_GetExtent(m_Swapchain)};

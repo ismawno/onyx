@@ -193,7 +193,7 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     target.Layout = Graph::ImageLayout_ColorAttachment;
     target.LoadOp = Graph::LoadOp_Clear;
     target.StoreOp = Graph::StoreOp_Store;
-    target.ClearValue.Color = ClearColor.rgba;
+    target.ClearValue.Color.Float32 = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
     info.RenderArea = {{0, 0}, ApplyScale(m_Size, m_ContentScale)};

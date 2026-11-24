@@ -17,8 +17,8 @@
 
 namespace Onyx
 {
-constexpr u32 Dim2 = 0;
-constexpr u32 Dim3 = 1;
+static constexpr u32 Dim2 = 0;
+static constexpr u32 Dim3 = 1;
 
 /////////////////////////////////////////////
 /// PLATFORM
@@ -181,7 +181,7 @@ static TKit::Storage<DescriptorData> s_DescriptorData{};
 static void createDescriptorData()
 {
     using Binding = Graph::DescriptorBinding;
-    using BindingArray = TKit::StaticArray16<Binding>;
+    using BindingArray = TKit::StaticArray32<Binding>;
 
     constexpr Graph::DescriptorType buffer = Graph::Descriptor_StorageBuffer;
     constexpr Graph::DescriptorType sampler = Graph::Descriptor_Sampler;
@@ -193,24 +193,43 @@ static void createDescriptorData()
     constexpr Graph::ShaderStageFlags vertex = Graph::ShaderStageFlag_Vertex;
     constexpr Graph::ShaderStageFlags fragment = Graph::ShaderStageFlag_Fragment;
 
-    // bind unused is disabled for now
     constexpr Graph::DescriptorBindingFlags pbound = Graph::DescriptorBindingFlag_PartiallyBound;
-    constexpr Graph::DescriptorBindingFlags updateAfterBind = Graph::DescriptorBindingFlag_UpdateUnusedWhilePending;
+    constexpr Graph::DescriptorBindingFlags updateUnused = Graph::DescriptorBindingFlag_UpdateUnusedWhilePending;
+
+    // hook bindings depend on per-dimension sizes, so they are appended last to each dimension's final array
+    const auto appendHooks = []<Dimension D>(BindingArray &bindings) {
+#ifdef ONYX_ENABLE_HOOKS
+        const auto &specs = s_Specs.GetSpecific<D>();
+        if (specs.HookGlobalsSize != 0)
+            bindings.Append(
+                Binding::Create(ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
+        if (specs.HookInstanceSize != 0)
+            bindings.Append(
+                Binding::Create(ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
+#else
+        return bindings;
+#endif
+    };
 
     BindingArray flat{};
     // pbound for instance, materials, light and bounds so that they can be skipped if user sets its max count to 0
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS,
-                                pbound | updateAfterBind));
+                                pbound | updateUnused));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
-                                pbound | updateAfterBind));
+                                pbound | updateUnused));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURE_OFFSETS_BINDING_POINT, buffer, fragment));
     flat.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex, 1, pbound));
 
-    s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
-    s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat);
+    BindingArray flat2 = flat;
+    appendHooks.template operator()<D2>(flat2);
+    s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat2);
 
-    // flat is also the common prefix of the shaded bindings
+    BindingArray flat3 = flat;
+    appendHooks.template operator()<D3>(flat3);
+    s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = Graph::DescriptorSetLayout_Create(flat3);
+
+    // flat (without hooks) is also the common prefix of the shaded bindings
     BindingArray shaded = flat;
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment, 1, pbound));
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_POINT_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
@@ -218,69 +237,74 @@ static void createDescriptorData()
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_SAMPLER_BINDING_POINT, sampler, fragment));
     shaded.Append(Binding::Create(ONYX_GEOMETRY_PASS_SHADOW_COMPARE_SAMPLER_BINDING_POINT, sampler, fragment));
 
-    // we perform a copy to not modify shaded
     BindingArray shaded2 = shaded;
     shaded2.Append(Binding::Create(ONYX_2D_GEOMETRY_PASS_SHADOW_MAPS_BINDING_POINT, sampledImage, fragment,
-                                   ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind));
+                                   ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound));
+    appendHooks.template operator()<D2>(shaded2);
     s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded2);
 
-    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_POINT_MAPS_BINDING_POINT, sampledImage, fragment,
-                                  ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_DIRECTIONAL_MAPS_BINDING_POINT, sampledImage, fragment,
-                                  ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_MAPS_BINDING_POINT, sampledImage, fragment,
-                                  ONYX_MAX_TEXTURE_MAPS, pbound));
-    shaded.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
-    s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded);
+    BindingArray shaded3 = shaded;
+    shaded3.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_POINT_MAPS_BINDING_POINT, sampledImage, fragment,
+                                   ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded3.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_DIRECTIONAL_MAPS_BINDING_POINT, sampledImage, fragment,
+                                   ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded3.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_MAPS_BINDING_POINT, sampledImage, fragment,
+                                   ONYX_MAX_TEXTURE_MAPS, pbound));
+    shaded3.Append(Binding::Create(ONYX_3D_GEOMETRY_PASS_SPOT_LIGHTS_BINDING_POINT, buffer, fragment, 1, pbound));
+    appendHooks.template operator()<D3>(shaded3);
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = Graph::DescriptorSetLayout_Create(shaded3);
 
     BindingArray shadow{};
     shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buffer, vertex | fragment, 1, pbound));
-    shadow.Append(
-        Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS, pbound));
-    shadow.Append(
-        Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES, pbound));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_SAMPLERS_BINDING_POINT, sampler, fragment, ONYX_MAX_SAMPLERS,
+                                  pbound | updateUnused));
+    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_TEXTURES_BINDING_POINT, sampledImage, fragment, ONYX_MAX_TEXTURES,
+                                  pbound | updateUnused));
     shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_BOUNDS_BINDING_POINT, buffer, vertex, 1, pbound));
 
-    s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
+    BindingArray shadow3 = shadow;
+    appendHooks.template operator()<D3>(shadow3);
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow3);
 
-    shadow.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment, 1, pbound));
-    s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow);
+    BindingArray shadow2 = shadow;
+    shadow2.Append(Binding::Create(ONYX_GEOMETRY_PASS_MATERIALS_BINDING_POINT, buffer, fragment, 1, pbound));
+    appendHooks.template operator()<D2>(shadow2);
+    s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = Graph::DescriptorSetLayout_Create(shadow2);
 
-    // NOTE(Isma): Removed bind unused here
     const Binding rayMarch[] = {
         Binding::Create(ONYX_2D_RAY_MARCH_PASS_OCCLUSION_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind),
+                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateUnused),
         Binding::Create(ONYX_2D_RAY_MARCH_PASS_RAY_MARCH_MAP_BINDING_POINT, storageImage, compute,
-                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateAfterBind),
+                        ONYX_2D_MAX_RAY_MARCH_AND_OCCLUSION_MAPS, pbound | updateUnused),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_RayMarch] = Graph::DescriptorSetLayout_Create(rayMarch);
 
     constexpr Binding blend[] = {
         Binding::Create(ONYX_BLEND_PASS_TRANSPARENT_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
         Binding::Create(ONYX_BLEND_PASS_REVEALAGE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Blend] = Graph::DescriptorSetLayout_Create(blend);
 
     constexpr Binding outlines[] = {
         Binding::Create(ONYX_OUTLINE_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
         Binding::Create(ONYX_OUTLINE_PASS_OUTLINE_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
         Binding::Create(ONYX_OUTLINE_PASS_STENCIL_ATTACHMENTS_BINDING, sampledImage, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Outline] = Graph::DescriptorSetLayout_Create(outlines);
 
     constexpr Binding fxaa[] = {Binding::Create(ONYX_FXAA_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment,
-                                                ONYX_MAX_ATTACHMENTS, pbound | updateAfterBind)};
+                                                ONYX_MAX_ATTACHMENTS, pbound | updateUnused)};
 
     s_DescriptorData->StandaloneLayouts[StandalonePass_FXAA] = Graph::DescriptorSetLayout_Create(fxaa);
 
     constexpr Binding compositor[] = {
         Binding::Create(ONYX_COMPOSITOR_PASS_COLOR_ATTACHMENTS_BINDING, combined, fragment, ONYX_MAX_ATTACHMENTS,
-                        pbound | updateAfterBind),
+                        pbound | updateUnused),
     };
     s_DescriptorData->StandaloneLayouts[StandalonePass_Compositor] = Graph::DescriptorSetLayout_Create(compositor);
 
@@ -488,10 +512,23 @@ static void core_Initialize(const Specs &specs)
     const Graph::RenderBackendInfo rinfo = Graph::GetRenderBackendInfo();
     if (specs.SampleCount > rinfo.Device.MaxSampleCount)
     {
-        TKIT_LOG_WARNING("[ONYX][CORE] Specified sample ({}) exceeds maximum sample count ({}). Clamped to maximum",
-                         1U << u32(specs.SampleCount), 1U << u32(rinfo.Device.MaxSampleCount));
+        TKIT_LOG_WARNING(
+            "[ONYX][CORE] Specified sample ({}) exceeds maximum sample count ({}) for this device. Clamped to maximum",
+            1U << u32(specs.SampleCount), 1U << u32(rinfo.Device.MaxSampleCount));
         s_Specs.SampleCount = rinfo.Device.MaxSampleCount;
     }
+#ifdef ONYX_ENABLE_HOOKS
+    TKIT_ASSERT(
+        specs.Specs2.HookOutputs.GetSize() <= rinfo.Device.MaxColorAttachments,
+        "[ONYX][CORE] The provided shader hook output count for 2D ({}), combined with onyx's own attachment outputs, "
+        "exceeds the maximum amount of color attachment outputs for this device ({})",
+        specs.Specs2.HookOutputs.GetSize(), rinfo.Device.MaxColorAttachments);
+    TKIT_ASSERT(
+        specs.Specs3.HookOutputs.GetSize() <= rinfo.Device.MaxColorAttachments,
+        "[ONYX][CORE] The provided shader hook output count for 3D ({}), combined with onyx's own attachment outputs, "
+        "exceeds the maximum amount of color attachment outputs for this device ({})",
+        specs.Specs3.HookOutputs.GetSize(), rinfo.Device.MaxColorAttachments);
+#endif
 
     if (specs.TaskManager)
         s_TaskManager = specs.TaskManager;

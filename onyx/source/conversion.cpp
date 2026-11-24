@@ -186,6 +186,10 @@ const char *ToString(const ErrorCode code)
         return "Error_IsNotDirectory";
     case Error_FontPackFailed:
         return "Error_FontPackFailed";
+    case Error_CompilationFailed:
+        return "Error_CompilationFailed";
+    case Error_ReadbackLimitReached:
+        return "Error_ReadbackLimitReached";
     case Error_AudioInitFailed:
         return "Error_AudioInitFailed";
     case Error_AudioPlayFailed:

@@ -3,7 +3,7 @@
 #include "onyx/alias.hpp"
 #include "onyx/dimension.hpp"
 #include "onyx/instance.hpp"
-#include "graph/core.hpp"
+#include "graph/execution.hpp"
 #include "graph/input.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/utils/limits.hpp"
@@ -52,6 +52,10 @@
 
 #define ONYX_CHECK_RESULT(expression) Onyx::CheckResult(expression);
 
+#ifndef ONYX_MAX_HOOK_OUTPUTS
+#    define ONYX_MAX_HOOK_OUTPUTS 5
+#endif
+
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.
@@ -76,6 +80,8 @@ enum ErrorCode : u8
     Error_IsNotFile,
     Error_IsNotDirectory,
     Error_FontPackFailed,
+    Error_CompilationFailed,
+    Error_ReadbackLimitReached,
     Error_AudioInitFailed,
     Error_AudioPlayFailed,
     Error_AudioAttachFailed,
@@ -167,6 +173,15 @@ struct Allocation
     TKit::TierAllocator *Tier = nullptr;
 };
 
+#ifdef ONYX_ENABLE_HOOKS
+struct HookOutput
+{
+    const char *Name;
+    Graph::Format Format;
+    Graph::ClearColor ClearValue;
+};
+#endif
+
 template <Dimension D> struct SpecificSpecs;
 
 template <> struct SpecificSpecs<D2>
@@ -186,6 +201,12 @@ template <> struct SpecificSpecs<D2>
 
     u32 MaxMaterials = 64;
     u32 MaxBounds = 256;
+
+#ifdef ONYX_ENABLE_HOOKS
+    u32 HookGlobalsSize = 0;
+    u32 HookInstanceSize = 0;
+    TKit::StaticArray<HookOutput, ONYX_MAX_HOOK_OUTPUTS> HookOutputs{};
+#endif
 };
 template <> struct SpecificSpecs<D3>
 {
@@ -199,6 +220,12 @@ template <> struct SpecificSpecs<D3>
 
     u32 MaxMaterials = 64;
     u32 MaxBounds = 256;
+
+#ifdef ONYX_ENABLE_HOOKS
+    u32 HookGlobalsSize = 0;
+    u32 HookInstanceSize = 0;
+    TKit::StaticArray<HookOutput, ONYX_MAX_HOOK_OUTPUTS> HookOutputs{};
+#endif
 
     TKit::FixedArray<u32, LightTypeCount<D3>> MaxShadowMaps{1, 1, 1};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};

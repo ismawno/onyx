@@ -33,6 +33,9 @@ endif()
 if(ONYX_ENABLE_AUDIO)
   list(APPEND SOURCES source/audio.cpp)
 endif()
+if(ONYX_ENABLE_HOOKS)
+  list(APPEND SOURCES source/hook.cpp)
+endif()
 
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.13.x\")
@@ -251,9 +254,12 @@ tkit_register_for_reflection(onyx SOURCES include/onyx/transform.hpp
                              include/onyx/camera.hpp include/onyx/view.hpp)
 
 if(ONYX_COMPILE_SHADERS_AT_RUNTIME)
-  target_compile_definitions(
-    onyx PUBLIC ONYX_COMPILE_SHADERS_AT_RUNTIME
-                ONYX_SHADERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+  target_compile_definitions(onyx PUBLIC ONYX_COMPILE_SHADERS_AT_RUNTIME)
+endif()
+target_compile_definitions(
+  onyx PUBLIC ONYX_SHADERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+if(ONYX_ENABLE_HOOKS)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_HOOKS)
 endif()
 
 # IMGUI ###

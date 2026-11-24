@@ -168,6 +168,11 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         Framebuffer &fb = m_Framebuffers.Append();
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
             fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
+#ifdef ONYX_ENABLE_HOOKS
+        for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookOutputs)
+            fb.HookOutputs.Append(createColorAttachment(extent, output.Format, GetSpecs().SampleCount),
+                                  output.ClearValue);
+#endif
 
         const Graph::Sampler nearSampler = Renderer_GetNearSampler();
         const Graph::Sampler edgeSampler = Renderer_GetEdgeSampler();
@@ -314,6 +319,14 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
 template <Dimension D> void RenderView<D>::MarkCurrentAttachmentsInUse(const Graph::Tracker &tracker)
 {
     m_Framebuffers[m_AttachmentIndex].Tracker = tracker;
+#ifdef ONYX_ENABLE_HOOKS
+    for (HookReadback &rb : m_Readbacks)
+        if (rb.State == HookReadbackState_Recorded)
+        {
+            rb.Tracker = tracker;
+            rb.State = HookReadbackState_Submitted;
+        }
+#endif
 }
 
 static Graph::ImageMemoryBarrierInfo toColorAttachment(const Graph::Image image, const bool sampledLater = true)
@@ -401,8 +414,8 @@ static Graph::AttachmentInfo attachmentInfo(const ViewImage &image, const Graph:
     return att;
 }
 static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Graph::LoadOp load,
-                                             const Graph::StoreOp store, const f32v4 &clear = f32v4{0.f},
-                                             const u32 viewIdx = 0)
+                                             const Graph::StoreOp store,
+                                             const Graph::ClearColor &clear = {.Float32 = 0.f}, const u32 viewIdx = 0)
 {
     Graph::AttachmentInfo att = attachmentInfo(image, Graph::ImageLayout_ColorAttachment, load, store, viewIdx);
     att.ClearValue.Color = clear;
@@ -411,7 +424,7 @@ static Graph::AttachmentInfo colorAttachment(const Graph::Image image, const Gra
 
 static Graph::AttachmentInfo colorAttachment(const ViewImage &image, const Graph::LoadOp load,
                                              const Graph::StoreOp storeResolve, const Graph::StoreOp storeMs,
-                                             const f32v4 &clear = f32v4{0.f})
+                                             const Graph::ClearColor &clear = {.Float32 = 0.f})
 {
     Graph::AttachmentInfo att = attachmentInfo(image, Graph::ImageLayout_ColorAttachment, load, storeResolve, storeMs);
     att.ClearValue.Color = clear;
@@ -558,7 +571,7 @@ template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
 //   geometry, blend and outline go through the srgb views: they do their math in linear space and store srgb.
 //   FXAA and the compositor use the linear (unorm) view of the same bytes. FXAA then sees perceptual values, as it
 //   expects, and the compositor copies them as they are into the unorm swapchain
-//   clang-format on
+// clang-format on
 
 template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandBuffer cmd, const bool hasTransparency)
 {
@@ -574,10 +587,14 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
 
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
 
-    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 6> barriers{};
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 2 * (3 + ONYX_MAX_HOOK_OUTPUTS)> barriers{};
     barriers.Append(toColorAttachment(colorImg.Image));
     barriers.Append(toColorAttachment(outlImg.Image));
     barriers.Append(toDepthAttachment(depthImg.Image, hasOutline));
+#ifdef ONYX_ENABLE_HOOKS
+    for (const HookImage &hookOut : fb.HookOutputs)
+        barriers.Append(toColorAttachment(hookOut.ImageResource.Image, false));
+#endif
 
     if (msaa)
     {
@@ -590,15 +607,20 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
         barriers.Append(toColorAttachment(colorImg.MultiSampled, false));
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
+#ifdef ONYX_ENABLE_HOOKS
+        for (const HookImage &hookOut : fb.HookOutputs)
+            barriers.Append(toColorAttachment(hookOut.ImageResource.MultiSampled, false));
+#endif
     }
 
     Graph::Command_ImageBarrier(cmd, barriers);
 
     const Color ccolor = ClearColor.ToLinear();
-    TKit::FixedArray<Graph::AttachmentInfo, 2> atts{};
+    TKit::StaticArray<Graph::AttachmentInfo, 3 + ONYX_MAX_HOOK_OUTPUTS> atts{};
 
-    atts[0] = colorAttachment(colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
-                              f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]});
+    atts.Append(colorAttachment(
+        colorImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
+        Graph::ClearColor{.Float32 = f32v4{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]}}));
 
     // hasTransparency pass may read the multisampled image for outlines (only if outlines are enabled), to continue to
     // append to it
@@ -608,7 +630,19 @@ template <Dimension D> void RenderView<D>::BeginOpaquePass(const Graph::CommandB
     // we dont care about the outlines if they wont be read later
     const Graph::LoadOp outlLoad = hasOutline ? Graph::LoadOp_Clear : Graph::LoadOp_DontCare;
 
-    atts[1] = colorAttachment(outlImg, outlLoad, outlStoreRes, outlStoreMs);
+    atts.Append(colorAttachment(outlImg, outlLoad, outlStoreRes, outlStoreMs));
+
+#ifdef ONYX_ENABLE_HOOKS
+    if (!fb.HookOutputs.IsEmpty())
+    {
+        // slot 2 is revealage in the transparent pass. leave it empty so hook outputs start at 3 in both passes
+        atts.Append(Graph::AttachmentInfo{}); // null view
+        for (const HookImage &hookOut : fb.HookOutputs)
+            atts.Append(colorAttachment(hookOut.ImageResource, Graph::LoadOp_Clear, Graph::StoreOp_Store,
+                                        hasTransparency ? Graph::StoreOp_Store : Graph::StoreOp_DontCare,
+                                        hookOut.ClearValue));
+    }
+#endif
 
     // transarent pass will load the multisampled depth attachment
     const Graph::StoreOp depStoreMs = hasTransparency ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
@@ -624,6 +658,10 @@ template <Dimension D> void RenderView<D>::EndOpaquePass(const Graph::CommandBuf
     TKIT_PROFILE_NSCOPE("Onyx::View::EndOpaquePass");
 
     Graph::Command_EndRenderPass(cmd);
+#ifdef ONYX_ENABLE_HOOKS
+    if (!hasTransparency)
+        recordHookReadbacks(cmd);
+#endif
 
     // if there is transparency, BlendPass still needs the color image used here as the attachment output, so opaque
     // must hold on applying layout barriers if there is no transparency, opaque is the last pass until we begin the
@@ -646,11 +684,15 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
 
     const bool hasOutline = m_Flags & RenderViewFlag_Outlines;
 
-    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 8> barriers{};
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, 2 * (4 + ONYX_MAX_HOOK_OUTPUTS)> barriers{};
     barriers.Append(toColorAttachment(accImg.Image));
     barriers.Append(toColorAttachment(revImg.Image));
     barriers.Append(toColorAttachment(outlImg.Image));
     barriers.Append(toDepthAttachment(depthImg.Image));
+#ifdef ONYX_ENABLE_HOOKS
+    for (const HookImage &hookOut : fb.HookOutputs)
+        barriers.Append(toColorAttachment(hookOut.ImageResource.Image, false));
+#endif
     if (msaa)
     {
         if (hasOutline)
@@ -665,20 +707,29 @@ template <Dimension D> void RenderView<D>::BeginTransparentPass(const Graph::Com
         barriers.Append(toColorAttachment(revImg.MultiSampled, false));
         barriers.Append(toColorAttachment(outlImg.MultiSampled, false));
         barriers.Append(toDepthAttachment(depthImg.MultiSampled, false));
+#ifdef ONYX_ENABLE_HOOKS
+        for (const HookImage &hookOut : fb.HookOutputs)
+            barriers.Append(toColorAttachment(hookOut.ImageResource.MultiSampled, false));
+#endif
     }
     Graph::Command_ImageBarrier(cmd, barriers);
 
-
-    TKit::FixedArray<Graph::AttachmentInfo, 3> atts{};
-    atts[0] = colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare);
+    TKit::StaticArray<Graph::AttachmentInfo, 3 + ONYX_MAX_HOOK_OUTPUTS> atts{};
+    atts.Append(colorAttachment(accImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare));
 
     // here, we only keep the resolve attachments, we dont have any use for the multisampled anymore, their lives end
     // here
     const Graph::StoreOp outlStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     const Graph::LoadOp outlLoad = hasOutline ? Graph::LoadOp_Load : Graph::LoadOp_DontCare;
-    atts[1] = colorAttachment(outlImg, outlLoad, outlStoreRes, Graph::StoreOp_DontCare);
-    atts[2] = colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
-                              f32v4{1.f, 0.f, 0.f, 0.f});
+    atts.Append(colorAttachment(outlImg, outlLoad, outlStoreRes, Graph::StoreOp_DontCare));
+    atts.Append(colorAttachment(revImg, Graph::LoadOp_Clear, Graph::StoreOp_Store, Graph::StoreOp_DontCare,
+                                Graph::ClearColor{.Float32 = f32v4{1.f, 0.f, 0.f, 0.f}}));
+
+#ifdef ONYX_ENABLE_HOOKS
+    for (const HookImage &hookOut : fb.HookOutputs)
+        atts.Append(
+            colorAttachment(hookOut.ImageResource, Graph::LoadOp_Load, Graph::StoreOp_Store, Graph::StoreOp_DontCare));
+#endif
 
     const Graph::StoreOp depStoreRes = hasOutline ? Graph::StoreOp_Store : Graph::StoreOp_DontCare;
     const Graph::AttachmentInfo depth =
@@ -691,6 +742,9 @@ template <Dimension D> void RenderView<D>::EndTransparentPass(const Graph::Comma
     TKIT_PROFILE_NSCOPE("Onyx::View::EndTransparentPass");
 
     Graph::Command_EndRenderPass(cmd);
+#ifdef ONYX_ENABLE_HOOKS
+    recordHookReadbacks(cmd);
+#endif
     Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
 
     const Graph::ImageMemoryBarrierInfo barriers[2] = {
@@ -755,7 +809,7 @@ template <Dimension D> void RenderView<D>::BeginFXAAPass(const Graph::CommandBuf
 
     // we take the linear color view
     const Graph::AttachmentInfo color =
-        colorAttachment(colorImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store, f32v4{0.f}, 1);
+        colorAttachment(colorImg, Graph::LoadOp_DontCare, Graph::StoreOp_Store, Graph::ClearColor{.Float32 = 0.f}, 1);
 
     beginRendering(cmd, color, nullptr, GetImageExtent(), applyImageScissor(), m_ContentScale);
 }
@@ -770,6 +824,90 @@ template <Dimension D> void RenderView<D>::EndFXAAPass(const Graph::CommandBuffe
     const Graph::ImageMemoryBarrierInfo barrier = colorToShaderRead(fb.Attachments[s_ColorAtts[m_PingPong]].Image);
     Graph::Command_ImageBarrier(cmd, barrier);
 }
+
+#ifdef ONYX_ENABLE_HOOKS
+template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookReadback(const HookReadbackSpecs &specs)
+{
+    TKIT_ASSERT(specs.Slot < GetSpecs().GetSpecific<D>().HookOutputs.GetSize(),
+                "[ONYX][VIEW] Hook output slot {} does not exist", specs.Slot);
+    TKIT_ASSERT(specs.Extent[0] != 0 && specs.Extent[1] != 0, "[ONYX][VIEW] Hook readback extent must not be empty");
+
+    const u32v2 extent = GetImageExtent();
+    TKIT_ASSERT(specs.Offset[0] + specs.Extent[0] <= extent[0] && specs.Offset[1] + specs.Extent[1] <= extent[1],
+                "[ONYX][VIEW] Hook readback rect ({}, {}) + ({}, {}) exceeds the image extent ({}, {})",
+                specs.Offset[0], specs.Offset[1], specs.Extent[0], specs.Extent[1], extent[0], extent[1]);
+
+    for (u32 i = 0; i < m_Readbacks.GetSize(); ++i)
+    {
+        HookReadback &rb = m_Readbacks[i];
+        if (rb.State != HookReadbackState_Free)
+            continue;
+
+        const usz bpp = Graph::Format_GetBytesPerPixel(GetSpecs().GetSpecific<D>().HookOutputs[specs.Slot].Format);
+        rb.Size = usz(specs.Extent[0]) * specs.Extent[1] * bpp;
+        rb.Buffer = Graph::Buffer_Create(rb.Size, Graph::BufferFlag_HostMapped | Graph::BufferFlag_HostRandomAccess |
+                                                      Graph::BufferFlag_Destination);
+        rb.Specs = specs;
+        rb.Tracker = {};
+        rb.State = HookReadbackState_Queued;
+        return HookReadbackTicket{.TicketNo = i, .RequiredSize = rb.Size};
+    }
+
+    return ONYX_EMIT_ERROR(Error_ReadbackLimitReached,
+                           "[ONYX][VIEW] All {} hook readback slots are in flight. Retrieve pending readbacks first",
+                           ONYX_MAX_HOOK_READBACKS);
+}
+
+template <Dimension D> bool RenderView<D>::TryGetHookReadback(const u32 ticket, void *data)
+{
+    TKIT_ASSERT(ticket < m_Readbacks.GetSize(), "[ONYX][VIEW] Invalid hook readback ticket {}", ticket);
+    HookReadback &rb = m_Readbacks[ticket];
+    TKIT_ASSERT(rb.State != HookReadbackState_Free, "[ONYX][VIEW] Hook readback ticket {} is not active", ticket);
+
+    if (rb.State != HookReadbackState_Submitted || rb.Tracker.InUse())
+        return false;
+
+    TKit::ForwardCopy(data, Graph::Buffer_GetData(rb.Buffer), rb.Size);
+    Graph::Buffer_Destroy(rb.Buffer);
+    rb = HookReadback{};
+    return true;
+}
+
+template <Dimension D> void RenderView<D>::recordHookReadbacks(const Graph::CommandBuffer cmd)
+{
+    const Framebuffer &fb = m_Framebuffers[m_AttachmentIndex];
+
+    TKit::StaticArray<Graph::ImageMemoryBarrierInfo, ONYX_MAX_HOOK_OUTPUTS> barriers{};
+    TKit::FixedArray<bool, ONYX_MAX_HOOK_OUTPUTS> transitioned{};
+    for (const HookReadback &rb : m_Readbacks)
+        if (rb.State == HookReadbackState_Queued && !transitioned[rb.Specs.Slot])
+        {
+            transitioned[rb.Specs.Slot] = true;
+            Graph::ImageMemoryBarrierInfo b{};
+            b.Image = fb.HookOutputs[rb.Specs.Slot].ImageResource.Image; // resolved (or only) image
+            b.NewLayout = Graph::ImageLayout_TransferSrc;
+            b.SrcStages = Graph::PipelineStageFlag_ColorAttachmentOutput;
+            b.SrcAccess = Graph::AccessFlag_ColorAttachmentWrite;
+            b.DstStages = Graph::PipelineStageFlag_Transfer;
+            b.DstAccess = Graph::AccessFlag_TransferRead;
+            barriers.Append(b);
+        }
+
+    if (barriers.IsEmpty())
+        return;
+    Graph::Command_ImageBarrier(cmd, barriers);
+
+    for (HookReadback &rb : m_Readbacks)
+        if (rb.State == HookReadbackState_Queued)
+        {
+            Graph::BufferImageCopy region{};
+            region.ImageOffset = u32v3{rb.Specs.Offset, 0};
+            region.ImageExtent = u32v3{rb.Specs.Extent, 1};
+            Graph::Command_CopyImageToBuffer(cmd, fb.HookOutputs[rb.Specs.Slot].ImageResource.Image, rb.Buffer, region);
+            rb.State = HookReadbackState_Recorded;
+        }
+}
+#endif
 
 template <Dimension D> bool RenderView<D>::IsWithinViewport(const f32v2 &screenPos) const
 {

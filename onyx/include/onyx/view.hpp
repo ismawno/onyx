@@ -2,8 +2,13 @@
 
 #include "onyx/camera.hpp"
 #include "onyx/color.hpp"
+#include "onyx/core.hpp"
 #include "graph/execution.hpp"
 #include "tkit/container/tier_array.hpp"
+
+#ifndef ONYX_MAX_HOOK_READBACKS
+#    define ONYX_MAX_HOOK_READBACKS 8
+#endif
 
 namespace Onyx
 {
@@ -91,10 +96,51 @@ struct ViewImage
     }
 };
 
+#ifdef ONYX_ENABLE_HOOKS
+struct HookReadbackTicket
+{
+    u32 TicketNo;
+    usz RequiredSize;
+};
+
+struct HookReadbackSpecs
+{
+    u32 Slot;
+    u32v2 Offset;
+    u32v2 Extent;
+};
+
+enum HookReadbackState : u8
+{
+    HookReadbackState_Free,
+    HookReadbackState_Queued,
+    HookReadbackState_Recorded,
+    HookReadbackState_Submitted,
+};
+
+struct HookReadback
+{
+    Graph::Buffer Buffer = Graph::NullHandle;
+    Graph::Tracker Tracker{};
+    HookReadbackSpecs Specs{};
+    usz Size = 0;
+    HookReadbackState State = HookReadbackState_Free;
+};
+
+struct HookImage
+{
+    ViewImage ImageResource{};
+    Graph::ClearColor ClearValue;
+};
+#endif
+
 struct Framebuffer
 {
     Graph::Tracker Tracker{};
     TKit::FixedArray<ViewImage, AttachmentRole_Count> Attachments{};
+#ifdef ONYX_ENABLE_HOOKS
+    TKit::StaticArray<HookImage, ONYX_MAX_HOOK_OUTPUTS> HookOutputs{};
+#endif
 };
 
 struct RenderViewSpecs
@@ -381,6 +427,11 @@ template <Dimension D> class RenderView
         return ApplyScale(m_ImageSize, m_ContentScale);
     }
 
+#ifdef ONYX_ENABLE_HOOKS
+    Result<HookReadbackTicket> RequestHookReadback(const HookReadbackSpecs &specs);
+    bool TryGetHookReadback(u32 ticket, void *data);
+#endif
+
     Color ClearColor{Color_Black};
     // TODO(Isma): Think about if its worth it to have a per-instance outline width
     u32 MaxOutlineWidth = 10;
@@ -431,6 +482,11 @@ template <Dimension D> class RenderView
             recreateFramebuffers();
         }
     }
+
+#ifdef ONYX_ENABLE_HOOKS
+    void recordHookReadbacks(Graph::CommandBuffer cmd);
+    TKit::FixedArray<HookReadback, ONYX_MAX_HOOK_READBACKS> m_Readbacks{};
+#endif
 
     Camera<D> *m_Camera;
     ViewMask m_ViewBit;

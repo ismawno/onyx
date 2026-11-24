@@ -1,4 +1,7 @@
 #include "qol.slang"
+#ifdef ONYX_ENABLE_HOOKS
+import onyx_hook_types
+#endif
 
 // 2D shadows uses materials to check if they are an occluder or not
 #if defined(ONYX_PASS_SHADED) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_2D))
@@ -175,6 +178,10 @@ struct FragInput
     [[vk::location(7)]]
     f32m3 TBN;
 #endif
+#ifdef ONYX_HOOK_VARYINGS
+    [[vk::location(8)]]
+    HookVaryings Varyings;
+#endif
 
     f32v4 Position : SV_Position;
 }
@@ -184,12 +191,18 @@ struct FragOpaqueOutput
 {
     f32v4 Fill : SV_Target0;
     f32v4 Outline : SV_Target1;
+#    ifdef ONYX_HOOK_OUTPUTS
+    HookOutputs Hooks;
+#    endif
 }
 struct FragTransparentOutput
 {
     f32v4 Fill : SV_Target0;
     f32v4 Outline : SV_Target1;
     f32 Revealage : SV_Target2;
+#    ifdef ONYX_HOOK_OUTPUTS
+    HookOutputs Hooks;
+#    endif
 }
 #    define FragSuffix
 #elif defined(ONYX_DIMENSION_3D)
@@ -226,6 +239,10 @@ BoundsArray g_Bounds;
 
 #endif
 
+#ifdef ONYX_VERTEX_HOOK
+extern VertexHookOutput VertexHook(const VertexHookInput input);
+#endif
+
 [shader("vertex")]
 FragInput mainVS(
 #ifdef ONYX_GEOMETRY_CIRCLE
@@ -233,9 +250,13 @@ FragInput mainVS(
     const u32 baseVertex : SV_StartVertexLocation,
 #else
     const VertexInput input,
+#    ifdef ONYX_VERTEX_HOOK
+    const u32 vertexId : SV_VertexID,
+#    endif
 #endif
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
+
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
@@ -282,12 +303,17 @@ FragInput mainVS(
 #endif
     const f32v4 worldPos = mul(shiftedPos, transform);
 
-    FragInput finput;
-    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+#ifndef ONYX_PASS_SHADOW
+#    ifdef ONYX_GEOMETRY_CIRCLE
+    const f32v2 uv = g_TexCoord[vertexIndex];
+#    else
+    const f32v2 uv = input.TexCoord;
+#    endif
+#endif
 
-#ifdef ONYX_DIMENSION_2D
-    finput.Position.z = ComputeDepth(data.DepthCounter);
-#elif defined(ONYX_PASS_SHADED)
+    FragInput finput;
+
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
 
 #    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
@@ -307,12 +333,41 @@ FragInput mainVS(
     finput.TBN = f32m3(T, B, N);
 #endif
 
+#ifdef ONYX_VERTEX_HOOK
+    VertexHookInput vhInput;
+    vhInput.LocalPosition = HookVec(shiftedPos);
+    vhInput.WorldPosition = HookVec(worldPos);
 #ifndef ONYX_PASS_SHADOW
-#    ifdef ONYX_GEOMETRY_CIRCLE
-    finput.TexCoord = g_TexCoord[vertexIndex];
-#    else
-    finput.TexCoord = input.TexCoord;
-#    endif
+    vhInput.TexCoord = uv;
+#else
+    vhInput.TexCoord = f32v2(0.0);
+#endif
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    vhInput.TBN = finput.TBN;
+#endif
+    vhInput.InstanceIndex = instanceIndex;
+    vhInput.VertexIndex = vertexId;
+#ifdef ONYX_HOOK_GLOBALS_SIZE
+    vhInput.Globals = g_HookGlobals;
+#endif
+#ifdef ONYX_HOOK_INSTANCE_SIZE
+    vhInput.Instance = g_HookInstances[instanceIndex];
+#endif
+    const VertexHookOuput vhOutput = VertexHook(vhInput);
+    finput.Position = mul(ONYX_VEC4(vhOutput.WorldPosition), g_PushData.ProjectionView);
+#ifdef ONYX_HOOK_VARYINGS
+    finput.Varyings = vhOutput.Varyings;
+#endif
+#else
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+#endif
+
+#ifdef ONYX_DIMENSION_2D
+    finput.Position.z = ComputeDepth(data.DepthCounter);
+#endif
+
+#ifndef ONYX_PASS_SHADOW
+    finput.TexCoord = uv;
 #endif
 
 #ifdef ONYX_GEOMETRY_GLYPH
@@ -397,6 +452,10 @@ SamplerComparisonState g_ShadowCompareSampler;
 #    define ONYX_FRAGMENT_PARAMETERS input
 #endif
 
+#ifdef ONYX_FRAGMENT_HOOK
+extern FragmentHookOutput FragmentHook(const FragmentHookInput input);
+#endif
+
 ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 {
     const GeometryInstanceData gdata = g_Instances[input.InstanceIndex];
@@ -411,11 +470,10 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
         discard;
 
 #ifdef ONYX_GEOMETRY_PARAMETRIC
-
     if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
         discard;
-
 #endif
+
 #ifndef ONYX_PASS_SHADOW
 #    ifdef ONYX_USES_VERTEX_COLOR
     const f32v4 fill = unpackUnorm4x8ToFloat(data.FillColor) * input.VertexColor;
@@ -426,32 +484,44 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     const f32 outlineWidth = data.OutlineWidth;
 #endif
 
-    // in the shadow case this could conflict with flat render passes (as mtid would be the sampler/tex id). however, shadow invocations are filtered by shaded passes so we are fine
+    // in the shadow case this could conflict with flat render passes (as mtid would be the sampler/tex id). however,
+    // shadow invocations are filtered by shaded passes so we are fine
     const u32 mtid = data.MatOrSamplerTex;
 
 #ifdef ONYX_GEOMETRY_CIRCLE
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, gdata.Arc.Hollowness);
-    if (!CheckOutsideCircle(bounds, input.LocalPosition, gdata.Arc)) discard;
-
-    #ifndef ONYX_PASS_SHADOW
-        const f32 alpha = CircleFade(bounds, gdata.Fade);
-    #endif
-
+    if (!CheckOutsideCircle(bounds, input.LocalPosition, gdata.Arc))
+        discard;
+#    ifndef ONYX_PASS_SHADOW
+    const f32 alpha = CircleFade(bounds, gdata.Fade);
+#    endif
 #elif defined(ONYX_GEOMETRY_GLYPH)
-    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, gdata.SamplerAtlasId, gdata.UnitRange, input.AtlasCoords);
+    const f32 alpha =
+        ComputeMTSDFCoverage(g_Samplers, g_Textures, gdata.SamplerAtlasId, gdata.UnitRange, input.AtlasCoords);
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
-
 #elif !defined(ONYX_PASS_SHADOW)
     const f32 alpha = 1.f;
 #endif
 
-#ifndef ONYX_PASS_SHADOW
+#ifdef ONYX_PASS_SHADOW
+
+#    ifdef ONYX_DIMENSION_2D
+    if (mtid == NullResource || g_Materials[mtid].Occluder == 0)
+        discard;
+    return 1.f;
+#    else
+    if (g_PushData.Far > 0.f)
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
+    return input.Position.z + g_PushData.DepthBias;
+#    endif
+
+#else
+
     FragOpaqueOutput out;
     out.Outline = f32v4(outline.rgb, outlineWidth);
-#endif
 
-#ifdef ONYX_PASS_SHADED
+#    ifdef ONYX_PASS_SHADED
     ResourceTable resources;
     resources.Materials = g_Materials;
     resources.Samplers = g_Samplers;
@@ -462,43 +532,56 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     resources.ShadowSampler = g_ShadowSampler;
     resources.ShadowCompareSampler = g_ShadowCompareSampler;
 
-#    ifdef ONYX_DIMENSION_3D
-
+#        ifdef ONYX_DIMENSION_3D
     resources.SpLights = g_SpotLights;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
     resources.SpotMaps = g_SpotMaps;
-
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing, data.TexOffset, data.TexScale);
-    return out;
-
-#    else
-
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
+                                    input.TBN, isFrontFacing, data.TexOffset, data.TexScale);
+#        else
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha, data.TexOffset, data.TexScale);
-    return out;
-
-#    endif
-
-#elif defined(ONYX_PASS_SHADOW)
-
-#    ifdef ONYX_DIMENSION_2D
-
-    if (mtid == NullResource || g_Materials[mtid].Occluder == 0)
-        discard;
-
-    return 1.f;
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
+                                    data.TexOffset, data.TexScale);
+#        endif
 
 #    else
-
-    if (g_PushData.Far > 0.f)
-        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
-
-    return input.Position.z + g_PushData.DepthBias;
-
+    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, fill, input.TexCoord, data.TexOffset,
+                                data.TexScale, alpha);
 #    endif
-#else
-    out.Fill = ComputeFlatColor(g_Samplers, g_Textures, g_TextureOffsets, mtid, fill, input.TexCoord, data.TexOffset, data.TexScale, alpha);
+
+#    ifdef ONYX_FRAGMENT_HOOK
+    FragmentHookInput fhInput;
+    fhInput.Color = out.Fill;
+    fhInput.WorldPosition = input.WorldPosition;
+    fhInput.TexCoord = input.TexCoord;
+    fhInput.ScreenPosition = input.Position.xy;
+#        if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    fhInput.TBN = input.TBN;
+#        endif
+#        ifdef ONYX_PASS_SHADED
+    fhInput.HasMaterial = mtid != NullResource;
+#        else
+    fhInput.HasMaterial = false; // in flat passes mtid is a sampler/texture id, not a material
+#        endif
+    fhInput.InstanceIndex = input.InstanceIndex;
+#        if ONYX_HOOK_GLOBALS_SIZE > 0
+    fhInput.Globals = g_HookGlobals;
+#        endif
+#        if ONYX_HOOK_INSTANCE_SIZE > 0
+    fhInput.Instance = g_HookInstances[input.InstanceIndex];
+#        endif
+#        ifdef ONYX_HOOK_VARYINGS
+    fhInput.Varyings = input.Varyings;
+#        endif
+
+    const FragmentHookOutput fhOutput = FragmentHook(fhInput);
+    out.Fill = fhOutput.Color;
+#        ifdef ONYX_HOOK_OUTPUTS
+    out.Hooks = fhOutput.Outputs;
+#        endif
+#    endif
+
     return out;
 #endif
 }
@@ -517,12 +600,14 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(mainFST, FragTransparentOutput)
     FragTransparentOutput out;
     const f32 a = opaque.Fill.a;
     const f32 z = input.Position.z;
-    const f32 w = clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 *
-                         pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
+    const f32 w = clamp(pow(min(1.0, a * 10.0) + 0.01, 3.0) * 1e8 * pow(1.0 - z * 0.9, 3.0), 1e-2, 3e3);
 
     out.Fill = w * f32v4(opaque.Fill.rgb * a, a);
     out.Outline = opaque.Outline;
     out.Revealage = a;
+#    ifdef ONYX_HOOK_OUTPUTS
+    out.Hooks = opaque.Hooks;
+#    endif
     return out;
 }
 #endif

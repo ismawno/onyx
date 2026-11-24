@@ -30,4 +30,14 @@ void Texture_UpdateHandleOffset(Resource texture, Resource target);
 void Texture_UpdateRenderTexture(Resource texture, Graph::ImageView view);
 
 template <Dimension D> u32 Resources_GetDistinctBatchDrawCount();
+
+#ifdef ONYX_ENABLE_HOOKS
+struct HookShaders
+{
+    Graph::Shader Vertex = Graph::NullHandle;
+    Graph::Shader Opaque = Graph::NullHandle;
+    Graph::Shader Transparent = Graph::NullHandle;
+};
+template <Dimension D> HookShaders Hook_GetFromRenderState(RenderPass rpass, Geometry geo, RenderState state);
+#endif
 } // namespace Onyx

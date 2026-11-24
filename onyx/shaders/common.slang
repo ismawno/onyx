@@ -77,7 +77,7 @@ struct SamplerTexId
 }
 
 [UnscopedEnum]
-enum Alignment : u8
+enum Alignment : u32
 {
     Alignment_Left,
     Alignment_Center,

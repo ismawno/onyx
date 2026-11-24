@@ -3,15 +3,9 @@
 #include "onyx/resources.hpp"
 #include "tkit/container/hive.hpp"
 #include "tkit/utils/defer.hpp"
-#include "tkit/utils/defer.hpp"
 #define MA_IMPLEMENTATION
 #include <miniaudio.h>
 #undef ERROR
-
-#define CHECK_RESOURCE_HANDLE(handle, rtype)                                                                           \
-    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
-    ONYX_CHECK_HANDLE_HAS_RESOURCE_TYPE(handle, rtype);                                                                \
-    ONYX_CHECK_RESOURCE_IS_VALID(handle, rtype);
 
 #define CHECK_ERROR(expr, err, ...)                                                                                    \
     ONYX_RETURN_ERROR_IF(const i32 res = i32(expr); res != MA_SUCCESS, err __VA_OPT__(, ) __VA_ARGS__)
@@ -230,7 +224,7 @@ static void notificationCallback(const ma_device_notification *n)
     }
 }
 
-Result<> audio_Initialize(const u32 listenerCount)
+Result<> audio_Initialize()
 {
     s_Data.Construct();
     s_CallbackQueue.Construct();
@@ -246,7 +240,7 @@ Result<> audio_Initialize(const u32 listenerCount)
                 Error_AudioInitFailed, "[ONYX][AUDIO] Log registration failed with error code {}", res);
 
     ma_engine_config cfg = ma_engine_config_init();
-    cfg.listenerCount = listenerCount;
+    cfg.listenerCount = GetSpecs().ListenerCount;
     cfg.notificationCallback = notificationCallback;
     cfg.pLog = &s_Data->Log;
 
@@ -394,7 +388,7 @@ Result<> Audio_SetMasterProcessor(AudioProcessorCallback &&cbk)
 
 static Audio *getAudio(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Audio);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Audio);
     return s_Data->Audios[Handle_GetResourceId(handle)];
 }
 
@@ -511,7 +505,7 @@ Result<Resource> Audio_Create(AudioSourceCallback &&sourceCallback, CustomAudioS
 
 void Audio_Destroy(const Resource handle)
 {
-    CHECK_RESOURCE_HANDLE(handle, Resource_Audio);
+    ONYX_CHECK_RESOURCE_HANDLE(handle, Resource_Audio);
     const u32 id = Handle_GetResourceId(handle);
     Audio *audio = s_Data->Audios[id];
 

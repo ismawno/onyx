@@ -162,6 +162,11 @@ template <Dimension D> struct ContextState
     Color OutlineColor = Color_White;
     WorldRect<D> Rect{};
 
+#ifdef ONYX_ENABLE_HOOKS
+    const void *HookInstanceData = nullptr;
+    u32 HookInstanceSize = 0;
+#endif
+
     f32 OutlineWidth = 0.1f;
 
     f32v2 TexOffset{0.f};
@@ -630,6 +635,42 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_StateStack.Pop();
     }
 
+#ifdef ONYX_ENABLE_HOOKS
+    void VertexHook(const Resource hook)
+    {
+        m_State.RenderState &= ~VertexHook_Mask;
+        if (hook != Graph::NullHandle)
+        {
+            ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_VertexHook);
+            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << VertexHook_Mask;
+        }
+    }
+    void FragmentHook(const Resource hook)
+    {
+        m_State.RenderState &= ~FragmentHook_Mask;
+        if (hook != Graph::NullHandle)
+        {
+            ONYX_CHECK_RESOURCE_HANDLE(hook, Resource_FragmentHook);
+            m_State.RenderState |= (Handle_GetResourceId(hook) + 1) << FragmentHook_Mask;
+        }
+    }
+    void HookInstanceData(const void *data, const u32 size)
+    {
+        TKIT_ASSERT(size <= m_HookInstanceSize,
+                    "[ONYX][CONTEXT] Hook instance data has a size of {} but the maximum amount of per-instance hook "
+                    "data .Specs{}.HookInstanceSize is {}. Raise it in the specs given to Onyx::Initialize",
+                    size, u8(D), m_HookInstanceSize);
+        m_State.HookInstanceData = data;
+        m_State.HookInstanceSize = size;
+    }
+    template <typename T>
+        requires(!std::same_as<std::remove_cvref_t<T>, void>)
+    void HookInstanceData(const T *data)
+    {
+        HookInstanceData(data, sizeof(T));
+    }
+#endif
+
     void SetRenderState(const RenderState state)
     {
         m_State.RenderState = state;
@@ -756,6 +797,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
     ClipRect<D> computeClipRect(const f32v<D> &position, const f32v<D> &dimensions);
 
+    template <typename T> void addInstanceData(InstanceHostBuffer &buffer, const T &data);
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
     void addStaticData(Resource mesh, const f32m<D> &transform);
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
@@ -797,6 +839,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::StaticArray16<ContextState<D>> m_StateStack{};
     // this guy is so big, it needs its own heap-allocated block
     ContextInstanceData<D> *m_InstanceData = nullptr;
+
+#ifdef ONYX_ENABLE_HOOKS
+    u32 m_HookInstanceSize;
+#endif
 
     // NOTE(Isma): This is not good for multithreading, as, unless its context is dutifully pinned to a thread, this
     // tier array may try to race against another thread that is using the underlying tier allocator, because these

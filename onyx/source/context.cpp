@@ -4,7 +4,6 @@
 #include "resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/profiling/macros.hpp"
-#include "tkit/multiprocessing/topology.hpp"
 
 namespace Onyx
 {
@@ -12,6 +11,9 @@ using namespace Detail;
 
 template <Dimension D> IRenderContext<D>::IRenderContext(const RenderContextSpecs &specs)
 {
+#ifdef ONYX_ENABLE_HOOKS
+    m_HookInstanceSize = GetSpecs().GetSpecific<D>().HookInstanceSize;
+#endif
     m_InstanceData = new ContextInstanceData<D>{};
     m_DefaultResources = Resources_GetDefault();
 
@@ -399,33 +401,27 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
     }
     return ClipRect<D>{mn, mx};
 }
-// template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &buffer)
-// {
-//     if (buffer.Instances > buffer.Capacity)
-//     {
-//         const u32 ninst = GrowCapacity(buffer.Instances);
-//         buffer.Data.Resize(ninst * buffer.InstanceSize);
-//         buffer.Capacity = ninst;
-//     }
-// }
-//
-// template <Dimension D>
-// template <typename T>
-// void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
-// {
-//     const u32 index = buffer.Instances++;
-//     resizeBuffer(buffer);
-//     buffer.Data.Write(&data, {.srcOffset = 0, .dstOffset = index * sizeof(T), .size = sizeof(T)});
-// }
 
-template <typename T> static void addInstanceData(InstanceHostBuffer &buffer, const T &data)
+template <Dimension D>
+template <typename T>
+void IRenderContext<D>::addInstanceData(InstanceHostBuffer &buffer, const T &data)
 {
     if (buffer.Instances == buffer.Capacity)
     {
         const u32 ninst = TKit::ArrayGrowthFactor(buffer.Instances);
         buffer.Data.Resize(ninst * sizeof(T));
+#ifdef ONYX_ENABLE_HOOKS
+        if (m_HookInstanceSize != 0)
+            buffer.HookData.Resize(ninst * m_HookInstanceSize);
+#endif
         buffer.Capacity = ninst;
     }
+#ifdef ONYX_ENABLE_HOOKS
+    if (m_State.HookInstanceSize != 0)
+        buffer.HookData.Write(
+            m_State.HookInstanceData,
+            {.Size = m_State.HookInstanceSize, .SrcOffset = 0, .DstOffset = buffer.Instances * m_HookInstanceSize});
+#endif
     buffer.Data.Write(&data, {.Size = sizeof(T), .SrcOffset = 0, .DstOffset = buffer.Instances++ * sizeof(T)});
 }
 

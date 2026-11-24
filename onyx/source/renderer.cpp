@@ -31,8 +31,8 @@ namespace Onyx
 {
 struct InstanceRange
 {
-    usz Offset = 0;
-    usz Size = 0;
+    u32 FirstInstance = 0;
+    u32 InstanceCount = 0;
 
     // only relevant for dynamic mesh instance data
     u32 VertexOffset = 0;
@@ -49,6 +49,9 @@ struct InstanceRange
 struct InstanceDeviceBuffer
 {
     Graph::Buffer Buffer = Graph::NullHandle;
+#ifdef ONYX_ENABLE_HOOKS
+    Graph::Buffer HooksBuffer = Graph::NullHandle;
+#endif
     TKit::TierArray<InstanceRange> Ranges{};
 };
 
@@ -197,6 +200,9 @@ template <Dimension D> struct ResourceGroup
 
     Graph::Buffer VertexBuffer = Graph::NullHandle;
     Graph::Buffer IndexBuffer = Graph::NullHandle;
+#ifdef ONYX_ENABLE_HOOKS
+    Graph::Buffer HookGlobalsBuffer = Graph::NullHandle;
+#endif
 
     DrawCommandBuffer DrawBuffer{};
     DrawCommandBuffer IndexedDrawBuffer{};
@@ -373,11 +379,11 @@ Graph::PipelineLayout getPipelineLayout(const StandalonePass pass)
     return s_LayoutData->Standalone[pass].Layout;
 }
 
+static constexpr u32 Dim2 = 0;
+static constexpr u32 Dim3 = 1;
+
 static void createPipelineLayouts()
 {
-    constexpr u32 Dim2 = 0;
-    constexpr u32 Dim3 = 1;
-
     constexpr Graph::ShaderStageFlags vertex = Graph::ShaderStageFlag_Vertex;
     constexpr Graph::ShaderStageFlags fragment = Graph::ShaderStageFlag_Fragment;
     constexpr Graph::ShaderStageFlags compute = Graph::ShaderStageFlag_Compute;
@@ -438,7 +444,14 @@ static void createPipelineLayouts()
     }
 }
 
-#ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
+#ifndef ONYX_COMPILE_SHADERS_AT_RUNTIME
+static Graph::Shader shaderFromBinary(const ShaderBinary &binary)
+{
+    return Graph::Shader_Create(rcast<const u32 *>(binary.Code), binary.Count);
+}
+#endif
+
+#ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
 static bool isOldMesa()
 {
     const Graph::DeviceInfo dev = Graph::GetRenderBackendInfo().Device;
@@ -465,125 +478,588 @@ static bool isOldMesa()
         return false;
     return true;
 }
-#else
-static Graph::Shader shaderFromBinary(const ShaderBinary &binary)
+#    ifdef ONYX_ENABLE_HOOKS
+static const char *toShader(const HookType type)
 {
-    return Graph::Shader_Create(rcast<const u32 *>(binary.Code), binary.Count);
+    switch (type)
+    {
+    case HookType_F32:
+        return "float";
+    case HookType_F32V2:
+        return "float2";
+    case HookType_F32V3:
+        return "float3";
+    case HookType_F32V4:
+        return "float4";
+    case HookType_I32:
+        return "int";
+    case HookType_I32V2:
+        return "int2";
+    case HookType_I32V3:
+        return "int3";
+    case HookType_I32V4:
+        return "int4";
+    case HookType_U32:
+        return "uint";
+    case HookType_U32V2:
+        return "uint2";
+    case HookType_U32V3:
+        return "uint3";
+    case HookType_U32V4:
+        return "uint4";
+    default:
+        TKIT_FATAL("[ONYX][SHADER-HOOK] Unrecognized shader hook type: {}", u8(type));
+        return nullptr;
+    }
 }
+static const char *toShader(const Graph::Format format)
+{
+    switch (format)
+    {
+    case Graph::Format_R8_UNORM:
+    case Graph::Format_R8_SNORM:
+    case Graph::Format_R8_SRGB:
+    case Graph::Format_R16_UNORM:
+    case Graph::Format_R16_SNORM:
+    case Graph::Format_R16_SFLOAT:
+    case Graph::Format_R32_SFLOAT:
+        return "float";
+
+    case Graph::Format_R8G8_UNORM:
+    case Graph::Format_R8G8_SNORM:
+    case Graph::Format_R8G8_SRGB:
+    case Graph::Format_R16G16_UNORM:
+    case Graph::Format_R16G16_SNORM:
+    case Graph::Format_R16G16_SFLOAT:
+    case Graph::Format_R32G32_SFLOAT:
+        return "float2";
+
+    case Graph::Format_R8G8B8_UNORM:
+    case Graph::Format_R8G8B8_SNORM:
+    case Graph::Format_R8G8B8_SRGB:
+    case Graph::Format_R16G16B16_UNORM:
+    case Graph::Format_R16G16B16_SNORM:
+    case Graph::Format_R16G16B16_SFLOAT:
+    case Graph::Format_R32G32B32_SFLOAT:
+    case Graph::Format_B10G11R11_UnsignedFloat:
+        return "float3";
+
+    case Graph::Format_R8G8B8A8_UNORM:
+    case Graph::Format_R8G8B8A8_SNORM:
+    case Graph::Format_R8G8B8A8_SRGB:
+    case Graph::Format_B8G8R8A8_UNORM:
+    case Graph::Format_B8G8R8A8_SNORM:
+    case Graph::Format_B8G8R8A8_SRGB:
+    case Graph::Format_R16G16B16A16_UNORM:
+    case Graph::Format_R16G16B16A16_SNORM:
+    case Graph::Format_R16G16B16A16_SFLOAT:
+    case Graph::Format_R32G32B32A32_SFLOAT:
+        return "float4";
+
+    case Graph::Format_R8_UINT:
+    case Graph::Format_R16_UINT:
+    case Graph::Format_R32_UINT:
+        return "uint";
+    case Graph::Format_R8G8_UINT:
+    case Graph::Format_R16G16_UINT:
+    case Graph::Format_R32G32_UINT:
+        return "uint2";
+    case Graph::Format_R8G8B8_UINT:
+    case Graph::Format_R16G16B16_UINT:
+    case Graph::Format_R32G32B32_UINT:
+        return "uint3";
+    case Graph::Format_R8G8B8A8_UINT:
+    case Graph::Format_B8G8R8A8_UINT:
+    case Graph::Format_R16G16B16A16_UINT:
+    case Graph::Format_R32G32B32A32_UINT:
+        return "uint4";
+
+    case Graph::Format_R8_SINT:
+    case Graph::Format_R16_SINT:
+    case Graph::Format_R32_SINT:
+        return "int";
+    case Graph::Format_R8G8_SINT:
+    case Graph::Format_R16G16_SINT:
+    case Graph::Format_R32G32_SINT:
+        return "int2";
+    case Graph::Format_R8G8B8_SINT:
+    case Graph::Format_R16G16B16_SINT:
+    case Graph::Format_R32G32B32_SINT:
+        return "int3";
+    case Graph::Format_R8G8B8A8_SINT:
+    case Graph::Format_B8G8R8A8_SINT:
+    case Graph::Format_R16G16B16A16_SINT:
+    case Graph::Format_R32G32B32A32_SINT:
+        return "int4";
+
+    default:
+        TKIT_FATAL("[ONYX][SHADER-HOOK] Format {} cannot be used as a shader hook output", u8(format));
+        return nullptr;
+    }
+}
+static const char *toShader(const HookInterp interp)
+{
+    switch (interp)
+    {
+    case HookInterp_Smooth:
+        return "";
+    case HookInterp_Flat:
+        return "nointerpolation ";
+    case HookInterp_NoPerspective:
+        return "noperspective ";
+    default:
+        TKIT_FATAL("[ONYX][SHADER-HOOK] Unrecognized shader hook interpolation: {}", u8(interp));
+        return nullptr;
+    }
+}
+static constexpr const char *s_HookApi = R"(
+#ifdef ONYX_DIMENSION_2D
+typedef float2 HookVec;
+#else
+typedef float3 HookVec;
 #endif
 
-// at some point ill need this
-// static void reloadShaders()
-// {
-//     destroyShaders();
-//     createShaders();
-// }
-
-static void createShaders()
+#ifdef ONYX_HOOK_GLOBALS_SIZE
+struct HookGlobals
 {
-#ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
+    uint4 Data[(ONYX_HOOK_GLOBALS_SIZE + 15) / 16];
+
+    uint LoadU32(const uint offset) { return Data[offset / 16][(offset / 4) % 4]; }
+    int LoadI32(const uint offset) { return asint(LoadU32(offset)); }
+    float LoadF32(const uint offset) { return asfloat(LoadU32(offset)); }
+    float2 LoadF32V2(const uint offset) { return float2(LoadF32(offset), LoadF32(offset + 4)); }
+    float3 LoadF32V3(const uint offset) { return float3(LoadF32V2(offset), LoadF32(offset + 8)); }
+    float4 LoadF32V4(const uint offset) { return float4(LoadF32V3(offset), LoadF32(offset + 12)); }
+}
+
+[[vk::binding(ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT)]]
+ConstantBuffer<HookGlobals> g_HookGlobals;
+#endif
+
+#ifdef ONYX_HOOK_INSTANCE_SIZE
+struct HookInstance
+{
+    uint Data[ONYX_HOOK_INSTANCE_SIZE / 4];
+
+    uint LoadU32(const uint offset) { return Data[offset / 4]; }
+    int LoadI32(const uint offset) { return asint(LoadU32(offset)); }
+    float LoadF32(const uint offset) { return asfloat(LoadU32(offset)); }
+    float2 LoadF32V2(const uint offset) { return float2(LoadF32(offset), LoadF32(offset + 4)); }
+    float3 LoadF32V3(const uint offset) { return float3(LoadF32V2(offset), LoadF32(offset + 8)); }
+    float4 LoadF32V4(const uint offset) { return float4(LoadF32V3(offset), LoadF32(offset + 12)); }
+}
+
+[[vk::binding(ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT)]]
+StructuredBuffer<HookInstance, Std430DataLayout> g_HookInstances;
+#endif
+
+struct VertexHookInput
+{
+    HookVec LocalPosition;
+    HookVec WorldPosition;
+    float2 TexCoord;
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    float3x3 TBN;
+#endif
+    uint InstanceIndex;
+    uint VertexIndex;
+#ifdef ONYX_HOOK_GLOBALS_SIZE
+    HookGlobals Globals;
+#endif
+#ifdef ONYX_HOOK_INSTANCE_SIZE
+    HookInstance Instance;
+#endif
+}
+
+struct VertexHookOutput
+{
+    HookVec WorldPosition;
+#ifdef ONYX_HOOK_VARYINGS
+    HookVaryings Varyings;
+#endif
+}
+
+struct FragmentHookInput
+{
+    float4 Color;
+    HookVec WorldPosition;
+    float2 TexCoord;
+    float2 ScreenPosition;
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    float3 Normal;
+#endif
+    bool HasMaterial;
+    uint InstanceIndex;
+#ifdef ONYX_HOOK_GLOBALS_SIZE
+    HookGlobals Globals;
+#endif
+#ifdef ONYX_HOOK_INSTANCE_SIZE
+    HookInstance Instance;
+#endif
+#ifdef ONYX_HOOK_VARYINGS
+    HookVaryings Varyings;
+#endif
+}
+
+struct FragmentHookOutput
+{
+    float4 Color;
+#ifdef ONYX_HOOK_OUTPUTS
+    HookOutputs Outputs;
+#endif
+}
+)";
+
+static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> varyings,
+                                          const TKit::Span<const HookOutput> outputs, const u32 firstTarget)
+{
+    TKit::TierString src{};
+
+    if (!varyings.IsEmpty())
+    {
+        src += "struct HookVaryings\n{\n";
+        for (const HookVarying &v : varyings)
+            src += TKit::TierString::Format("    {}{} {};\n", toShader(v.Interpolation), toShader(v.Type), v.Name);
+        src += "}\n\n";
+    }
+
+    if (!outputs.IsEmpty())
+    {
+        src += "struct HookOutputs\n{\n";
+        for (u32 i = 0; i < outputs.GetSize(); ++i)
+            src += TKit::TierString::Format("    {} {} : SV_Target{};\n", toShader(outputs[i].Format), outputs[i].Name,
+                                            firstTarget + i);
+        src += "}\n\n";
+    }
+
+    src += s_HookApi;
+    return src;
+}
+#    endif
+Result<> Renderer_CompileShaders(const ShaderCompileOptions &opts)
+{
+#    ifdef ONYX_ENABLE_HOOKS
+    const HookCompileOptions *hopts = opts.HookOptions;
+    TKIT_ASSERT(!hopts || (opts.Dimensions[Dim2] + opts.Dimensions[Dim3]) == 1,
+                "[ONYX][RENDERER] When compiling shaders for a hook exactly one dimension must be toggled");
+    TKIT_ASSERT(!hopts || hopts->VertexOrOpaque || hopts->Transparent,
+                "[ONYX][RENDERER] When compiling shaders for a hook at least one non-null shader "
+                "destination must be provided");
+    TKIT_ASSERT(!hopts || hopts->Stage != HookStage_Count,
+                "[ONYX][RENDERER] When compiling shaders for a hook only vertex or fragment shaders are supported");
+    TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Vertex || !opts.RenderPasses[RenderPass_Shadow],
+                "[ONYX][RENDERER], When compiling shaders for a hook shadow render passes are only allowed to be "
+                "toggled on if the hook is a vertex hook");
+    TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Fragment || !hopts->Transparent,
+                "[ONYX][RENDERER] When compiling shaders for a vertex hook Transparent must be null");
+    TKIT_ASSERT(!hopts || hopts->Stage == HookStage_Fragment || hopts->Transparent,
+                "[ONYX][RENDERER] When compiling shaders for a fragment hook Transparent must not be null");
+    TKIT_ASSERT(!hopts || hopts->HookBitField != 0,
+                "[ONYX][RENDERER] When compiling shaders for a hook its bit field must not be zero");
+#    endif
+
     TKit::StaticArray<Graph::ShaderArgument, 3> args{};
     if (isOldMesa())
     {
-        TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
+        TKIT_LOG_WARNING("[ONYX][RENDERER] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
                          "optimized spir-v code. Setting optimizations to 0 as a fix");
         args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_Optimization, 0));
     }
     else
         args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_Optimization, 3));
+
     if (Graph::IsValidationEnabled())
         args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_DebugInformation));
 
-    const char *const searchPaths[] = {ONYX_SHADERS_PATH};
+    TKit::StaticArray<const char *, 2> searchPaths{};
+    searchPaths.Append(ONYX_SHADERS_PATH);
+#    ifdef ONYX_ENABLE_HOOKS
+    if (hopts && !hopts->SearchPath.IsEmpty())
+        searchPaths.Append(opts.HookOptions->SearchPath.GetData());
+#    endif
 
-    const TKit::FixedArray<TKit::TierString, Geometry_Count> geos = {"circle", "static", "parametric", "dynamic",
-                                                                     "glyph"};
-    const TKit::FixedArray<TKit::TierString, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
-    const TKit::FixedArray<TKit::TierString, D_Count> dims = {"2D", "3D"};
+    const TKit::FixedArray<TKit::TierString, D_Count> dimNames = {"2D", "3D"};
+    const TKit::FixedArray<TKit::TierString, Geometry_Count> geoNames = {"circle", "static", "parametric", "dynamic",
+                                                                         "glyph"};
+    const TKit::FixedArray<TKit::TierString, RenderPass_Count> passNames = {"flat", "shaded", "shadow"};
+    constexpr TKit::FixedArray<const char *, StandalonePass_Count> stndNames = {"ray-march", "blend", "outline", "fxaa",
+                                                                                "compositor"};
 
-    const Graph::EntryPoint geometryEntries[] = {{"mainVS", Graph::ShaderStageFlag_Vertex},
-                                                 {"mainFSO", Graph::ShaderStageFlag_Fragment},
-                                                 {"mainFST", Graph::ShaderStageFlag_Fragment}};
-    const Graph::EntryPoint fullVertexEntries[] = {{"mainVS", Graph::ShaderStageFlag_Vertex}};
-    const Graph::EntryPoint rayMarchEntries[] = {{"main", Graph::ShaderStageFlag_Compute}};
-    const Graph::EntryPoint fragmentEntries[] = {{"mainFS", Graph::ShaderStageFlag_Fragment}};
+    constexpr Graph::EntryPoint vsEntry = {"mainVS", Graph::ShaderStageFlag_Vertex};
+    constexpr Graph::EntryPoint fsoEntry = {"mainFSO", Graph::ShaderStageFlag_Fragment};
+    constexpr Graph::EntryPoint fstEntry = {"mainFST", Graph::ShaderStageFlag_Fragment};
+    TKit::StaticArray<Graph::EntryPoint, 3> geometryEntries;
+#    ifdef ONYX_ENABLE_HOOKS
+    if (hopts)
+    {
+        if (hopts->Stage == HookStage_Vertex)
+            geometryEntries.Append(vsEntry);
+        else
+        {
+            geometryEntries.Append(fsoEntry);
+            geometryEntries.Append(fstEntry);
+        }
+    }
+    else
+#    endif
+    {
+        geometryEntries.Append(vsEntry);
+        geometryEntries.Append(fsoEntry);
+        geometryEntries.Append(fstEntry);
+    }
+
+    constexpr Graph::EntryPoint fullVertexEntry = {"mainVS", Graph::ShaderStageFlag_Vertex};
+    constexpr Graph::EntryPoint rayMarchEntry = {"main", Graph::ShaderStageFlag_Compute};
+    constexpr Graph::EntryPoint fragmentEntry = {"mainFS", Graph::ShaderStageFlag_Fragment};
 
     // module names and the module array must not reallocate, since the compilation specs point into them
-    TKit::StackArray<TKit::TierString> names{};
-    names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
+    constexpr u32 combinations = u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count);
+    TKit::FixedArray<TKit::TierString, combinations> names{};
+    // one extra for the full vertex pass, and another extra for possible hook module
+    TKit::FixedArray<Graph::ShaderModule, combinations + StandalonePass_Count + 2> modules{};
 
-    TKit::StackArray<Graph::ShaderModule> modules{};
-    modules.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count) + StandalonePass_Count + 1);
+    u32 index = 0;
+    for (u32 geo = 0; geo < Geometry_Count; ++geo)
+        for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+            for (u32 dim = 0; dim < D_Count; ++dim)
+                if (opts.Geometries[geo] && opts.RenderPasses[rpass])
+                {
+                    TKit::TierString &name = names[index];
+                    Graph::ShaderModule &module = modules[index++];
 
-    // TODO(Isma): Would be nice to parallelize this
-    for (const TKit::TierString &geo : geos)
-        for (u32 rpass = 0; rpass < passes.GetSize(); ++rpass)
-            for (const TKit::TierString &dim : dims)
-            {
-                const TKit::TierString &name = names.Append(geo + "-" + passes[rpass] + "-" + dim);
-                const u32 count = rpass != RenderPass_Shadow ? 3 : 2;
-                modules.Append(Graph::ShaderModule::Create(
-                    name.GetData(), TKit::Span<const Graph::EntryPoint>{geometryEntries, count}));
-            }
+                    name = geoNames[geo] + "-" + passNames[rpass] + "-" + dimNames[dim];
+#    ifdef ONYX_ENABLE_HOOKS
+                    if (hopts)
+                        module = Graph::ShaderModule::Create(name.CString(), geometryEntries);
+                    else
+#    endif
+                    {
+                        const u32 count = rpass != RenderPass_Shadow ? 3 : 2;
+                        module = Graph::ShaderModule::Create(
+                            name.CString(), TKit::Span<const Graph::EntryPoint>{geometryEntries.GetData(), count});
+                    }
+                }
 
-    modules.Append(Graph::ShaderModule::Create("full-vertex", fullVertexEntries));
-    modules.Append(Graph::ShaderModule::Create("ray-march", rayMarchEntries));
-    modules.Append(Graph::ShaderModule::Create("blend", fragmentEntries));
-    modules.Append(Graph::ShaderModule::Create("outline", fragmentEntries));
-    modules.Append(Graph::ShaderModule::Create("fxaa", fragmentEntries));
-    modules.Append(Graph::ShaderModule::Create("compositor", fragmentEntries));
+    constexpr TKit::FixedArray<Graph::EntryPoint, StandalonePass_Count> stndEntries = {
+        rayMarchEntry, fragmentEntry, fragmentEntry, fragmentEntry, fragmentEntry};
+
+    const bool fullVertexShaderMissing = s_LayoutData->FullPassVertexShader == Graph::NullHandle;
+#    ifdef ONYX_ENABLE_HOOKS
+    if (!hopts)
+#    endif
+    {
+        if (fullVertexShaderMissing)
+            modules[index++] = Graph::ShaderModule::Create("full-vertex", fullVertexEntry);
+        for (u32 pass = 0; pass < StandalonePass_Count; ++pass)
+            if (opts.Standalone[pass])
+                modules[index++] = Graph::ShaderModule::Create(stndNames[pass], stndEntries[pass]);
+    }
 
     Graph::CompilationSpecs cspecs{};
-    cspecs.Modules = modules;
+    cspecs.Modules = {modules.GetData(), index};
     cspecs.Arguments = args;
     cspecs.SearchPaths = searchPaths;
+#    ifdef ONYX_ENABLE_HOOKS
+
+    TKit::StaticArray<Graph::ShaderMacro, 6> hookMacros{};
+    TKit::StackString globalsSize;
+    TKit::StackString instanceSize;
+
+    TKit::StaticArray<Graph::ShaderModule, 2> hookModules{};
+    TKit::TierString hookTypeSource{};
+    const TKit::TierString userSource = TKit::TierString::Format("import onyx_hook_types;\n#line 1\n{}", userSource);
+
+    if (hopts)
+    {
+        const auto &sp2 = GetSpecs().GetSpecific<D2>();
+        const auto &sp3 = GetSpecs().GetSpecific<D3>();
+        const bool d2 = opts.Dimensions[Dim2];
+
+        const TKit::Span<const HookOutput> outputs = d2 ? sp2.HookOutputs : sp3.HookOutputs;
+        hookTypeSource = generateHookTypes(hopts->Varyings, outputs, ONYX_ENGINE_TARGET_COUNT);
+        hookModules.Append(Graph::ShaderModule::Create("onyx_hook_types", hookTypeSource.CString()));
+
+        hookMacros.Append("ONYX_ENABLE_HOOKS");
+        if (hopts->Stage == HookStage_Vertex)
+            hookMacros.Append("ONYX_VERTEX_HOOK");
+        else
+            hookMacros.Append("ONYX_FRAGMENT_HOOK");
+        const u32 gsize = d2 ? sp2.HookGlobalsSize : sp3.HookGlobalsSize;
+        const u32 isize = d2 ? sp2.HookInstanceSize : sp3.HookInstanceSize;
+        if (gsize != 0)
+        {
+            globalsSize = std::to_string(gsize);
+            hookMacros.Append("ONYX_HOOK_GLOBALS_SIZE", globalsSize.CString());
+        }
+        if (isize != 0)
+        {
+            instanceSize = std::to_string(isize);
+            hookMacros.Append("ONYX_HOOK_INSTANCE_SIZE", instanceSize.CString());
+        }
+        if (!outputs.IsEmpty())
+            hookMacros.Append("ONYX_HOOK_OUTPUTS");
+        if (!hopts->Varyings.IsEmpty())
+            hookMacros.Append("ONYX_HOOK_VARYINGS");
+
+        hookModules.Append(Graph::ShaderModule::Create("onyx_hook", userSource.CString()));
+        cspecs.Macros = hookMacros;
+        cspecs.Libraries = hookModules;
+    }
+#    endif
+
     const auto res = Graph::Compilation_Create(cspecs);
-    TKIT_ASSERT(res, "{}", res.GetError());
+    ONYX_RETURN_ERROR_IF(!res, Error_CompilationFailed, "[ONYX][RENDERER] Failed to compile shaders with error: {}",
+                         res.GetError());
+
     const Graph::Compilation cmp = *res;
 
-    u32 idx = 0;
-    const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasTransparent) {
-        const TKit::TierString &name = names[idx++];
-        data.VertexShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainVS", name.GetData());
-        data.OpaqueFragmentShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainFSO", name.GetData());
-        if (hasTransparent)
-            data.TransparentFragmentShaders[geo] = Graph::Compilation_CreateShader(cmp, "mainFST", name.GetData());
+    const auto replaceShader = [&](Graph::Shader &toReplace, const Graph::Shader replacement) {
+        if (toReplace != Graph::NullHandle)
+            Graph::Shader_Destroy(toReplace);
+        toReplace = replacement;
+    };
 
-        if (Graph::IsValidationEnabled())
+    index = 0;
+    const auto createShader = [&](const char *entry, const TKit::StringView name) {
+        return Graph::Compilation_CreateShader(cmp, entry, name.GetData());
+    };
+    const auto updateShaders = [&]<Dimension D>(const Geometry geo, const RenderPass rpass) {
+        const bool isShadow = rpass == RenderPass_Shadow;
+        ShaderData &data = getShaders<D>(rpass);
+
+        const TKit::TierString &name = names[index++];
+
+#    ifdef ONYX_ENABLE_HOOKS
+        if (hopts)
         {
-            const TKit::TierString v = "onyx-vertex-shader-" + name;
-            const TKit::TierString of = "onyx-opaque-fragment-shader-" + name;
-            Graph::Shader_SetName(data.VertexShaders[geo], v.CString());
-            Graph::Shader_SetName(data.OpaqueFragmentShaders[geo], of.CString());
-            if (hasTransparent)
+            const auto setShaderIfNull = [&](Graph::Shader &toReplace, const char *entry) {
+                if (toReplace == Graph::NullHandle)
+                    toReplace = createShader(entry, name);
+            };
+            if (hopts->Stage == HookStage_Vertex)
+                setShaderIfNull(hopts->VertexOrOpaque->At(rpass)[geo], "mainVS");
+            else
             {
-                const TKit::TierString tf = "onyx-transparent-fragment-shader-" + name;
-                Graph::Shader_SetName(data.TransparentFragmentShaders[geo], tf.CString());
+                setShaderIfNull(hopts->VertexOrOpaque->At(rpass)[geo], "mainFSO");
+                setShaderIfNull(hopts->Transparent->At(rpass)[geo], "mainFST");
+            }
+        }
+        else
+#    endif
+        {
+            replaceShader(data.VertexShaders[geo], createShader("mainVS", name));
+            replaceShader(data.OpaqueFragmentShaders[geo], createShader("mainFSO", name));
+            if (!isShadow)
+                replaceShader(data.TransparentFragmentShaders[geo], createShader("mainFST", name));
+
+            if (Graph::IsValidationEnabled())
+            {
+                const TKit::StackString v = "onyx-vertex-shader-" + name;
+                const TKit::StackString of = "onyx-opaque-fragment-shader-" + name;
+                Graph::Shader_SetName(data.VertexShaders[geo], v.CString());
+                Graph::Shader_SetName(data.OpaqueFragmentShaders[geo], of.CString());
+                if (!isShadow)
+                {
+                    const TKit::StackString tf = "onyx-transparent-fragment-shader-" + name;
+                    Graph::Shader_SetName(data.TransparentFragmentShaders[geo], tf.CString());
+                }
             }
         }
     };
 
-    for (u32 i = 0; i < geos.GetSize(); ++i)
-    {
-        const Geometry geo = Geometry(i);
-        for (u32 j = 0; j < passes.GetSize(); ++j)
+    const auto clearPipeline = [](Graph::Pipeline &pip) {
+        if (pip != Graph::NullHandle)
         {
-            const RenderPass rpass = RenderPass(j);
-            createShader(geo, getShaders<D2>(rpass), rpass != RenderPass_Shadow);
-            createShader(geo, getShaders<D3>(rpass), rpass != RenderPass_Shadow);
+            Graph::Pipeline_Destroy(pip);
+            pip = Graph::NullHandle;
         }
-    }
+    };
 
-    s_LayoutData->FullPassVertexShader = Graph::Compilation_CreateShader(cmp, "mainVS", "full-vertex");
-    s_LayoutData->Standalone[StandalonePass_RayMarch].Shader =
-        Graph::Compilation_CreateShader(cmp, "main", "ray-march");
-    s_LayoutData->Standalone[StandalonePass_Blend].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "blend");
-    s_LayoutData->Standalone[StandalonePass_Outline].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "outline");
-    s_LayoutData->Standalone[StandalonePass_FXAA].Shader = Graph::Compilation_CreateShader(cmp, "mainFS", "fxaa");
-    s_LayoutData->Standalone[StandalonePass_Compositor].Shader =
-        Graph::Compilation_CreateShader(cmp, "mainFS", "compositor");
+    const auto removeStalePipelines = [&]<Dimension D>(const Geometry geo, const RenderPass rpass) {
+        const bool isShadow = rpass == RenderPass_Shadow;
+        RendererData<D> &rdata = getRendererData<D>();
+        if (isShadow)
+        {
+            ShadowPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Shadows.Pipelines[geo];
+            // pretty much all pipelines in the case of no hook
+            RenderState mask = FillMode_Mask;
+            RenderState value = FillMode_Shaded;
+#    ifdef ONYX_ENABLE_HOOKS
+            if (hopts)
+            {
+                mask |= VertexHook_Mask;
+                value |= hopts->HookBitField;
+            }
+#    endif
+            pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
+        }
+        else
+        {
+            GeometryPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Pipelines[geo];
+            RenderState mask = FillMode_Mask;
+            RenderState value = rpass == RenderPass_Shaded ? FillMode_Shaded : FillMode_Flat;
+#    ifdef ONYX_ENABLE_HOOKS
+            if (hopts)
+            {
+                const bool isVertex = hopts->Stage == HookStage_Vertex;
+                mask |= isVertex ? VertexHook_Mask : FragmentHook_Mask;
+                value |= hopts->HookBitField;
+            }
+#    endif
+            pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
+        }
+    };
+
+    // we create/update shaders
+    for (u32 geo = 0; geo < Geometry_Count; ++geo)
+        for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+            if (opts.Geometries[geo] && opts.RenderPasses[rpass])
+            {
+                if (opts.Dimensions[Dim2])
+                    updateShaders.template operator()<D2>(Geometry(geo), RenderPass(rpass));
+                if (opts.Dimensions[Dim3])
+                    updateShaders.template operator()<D3>(Geometry(geo), RenderPass(rpass));
+            }
+    // we then recreate pipelines
+    for (u32 geo = 0; geo < Geometry_Count; ++geo)
+        for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+            if (opts.Geometries[geo] && opts.RenderPasses[rpass])
+            {
+                if (opts.Dimensions[Dim2])
+                    removeStalePipelines.template operator()<D2>(Geometry(geo), RenderPass(rpass));
+                if (opts.Dimensions[Dim3])
+                    removeStalePipelines.template operator()<D3>(Geometry(geo), RenderPass(rpass));
+            }
+
+    if (fullVertexShaderMissing)
+        s_LayoutData->FullPassVertexShader = createShader("mainVS", "full-vertex");
+
+#    ifdef ONYX_ENABLE_HOOKS
+    if (!hopts)
+#    endif
+        for (u32 pass = 0; pass < StandalonePass_Count; ++pass)
+            if (opts.Standalone[pass])
+            {
+                replaceShader(s_LayoutData->Standalone[pass].Shader,
+                              createShader(stndEntries[pass].Name, stndNames[pass]));
+
+                Graph::Pipeline &pip = s_StandalonePipelines[pass];
+                if (pip != Graph::NullHandle)
+                {
+                    Graph::Pipeline_Destroy(pip);
+                    pip = Graph::NullHandle;
+                }
+            }
 
     Graph::Compilation_Destroy(cmp);
+    return Result<>::Ok();
+}
+#endif
+
+static void createShaders()
+{
+#ifdef ONYX_COMPILE_SHADERS_AT_RUNTIME
+    ONYX_CHECK_RESULT(Renderer_CompileShaders(ShaderCompileOptions::Full()));
 #else
     for (u32 dim = 0; dim < D_Count; ++dim)
         for (u32 geo = 0; geo < Geometry_Count; ++geo)
@@ -642,19 +1118,31 @@ template <Dimension D> static Graph::Pipeline createGeometryPipeline(const Geome
     const bool outlined = (state & OutlineMode_Mask) == OutlineMode_Enabled;
     const bool shaded = (state & FillMode_Mask) == FillMode_Shaded;
     const RenderPass rpass = shaded ? RenderPass_Shaded : RenderPass_Flat;
-    const ShaderData &shaders = getShaders<D>(rpass);
 
     const bool opaque = (state & BlendMode_Mask) == BlendMode_None;
     const bool opaqueParams = opaque && geo == Geometry_Glyph;
     const bool needsConstant = D == D2 && shaded;
 
+    Graph::Shader vs = Graph::NullHandle;
+    Graph::Shader fs = Graph::NullHandle;
+#ifdef ONYX_ENABLE_HOOKS
+    const HookShaders hsh = Hook_GetFromRenderState<D>(rpass, geo, state);
+    vs = hsh.Vertex;
+    fs = opaque ? hsh.Opaque : hsh.Transparent;
+#endif
+    const ShaderData &shaders = getShaders<D>(rpass);
+    if (vs == Graph::NullHandle)
+        vs = shaders.VertexShaders[geo];
+    if (fs == Graph::NullHandle)
+        fs = opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo];
+
     const u32 depth2 = u32(isDepth2DSupported());
     const Graph::SpecializationEntry entry{0, 0, sizeof(u32)};
 
     Graph::ShaderStageInfo stages[2]{};
-    stages[0].Shader = shaders.VertexShaders[geo];
+    stages[0].Shader = vs;
     stages[0].Stage = Graph::ShaderStageFlag_Vertex;
-    stages[1].Shader = opaque ? shaders.OpaqueFragmentShaders[geo] : shaders.TransparentFragmentShaders[geo];
+    stages[1].Shader = fs;
     stages[1].Stage = Graph::ShaderStageFlag_Fragment;
     if (needsConstant)
     {
@@ -671,9 +1159,9 @@ template <Dimension D> static Graph::Pipeline createGeometryPipeline(const Geome
     const Graph::ColorWriteMask mainMask = outlined ? 0 : full;
     const Graph::ColorWriteMask outlineMask = outlined ? full : 0;
 
-    TKit::FixedArray<Graph::ColorAttachment, 3> attachments{};
+    TKit::StaticArray<Graph::ColorAttachment, 3 + ONYX_MAX_HOOK_OUTPUTS> attachments{};
 
-    Graph::ColorAttachment &color = attachments[0];
+    Graph::ColorAttachment &color = attachments.Append();
     color.BlendEnabled = !opaque || geo == Geometry_Glyph;
     color.SrcColor = opaqueParams ? Graph::BlendFactor_SrcAlpha : Graph::BlendFactor_One;
     color.DstColor = opaqueParams ? Graph::BlendFactor_OneMinusSrcAlpha : Graph::BlendFactor_One;
@@ -682,18 +1170,35 @@ template <Dimension D> static Graph::Pipeline createGeometryPipeline(const Geome
     color.WriteMask = mainMask;
     color.Format = opaque ? cf : tf;
 
-    attachments[1].WriteMask = outlineMask;
-    attachments[1].Format = cf;
+    Graph::ColorAttachment &outline = attachments.Append();
+    outline.WriteMask = outlineMask;
+    outline.Format = cf;
 
     if (!opaque)
     {
-        Graph::ColorAttachment &revealage = attachments[2];
+        Graph::ColorAttachment &revealage = attachments.Append();
         revealage.BlendEnabled = true;
         revealage.SrcColor = Graph::BlendFactor_Zero;
         revealage.DstColor = Graph::BlendFactor_OneMinusSrcColor;
         revealage.WriteMask = mainMask;
         revealage.Format = rf;
     }
+
+#ifdef ONYX_ENABLE_HOOKS
+    const TKit::StaticArray<HookOutput, ONYX_MAX_HOOK_OUTPUTS> &houtputs = GetSpecs().GetSpecific<D>().HookOutputs;
+    if (!houtputs.IsEmpty())
+    {
+        if (opaque)
+        {
+            Graph::ColorAttachment &empty = attachments.Append();
+            empty.WriteMask = 0;
+            empty.Format = Graph::Format_Undefined;
+        }
+
+        for (const HookOutput &hout : houtputs)
+            attachments.Append(color).Format = hout.Format;
+    }
+#endif
 
     TKit::StaticArray8<Graph::VertexBinding> bindings{};
     TKit::StaticArray8<Graph::VertexAttribute> attributes{};
@@ -773,7 +1278,7 @@ template <Dimension D> static Graph::Pipeline createGeometryPipeline(const Geome
     specs.ShaderStages = stages;
     specs.VertexBindings = bindings;
     specs.VertexAttributes = attributes;
-    specs.ColorAttachments = {attachments.GetData(), u32(opaque ? 2 : 3)};
+    specs.ColorAttachments = attachments;
     specs.DepthFormat = GetAttachmentFormat(AttachmentKind_DepthStencil);
     specs.StencilFormat = specs.DepthFormat;
     specs.Multisample.Samples = GetSpecs().SampleCount;
@@ -828,10 +1333,17 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
     constexpr Graph::Format f2 = Graph::Format_R32G32_SFLOAT;
     constexpr Graph::Format f3 = Graph::Format_R32G32B32_SFLOAT;
 
+    Graph::Shader vs = Graph::NullHandle;
+#ifdef ONYX_ENABLE_HOOKS
+    const HookShaders hsh = Hook_GetFromRenderState<D>(RenderPass_Shadow, geo, state);
+    vs = hsh.Vertex;
+#endif
     const ShaderData &shaders = getShaders<D>(RenderPass_Shadow);
+    if (vs == Graph::NullHandle)
+        vs = shaders.VertexShaders[geo];
 
     Graph::ShaderStageInfo stages[2]{};
-    stages[0].Shader = shaders.VertexShaders[geo];
+    stages[0].Shader = vs;
     stages[0].Stage = Graph::ShaderStageFlag_Vertex;
     stages[1].Shader = shaders.OpaqueFragmentShaders[geo];
     stages[1].Stage = Graph::ShaderStageFlag_Fragment;
@@ -922,6 +1434,72 @@ template <Dimension D> static Graph::Pipeline createShadowPipeline(const Geometr
     return pip;
 }
 
+static Graph::Pipeline createStandalonePipeline(const StandalonePass pass)
+{
+    const auto createFullPassPipeline = [pass](const Graph::ColorAttachment &attachment) {
+        const StandalonePipelineData &data = s_LayoutData->Standalone[pass];
+
+        Graph::ShaderStageInfo stages[2]{};
+        stages[0].Shader = s_LayoutData->FullPassVertexShader;
+        stages[0].Stage = Graph::ShaderStageFlag_Vertex;
+        stages[1].Shader = data.Shader;
+        stages[1].Stage = Graph::ShaderStageFlag_Fragment;
+
+        Graph::GraphicsPipelineSpecs specs{};
+        specs.ShaderStages = stages;
+        specs.ColorAttachments = attachment;
+        specs.DepthStencil.DepthTestEnabled = false;
+        specs.DepthStencil.DepthWriteEnabled = false;
+        return Graph::Pipeline_CreateGraphics(data.Layout, specs);
+    };
+
+    Graph::Pipeline pip = Graph::NullHandle;
+    switch (pass)
+    {
+    case StandalonePass_RayMarch: {
+        const StandalonePipelineData &data = s_LayoutData->Standalone[StandalonePass_RayMarch];
+        Graph::ShaderStageInfo stage{};
+        stage.Shader = data.Shader;
+        stage.Stage = Graph::ShaderStageFlag_Compute;
+        pip = Graph::Pipeline_CreateCompute(data.Layout, stage);
+        break;
+    }
+    case StandalonePass_Blend: {
+        Graph::ColorAttachment attachment{};
+        attachment.BlendEnabled = true;
+        attachment.SrcColor = Graph::BlendFactor_SrcAlpha;
+        attachment.DstColor = Graph::BlendFactor_OneMinusSrcAlpha;
+        // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
+        // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
+        // counterintuitive
+        attachment.SrcAlpha = Graph::BlendFactor_One;
+        attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
+        attachment.Format = GetAttachmentFormat(AttachmentKind_SrgbColor);
+        pip = createFullPassPipeline(attachment);
+        break;
+    }
+    case StandalonePass_Outline:
+        pip = createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_SrgbColor)});
+        break;
+    case StandalonePass_FXAA:
+        pip = createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_LinearColor)});
+        break;
+    case StandalonePass_Compositor: {
+        Graph::ColorAttachment attachment{};
+        attachment.BlendEnabled = true;
+        attachment.Format = GetAttachmentFormat(AttachmentKind_LinearColor);
+        pip = createFullPassPipeline(attachment);
+        break;
+    }
+    default:
+        return Graph::NullHandle;
+    }
+
+    if (Graph::IsValidationEnabled())
+        Graph::Pipeline_SetName(pip, TKit::StackString::Format("onyx-standalone-pipeline-{}", u8(pass)).CString());
+    return pip;
+}
+
 template <Dimension D> static Graph::Pipeline getOrCreateGeometryPipeline(const Geometry geo, const RenderState state)
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -942,60 +1520,12 @@ template <Dimension D> static Graph::Pipeline getOrCreateShadowPipeline(const Ge
     return pip;
 }
 
-static Graph::Pipeline createStandalonePassPipeline(const StandalonePass pass)
+static Graph::Pipeline getOrCreateStandalonePipeline(const StandalonePass pass)
 {
-    const auto createFullPassPipeline = [pass](const Graph::ColorAttachment &attachment) {
-        const StandalonePipelineData &data = s_LayoutData->Standalone[pass];
-
-        Graph::ShaderStageInfo stages[2]{};
-        stages[0].Shader = s_LayoutData->FullPassVertexShader;
-        stages[0].Stage = Graph::ShaderStageFlag_Vertex;
-        stages[1].Shader = data.Shader;
-        stages[1].Stage = Graph::ShaderStageFlag_Fragment;
-
-        Graph::GraphicsPipelineSpecs specs{};
-        specs.ShaderStages = stages;
-        specs.ColorAttachments = attachment;
-        specs.DepthStencil.DepthTestEnabled = false;
-        specs.DepthStencil.DepthWriteEnabled = false;
-        return Graph::Pipeline_CreateGraphics(data.Layout, specs);
-    };
-
-    switch (pass)
-    {
-    case StandalonePass_RayMarch: {
-        const StandalonePipelineData &data = s_LayoutData->Standalone[StandalonePass_RayMarch];
-        Graph::ShaderStageInfo stage{};
-        stage.Shader = data.Shader;
-        stage.Stage = Graph::ShaderStageFlag_Compute;
-        return Graph::Pipeline_CreateCompute(data.Layout, stage);
-    }
-    case StandalonePass_Blend: {
-        Graph::ColorAttachment attachment{};
-        attachment.BlendEnabled = true;
-        attachment.SrcColor = Graph::BlendFactor_SrcAlpha;
-        attachment.DstColor = Graph::BlendFactor_OneMinusSrcAlpha;
-        // NOTE(Isma, 25/06/06): Should consider not writing to the alpha channel. Causes alpha values to be
-        // inherited. For now it actually lets us having modals in ui, so ill keep it. but its a bit
-        // counterintuitive
-        attachment.SrcAlpha = Graph::BlendFactor_One;
-        attachment.DstAlpha = Graph::BlendFactor_OneMinusSrcAlpha;
-        attachment.Format = GetAttachmentFormat(AttachmentKind_SrgbColor);
-        return createFullPassPipeline(attachment);
-    }
-    case StandalonePass_Outline:
-        return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_SrgbColor)});
-    case StandalonePass_FXAA:
-        return createFullPassPipeline({.Format = GetAttachmentFormat(AttachmentKind_LinearColor)});
-    case StandalonePass_Compositor: {
-        Graph::ColorAttachment attachment{};
-        attachment.BlendEnabled = true;
-        attachment.Format = GetAttachmentFormat(AttachmentKind_LinearColor);
-        return createFullPassPipeline(attachment);
-    }
-    default:
-        return Graph::NullHandle;
-    }
+    Graph::Pipeline &pip = s_StandalonePipelines[pass];
+    if (pip == Graph::NullHandle)
+        pip = createStandalonePipeline(pass);
+    return pip;
 }
 
 static u32 lightToBinding(const LightType light)
@@ -1030,22 +1560,41 @@ template <Dimension D> static u32 getLightSize(const LightType light)
     }
 }
 
+template <Dimension D>
+static void updateBufferDescriptorSets(const ResourceGroup<D> &group, const Geometry geo, const u32 binding,
+                                       const Graph::Buffer buffer)
+{
+    if (buffer != Graph::NullHandle)
+    {
+        const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(buffer);
+        for (u32 i = 0; i < RenderPass_Count; ++i)
+            Graph::DescriptorSet_Write(group.Descriptors[i][geo], binding, info);
+    }
+}
+
 template <Dimension D> static void updateInstanceDescriptorSets(const ResourceGroup<D> &group, const Geometry geo)
 {
-    if (group.InstanceBuffers[geo].Buffer == Graph::NullHandle)
-        return;
-    const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(group.InstanceBuffers[geo].Buffer);
-    for (u32 i = 0; i < RenderPass_Count; ++i)
-        Graph::DescriptorSet_Write(group.Descriptors[i][geo], ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, info);
+    const InstanceDeviceBuffer &buff = group.InstanceBuffers[geo];
+    updateBufferDescriptorSets(group, geo, ONYX_GEOMETRY_PASS_INSTANCES_BINDING_POINT, buff.Buffer);
+#ifdef ONYX_ENABLE_HOOKS
+    updateBufferDescriptorSets(group, geo, ONYX_GEOMETRY_PASS_HOOK_INSTANCES_BINDING_POINT, buff.HooksBuffer);
+#endif
 }
+#ifdef ONYX_ENABLE_HOOKS
+template <Dimension D> static void updateHookGlobalsDescriptorSets(const ResourceGroup<D> &group, const Geometry geo)
+{
+    updateBufferDescriptorSets(group, geo, ONYX_GEOMETRY_PASS_HOOK_GLOBALS_BINDING_POINT, group.HookGlobalsBuffer);
+}
+#endif
 
 template <Dimension D> static void updateLightDescriptorSets(const ResourceGroup<D> &group, const LightType light)
 {
-    if (group.LightData.Buffers[light] == Graph::NullHandle)
-        return;
-    const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(group.LightData.Buffers[light]);
-    for (const Graph::DescriptorSet set : group.Descriptors[RenderPass_Shaded])
-        Graph::DescriptorSet_Write(set, lightToBinding(light), info);
+    if (group.LightData.Buffers[light] != Graph::NullHandle)
+    {
+        const Graph::DescriptorBufferInfo info = Graph::DescriptorBufferInfo::Create(group.LightData.Buffers[light]);
+        for (const Graph::DescriptorSet set : group.Descriptors[RenderPass_Shaded])
+            Graph::DescriptorSet_Write(set, lightToBinding(light), info);
+    }
 }
 
 template <typename... Args>
@@ -1066,11 +1615,12 @@ static constexpr Graph::BufferFlags s_LightBufferFlags = Graph::BufferFlag_Stora
 static constexpr Graph::BufferFlags s_VertexBufferFlags = Graph::BufferFlag_Vertex | Graph::BufferFlag_HostMapped;
 static constexpr Graph::BufferFlags s_IndexBufferFlags = Graph::BufferFlag_Index | Graph::BufferFlag_HostMapped;
 
-template <Dimension D> static Graph::Buffer createInstanceBuffer(const Geometry geo, const u32 instances)
+template <Dimension D>
+static Graph::Buffer createInstanceBuffer(const Geometry geo, const u32 instances, const u32 instanceSize = 0)
 {
     if (instances == 0)
         return Graph::NullHandle;
-    return createBuffer(instances * GetInstanceSize<D>(geo), s_InstanceBufferFlags,
+    return createBuffer(instances * (instanceSize == 0 ? GetInstanceSize<D>(geo) : instanceSize), s_InstanceBufferFlags,
                         "onyx-renderer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
 }
 
@@ -1097,21 +1647,6 @@ template <Dimension D> static Graph::Buffer createIndexBuffer(const u32 instance
     return createBuffer(instances * sizeof(Index), s_IndexBufferFlags, "onyx-renderer-index-buffer-{}D", u8(D));
 }
 
-static void createStandalonePipelines()
-{
-    for (u32 spass = 0; spass < StandalonePass_Count; ++spass)
-        s_StandalonePipelines[spass] = createStandalonePassPipeline(StandalonePass(spass));
-
-    if (Graph::IsValidationEnabled())
-    {
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_RayMarch], "onyx-blend-ray-march");
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Blend], "onyx-blend-pipeline");
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Outline], "onyx-outline-pipeline");
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_FXAA], "onyx-fxaa-pipeline");
-        Graph::Pipeline_SetName(s_StandalonePipelines[StandalonePass_Compositor], "onyx-compositor-pipeline");
-    }
-}
-
 template <Dimension D> static void destroyPipelines()
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -1131,7 +1666,8 @@ static void destroyPipelines()
     destroyPipelines<D2>();
     destroyPipelines<D3>();
     for (const Graph::Pipeline pip : s_StandalonePipelines)
-        Graph::Pipeline_Destroy(pip);
+        if (pip != Graph::NullHandle)
+            Graph::Pipeline_Destroy(pip);
 }
 
 template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
@@ -1290,7 +1826,7 @@ template <Dimension D> static void createLightResources(ResourceGroup<D> &group)
 
 template <Dimension D> static ResourceGroup<D> createResourceGroup()
 {
-    ResourceGroup<D> group;
+    ResourceGroup<D> group{};
     const SpecificSpecs<D> &specs = GetSpecs().GetSpecific<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
@@ -1308,6 +1844,11 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
             }
             group.Descriptors[j][i] = set;
         }
+#ifdef ONYX_ENABLE_HOOKS
+        if (specs.HookInstanceSize != 0)
+            group.InstanceBuffers[geo].HooksBuffer =
+                createInstanceBuffer<D>(geo, specs.MaxInstances, specs.HookInstanceSize);
+#endif
         updateInstanceDescriptorSets(group, geo);
     }
 
@@ -1315,6 +1856,17 @@ template <Dimension D> static ResourceGroup<D> createResourceGroup()
     // TODO(Isma): Define maximum vertices/indices, not instances alone
     group.VertexBuffer = createVertexBuffer<D>(specs.MaxDynamicVertices);
     group.IndexBuffer = createIndexBuffer<D>(specs.MaxDynamicIndices);
+#ifdef ONYX_ENABLE_HOOKS
+    if (specs.HookGlobalsSize != 0)
+    {
+        group.HookGlobalsBuffer =
+            createBuffer(specs.HookGlobalsSize, Graph::BufferFlag_Uniform | Graph::BufferFlag_HostMapped,
+                         "onyx-renderer-hook-globals-buffer-{}D", u8(D));
+
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            updateHookGlobalsDescriptorSets(group, Geometry(geo));
+    }
+#endif
 
     if (specs.MaxDrawCommands != 0)
     {
@@ -1335,7 +1887,12 @@ template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &
     };
 
     for (const InstanceDeviceBuffer &buff : group.InstanceBuffers)
+    {
         destroy(buff.Buffer);
+#ifdef ONYX_ENABLE_HOOKS
+        destroy(buff.HooksBuffer);
+#endif
+    }
     group.LightData.Destroy();
 
     destroy(group.VertexBuffer);
@@ -1343,6 +1900,9 @@ template <Dimension D> static void destroyResourceGroup(const ResourceGroup<D> &
 
     destroy(group.DrawBuffer.Buffer);
     destroy(group.IndexedDrawBuffer.Buffer);
+#ifdef ONYX_ENABLE_HOOKS
+    destroy(group.HookGlobalsBuffer);
+#endif
 }
 
 template <Dimension D> static ResourceGroup<D> *findAvailableResourceGroup()
@@ -1440,6 +2000,9 @@ void Renderer_Initialize()
     InitializeBinaries();
 #endif
 
+    for (Graph::Pipeline &pip : s_StandalonePipelines)
+        pip = Graph::NullHandle;
+
     createPipelineLayouts();
     createShaders();
 
@@ -1469,7 +2032,6 @@ void Renderer_Initialize()
 
     initialize<D2>();
     initialize<D3>();
-    createStandalonePipelines();
 }
 void Renderer_Terminate()
 {
@@ -1876,7 +2438,7 @@ static ResourceType getResourceType(const Geometry geo)
     }
 }
 
-template <Dimension D> static void transfer()
+template <Dimension D> static void transfer([[maybe_unused]] const TransferInfo &info)
 {
     RendererData<D> &rdata = getRendererData<D>();
     LightData<D> &ldata = rdata.Lights;
@@ -1888,6 +2450,12 @@ template <Dimension D> static void transfer()
     const TKit::TierArray<RenderContext<D> *> &contexts = rdata.Contexts;
     if (contexts.IsEmpty())
         return;
+
+#ifdef ONYX_ENABLE_HOOKS
+    const HookGlobalData &hdata = info.GetHookGlobalData<D>();
+    if (hdata.Size != 0 && group->HookGlobalsBuffer != Graph::NullHandle)
+        Graph::Buffer_Write(group->HookGlobalsBuffer, hdata.Data, {.Size = hdata.Size});
+#endif
 
     struct MergedContextData
     {
@@ -1918,7 +2486,7 @@ template <Dimension D> static void transfer()
             merge(idata.Meshes[pm], mergedData.Meshes[pm], ctx->ViewMask);
     }
 
-    TKit::FixedArray<usz, Geometry_Count> offsets{};
+    TKit::FixedArray<u32, Geometry_Count> ioffsets{};
 
     u32 vertexOffset = 0;
     u32 firstIndex = 0;
@@ -1933,16 +2501,15 @@ template <Dimension D> static void transfer()
 
         InstanceDeviceBuffer &buff = group->InstanceBuffers[geo];
 
-        TKIT_ASSERT(offsets[geo] / GetInstanceSize<D>(geo) + idata.Instances <= specs.MaxInstances,
+        TKIT_ASSERT(ioffsets[geo] + idata.Instances <= specs.MaxInstances,
                     "[ONYX][RENDERER] This frame draws at least {} {}D instances of geometry '{}', but "
                     ".Specs{}.MaxInstances is {}. Raise it in the specs given to Onyx::Initialize",
-                    offsets[geo] / GetInstanceSize<D>(geo) + idata.Instances, u8(D), ToString(geo), u8(D),
-                    specs.MaxInstances);
+                    ioffsets[geo] + idata.Instances, u8(D), ToString(geo), u8(D), specs.MaxInstances);
 
         InstanceRange &range = buff.Ranges.Append();
         range.RenderState = state;
-        range.Offset = offsets[geo];
-        range.Size = idata.Instances * GetInstanceSize<D>(geo);
+        range.FirstInstance = ioffsets[geo];
+        range.InstanceCount = idata.Instances;
         range.ViewMask = vmask;
         range.MeshHandle = handle;
         if (handle != NullHandle && Handle_GetResourceType(handle) == Resource_DynamicMesh)
@@ -1972,9 +2539,18 @@ template <Dimension D> static void transfer()
             vertexOffset += data.Vertices.GetSize();
             firstIndex += range.IndexCount;
         }
-
-        Graph::Buffer_Write(buff.Buffer, idata.Data.GetData(), {.Size = range.Size, .DstOffset = range.Offset});
-        offsets[geo] += range.Size;
+        const u32 isize = GetInstanceSize<D>(geo);
+#ifdef ONYX_ENABLE_HOOKS
+        if (buff.HooksBuffer != Graph::NullHandle)
+        {
+            const u32 hisize = specs.HookInstanceSize;
+            Graph::Buffer_Write(buff.HooksBuffer, idata.HookData.GetData(),
+                                {.Size = range.InstanceCount * hisize, .DstOffset = range.FirstInstance * hisize});
+        }
+#endif
+        Graph::Buffer_Write(buff.Buffer, idata.Data.GetData(),
+                            {.Size = range.InstanceCount * isize, .DstOffset = range.FirstInstance * isize});
+        ioffsets[geo] += range.InstanceCount;
     };
 
     const auto addRangeSpan = [&](const Geometry geo, const RenderState state, const ViewMask vmask,
@@ -2160,11 +2736,11 @@ template <Dimension D> static void transfer()
         copyLights(Light_Spot, ldata.Spots);
 }
 
-void Renderer_Transfer()
+void Renderer_Transfer(const TransferInfo &info)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Transfer");
-    transfer<D2>();
-    transfer<D3>();
+    transfer<D2>(info);
+    transfer<D3>(info);
 }
 
 static constexpr Graph::IndexType s_IndexType = sizeof(Index) == 1   ? Graph::IndexType_Unsigned8
@@ -2179,35 +2755,33 @@ template <Dimension D> static void bindMeshBuffers(const Graph::CommandBuffer cm
     Graph::Command_BindIndexBuffer(cmd, buffers.IndexBuffer, s_IndexType);
 }
 
-static Graph::DrawIndirectCommand createCircleCommand(const InstanceRange &range, const u32 instanceSize)
+static Graph::DrawIndirectCommand createCircleCommand(const InstanceRange &range)
 {
     Graph::DrawIndirectCommand cmd;
-    cmd.FirstInstance = u32(range.Offset / instanceSize);
-    cmd.InstanceCount = u32(range.Size / instanceSize);
+    cmd.FirstInstance = range.FirstInstance;
+    cmd.InstanceCount = range.InstanceCount;
     cmd.FirstVertex = 0;
     cmd.VertexCount = 6;
     return cmd;
 }
 
-template <Dimension D>
-static Graph::DrawIndexedIndirectCommand createMeshCommand(const InstanceRange &range, const u32 instanceSize)
+template <Dimension D> static Graph::DrawIndexedIndirectCommand createMeshCommand(const InstanceRange &range)
 {
     const MeshRange rg = Mesh_GetRange<D>(range.MeshHandle);
     Graph::DrawIndexedIndirectCommand cmd;
-    cmd.FirstInstance = u32(range.Offset / instanceSize);
-    cmd.InstanceCount = u32(range.Size / instanceSize);
+    cmd.FirstInstance = range.FirstInstance;
+    cmd.InstanceCount = range.InstanceCount;
     cmd.FirstIndex = rg.IndexOffset;
     cmd.IndexCount = rg.IndexCount;
     cmd.VertexOffset = i32(rg.VertexOffset);
     return cmd;
 }
 
-template <Dimension D>
-static Graph::DrawIndexedIndirectCommand createDynamicMeshCommand(const InstanceRange &range, const u32 instanceSize)
+template <Dimension D> static Graph::DrawIndexedIndirectCommand createDynamicMeshCommand(const InstanceRange &range)
 {
     Graph::DrawIndexedIndirectCommand cmd;
-    cmd.FirstInstance = u32(range.Offset / instanceSize);
-    cmd.InstanceCount = u32(range.Size / instanceSize);
+    cmd.FirstInstance = range.FirstInstance;
+    cmd.InstanceCount = range.InstanceCount;
     cmd.FirstIndex = range.FirstIndex;
     cmd.IndexCount = range.IndexCount;
     cmd.VertexOffset = i32(range.VertexOffset);
@@ -2272,7 +2846,7 @@ static void beginShadowPass(const Graph::CommandBuffer cmd, const Graph::Image i
     }
     else
     {
-        att.ClearValue.Color = f32v4{0.f};
+        att.ClearValue.Color.Float32 = f32v4{0.f};
         renderInfo.ColorAttachments = att;
     }
 
@@ -2310,7 +2884,6 @@ static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass 
     for (u32 g = 0; g < Geometry_Count; ++g)
     {
         const Geometry geo = Geometry(g);
-        const u32 instanceSize = GetInstanceSize<D>(geo);
 
         for (const PipelineRun &run : runs[g])
             if (rpass == run.Pass && (run.ViewMask & viewBit))
@@ -2331,8 +2904,7 @@ static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass 
                 {
                     TKit::StackArray<Graph::DrawIndirectCommand> cmds{};
                     cmds.Reserve(run.CommandCount);
-                    forEachRange(
-                        [&](const InstanceRange &range) { cmds.Append(createCircleCommand(range, instanceSize)); });
+                    forEachRange([&](const InstanceRange &range) { cmds.Append(createCircleCommand(range)); });
                     TKIT_ASSERT(!cmds.IsEmpty(), "[ONYX][RENDERER] Renderer should not be asked to submit 0 commands");
 
                     DrawCommandBuffer &drawBuffer = rdata.ActiveResourceGroup->DrawBuffer;
@@ -2382,7 +2954,7 @@ static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass 
                         forEachRange([&](const InstanceRange &range) {
                             ONYX_CHECK_RESOURCE_IS_NOT_NULL(range.MeshHandle);
                             ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(range.MeshHandle, getResourceType(geo), D);
-                            cmds.Append(createDynamicMeshCommand<D>(range, instanceSize));
+                            cmds.Append(createDynamicMeshCommand<D>(range));
                         });
                         const u32 cmdCount = cmds.GetSize();
                         const usz cmdSize = cmds.GetBytes();
@@ -2421,7 +2993,7 @@ static void recordPipelineRuns(const Graph::CommandBuffer cmd, const RenderPass 
 
                         forEachRange([&](const InstanceRange &range) {
                             const u32 pid = Handle_GetResourcePoolId(range.MeshHandle);
-                            cmds[starts[pid]++] = createMeshCommand<D>(range, instanceSize);
+                            cmds[starts[pid]++] = createMeshCommand<D>(range);
                         });
                         const usz cmdSize = cmds.GetBytes();
 
@@ -2553,7 +3125,7 @@ template <Dimension D> static void renderShadows(const Graph::CommandBuffer cmd,
 
                 const Graph::DescriptorSet set = l2.RayMarchDescriptor;
 
-                Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_RayMarch]);
+                Graph::Command_BindPipeline(cmd, getOrCreateStandalonePipeline(StandalonePass_RayMarch));
                 const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_RayMarch);
                 Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Compute, set);
 
@@ -2729,7 +3301,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
             renderGeometry<D>(cmd, vinfo, group->TransparentRuns, shFlags);
             rv->EndTransparentPass(cmd);
             rv->BeginBlendPass(cmd);
-            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Blend]);
+            Graph::Command_BindPipeline(cmd, getOrCreateStandalonePipeline(StandalonePass_Blend));
 
             const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Blend);
             const Graph::DescriptorSet set = rv->GetBlendSet();
@@ -2754,7 +3326,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
         for (RenderView<D> *rv : outlineViews)
         {
             rv->BeginOutlinePass(cmd);
-            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Outline]);
+            Graph::Command_BindPipeline(cmd, getOrCreateStandalonePipeline(StandalonePass_Outline));
 
             const Graph::DescriptorSet set = rv->GetOutlineSet();
             Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
@@ -2782,7 +3354,7 @@ static void renderViews(const Graph::CommandBuffer cmd, const TKit::StaticArray<
         for (RenderView<D> *rv : fxaaViews)
         {
             rv->BeginFXAAPass(cmd);
-            Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_FXAA]);
+            Graph::Command_BindPipeline(cmd, getOrCreateStandalonePipeline(StandalonePass_FXAA));
 
             const Graph::DescriptorSet set = rv->GetFXAASet();
             Graph::Command_BindDescriptorSets(cmd, playout, Graph::BindPoint_Graphics, set);
@@ -2873,7 +3445,7 @@ RenderSubmitInfo render(const Graph::CommandBuffer cmd, Target *target, const Re
 
     target->BeginRendering(cmd);
 
-    Graph::Command_BindPipeline(cmd, s_StandalonePipelines[StandalonePass_Compositor]);
+    Graph::Command_BindPipeline(cmd, getOrCreateStandalonePipeline(StandalonePass_Compositor));
 
     const Graph::PipelineLayout playout = getPipelineLayout(StandalonePass_Compositor);
     renderCompositor(cmd, tinfo, playout);
