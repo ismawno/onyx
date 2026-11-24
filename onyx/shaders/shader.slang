@@ -606,6 +606,11 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 #        ifdef ONYX_HOOK_VARYINGS
     fhInput.Varyings = input.Varyings;
 #        endif
+    const FragmentHookOutput fhOutput = FragmentHook(fhInput);
+    out.Fill = fhOutput.Color;
+#        ifdef ONYX_HOOK_OUTPUTS
+    out.Hooks = fhOutput.Outputs;
+#        endif
     #endif
 
     return out;
