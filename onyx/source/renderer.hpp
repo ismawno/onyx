@@ -91,6 +91,7 @@ struct RendererShaderCompileOptions
     // will be replaced
     const HookCompileOptions *HookOptions = nullptr;
 #    endif
+    bool RemoveStalePipelines = true;
 };
 ONYX_NO_DISCARD Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &opts);
 #endif

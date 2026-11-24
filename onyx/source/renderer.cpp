@@ -1079,25 +1079,28 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
                     updateShaders.template operator()<D3>(Geometry(geo), RenderPass(rpass));
             }
 
-    s_ShouldWaitWhenRemovingStalePipeline = true;
-    // we then recreate pipelines
-    for (u32 geo = 0; geo < Geometry_Count; ++geo)
-        for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
-            if (opts.Geometries[geo] && opts.RenderPasses[rpass])
-            {
-                RemoveStalePipelinesOptions staleOpts{.Pass = RenderPass(rpass), .Geo = Geometry(geo)};
-#    ifdef ONYX_ENABLE_HOOKS
-                if (hopts)
+    if (ropts.RemoveStalePipelines)
+    {
+        s_ShouldWaitWhenRemovingStalePipeline = true;
+        // we then recreate pipelines
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+                if (opts.Geometries[geo] && opts.RenderPasses[rpass])
                 {
-                    staleOpts.HookBitField = hopts->HookBitField;
-                    staleOpts.Stage = hopts->Stage;
-                }
+                    RemoveStalePipelinesOptions staleOpts{.Pass = RenderPass(rpass), .Geo = Geometry(geo)};
+#    ifdef ONYX_ENABLE_HOOKS
+                    if (hopts)
+                    {
+                        staleOpts.HookBitField = hopts->HookBitField;
+                        staleOpts.Stage = hopts->Stage;
+                    }
 #    endif
-                if (opts.Dimensions[Dim2])
-                    removeStalePipelines<D2>(staleOpts);
-                if (opts.Dimensions[Dim3])
-                    removeStalePipelines<D3>(staleOpts);
-            }
+                    if (opts.Dimensions[Dim2])
+                        removeStalePipelines<D2>(staleOpts);
+                    if (opts.Dimensions[Dim3])
+                        removeStalePipelines<D3>(staleOpts);
+                }
+    }
 
     if (fullVertexShaderMissing)
         s_LayoutData->FullPassVertexShader = createShader("mainVS", "full-vertex");
@@ -1577,9 +1580,8 @@ static Graph::Pipeline createStandalonePipeline(const StandalonePass pass)
 template <Dimension D> static Graph::Pipeline getOrCreateGeometryPipeline(const Geometry geo, const RenderState state)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    bool didInsert;
-    Graph::Pipeline &pip = rdata.Pipelines[geo].TryInsert(&didInsert, state);
-    if (didInsert || pip == Graph::NullHandle)
+    Graph::Pipeline &pip = rdata.Pipelines[geo].TryInsert(state, Graph::NullHandle);
+    if (pip == Graph::NullHandle)
         pip = createGeometryPipeline<D>(geo, state);
     return pip;
 }
@@ -1587,9 +1589,8 @@ template <Dimension D> static Graph::Pipeline getOrCreateGeometryPipeline(const 
 template <Dimension D> static Graph::Pipeline getOrCreateShadowPipeline(const Geometry geo, const RenderState state)
 {
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
-    bool didInsert;
-    Graph::Pipeline &pip = sdata.Pipelines[geo].TryInsert(&didInsert, state);
-    if (didInsert || pip == Graph::NullHandle)
+    Graph::Pipeline &pip = sdata.Pipelines[geo].TryInsert(state, Graph::NullHandle);
+    if (pip == Graph::NullHandle)
         pip = createShadowPipeline<D>(geo, state);
     return pip;
 }

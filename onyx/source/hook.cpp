@@ -166,7 +166,9 @@ ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(const Resource handle, const TKit::
     return Result<>::Ok();
 }
 
-template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts)
+template <Dimension D>
+static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts,
+                                const bool removeStalePipelines = true)
 {
     RendererShaderCompileOptions ropts{};
     ShaderCompileOptions &copts = ropts.Options;
@@ -189,6 +191,7 @@ template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 fie
         hopts.Transparent = &hook.Transparent;
 
     ropts.HookOptions = &hopts;
+    ropts.RemoveStalePipelines = removeStalePipelines;
     return Renderer_CompileShaders(ropts);
 }
 
@@ -213,7 +216,7 @@ HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, 
             HookPrecompileOptions opts{};
             opts.Geometries[geo] = true;
             opts.RenderPasses[rpass] = true;
-            const auto res = hook_Precompile<D>(hook, field, opts);
+            const auto res = hook_Precompile<D>(hook, field, opts, false);
             ONYX_LOG_RESULT_ERROR(res);
             if (!res)
                 return nullptr;

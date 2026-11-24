@@ -4939,17 +4939,24 @@ template <typename F> static auto measureMilliseconds(f32 &milliseconds, F &&cal
     return result;
 }
 
-// a compiler error can span dozens of lines: a heading, a button to copy all of it and the message in a scrolled box.
+// a compiler error can span dozens of lines: a heading, buttons to copy or clear it and the message in a scrolled box.
 // unused when Onyx has neither hooks nor a shader compilation backend
-[[maybe_unused]] static void errorBox(Onyx::Overlay *ui, const char *heading, const String &error)
+[[maybe_unused]] static void errorBox(Onyx::Overlay *ui, const char *heading, String &error)
 {
     ui->PushPanel(Onyx::LayoutDirection_LeftToRight, Onyx::Overlay::CenterLeft);
     badge(ui, "FAIL", Theme::Fail);
     text(ui, Theme::Fail, heading);
     if (ui->Button("Copy##error", Onyx::OverlayButtonFlag_Small))
         Graph::SetClipboard(error.CString());
-    ui->PopPanel();
     tooltip(ui, Theme::Accent, "Copies the whole message", "");
+    const bool clear = ui->Button("Clear##error", Onyx::OverlayButtonFlag_Small);
+    tooltip(ui, Theme::Accent, "Dismisses the message", "");
+    ui->PopPanel();
+    if (clear)
+    {
+        error.Clear();
+        return;
+    }
     ui->BeginScroll("error", 220.f, Onyx::OverlayScrollFlag_Borders);
     forEachLine(error, [&](const TKit::StringView line) { text(ui, Theme::Text, line, Onyx::TextMode_Wrapped); });
     ui->EndScroll();
@@ -5157,7 +5164,7 @@ static void precompileHook(App &app, HookSlot &slot)
 // the dialog blocks the frame until it closes. a cancel leaves the slot as it was
 static void browseHook(App &app, HookSlot &slot)
 {
-    const Onyx::Filter filters[] = {{.Name = "Slang shader hooks", .Extensions = "slang"}};
+    const Onyx::Filter filters[] = {{.Name = "Slang shader hooks", .Extensions = "slang,vert,frag"}};
     const auto path =
         Onyx::OpenSingleDialog({.DefaultPath = SampleHooksPath, .Filters = TKit::Span<const Onyx::Filter>(filters)});
     if (!path)
