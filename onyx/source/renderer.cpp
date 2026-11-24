@@ -461,6 +461,11 @@ struct RemoveStalePipelinesOptions
     HookStage Stage = HookStage_Count;
 #    endif
 };
+
+// this is absolutely diabolical
+static bool s_ShouldWaitWhenRemovingStalePipeline = true;
+//
+
 template <Dimension D> static void removeStalePipelines(const RemoveStalePipelinesOptions &opts)
 {
     const RenderPass rpass = opts.Pass;
@@ -471,6 +476,11 @@ template <Dimension D> static void removeStalePipelines(const RemoveStalePipelin
     const auto clearPipeline = [](Graph::Pipeline &pip) {
         if (pip != Graph::NullHandle)
         {
+            if (s_ShouldWaitWhenRemovingStalePipeline)
+            {
+                Graph::DeviceWaitIdle();
+                s_ShouldWaitWhenRemovingStalePipeline = false;
+            }
             Graph::Pipeline_Destroy(pip);
             pip = Graph::NullHandle;
         }
@@ -535,17 +545,26 @@ static bool isOldMesa()
 }
 #    ifdef ONYX_ENABLE_HOOKS
 
-void Renderer_RemoveStaleHookPipelines(const RenderState hookBitField, const HookStage stage)
+void Renderer_RemoveStaleHookPipelines(const ShaderCompileOptions &opts, const RenderState hookBitField,
+                                       const HookStage stage)
 {
-    Graph::DeviceWaitIdle();
+
+    s_ShouldWaitWhenRemovingStalePipeline = true;
     for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
         for (u32 geo = 0; geo < Geometry_Count; ++geo)
-        {
-            removeStalePipelines<D2>(
-                {.Pass = RenderPass(rpass), .Geo = Geometry(geo), .HookBitField = hookBitField, .Stage = stage});
-            removeStalePipelines<D3>(
-                {.Pass = RenderPass(rpass), .Geo = Geometry(geo), .HookBitField = hookBitField, .Stage = stage});
-        }
+            if (opts.RenderPasses[rpass] && opts.Geometries[geo])
+            {
+                if (opts.Dimensions[Dim2])
+                    removeStalePipelines<D2>({.Pass = RenderPass(rpass),
+                                              .Geo = Geometry(geo),
+                                              .HookBitField = hookBitField,
+                                              .Stage = stage});
+                if (opts.Dimensions[Dim3])
+                    removeStalePipelines<D3>({.Pass = RenderPass(rpass),
+                                              .Geo = Geometry(geo),
+                                              .HookBitField = hookBitField,
+                                              .Stage = stage});
+            }
 }
 
 static const char *toShader(const HookType type)
@@ -1057,8 +1076,9 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
                 if (opts.Dimensions[Dim3])
                     updateShaders.template operator()<D3>(Geometry(geo), RenderPass(rpass));
             }
+
+    s_ShouldWaitWhenRemovingStalePipeline = true;
     // we then recreate pipelines
-    Graph::DeviceWaitIdle();
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
         for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
             if (opts.Geometries[geo] && opts.RenderPasses[rpass])

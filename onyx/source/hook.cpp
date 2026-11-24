@@ -52,17 +52,26 @@ struct Hook
     {
         resetComb<D>(VertexOrOpaque, opts);
         resetComb<D>(Transparent, opts);
+
         const RenderState offset = Stage == HookStage_Vertex ? VertexHook_Offset : FragmentHook_Offset;
-        Renderer_RemoveStaleHookPipelines((id + 1) << offset, Stage);
+        Renderer_RemoveStaleHookPipelines(opts, (id + 1) << offset, Stage);
     }
 
-    void Reset(const TKit::StringView source, const HookSpecs &specs)
+    template <Dimension D> void Reset(const u32 id, const TKit::StringView source, const HookSpecs &specs)
     {
         Source = source;
         SearchPath = specs.SearchPath;
         Varyings = specs.Varyings;
         resetComb(VertexOrOpaque);
         resetComb(Transparent);
+
+        ShaderCompileOptions opts{};
+        ShaderCompileOptions::Full(opts.Geometries);
+        ShaderCompileOptions::Full(opts.RenderPasses);
+        opts.Dimensions[D - 2] = true;
+
+        const RenderState offset = Stage == HookStage_Vertex ? VertexHook_Offset : FragmentHook_Offset;
+        Renderer_RemoveStaleHookPipelines(opts, (id + 1) << offset, Stage);
     }
 
     bool HasShader(const RenderPass rpass, const Geometry geo) const
@@ -140,7 +149,7 @@ template <Dimension D>
 void Hook_UpdateFromSource(const Resource handle, const TKit::StringView source, const HookSpecs &specs)
 {
     Hook &hook = getHook<D>(handle);
-    hook.Reset(source, specs);
+    hook.Reset<D>(Handle_GetResourceId(handle), source, specs);
 }
 template <Dimension D>
 ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(const Resource handle, const TKit::TierPath &filepath,
