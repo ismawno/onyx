@@ -10,10 +10,21 @@
 export VertexHookOutput VertexHook(const VertexHookInput input)
 {
     const float time = input.Globals.LoadF32(0);
-    const float ripple = sin(3.0 * length(input.WorldPosition) - 3.0 * time);
+#ifdef ONYX_DIMENSION_3D
+    // rings on the floor plane, so they read the same from any height
+    const float dist = length(input.WorldPosition.xz);
+#else
+    const float dist = length(input.WorldPosition);
+#endif
+    const float ripple = sin(3.0 * dist - 3.0 * time);
 
     VertexHookOutput output;
-    output.WorldPosition = input.WorldPosition * (1.0 + 0.04 * ripple);
+    output.WorldPosition = input.WorldPosition;
+#ifdef ONYX_DIMENSION_3D
+    output.WorldPosition.y += 0.15 * ripple;
+#else
+    output.WorldPosition *= 1.0 + 0.04 * ripple;
+#endif
     output.Varyings.Ripple = ripple;
     return output;
 }

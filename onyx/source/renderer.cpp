@@ -855,7 +855,7 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
                 "[ONYX][RENDERER] When compiling shaders for a hook its bit field must not be zero");
 #    endif
 
-    TKit::StaticArray<Graph::ShaderArgument, 3> args{};
+    TKit::StaticArray<Graph::ShaderArgument, 4> args{};
     if (isOldMesa())
     {
         TKIT_LOG_WARNING("[ONYX][RENDERER] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
@@ -871,8 +871,15 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
     TKit::StaticArray<const char *, 2> searchPaths{};
     searchPaths.Append(ONYX_SHADERS_PATH);
 #    ifdef ONYX_ENABLE_HOOKS
-    if (hopts && !hopts->SearchPath.IsEmpty())
-        searchPaths.Append(hopts->SearchPath.GetData());
+    if (hopts)
+    {
+        if (!hopts->SearchPath.IsEmpty())
+            searchPaths.Append(hopts->SearchPath.GetData());
+
+        // hook compiles define the dimension macro for the user's code, and the variant wrappers define it again. we
+        // suppress slang warning about this
+        args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_DisableWarning, "15400"));
+    }
 #    endif
 
     const TKit::FixedArray<TKit::TierString, D_Count> dimNames = {"2D", "3D"};
@@ -958,7 +965,7 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
     cspecs.SearchPaths = searchPaths;
 #    ifdef ONYX_ENABLE_HOOKS
 
-    TKit::StaticArray<Graph::ShaderMacro, 6> hookMacros{};
+    TKit::StaticArray<Graph::ShaderMacro, 7> hookMacros{};
     TKit::StackString globalsSize;
     TKit::StackString instanceSize;
 
@@ -980,6 +987,7 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
         hookModules.Append(Graph::ShaderModule::Create("onyx_hook_types", hookTypeSource.CString()));
 
         hookMacros.Append("ONYX_ENABLE_HOOKS");
+        hookMacros.Append(d2 ? "ONYX_DIMENSION_2D" : "ONYX_DIMENSION_3D");
         if (hopts->Stage == HookStage_Vertex)
             hookMacros.Append("ONYX_VERTEX_HOOK");
         else
