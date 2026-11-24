@@ -296,7 +296,10 @@ template <Dimension D> void SetHookGlobalData(const void *data, const u32 size)
 #ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
 ONYX_NO_DISCARD Result<> ReloadShaders(const ShaderCompileOptions &opts)
 {
-    return Renderer_CompileShaders({.Options = opts});
+    const auto result = Renderer_CompileShaders({.Options = opts});
+    if (result)
+        Hook_ResetAll(opts);
+    return result;
 }
 #endif
 

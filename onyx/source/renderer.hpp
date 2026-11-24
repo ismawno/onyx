@@ -75,6 +75,9 @@ struct HookCompileOptions
 
     RenderState HookBitField = 0;
 };
+
+void Renderer_RemoveStaleHookPipelines(RenderState hookBitField, HookStage stage);
+
 #    endif
 struct RendererShaderCompileOptions
 {

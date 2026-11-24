@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/resources.hpp"
+#include "onyx/onyx.hpp"
 
 namespace Onyx
 {
@@ -39,6 +40,6 @@ struct HookShaders
     Graph::Shader Transparent = Graph::NullHandle;
 };
 template <Dimension D> HookShaders Hook_GetFromRenderState(RenderPass rpass, Geometry geo, RenderState state);
-void Hook_ResetAll();
+void Hook_ResetAll(const ShaderCompileOptions &opts);
 #endif
 } // namespace Onyx

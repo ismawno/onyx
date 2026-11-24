@@ -20,6 +20,17 @@ static void resetComb(ShaderCombination &comb, const bool forInit = false)
             sh = Graph::NullHandle;
         }
 }
+template <Dimension D> static void resetComb(ShaderCombination &comb, const ShaderCompileOptions &opts)
+{
+    for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            if (opts.Dimensions[D - 2] && opts.RenderPasses[rpass] && opts.Geometries[geo] &&
+                comb[rpass][geo] != Graph::NullHandle)
+            {
+                Graph::Shader_Destroy(comb[rpass][geo]);
+                comb[rpass][geo] = Graph::NullHandle;
+            }
+}
 struct Hook
 {
     Hook(const HookStage stage, const TKit::StringView source, const HookSpecs &specs)
@@ -37,10 +48,12 @@ struct Hook
     ShaderCombination VertexOrOpaque{};
     ShaderCombination Transparent{};
 
-    void Reset()
+    template <Dimension D> void Reset(const u32 id, const ShaderCompileOptions &opts)
     {
-        resetComb(VertexOrOpaque);
-        resetComb(Transparent);
+        resetComb<D>(VertexOrOpaque, opts);
+        resetComb<D>(Transparent, opts);
+        const RenderState offset = Stage == HookStage_Vertex ? VertexHook_Offset : FragmentHook_Offset;
+        Renderer_RemoveStaleHookPipelines((id + 1) << offset, Stage);
     }
 
     void Reset(const TKit::StringView source, const HookSpecs &specs)
@@ -102,7 +115,7 @@ template <Dimension D>
 Result<Resource> Hook_FromFile(const HookStage stage, const TKit::TierPath &filepath, const HookSpecs &specs)
 {
     ONYX_GENERATE_ERROR_FILE_NOT_FOUND(filepath, "[ONYX][SHADER-HOOK] Shader file '{}' does not exist",
-                                       "[ONYX][SHADER-HOOK] Expected an audio file at '{}', but found a directory");
+                                       "[ONYX][SHADER-HOOK] Expected a shader file at '{}', but found a directory");
 
     const auto res = TKit::ReadFile<TKit::StackString>(filepath);
     ONYX_RETURN_ERROR_IF(!res, Error_LoadFailed, "[ONYX][SHADER-HOOK] Failed to load shader at '{}' with error: {}",
@@ -146,7 +159,8 @@ ONYX_NO_DISCARD Result<> Hook_UpdateFromFile(const Resource handle, const TKit::
 
 template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 field, const HookPrecompileOptions &opts)
 {
-    ShaderCompileOptions copts{};
+    RendererShaderCompileOptions ropts{};
+    ShaderCompileOptions &copts = ropts.Options;
     copts.Dimensions[D - 2] = true;
     copts.Geometries = opts.Geometries;
     copts.RenderPasses = opts.RenderPasses;
@@ -165,8 +179,8 @@ template <Dimension D> static Result<> hook_Precompile(Hook &hook, const u32 fie
     if (hook.Stage == HookStage_Fragment)
         hopts.Transparent = &hook.Transparent;
 
-    copts.HookOptions = &hopts;
-    return Renderer_CompileShaders(copts);
+    ropts.HookOptions = &hopts;
+    return Renderer_CompileShaders(ropts);
 }
 
 template <Dimension D> Result<> Hook_Precompile(const Resource handle, const HookPrecompileOptions &opts)
@@ -216,17 +230,17 @@ HookShaders Hook_GetFromRenderState(const RenderPass rpass, const Geometry geo, 
     return shaders;
 }
 
-template <Dimension D> void hook_ResetAll()
+template <Dimension D> void hook_ResetAll(const ShaderCompileOptions &opts)
 {
     for (auto &hooks : s_Data->At(D - 2).Hooks)
-        for (Hook &hook : hooks)
-            hook.Reset();
+        for (const u32 id : hooks.GetValidIds())
+            hooks[id].Reset<D>(id, opts);
 }
 
-void Hook_ResetAll()
+void Hook_ResetAll(const ShaderCompileOptions &opts)
 {
-    hook_ResetAll<D2>();
-    hook_ResetAll<D3>();
+    hook_ResetAll<D2>(opts);
+    hook_ResetAll<D3>(opts);
 }
 
 template <Dimension D> bool vertexHook_IsResourceValid(const u32 id)

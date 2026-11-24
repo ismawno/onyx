@@ -452,6 +452,61 @@ static Graph::Shader shaderFromBinary(const ShaderBinary &binary)
 #endif
 
 #ifdef GRAPH_HAS_SHADER_COMPILATION_BACKEND
+struct RemoveStalePipelinesOptions
+{
+    RenderPass Pass;
+    Geometry Geo;
+#    ifdef ONYX_ENABLE_HOOKS
+    RenderState HookBitField = 0;
+    HookStage Stage = HookStage_Count;
+#    endif
+};
+template <Dimension D> static void removeStalePipelines(const RemoveStalePipelinesOptions &opts)
+{
+    const RenderPass rpass = opts.Pass;
+    const Geometry geo = opts.Geo;
+
+    const bool isShadow = rpass == RenderPass_Shadow;
+    RendererData<D> &rdata = getRendererData<D>();
+    const auto clearPipeline = [](Graph::Pipeline &pip) {
+        if (pip != Graph::NullHandle)
+        {
+            Graph::Pipeline_Destroy(pip);
+            pip = Graph::NullHandle;
+        }
+    };
+
+    if (isShadow)
+    {
+        ShadowPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Shadows.Pipelines[geo];
+        // pretty much all pipelines in the case of no hook
+        RenderState mask = FillMode_Mask;
+        RenderState value = FillMode_Shaded;
+#    ifdef ONYX_ENABLE_HOOKS
+        if (opts.HookBitField != 0)
+        {
+            mask |= VertexHook_Mask;
+            value |= opts.HookBitField;
+        }
+#    endif
+        pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
+    }
+    else
+    {
+        GeometryPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Pipelines[geo];
+        RenderState mask = FillMode_Mask;
+        RenderState value = rpass == RenderPass_Shaded ? FillMode_Shaded : FillMode_Flat;
+#    ifdef ONYX_ENABLE_HOOKS
+        if (opts.HookBitField != 0)
+        {
+            const bool isVertex = opts.Stage == HookStage_Vertex;
+            mask |= isVertex ? VertexHook_Mask : FragmentHook_Mask;
+            value |= opts.HookBitField;
+        }
+#    endif
+        pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
+    }
+}
 static bool isOldMesa()
 {
     const Graph::DeviceInfo dev = Graph::GetRenderBackendInfo().Device;
@@ -479,6 +534,20 @@ static bool isOldMesa()
     return true;
 }
 #    ifdef ONYX_ENABLE_HOOKS
+
+void Renderer_RemoveStaleHookPipelines(const RenderState hookBitField, const HookStage stage)
+{
+    Graph::DeviceWaitIdle();
+    for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+        {
+            removeStalePipelines<D2>(
+                {.Pass = RenderPass(rpass), .Geo = Geometry(geo), .HookBitField = hookBitField, .Stage = stage});
+            removeStalePipelines<D3>(
+                {.Pass = RenderPass(rpass), .Geo = Geometry(geo), .HookBitField = hookBitField, .Stage = stage});
+        }
+}
+
 static const char *toShader(const HookType type)
 {
     switch (type)
@@ -978,50 +1047,6 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
         }
     };
 
-    const auto clearPipeline = [](Graph::Pipeline &pip) {
-        if (pip != Graph::NullHandle)
-        {
-            Graph::DeviceWaitIdle();
-            Graph::Pipeline_Destroy(pip);
-            pip = Graph::NullHandle;
-        }
-    };
-
-    const auto removeStalePipelines = [&]<Dimension D>(const Geometry geo, const RenderPass rpass) {
-        const bool isShadow = rpass == RenderPass_Shadow;
-        RendererData<D> &rdata = getRendererData<D>();
-        if (isShadow)
-        {
-            ShadowPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Shadows.Pipelines[geo];
-            // pretty much all pipelines in the case of no hook
-            RenderState mask = FillMode_Mask;
-            RenderState value = FillMode_Shaded;
-#    ifdef ONYX_ENABLE_HOOKS
-            if (hopts)
-            {
-                mask |= VertexHook_Mask;
-                value |= hopts->HookBitField;
-            }
-#    endif
-            pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
-        }
-        else
-        {
-            GeometryPipelineFieldMap<Graph::Pipeline, D> &pips = rdata.Pipelines[geo];
-            RenderState mask = FillMode_Mask;
-            RenderState value = rpass == RenderPass_Shaded ? FillMode_Shaded : FillMode_Flat;
-#    ifdef ONYX_ENABLE_HOOKS
-            if (hopts)
-            {
-                const bool isVertex = hopts->Stage == HookStage_Vertex;
-                mask |= isVertex ? VertexHook_Mask : FragmentHook_Mask;
-                value |= hopts->HookBitField;
-            }
-#    endif
-            pips.Query(value, mask, [&](Graph::Pipeline &pip) { clearPipeline(pip); });
-        }
-    };
-
     // we create/update shaders
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
         for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
@@ -1033,14 +1058,23 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
                     updateShaders.template operator()<D3>(Geometry(geo), RenderPass(rpass));
             }
     // we then recreate pipelines
+    Graph::DeviceWaitIdle();
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
         for (u32 rpass = 0; rpass < RenderPass_Count; ++rpass)
             if (opts.Geometries[geo] && opts.RenderPasses[rpass])
             {
+                RemoveStalePipelinesOptions staleOpts{.Pass = RenderPass(rpass), .Geo = Geometry(geo)};
+#    ifdef ONYX_ENABLE_HOOKS
+                if (hopts)
+                {
+                    staleOpts.HookBitField = hopts->HookBitField;
+                    staleOpts.Stage = hopts->Stage;
+                }
+#    endif
                 if (opts.Dimensions[Dim2])
-                    removeStalePipelines.template operator()<D2>(Geometry(geo), RenderPass(rpass));
+                    removeStalePipelines<D2>(staleOpts);
                 if (opts.Dimensions[Dim3])
-                    removeStalePipelines.template operator()<D3>(Geometry(geo), RenderPass(rpass));
+                    removeStalePipelines<D3>(staleOpts);
             }
 
     if (fullVertexShaderMissing)
