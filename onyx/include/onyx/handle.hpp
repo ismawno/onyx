@@ -91,6 +91,7 @@
 #    define ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(...)
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID(...)
 #    define ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(...)
+#    define ONYX_CHECK_RESOURCE_HANDLE(...)
 #endif
 
 namespace Onyx
