@@ -5078,7 +5078,7 @@ struct SampleHook
 };
 constexpr SampleHook SampleHooks[] = {
     {"stripes.frag", nullptr},  {"wave.vert", "Height"},  {"height.frag", "Height"},
-    {"ripple.slang", "Ripple"}, {"broken.frag", nullptr},
+    {"ripple.slang", "Ripple"}, {"toon.frag", nullptr},   {"broken.frag", nullptr},
 };
 
 static const SampleHook *findSampleHook(const HookSlot &slot)
@@ -6302,12 +6302,24 @@ static void setupCategories(App &app)
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
+        .Name = "A fragment hook reshades the material",
+        .Do = "Load shader_hooks/toon.frag as the 3D fragment hook, without varyings, and apply it: shaded shapes "
+              "lose their smooth falloff for four flat bands of light, keep their textures and the lights' colors, "
+              "and flat shapes stay as they were. Move the lights from the Lights panel: the bands follow.",
+        .More = "Onyx resolves each material, textures included, and hands it to the hook. The hook lights a plain "
+                "copy of it again through ComputeLighting, steps the result, and multiplies the material's own color "
+                "back in. Shapes without a material get lit too: ComputeLighting lights whatever it is given. In 2D, "
+                "the same file bands the 2D lights.",
+        .Priority = 99,
+        .Pane = Pane_Gallery3,
+        .Needs = Requires_Nothing});
+    shaders.Visuals.Append(VisualCheck{
         .Name = "Hook errors are readable",
         .Do = "Load shader_hooks/broken.frag as a fragment hook and precompile it: the panel shows the compiler's "
               "message with the file's own line numbers, and the gallery keeps drawing without it.",
         .More = "Onyx puts an import in front of the hook's source and restores the line numbers after it, so a line "
                 "in the message is a line in the file.",
-        .Priority = 99,
+        .Priority = 100,
         .Pane = Pane_None,
         .Needs = Requires_Nothing});
     shaders.Visuals.Append(VisualCheck{
@@ -6316,7 +6328,7 @@ static void setupCategories(App &app)
               "wherever a 2D shape is, black elsewhere, framed like the gallery.",
         .More = "Every view renders the Mask output, and only hooked shapes write to it. The readback copies the "
                 "gallery's whole image once, and the panel turns it into a texture.",
-        .Priority = 100,
+        .Priority = 101,
         .Pane = Pane_Gallery2,
         .Needs = Requires_Nothing});
 #endif
