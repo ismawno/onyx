@@ -148,7 +148,7 @@ void RenderTexture::FindAvailableImages()
     Graph::Queue_WaitForTracker(m_Images[pending].Tracker);
     TKIT_END_WARNING_CLOCK(Milliseconds,
                            "[ONYX][RENDER-TEXTURE] Waited {:.2f} ms for a new image. If you see this message often, "
-                           "consider increasing ImageCount when creating this texture. Right now is set to {}",
+                           "consider increasing ImageCount when creating this texture. Right now it is set to {}",
                            m_ImageCount);
     m_Writable = pending;
 }

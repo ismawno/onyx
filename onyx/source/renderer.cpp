@@ -773,6 +773,7 @@ static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> va
     const bool is3D = D == D3;
 
     TKit::TierString src{};
+    src += TKit::TierString::Format("static const uint NullResource = {};\n\n", NullResource);
     src += is3D ? "typedef float3 HookVec;\n" : "typedef float2 HookVec;\n";
     src += s_HookEnums;
 
@@ -820,8 +821,16 @@ static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> va
         src += "    HookVaryings Varyings;\n";
     src += "}\n\n";
 
+    if (is3D)
+        src += "struct HookMaterial\n{\n    uint Id;\n    float4 FillColor;\n    float3 Lighting;\n    float4 Albedo;\n"
+               "    float3 Normal;\n    float3 Emissive;\n    float Metallic;\n    float Roughness;\n"
+               "    float Occlusion;\n}\n\n";
+    else
+        src += "struct HookMaterial\n{\n    uint Id;\n    float4 FillColor;\n    float3 Lighting;\n    float4 Albedo;\n"
+               "}\n\n";
+
     src += "struct FragmentHookInput\n{\n    float4 Color;\n    HookVec WorldPosition;\n    float2 TexCoord;\n"
-           "    float2 ScreenPosition;\n    bool HasMaterial;\n";
+           "    float2 ScreenPosition;\n    float Coverage;\n    HookMaterial Material;\n";
     common();
     if (!varyings.IsEmpty())
         src += "    HookVaryings Varyings;\n";
@@ -830,7 +839,10 @@ static TKit::TierString generateHookTypes(const TKit::Span<const HookVarying> va
     src += "struct FragmentHookOutput\n{\n    float4 Color;\n";
     if (!outputs.IsEmpty())
         src += "    HookOutputs Outputs;\n";
-    src += "}\n";
+    src += "}\n\n";
+
+    // implemented and exported by shader.slang in every variant
+    src += "extern float3 ComputeLighting(const HookMaterial material, const HookVec worldPosition);\n";
 
     return src;
 }

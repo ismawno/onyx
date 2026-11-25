@@ -35,7 +35,7 @@ template <> struct MaterialData<D3>
     Color EmissiveFactor{0.f};
     f32v2 TexOffset{0.f};
     f32v2 TexScale{1.f};
-    u32 AlbedoFactor = 0xFFFFFFFF;
+    Color AlbedoFactor = Color_White;
     f32 MetallicFactor = 0.f;
     f32 RoughnessFactor = 0.5f;
     f32 OcclusionStrength = 1.f;

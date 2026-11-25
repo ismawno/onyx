@@ -491,8 +491,54 @@ SamplerComparisonState g_ShadowCompareSampler;
 #    define ONYX_FRAGMENT_PARAMETERS input
 #endif
 
+#ifdef ONYX_PASS_SHADED
+ResourceTable createResourceTable()
+{
+    ResourceTable resources;
+    resources.Materials = g_Materials;
+    resources.Samplers = g_Samplers;
+    resources.Textures = g_Textures;
+    resources.TextureOffsets = g_TextureOffsets;
+    resources.PointLights = g_PointLights;
+    resources.DirLights = g_DirLights;
+    resources.ShadowSampler = g_ShadowSampler;
+    resources.ShadowCompareSampler = g_ShadowCompareSampler;
+#    ifdef ONYX_DIMENSION_3D
+    resources.SpLights = g_SpotLights;
+    resources.PointMaps = g_PointMaps;
+    resources.DirectionalMaps = g_DirectionalMaps;
+    resources.SpotMaps = g_SpotMaps;
+#    else
+    resources.ShadowMaps = g_ShadowMaps;
+#    endif
+    return resources;
+}
+#endif
+
 #ifdef ONYX_FRAGMENT_HOOK
 extern FragmentHookOutput FragmentHook(const FragmentHookInput input);
+// we export this function so that hooks can run their own material shading
+export f32v3 ComputeLighting(const HookMaterial material, const HookVec worldPos)
+{
+#    ifdef ONYX_PASS_SHADED
+    const ResourceTable resources = createResourceTable();
+#        ifdef ONYX_DIMENSION_2D
+    (void)material;
+    return ComputeLightColor(g_PushData.Light, worldPos, resources);
+#        else
+    MaterialInfo3D info;
+    info.Albedo = material.Albedo;
+    info.Normal = material.Normal;
+    info.Emissive = material.Emissive;
+    info.Roughness = material.Roughness;
+    info.Metallic = material.Metallic;
+    info.Occlusion = material.Occlusion;
+    return ComputeLightColor(g_PushData.Light, worldPos, info, resources);
+#        endif
+#    else
+    return f32v3(1.0);
+#    endif
+}
 #endif
 
 ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
@@ -560,29 +606,49 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
     FragOpaqueOutput out;
     out.Outline = f32v4(outline.rgb, outlineWidth);
 
+#    ifdef ONYX_ENABLE_HOOKS
+    HookMaterial hmat;
+    hmat.Id = mtid;
+    hmat.FillColor = fill;
+    hmat.Lighting = f32v3(1.0);
+    hmat.Albedo = f32v4(1.0);
+#        ifdef ONYX_DIMENSION_3D
+    hmat.Normal = isFrontFacing ? input.Normal : -input.Normal;
+    hmat.Emissive = f32v3(0.0);
+    hmat.Metallic = 0.0;
+    hmat.Roughness = 1.0;
+    hmat.Occlusion = 1.0;
+#        endif
+#    endif
+
 #    ifdef ONYX_PASS_SHADED
-    ResourceTable resources;
-    resources.Materials = g_Materials;
-    resources.Samplers = g_Samplers;
-    resources.Textures = g_Textures;
-    resources.TextureOffsets = g_TextureOffsets;
-    resources.PointLights = g_PointLights;
-    resources.DirLights = g_DirLights;
-    resources.ShadowSampler = g_ShadowSampler;
-    resources.ShadowCompareSampler = g_ShadowCompareSampler;
+    const ResourceTable resources = createResourceTable();
 
 #        ifdef ONYX_DIMENSION_3D
-    resources.SpLights = g_SpotLights;
-    resources.PointMaps = g_PointMaps;
-    resources.DirectionalMaps = g_DirectionalMaps;
-    resources.SpotMaps = g_SpotMaps;
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
-                                    f32m3(input.Tangent, input.Bitangent, input.Normal), isFrontFacing,
-                                    data.TexOffset, data.TexScale);
+    const f32m3 tbn = f32m3(input.Tangent, input.Bitangent, input.Normal);
+    const MaterialInfo3D minfo = ResolveMaterial(mtid, input.TexCoord, data.TexOffset, data.TexScale, tbn, isFrontFacing, resources);
+    const f32v3 lighting = mtid == NullResource ? f32v3(1.0) : ComputeLightColor(g_PushData.Light, input.WorldPosition, minfo, resources);
+    out.Fill = fill * f32v4(lighting, minfo.Albedo.w * alpha);
+
 #        else
-    resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mtid, input.WorldPosition, input.TexCoord, resources, alpha,
-                                    data.TexOffset, data.TexScale);
+
+    const f32v4 albedo = ResolveMaterial(mtid, input.TexCoord, data.TexOffset, data.TexScale, resources);
+    const f32v3 lighting = mtid == NullResource ? f32v3(1.0) : ComputeLightColor(g_PushData.Light, input.WorldPosition, resources);
+    out.Fill = fill * albedo * f32v4(lighting, alpha);
+#        endif
+
+#        ifdef ONYX_ENABLE_HOOKS
+    hmat.Lighting = lighting;
+#            ifdef ONYX_DIMENSION_3D
+    hmat.Albedo = minfo.Albedo;
+    hmat.Normal = minfo.Normal;
+    hmat.Emissive = minfo.Emissive;
+    hmat.Metallic = minfo.Metallic;
+    hmat.Roughness = minfo.Roughness;
+    hmat.Occlusion = minfo.Occlusion;
+#            else
+    hmat.Albedo = albedo;
+#            endif
 #        endif
 
 #    else
@@ -592,18 +658,14 @@ ONYX_DECLARE_FRAGMENT_SIGNATURE(computeFragment, FragOpaqueOutput)
 
 #    ifdef ONYX_FRAGMENT_HOOK
     FragmentHookInput fhInput;
+    fhInput.Material = hmat;
     fhInput.Color = out.Fill;
     fhInput.WorldPosition = input.WorldPosition;
     fhInput.TexCoord = input.TexCoord;
     fhInput.ScreenPosition = input.Position.xy;
-#        ifdef ONYX_PASS_SHADED
-    fhInput.HasMaterial = mtid != NullResource;
-#        else
-    fhInput.HasMaterial = false; // in flat passes mtid is a sampler/texture id, not a material
-#        endif
 #        ifdef ONYX_DIMENSION_3D
 #            ifdef ONYX_PASS_SHADED
-    fhInput.TBN = f32m3(input.Tangent, input.Bitangent, input.Normal);
+    fhInput.TBN = tbn;
 #            else
     fhInput.TBN = f32m3(1.0);
 #            endif

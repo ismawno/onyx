@@ -187,7 +187,7 @@ Result<GltfData<D>> Gltf_LoadDataFromFile(const TKit::TierPath &filepath, const 
             const u8 g = u8(color[1] * 255.f);
             const u8 b = u8(color[2] * 255.f);
             const u8 a = u8(color[3] * 255.f);
-            matData.AlbedoFactor = (a << 24) | (b << 16) | (g << 8) | r;
+            matData.AlbedoFactor = Color::Unpack((a << 24) | (b << 16) | (g << 8) | r);
 
             matData.MetallicFactor = f32(pbr.metallicFactor);
             matData.RoughnessFactor = f32(pbr.roughnessFactor);

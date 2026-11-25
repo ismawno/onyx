@@ -36,6 +36,9 @@ typedef u32 ViewMask;
 
 #include "../include/onyx/definitions.hpp"
 
+// onyx_hook_types already defines this, so we guard it so that it doesnt clash when default shaders run without hooks
+#ifndef ONYX_ENABLE_HOOKS
 static constexpr u32 NullResource = ONYX_RESOURCE_ID_MASK;
+#endif
 
 

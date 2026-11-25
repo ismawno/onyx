@@ -1861,7 +1861,7 @@ template <Dimension D> static void uploadMaterials()
             pdata.EmissiveFactor = data.EmissiveFactor.ToLinear().rgb;
             pdata.TexOffset = data.TexOffset;
             pdata.TexScale = data.TexScale;
-            pdata.AlbedoFactor = data.AlbedoFactor;
+            pdata.AlbedoFactor = data.AlbedoFactor.Pack();
             pdata.MetallicFactor = data.MetallicFactor;
             pdata.RoughnessFactor = data.RoughnessFactor;
             pdata.OcclusionStrength = data.OcclusionStrength;

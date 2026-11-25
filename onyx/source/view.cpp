@@ -260,7 +260,7 @@ template <Dimension D> void RenderView<D>::findAvailableFramebuffer()
     Graph::Queue_WaitForTracker(m_Framebuffers[pending].Tracker);
     TKIT_END_WARNING_CLOCK(Milliseconds,
                            "[ONYX][RENDER-VIEW] Waited {:.2f} ms for a new framebuffer. If you see this message often, "
-                           "consider increasing FrameBufferCount when creating this view. Right now is set to {}",
+                           "consider increasing FrameBufferCount when creating this view. Right now it is set to {}",
                            m_FrameBufferCount);
 
     m_AttachmentIndex = pending;

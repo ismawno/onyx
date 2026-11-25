@@ -107,7 +107,7 @@ Graph::CommandPool FindAvailableCommandPool()
     TKIT_END_WARNING_CLOCK(
         Milliseconds,
         "[ONYX][EXECUTION] Waited {:.2f} ms for a new command pool. If you see this message often, consider increasing "
-        ".Specs.MaxCommandPools when calling ::Initialize(). Right now is set to {}",
+        ".Specs.MaxCommandPools when calling ::Initialize(). Right now it is set to {}",
         GetSpecs().MaxCommandPools);
     return pending->Pool;
 }
