@@ -86,7 +86,9 @@ jobs:
 
       - name: Dependencies (Windows)
         if: runner.os == 'Windows'
-        run: if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y }
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y }
+          if ('${{ matrix.config.cc }}' -eq 'clang') { choco upgrade llvm -y }
 
       # the SDK brings the validation layers (and the loader and MoltenVK on macOS). on Windows the action also
       # installs lavapipe and registers it as a Vulkan driver
