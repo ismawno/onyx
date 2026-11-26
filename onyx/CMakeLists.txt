@@ -181,6 +181,15 @@ if(ONYX_ENABLE_FONT_LOAD)
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
+# msdfgen does not follow cmake's runtime library's default so we set it based on that
+  if(NOT CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+    set(MSDFGEN_DYNAMIC_RUNTIME ON)
+    set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
+  else()
+    set(MSDFGEN_DYNAMIC_RUNTIME OFF)
+    set(MSDF_ATLAS_DYNAMIC_RUNTIME OFF)
+  endif()
+
   set(MSDFGEN_CORE_ONLY
       OFF
       CACHE BOOL "")
@@ -208,9 +217,6 @@ if(ONYX_ENABLE_FONT_LOAD)
   set(MSDFGEN_INSTALL
       OFF
       CACHE BOOL "")
-  set(MSDFGEN_DYNAMIC_RUNTIME
-      OFF
-      CACHE BOOL "")
   FetchContent_MakeAvailable(msdfgen)
 
   FetchContent_Declare(
@@ -232,9 +238,6 @@ if(ONYX_ENABLE_FONT_LOAD)
       ON
       CACHE BOOL "")
   set(MSDF_ATLAS_INSTALL
-      OFF
-      CACHE BOOL "")
-  set(MSDF_ATLAS_DYNAMIC_RUNTIME
       OFF
       CACHE BOOL "")
   set(MSDF_ATLAS_MSDFGEN_EXTERNAL
