@@ -883,6 +883,8 @@ Result<> Renderer_CompileShaders(const RendererShaderCompileOptions &ropts)
     if (Graph::IsValidationEnabled())
         args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_DebugInformation));
 
+    args.Append(Graph::ShaderArgument::Create(Graph::ShaderArgument_EmitSpirvViaGLSL));
+
     TKit::StaticArray<const char *, 2> searchPaths{};
     searchPaths.Append(ONYX_SHADERS_PATH);
 #    ifdef ONYX_ENABLE_HOOKS
