@@ -37,7 +37,7 @@ constexpr usize MaxLineSize = usize(16_kib);
 constexpr usize MaxOutputSize = usize(64_kib);
 constexpr u32 MaxFailures = 64;
 constexpr u32 MaxNotes = 64;
-constexpr u32 MaxOutputLinesShown = 80;
+constexpr u32 MaxOutputLinesShown = 240;
 
 struct Failure
 {
