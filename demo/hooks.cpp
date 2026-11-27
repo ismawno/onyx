@@ -35,13 +35,6 @@ export VertexHookOutput VertexHook(const VertexHookInput input)
 }
 )";
 
-// data every hook can read. its size is fixed at initialization, and shaders read it in rows of 16 bytes
-struct HookGlobals
-{
-    f32 Time = 0.f;
-    f32 Padding[3]{};
-};
-
 int main()
 {
     Onyx::Specs specs{};
@@ -49,7 +42,7 @@ int main()
     specs.Specs2.MaxInstances = 16;
     specs.Specs2.MaxDrawCommands = 16;
     specs.Specs2.MaxBounds = 4;
-    specs.Specs2.HookGlobalsSize = sizeof(HookGlobals);
+    specs.Specs2.HookGlobalsSize = sizeof(f32);
     specs.Specs3 = Onyx::CreateEmptySpecs<D3>();
     Onyx::Initialize(specs);
     Onyx::Resources_CreateDefault<D2>();
@@ -58,8 +51,8 @@ int main()
     const Onyx::Resource vertex = Onyx::Hook_FromSource<D2>(Onyx::HookStage_Vertex, VertexHookSource);
 
     // optional: hooks also compile on first use. compiling them up front reports errors here instead
-    ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(fragment));
-    ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(vertex));
+    // ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(fragment));
+    // ONYX_CHECK_RESULT(Onyx::Hook_Precompile<D2>(vertex));
 
     Onyx::Window *win = Onyx::OpenWindow();
 
@@ -70,12 +63,12 @@ int main()
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
     ctx->AddTarget(view);
 
-    HookGlobals globals{};
+    f32 time = 0.f;
     while (Onyx::Running())
     {
-        globals.Time += Onyx::GetDeltaTime(win).AsSeconds();
+        time += Onyx::GetDeltaTime(win).AsSeconds();
         // read at Transfer(), so it must stay alive until then
-        Onyx::SetHookGlobalData<D2>(&globals);
+        Onyx::SetHookGlobalData<D2>(&time);
 
         ctx->Flush();
 
