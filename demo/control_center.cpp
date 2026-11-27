@@ -1375,8 +1375,9 @@ static void updatePanes(App &app)
 
         Onyx::RenderTexture *rt = pane.Texture;
         const u32v2 size{Math::Round(pane.ImageSize)};
+        const u32v2 rsize{Math::Round(rt->GetSize())};
         if (size[0] > 0 && size[1] > 0 &&
-            (size != rt->GetSize() || !Math::Approximately(rt->GetContentScale(), scale, Epsilon)))
+            (size != rsize || !Math::Approximately(rt->GetContentScale(), scale, Epsilon)))
             rt->Resize(size, scale);
 
         // the image may be stretched for a frame while the texture catches up, so map through the image size
@@ -5077,8 +5078,8 @@ struct SampleHook
     const char *Varying;
 };
 constexpr SampleHook SampleHooks[] = {
-    {"stripes.frag", nullptr},  {"wave.vert", "Height"},  {"height.frag", "Height"},
-    {"ripple.slang", "Ripple"}, {"toon.frag", nullptr},   {"broken.frag", nullptr},
+    {"stripes.frag", nullptr},  {"wave.vert", "Height"}, {"height.frag", "Height"},
+    {"ripple.slang", "Ripple"}, {"toon.frag", nullptr},  {"broken.frag", nullptr},
 };
 
 static const SampleHook *findSampleHook(const HookSlot &slot)
