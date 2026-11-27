@@ -403,7 +403,7 @@ ONYX_TEST(render, content_scale_multiplies_pixels,
     ctx->Quad();
 
     const Capture img = Render(rt);
-    CHECK(u32v2{rt->GetPixelSize()} == u32v2(64, 64));
+    CHECK(rt->GetPixelSize() == u32v2(64, 64));
     CHECK(img.Size == u32v2(64, 64));
     const u32 covered = img.Count(Red, 8);
     CHECK_MSG(covered > 900 && covered < 1150, "{} of 4096 pixels are red, about a quarter expected", covered);

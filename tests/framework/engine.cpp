@@ -356,7 +356,7 @@ bool UiEngine::ResizeNative(const f32v2 &size, const u32 maxFrames)
     for (u32 i = 0; i < maxFrames; ++i)
     {
         Yield();
-        if (m_Window->GetSize() == size)
+        if (Math::Approximately(m_Window->GetSize(), size, 1.f))
         {
             // the overlay sees the resize event on the next draw, and lays out for it on the one after
             Yield(3);

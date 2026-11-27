@@ -93,7 +93,7 @@ struct WindowSpecs
 {
     const char *Title = "Onyx window";
     f32v2 Position{TKIT_F32_MAX}; // f32 max means let it be decided automatically
-    f32v2 ScreenSize{800.f, 600.f};
+    u32v2 ScreenSize{800, 600}; // handed to the platform as is
     Graph::PresentMode PresentMode = Graph::PresentMode_VSync;
     WindowFlags Flags = 0;
 };
@@ -193,7 +193,7 @@ class Window final : public RenderTarget
     f32v2 GetScreenMousePosition() const
     {
         if (m_VirtualInput)
-            return f32v2{GetPosition()} + m_VirtualMouse;
+            return GetPosition() + m_VirtualMouse;
         const f32v2 screen =
             f32v2{Graph::Window_GetPosition(m_Window)} + Graph::Window_GetCursorScreenPosition(m_Window);
         return screen / getScreenFactor();
@@ -361,11 +361,11 @@ class Window final : public RenderTarget
     // the cursor is reported in screen coordinates. logical pixels are what the input queries use
     f32v2 screenToLogical(const f32v2 &screen) const
     {
-        return screen / f32v2{Graph::Window_GetScreenSize(m_Window)} * f32v2{GetSize()};
+        return screen / getScreenFactor();
     }
     f32v2 logicalToScreen(const f32v2 &logical) const
     {
-        return logical / f32v2{GetSize()} * f32v2{Graph::Window_GetScreenSize(m_Window)};
+        return logical * getScreenFactor();
     }
     void trackVirtualInput(const Event &event);
 

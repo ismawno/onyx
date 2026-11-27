@@ -7,7 +7,7 @@
 
 namespace Onyx
 {
-static Graph::Image createImage(const f32v2 &size, const f32v2 contentScale)
+static Graph::Image createImage(const u32v2 &pixelSize)
 {
     const Graph::Format srgbFmt = GetAttachmentFormat(AttachmentKind_SrgbColor);
     const Graph::Format linearFmt = GetAttachmentFormat(AttachmentKind_LinearColor);
@@ -19,7 +19,7 @@ static Graph::Image createImage(const f32v2 &size, const f32v2 contentScale)
     specs.Formats = formats;
     specs.ImageViews = views;
 
-    return Graph::Image_Create(Math::Round(size * contentScale), specs,
+    return Graph::Image_Create(pixelSize, specs,
                                Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | Graph::ImageFlag_Source |
                                    Graph::ImageFlag_Destination);
 }
@@ -38,7 +38,7 @@ RenderTexture::RenderTexture(const f32v2 &size, const RenderTextureSpecs &specs)
     TKIT_ASSERT(specs.ImageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
     FrontEndImage &img = m_Images.Append();
 
-    img.Image = createImage(size, specs.ContentScale);
+    img.Image = createImage(GetPixelSize());
     img.Texture = Texture_CreateMainRenderTexture(Graph::Image_GetView(img.Image, 0));
 
     if (Graph::IsValidationEnabled())
@@ -76,7 +76,7 @@ void RenderTexture::Resize(const f32v2 &dims, const f32v2 &contentScale)
 
     m_Images.Resize(1);
 
-    const Graph::Image newImage = createImage(dims, contentScale);
+    const Graph::Image newImage = createImage(ToPixels(dims, contentScale));
 
     Graph::CommandPool_ImmediateSubmission(GetTransientGraphicsCommandPool(), [&](const Graph::CommandBuffer cmd) {
         TKit::FixedArray<Graph::ImageMemoryBarrierInfo, 2> infos{};
@@ -196,7 +196,7 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     target.ClearValue.Color.Float32 = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, Math::Round(m_Size * m_ContentScale)};
+    info.RenderArea = {{0, 0}, GetPixelSize()};
     info.ColorAttachments = target;
     Graph::Command_BeginRenderPass(cmd, info);
 }
@@ -226,7 +226,7 @@ void RenderTexture::createSecondaryImages()
     for (u32 i = 1; i < m_ImageCount; ++i)
     {
         FrontEndImage &img = m_Images.Append();
-        img.Image = createImage(m_Size, m_ContentScale);
+        img.Image = createImage(GetPixelSize());
         img.Texture = Texture_CreateSecondaryRenderTexture(Graph::Image_GetView(img.Image, 0));
         if (Graph::IsValidationEnabled())
             nameImage(img.Image, i);

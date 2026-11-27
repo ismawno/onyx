@@ -157,7 +157,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
                 "[ONYX][VIEW] Cannot create framebuffers on a non-empty frame buffer array with {} elements",
                 m_Framebuffers.GetSize());
     const u32 maxFbs = m_FrameBufferCount;
-    const f32v2 extent = GetImageExtent();
+    const u32v2 extent = GetImageExtent();
 
     const bool outlines = m_Flags & RenderViewFlag_Outlines;
     const bool fxaa = m_Flags & RenderViewFlag_FXAA;
@@ -167,7 +167,7 @@ template <Dimension D> void RenderView<D>::createFrameBuffers()
         u32 pingPong = 0;
         Framebuffer &fb = m_Framebuffers.Append();
         for (u32 att = 0; att < AttachmentRole_Count; ++att)
-            fb.Attachments[att] = createAttachment(Math::Round(extent), AttachmentRole(att));
+            fb.Attachments[att] = createAttachment(extent, AttachmentRole(att));
 #ifdef ONYX_ENABLE_HOOKS
         for (const HookOutput &output : GetSpecs().GetSpecific<D>().HookOutputs)
             fb.HookImages.Append(
@@ -449,16 +449,16 @@ static Graph::AttachmentInfo depthAttachment(const ViewImage &image, const Graph
 }
 
 static void beginRendering(const Graph::CommandBuffer cmd, const TKit::Span<const Graph::AttachmentInfo> colors,
-                           const Graph::AttachmentInfo *depth, const f32v2 &ext, const Scissor &sc,
+                           const Graph::AttachmentInfo *depth, const u32v2 &ext, const Scissor &sc,
                            const f32v2 &contentScale)
 {
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, Math::Round(ext)};
+    info.RenderArea = {{0, 0}, ext};
     info.ColorAttachments = colors;
     info.DepthAttachment = depth;
     info.StencilAttachment = depth;
 
-    Graph::Command_SetViewport(cmd, f32v2{0.f}, ext);
+    Graph::Command_SetViewport(cmd, f32v2{0.f}, f32v2{ext});
     Graph::Command_SetScissor(cmd, Math::Round(sc.Position * contentScale), Math::Round(sc.Size * contentScale));
     Graph::Command_BeginRenderPass(cmd, info);
 }
@@ -484,7 +484,7 @@ template <Dimension D> void RenderView<D>::applyPostProcessBarriers(const Graph:
 }
 template <Dimension D> Scissor RenderView<D>::applyImageScissor() const
 {
-    const f32v2 scale = GetImageExtent() / Math::Max(m_Viewport.Size, f32v2{1.f});
+    const f32v2 scale = f32v2{GetImageExtent()} / Math::Max(m_Viewport.Size, f32v2{1.f});
     Scissor sc;
     sc.Position = m_Scissor.Position * scale;
     sc.Size = m_Scissor.Size * scale;
@@ -840,7 +840,7 @@ template <Dimension D> Result<HookReadbackTicket> RenderView<D>::RequestHookRead
                 "[ONYX][VIEW] Hook output slot {} does not exist", specs.Slot);
     TKIT_ASSERT(specs.Extent[0] != 0 && specs.Extent[1] != 0, "[ONYX][VIEW] Hook readback extent must not be empty");
 
-    [[maybe_unused]] const f32v2 extent = GetImageExtent();
+    [[maybe_unused]] const u32v2 extent = GetImageExtent();
     TKIT_ASSERT(specs.Offset[0] + specs.Extent[0] <= extent[0] && specs.Offset[1] + specs.Extent[1] <= extent[1],
                 "[ONYX][VIEW] Hook readback rect ({}, {}) + ({}, {}) exceeds the image extent ({}, {})",
                 specs.Offset[0], specs.Offset[1], specs.Extent[0], specs.Extent[1], extent[0], extent[1]);

@@ -56,9 +56,9 @@ class RenderTexture final : public RenderTarget
         return m_ContentScale;
     }
     // the size of the images in physical pixels: logical size x content scale
-    f32v2 GetPixelSize() const
+    u32v2 GetPixelSize() const
     {
-        return m_Size * m_ContentScale;
+        return ToPixels(m_Size, m_ContentScale);
     }
     usz GetBytes() const
     {

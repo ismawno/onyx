@@ -20,12 +20,12 @@ ONYX_TEST(window, reports_what_it_was_opened_with,
 {
     Onyx::Window *win = OpenTestWindow({.Size = {300, 200}, .Title = "onyx-tests window"});
     CHECK(String{win->GetTitle()} == "onyx-tests window");
-    CHECK(win->GetSize() == u32v2(300, 200));
+    CHECK_THAT(win->GetSize(), IsNear(f32v2(300.f, 200.f), 1.f));
 
     const f32v2 scale = win->GetContentScale();
     CHECK((scale[0] > 0.f && scale[1] > 0.f));
     CHECK_THAT(scale[0], IsNear(scale[1], 1e-4f));
-    CHECK_THAT(f32v2{pixelSize(win)}, IsNear(f32v2{Onyx::ApplyScale(win->GetSize(), scale)}, 1.f));
+    CHECK_THAT(f32v2{pixelSize(win)}, IsNear(win->GetSize() * scale, 1.f));
     CHECK(Onyx::Window::FromHandle(win->GetHandle()) == win);
 }
 
@@ -53,7 +53,7 @@ ONYX_TEST(window, resize_recreates_the_swapchain,
     Onyx::Window *win = OpenTestWindow({.Size = {320, 240}});
     Frame(2);
 
-    const u32v2 target{400, 300};
+    const f32v2 target{400.f, 300.f};
     win->SetSize(target);
     bool resized = false;
     bool recreated = false;
@@ -63,7 +63,7 @@ ONYX_TEST(window, resize_recreates_the_swapchain,
             resized |= event.Type == Onyx::Event_WindowResized || event.Type == Onyx::Event_FramebufferResized;
             recreated |= event.Type == Onyx::Event_SwapchainRecreated;
         }
-        return win->GetSize() == target && swapchainExtent(win) == pixelSize(win);
+        return Math::Approximately(win->GetSize(), target, 1.f) && swapchainExtent(win) == pixelSize(win);
     });
     CHECK_MSG(settled, "Size {}, framebuffer {}, swapchain {}", win->GetSize(), pixelSize(win), swapchainExtent(win));
     CHECK(resized);
@@ -146,9 +146,9 @@ ONYX_TEST(window, position_reads_back,
     if (CompositorPlacesWindows())
         SKIP("A Wayland compositor places the windows here (XWayland included), not the application");
     Onyx::Window *win = OpenTestWindow();
-    const i32v2 target{40, 60};
+    const f32v2 target{40.f, 60.f};
     win->SetPosition(target);
-    const bool moved = WaitFor([&] { return win->GetPosition() == target; });
+    const bool moved = WaitFor([&] { return Math::Approximately(win->GetPosition(), target, 1.f); });
     CHECK_MSG(moved, "Position {}, asked for {}", win->GetPosition(), target);
 }
 

@@ -746,8 +746,8 @@ Overlay::Overlay(Window *win, const OverlaySpecs &specs)
     if (win)
     {
         NativeWindow *nw = createNativeWindow(win);
-        nw->ScreenPos = f32v2{nw->Window->GetPosition()};
-        nw->Size = f32v2{nw->Window->GetSize()};
+        nw->ScreenPos = nw->Window->GetPosition();
+        nw->Size = nw->Window->GetSize();
     }
     else
     {
@@ -2751,7 +2751,7 @@ NativeWindow *Overlay::promoteWindow(OverlayWindow *win, const f32v2 &pos, const
     win->ScreenPos = f32v2{0.f};
 
     if (parent)
-        parent->ScreenPos = f32v2{parent->Window->GetPosition()};
+        parent->ScreenPos = parent->Window->GetPosition();
     if (win == m_Grabbed)
     {
         win->Native->Flags |= NativeWindowFlag_CheckParentForGrab;

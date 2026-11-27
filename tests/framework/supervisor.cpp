@@ -602,7 +602,7 @@ static const char *upperStatus(const Status status)
 }
 
 // a line in the level that fits the outcome: passes as info, skips and known issues as warnings, the rest as errors
-static void logLine(const Status status, const String &text)
+static void logLine(const Status status, [[maybe_unused]] const String &text)
 {
     // braces: the log macros are if statements themselves
     if (status == Status_Pass)

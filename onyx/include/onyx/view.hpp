@@ -12,6 +12,12 @@
 
 namespace Onyx
 {
+// we use floats for logical pixels but physical ones stay integers
+inline u32v2 ToPixels(const f32v2 &size, const f32v2 &contentScale)
+{
+    return u32v2{Math::Round(size * contentScale)};
+}
+
 TKIT_REFLECT_DECLARE_ENUM(SizingPolicy)
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(SizingPolicy)
 enum SizingPolicy : u8
@@ -417,9 +423,10 @@ template <Dimension D> class RenderView
         return info;
     }
 
-    f32v2 GetImageExtent() const
+    // the image size in physical pixels
+    u32v2 GetImageExtent() const
     {
-        return m_ImageSize * m_ContentScale;
+        return ToPixels(m_ImageSize, m_ContentScale);
     }
 
 #ifdef ONYX_ENABLE_HOOKS
@@ -466,7 +473,7 @@ template <Dimension D> class RenderView
 
     void update(const f32v2 &parentSize, const f32v2 &contentScale)
     {
-        const f32v2 oldExtent = GetImageExtent();
+        const u32v2 oldExtent = GetImageExtent();
         m_ParentSize = parentSize;
         m_ContentScale = contentScale;
         if (m_ViewportSizing == SizingPolicy_Proportional)

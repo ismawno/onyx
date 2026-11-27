@@ -50,7 +50,7 @@ bool Window::IsFullScreen() const
 bool Window::IsHovered() const
 {
     const f32v2 mpos = GetMousePosition();
-    const f32v2 size = f32v2{GetSize()};
+    const f32v2 size = GetSize();
 
     return mpos[0] >= 0.f && mpos[0] < size[0] && mpos[1] >= 0.f && mpos[1] < size[1];
 }
@@ -131,8 +131,8 @@ Window::Window(const WindowSpecs &specs)
                                       Graph::WindowFlag_ScaleToMonitor | Graph::WindowFlag_ScaleFramebuffer;
 
     m_Window = Graph::Window_Create(
-        {.Title = specs.Title, .ScreenSize = u32v2{specs.ScreenSize}, .Flags = wflags, .UserData = this});
-    if (specs.Position != f32v2{TKIT_I32_MAX} && Graph::GetPlatformBackendInfo().Platform != Graph::Platform_Wayland)
+        {.Title = specs.Title, .ScreenSize = specs.ScreenSize, .Flags = wflags, .UserData = this});
+    if (specs.Position != f32v2{TKIT_F32_MAX} && Graph::GetPlatformBackendInfo().Platform != Graph::Platform_Wayland)
         SetPosition(specs.Position);
 
     m_PresentMode = specs.PresentMode;
@@ -615,7 +615,7 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
         if (IsKeyPressed(controls.Backward))
             translation[2] += view.Scale[2] * step;
 
-        const f32v2 mpos = GetMousePosition() / f32v2{GetSize()};
+        const f32v2 mpos = GetMousePosition() / GetSize();
         const bool lookAround = IsKeyPressed(controls.ToggleLookAround);
         const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
         m_PrevMousePos = mpos;

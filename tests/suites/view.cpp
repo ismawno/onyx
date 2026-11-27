@@ -5,10 +5,12 @@
 
 using namespace OnyxTest;
 
-static bool waitForSize(Onyx::Window *win, const u32v2 &size)
+// sizes are logical floats: at a fractional content scale the window lands on whole physical pixels, so the size it
+// reports back can differ from the one asked for by a fraction of a logical pixel
+static bool waitForSize(Onyx::Window *win, const f32v2 &size)
 {
     win->SetSize(size);
-    return WaitFor([&] { return win->GetSize() == size; });
+    return WaitFor([&] { return Math::Approximately(win->GetSize(), size, 1.f); });
 }
 
 ONYX_TEST(view, proportional_viewport_follows_resizes,
@@ -50,17 +52,17 @@ ONYX_TEST(view, image_size_follows_the_viewport,
     Onyx::RenderView<D2> *rv = win->CreateRenderView<D2>(&cam);
     rv->SetProportionalViewport({.Position = {0.f, 0.f}, .Size = {0.5f, 0.5f}});
     Frame(2);
-    CHECK_THAT(f32v2{rv->GetImageSize()}, IsNear(Math::Round(rv->GetViewport().Size), 1.f));
-    CHECK(rv->GetImageExtent() == Onyx::ApplyScale(rv->GetImageSize(), win->GetContentScale()));
+    CHECK_THAT(rv->GetImageSize(), IsNear(rv->GetViewport().Size, 1e-3f));
+    CHECK(rv->GetImageExtent() == Onyx::ToPixels(rv->GetImageSize(), win->GetContentScale()));
 
     REQUIRE(waitForSize(win, {300, 300}));
     Frame(2);
-    CHECK_THAT(f32v2{rv->GetImageSize()}, IsNear(f32v2(150.f, 150.f), 1.f));
+    CHECK_THAT(rv->GetImageSize(), IsNear(f32v2(150.f, 150.f), 1.f));
 
     rv->SetFixedImageSize({64, 32});
     REQUIRE(waitForSize(win, {420, 320}));
     Frame(2);
-    CHECK(rv->GetImageSize() == u32v2(64, 32));
+    CHECK(rv->GetImageSize() == f32v2(64.f, 32.f));
 }
 
 ONYX_TEST(view, screen_world_round_trip_2d,
@@ -292,7 +294,7 @@ ONYX_TEST(view, window_views_use_the_window_scale,
     CHECK_THAT(a->GetContentScale(), IsNear(scale, 1e-5f));
     CHECK_THAT(hidden->GetContentScale(), IsNear(scale, 1e-5f));
     CHECK_THAT(b->GetContentScale(), IsNear(scale, 1e-5f));
-    CHECK(a->GetImageExtent() == Onyx::ApplyScale(a->GetImageSize(), scale));
+    CHECK(a->GetImageExtent() == Onyx::ToPixels(a->GetImageSize(), scale));
 }
 
 ONYX_TEST(view, scissors_follow_their_viewport,
@@ -308,7 +310,7 @@ ONYX_TEST(view, scissors_follow_their_viewport,
 
     rv->SetFixedScissor({.Position = {10.f, 20.f}, .Size = {30.f, 40.f}});
     win->SetSize({500, 300});
-    REQUIRE(WaitFor([&] { return win->GetSize() == u32v2(500, 300); }));
+    REQUIRE(WaitFor([&] { return Math::Approximately(win->GetSize(), f32v2(500.f, 300.f), 1.f); }));
     Frame(2);
     CHECK_THAT(rv->GetScissor().Position, IsNear(f32v2(10.f, 20.f), 1e-3f));
     CHECK_THAT(rv->GetScissor().Size, IsNear(f32v2(30.f, 40.f), 1e-3f));
