@@ -178,7 +178,8 @@ if(ONYX_ENABLE_FONT_LOAD)
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
-# msdfgen does not follow cmake's runtime library's default so we set it based on that
+  # msdfgen does not follow cmake's runtime library's default so we set it based
+  # on that
   if(NOT CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
     set(MSDFGEN_DYNAMIC_RUNTIME ON)
     set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
