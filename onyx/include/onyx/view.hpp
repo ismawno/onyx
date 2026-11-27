@@ -12,11 +12,6 @@
 
 namespace Onyx
 {
-template <TKit::Integer T> constexpr vec2<T> ApplyScale(const vec2<T> &vec, const f32v2 &contentScale)
-{
-    return vec2<T>{Math::Round(f32v2{vec} * contentScale)};
-}
-
 TKIT_REFLECT_DECLARE_ENUM(SizingPolicy)
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(SizingPolicy)
 enum SizingPolicy : u8
@@ -159,7 +154,7 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const u32v2 &size, const f32v2 &contentScale, Camera<D> *camera, const RenderViewSpecs &specs);
+    RenderView(const f32v2 &size, const f32v2 &contentScale, Camera<D> *camera, const RenderViewSpecs &specs);
     ~RenderView();
 
     f32v2 ScreenToViewport(const f32v2 &screenPos) const
@@ -245,7 +240,7 @@ template <Dimension D> class RenderView
     {
         return m_Scissor;
     }
-    const u32v2 &GetImageSize() const
+    const f32v2 &GetImageSize() const
     {
         return m_ImageSize;
     }
@@ -319,7 +314,7 @@ template <Dimension D> class RenderView
         m_Scissor = {sc.Position * m_Viewport.Size, sc.Size * m_Viewport.Size};
         m_ScissorSizing = SizingPolicy_Proportional;
     }
-    void SetFixedImageSize(const u32v2 &size)
+    void SetFixedImageSize(const f32v2 &size)
     {
         setImageSize(size);
         m_ImageSizing = SizingPolicy_Fixed;
@@ -327,7 +322,7 @@ template <Dimension D> class RenderView
     void SetProportionalImageSize(const f32v2 &size)
     {
         m_ImageSizeRatio = size;
-        setImageSize(u32v2{Math::Round(m_Viewport.Size * size)});
+        setImageSize(m_Viewport.Size * size);
         m_ImageSizing = SizingPolicy_Proportional;
     }
 
@@ -363,7 +358,7 @@ template <Dimension D> class RenderView
         return m_ViewBit;
     }
 
-    const u32v2 &GetParentSize() const
+    const f32v2 &GetParentSize() const
     {
         return m_ParentSize;
     }
@@ -422,9 +417,9 @@ template <Dimension D> class RenderView
         return info;
     }
 
-    u32v2 GetImageExtent() const
+    f32v2 GetImageExtent() const
     {
-        return ApplyScale(m_ImageSize, m_ContentScale);
+        return m_ImageSize * m_ContentScale;
     }
 
 #ifdef ONYX_ENABLE_HOOKS
@@ -439,7 +434,7 @@ template <Dimension D> class RenderView
     AntiAliasing AntiAliasingMode;
 
   private:
-    void setImageSize(const u32v2 &size)
+    void setImageSize(const f32v2 &size)
     {
         if (size == m_ImageSize)
             return;
@@ -469,9 +464,9 @@ template <Dimension D> class RenderView
     void applyPostProcessBarriers(Graph::CommandBuffer cmd) const;
     Scissor applyImageScissor() const;
 
-    void update(const u32v2 &parentSize, const f32v2 &contentScale)
+    void update(const f32v2 &parentSize, const f32v2 &contentScale)
     {
-        const u32v2 oldExtent = GetImageExtent();
+        const f32v2 oldExtent = GetImageExtent();
         m_ParentSize = parentSize;
         m_ContentScale = contentScale;
         if (m_ViewportSizing == SizingPolicy_Proportional)
@@ -506,8 +501,8 @@ template <Dimension D> class RenderView
 
     f32v2 m_ImageSizeRatio{1.f};
 
-    u32v2 m_ParentSize{};
-    u32v2 m_ImageSize{};
+    f32v2 m_ParentSize{};
+    f32v2 m_ImageSize{};
     f32v2 m_ContentScale;
 
     f32m<D> m_View = f32m<D>::Identity();

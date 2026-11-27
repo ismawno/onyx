@@ -22,7 +22,7 @@ struct RenderTextureSpecs
 class RenderTexture final : public RenderTarget
 {
   public:
-    RenderTexture(const u32v2 &dimensions, const RenderTextureSpecs &specs);
+    RenderTexture(const f32v2 &dimensions, const RenderTextureSpecs &specs);
     ~RenderTexture();
 
     void FindAvailableImages();
@@ -37,12 +37,12 @@ class RenderTexture final : public RenderTarget
 
     void MarkWriteImageInUse(const Graph::Tracker &tracker);
     void MarkReadImageInUse(const Graph::Tracker &tracker);
-    const u32v2 &GetSize() const
+    const f32v2 &GetSize() const
     {
         return m_Size;
     }
-    void Resize(const u32v2 &dims, const f32v2 &contentScale);
-    void Resize(const u32v2 &dims)
+    void Resize(const f32v2 &dims, const f32v2 &contentScale);
+    void Resize(const f32v2 &dims)
     {
         Resize(dims, m_ContentScale);
     }
@@ -56,9 +56,9 @@ class RenderTexture final : public RenderTarget
         return m_ContentScale;
     }
     // the size of the images in physical pixels: logical size x content scale
-    u32v2 GetPixelSize() const
+    f32v2 GetPixelSize() const
     {
-        return ApplyScale(m_Size, m_ContentScale);
+        return m_Size * m_ContentScale;
     }
     usz GetBytes() const
     {
@@ -83,7 +83,7 @@ class RenderTexture final : public RenderTarget
 
   private:
     void createSecondaryImages();
-    u32v2 getSize() const override
+    f32v2 getSize() const override
     {
         return m_Size;
     }
@@ -95,7 +95,7 @@ class RenderTexture final : public RenderTarget
     void drainWork() const;
 
     Resource m_Handle;
-    u32v2 m_Size;
+    f32v2 m_Size;
     f32v2 m_ContentScale;
 
     u32 m_Writable = 0;

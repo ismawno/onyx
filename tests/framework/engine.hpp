@@ -128,7 +128,7 @@ class UiEngine
     }
     // resizes the native window, as a compositor would (a tiling one does it right after mapping a window), and runs
     // frames until the new size is in. false if it never was
-    bool ResizeNative(const u32v2 &size, u32 maxFrames = 240);
+    bool ResizeNative(const f32v2 &size, u32 maxFrames = 240);
 
     // -----------------------------------------------------------------------------------------------------------------
     //  Items and windows

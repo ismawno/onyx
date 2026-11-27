@@ -130,9 +130,9 @@ Window::Window(const WindowSpecs &specs)
     const Graph::WindowFlags wflags = toGraph(specs.Flags) | Graph::WindowFlag_NoClientApi |
                                       Graph::WindowFlag_ScaleToMonitor | Graph::WindowFlag_ScaleFramebuffer;
 
-    m_Window =
-        Graph::Window_Create({.Title = specs.Title, .ScreenSize = specs.ScreenSize, .Flags = wflags, .UserData = this});
-    if (specs.Position != i32v2{TKIT_I32_MAX} && Graph::GetPlatformBackendInfo().Platform != Graph::Platform_Wayland)
+    m_Window = Graph::Window_Create(
+        {.Title = specs.Title, .ScreenSize = u32v2{specs.ScreenSize}, .Flags = wflags, .UserData = this});
+    if (specs.Position != f32v2{TKIT_I32_MAX} && Graph::GetPlatformBackendInfo().Platform != Graph::Platform_Wayland)
         SetPosition(specs.Position);
 
     m_PresentMode = specs.PresentMode;

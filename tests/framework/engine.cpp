@@ -349,7 +349,7 @@ void UiEngine::pause(const f64 milliseconds)
     Yield(frames == 0 ? 1 : frames);
 }
 
-bool UiEngine::ResizeNative(const u32v2 &size, const u32 maxFrames)
+bool UiEngine::ResizeNative(const f32v2 &size, const u32 maxFrames)
 {
     note("resize the native window to {}", size);
     m_Window->SetSize(size);

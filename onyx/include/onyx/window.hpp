@@ -45,8 +45,8 @@ struct Event
     EventType Type;
     Graph::Key Key;
 
-    i32v2 WindowPos{0};
-    u32v2 WindowSize{0};
+    f32v2 WindowPos{0};
+    f32v2 WindowSize{0};
 
     MouseState Mouse;
     CodePoint Character;
@@ -92,8 +92,8 @@ enum WindowFlagBit : WindowFlags
 struct WindowSpecs
 {
     const char *Title = "Onyx window";
-    i32v2 Position{TKIT_I32_MAX}; // i32 max means let it be decided automatically
-    u32v2 ScreenSize{800, 600};
+    f32v2 Position{TKIT_F32_MAX}; // f32 max means let it be decided automatically
+    f32v2 ScreenSize{800.f, 600.f};
     Graph::PresentMode PresentMode = Graph::PresentMode_VSync;
     WindowFlags Flags = 0;
 };
@@ -141,14 +141,14 @@ class Window final : public RenderTarget
     {
         return Graph::Window_GetTitle(m_Window);
     }
-    i32v2 GetPosition() const
+    f32v2 GetPosition() const
     {
-        return ApplyScale(Graph::Window_GetPosition(m_Window), 1.f / getScreenFactor());
+        return f32v2{Graph::Window_GetPosition(m_Window)} / getScreenFactor();
     }
-    u32v2 GetSize() const
+    f32v2 GetSize() const
     {
         const f32v2 pixels = f32v2{Graph::Window_GetPixelSize(m_Window)};
-        return u32v2{Math::Round(pixels / Graph::Window_GetContentScale(m_Window))};
+        return pixels / Graph::Window_GetContentScale(m_Window);
     }
     f32 GetAspect() const
     {
@@ -163,18 +163,18 @@ class Window final : public RenderTarget
     {
         Graph::Window_SetTitle(m_Window, title);
     }
-    void SetPosition(const i32v2 &pos)
+    void SetPosition(const f32v2 &pos)
     {
-        Graph::Window_SetPosition(m_Window, ApplyScale(pos, getScreenFactor()));
+        Graph::Window_SetPosition(m_Window, Math::Round(pos * getScreenFactor()));
     }
-    void SetSize(const u32v2 &size)
+    void SetSize(const f32v2 &size)
     {
-        Graph::Window_SetScreenSize(m_Window, ApplyScale(size, getScreenFactor()));
+        Graph::Window_SetScreenSize(m_Window, Math::Round(size * getScreenFactor()));
     }
-    void MoveAndResize(const i32v2 &pos, const u32v2 &size)
+    void MoveAndResize(const f32v2 &pos, const f32v2 &size)
     {
         const f32v2 factor = getScreenFactor();
-        Graph::Window_MoveAndResize(m_Window, ApplyScale(pos, factor), ApplyScale(size, factor));
+        Graph::Window_MoveAndResize(m_Window, Math::Round(pos * factor), Math::Round(size * factor));
     }
     void SetAspect(const u32 numer, const u32 denom)
     {
@@ -188,6 +188,15 @@ class Window final : public RenderTarget
     void SetMouseCursor(const Graph::MouseCursor cursor)
     {
         Graph::Window_SetMouseCursor(m_Window, cursor);
+    }
+
+    f32v2 GetScreenMousePosition() const
+    {
+        if (m_VirtualInput)
+            return f32v2{GetPosition()} + m_VirtualMouse;
+        const f32v2 screen =
+            f32v2{Graph::Window_GetPosition(m_Window)} + Graph::Window_GetCursorScreenPosition(m_Window);
+        return screen / getScreenFactor();
     }
 
     f32v2 GetMousePosition() const
@@ -370,7 +379,7 @@ class Window final : public RenderTarget
             return f32v2{1.f};
         return GetContentScale() * f32v2{Graph::Window_GetScreenSize(m_Window)} / f32v2{pixels};
     }
-    u32v2 getSize() const override
+    f32v2 getSize() const override
     {
         return GetSize();
     }

@@ -7,7 +7,7 @@
 
 namespace Onyx
 {
-static Graph::Image createImage(const u32v2 &size, const f32v2 contentScale)
+static Graph::Image createImage(const f32v2 &size, const f32v2 contentScale)
 {
     const Graph::Format srgbFmt = GetAttachmentFormat(AttachmentKind_SrgbColor);
     const Graph::Format linearFmt = GetAttachmentFormat(AttachmentKind_LinearColor);
@@ -19,7 +19,7 @@ static Graph::Image createImage(const u32v2 &size, const f32v2 contentScale)
     specs.Formats = formats;
     specs.ImageViews = views;
 
-    return Graph::Image_Create(ApplyScale(size, contentScale), specs,
+    return Graph::Image_Create(Math::Round(size * contentScale), specs,
                                Graph::ImageFlag_ColorAttachment | Graph::ImageFlag_Sampled | Graph::ImageFlag_Source |
                                    Graph::ImageFlag_Destination);
 }
@@ -32,7 +32,7 @@ static void nameImage(const Graph::Image img, const u32 idx)
     Graph::Image_SetViewNames(img, nview.CString());
 }
 
-RenderTexture::RenderTexture(const u32v2 &size, const RenderTextureSpecs &specs)
+RenderTexture::RenderTexture(const f32v2 &size, const RenderTextureSpecs &specs)
     : m_Size(size), m_ContentScale(specs.ContentScale), m_ImageCount(specs.ImageCount)
 {
     TKIT_ASSERT(specs.ImageCount >= 2, "[ONYX][RENDER-TEXTURE] At least two images are required for a render texture");
@@ -59,7 +59,7 @@ RenderTexture::~RenderTexture()
     }
 }
 
-void RenderTexture::Resize(const u32v2 &dims, const f32v2 &contentScale)
+void RenderTexture::Resize(const f32v2 &dims, const f32v2 &contentScale)
 {
     drainWork();
 
@@ -196,7 +196,7 @@ void RenderTexture::BeginRendering(const Graph::CommandBuffer cmd)
     target.ClearValue.Color.Float32 = ClearColor.rgba;
 
     Graph::RenderPassInfo info{};
-    info.RenderArea = {{0, 0}, ApplyScale(m_Size, m_ContentScale)};
+    info.RenderArea = {{0, 0}, Math::Round(m_Size * m_ContentScale)};
     info.ColorAttachments = target;
     Graph::Command_BeginRenderPass(cmd, info);
 }
